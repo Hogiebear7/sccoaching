@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import type { JobRunRecord, SubscriptionStatus } from "@/lib/db";
+import type { ClassCategoryRecord, JobRunRecord, SubscriptionStatus } from "@/lib/db";
 import { SUBSCRIPTION_STATUS_LABEL, SUBSCRIPTION_STATUS_STYLE } from "@/lib/membership-status";
-import { CLASS_CATEGORY_LABEL, formatRemainingSessions } from "@/lib/scheduling-status";
+import { classCategoryLabel, formatRemainingSessions } from "@/lib/scheduling-status";
 import type { ClassPressureSummary, MemberOperationalSummary } from "@/lib/staff-operations";
 
 // Locale-default toLocaleString() can render "23/6/2026" — genuinely
@@ -56,10 +56,14 @@ export function OperationsView({
   members,
   classes,
   jobRuns,
+  categories,
+  deletedLabels,
 }: {
   members: MemberOperationalSummary[];
   classes: ClassPressureSummary[];
   jobRuns: JobRunRecord[];
+  categories: ClassCategoryRecord[];
+  deletedLabels: Record<string, string>;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -226,7 +230,7 @@ export function OperationsView({
                   <p className="text-sm font-medium text-zinc-200">
                     {classRecord.title}{" "}
                     <span className="text-xs font-normal text-zinc-500">
-                      ({CLASS_CATEGORY_LABEL[classRecord.category] ?? classRecord.category})
+                      ({classCategoryLabel(categories, classRecord.category, deletedLabels)})
                     </span>
                   </p>
                 </div>
