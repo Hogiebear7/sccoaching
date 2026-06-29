@@ -1,3 +1,4 @@
+// Prototype surface (mock-data, unauthenticated) — see docs/surface-architecture.md.
 import CoachBottomNav from "@/components/admin-mobile/CoachBottomNav";
 
 export default function AdminMobileLayout({ children }: { children: React.ReactNode }) {

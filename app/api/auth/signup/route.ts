@@ -1,0 +1,221 @@
+import { NextResponse } from "next/server";
+
+import { createUser, findUserByEmail, saveProfile, saveCycleSettings, saveCyclePrivacy } from "@/lib/db";
+import { hashPassword } from "@/lib/password";
+import { signSession } from "@/lib/session";
+import {
+  isFemaleGender,
+  shouldShowSportPlayed,
+  type CyclePrivacyPreferencesRecord,
+  type CycleRegularity,
+  type CycleSettingsRecord,
+  type Gender,
+  type PrimaryGoal,
+  type ProfileRecord,
+} from "@/lib/profile-schema";
+import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
+
+const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
+const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
+
+function validatePasswordStrength(password: string): string | null {
+  if (password.length < 8) {
+    return "Password must be at least 8 characters long.";
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    return "Password must include at least one uppercase letter.";
+  }
+
+  if (!/[a-z]/.test(password)) {
+    return "Password must include at least one lowercase letter.";
+  }
+
+  if (!/[0-9]/.test(password)) {
+    return "Password must include at least one number.";
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return "Password must include at least one special character.";
+  }
+
+  return null;
+}
+
+export async function POST(request: Request) {
+  let body: unknown;
+
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { success: false, message: "Invalid JSON body." },
+      { status: 400 }
+    );
+  }
+
+  const {
+    email,
+    password,
+    fullName,
+    phone,
+    gender,
+    primaryGoal,
+    sportPlayed,
+    currentWeightKg,
+    additionalInfo,
+    cycleTrackingEnabled,
+    lastPeriodStartDate,
+    averageCycleLengthDays,
+    periodLengthDays,
+    regularity,
+    privateNotes,
+    shareCurrentPhaseWithCoach,
+    shareExactDatesWithCoach,
+    shareNotesWithCoach,
+  } = (body ?? {}) as Record<string, unknown>;
+
+  if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password.trim()) {
+    return NextResponse.json(
+      { success: false, message: "Email and password are required." },
+      { status: 400 }
+    );
+  }
+
+  const passwordError = validatePasswordStrength(password);
+
+  if (passwordError) {
+    return NextResponse.json(
+      { success: false, message: passwordError },
+      { status: 400 }
+    );
+  }
+
+  if (typeof fullName !== "string" || !fullName.trim()) {
+    return NextResponse.json(
+      { success: false, message: "Full name is required." },
+      { status: 400 }
+    );
+  }
+
+  if (typeof phone !== "string" || !phone.trim()) {
+    return NextResponse.json(
+      { success: false, message: "Phone number is required." },
+      { status: 400 }
+    );
+  }
+
+  if (typeof gender !== "string" || !GENDER_VALUES.includes(gender as Gender)) {
+    return NextResponse.json(
+      { success: false, message: "A valid gender is required." },
+      { status: 400 }
+    );
+  }
+
+  if (typeof primaryGoal !== "string" || !PRIMARY_GOAL_VALUES.includes(primaryGoal as PrimaryGoal)) {
+    return NextResponse.json(
+      { success: false, message: "A valid primary goal is required." },
+      { status: 400 }
+    );
+  }
+
+  const genderValue = gender as Gender;
+  const primaryGoalValue = primaryGoal as PrimaryGoal;
+  const sportPlayedValue = typeof sportPlayed === "string" ? sportPlayed.trim() : "";
+
+  if (shouldShowSportPlayed({ primaryGoal: primaryGoalValue }) && !sportPlayedValue) {
+    return NextResponse.json(
+      { success: false, message: "Sport played is required for a sports performance goal." },
+      { status: 400 }
+    );
+  }
+
+  if (findUserByEmail(email)) {
+    return NextResponse.json(
+      { success: false, message: "Unable to create account." },
+      { status: 400 }
+    );
+  }
+
+  const weightValue =
+    typeof currentWeightKg === "string" && currentWeightKg.trim() !== ""
+      ? Number(currentWeightKg)
+      : null;
+
+  const passwordHash = hashPassword(password);
+  const user = createUser(email, passwordHash);
+
+  const cycleEligible = isFemaleGender(genderValue);
+  const now = new Date().toISOString();
+
+  const profile: ProfileRecord = {
+    userId: user.id,
+    fullName: fullName.trim(),
+    email: user.email,
+    phone: phone.trim(),
+    gender: genderValue,
+    primaryGoal: primaryGoalValue,
+    sportPlayed: sportPlayedValue || null,
+    currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
+    additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
+    cycleTrackingEligible: cycleEligible,
+    cycleTrackingEnabled: cycleEligible ? Boolean(cycleTrackingEnabled) : false,
+    onboardingCompleted: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  saveProfile(profile);
+
+  if (cycleEligible && Boolean(cycleTrackingEnabled)) {
+    const VALID_REGULARITIES = ["Regular", "Irregular", "Unsure"];
+    const cycleSettings: CycleSettingsRecord = {
+      userId: user.id,
+      lastPeriodStartDate:
+        typeof lastPeriodStartDate === "string" && lastPeriodStartDate.trim()
+          ? lastPeriodStartDate.trim()
+          : null,
+      averageCycleLengthDays:
+        typeof averageCycleLengthDays === "string" && averageCycleLengthDays.trim() !== ""
+          ? Number(averageCycleLengthDays)
+          : null,
+      periodLengthDays:
+        typeof periodLengthDays === "string" && periodLengthDays.trim() !== ""
+          ? Number(periodLengthDays)
+          : null,
+      regularity:
+        typeof regularity === "string" && VALID_REGULARITIES.includes(regularity)
+          ? (regularity as CycleRegularity)
+          : null,
+      privateNotes:
+        typeof privateNotes === "string" && privateNotes.trim() ? privateNotes.trim() : null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    saveCycleSettings(cycleSettings);
+
+    const cyclePrivacy: CyclePrivacyPreferencesRecord = {
+      userId: user.id,
+      shareCurrentPhaseWithCoach: Boolean(shareCurrentPhaseWithCoach),
+      shareExactDatesWithCoach: Boolean(shareExactDatesWithCoach),
+      shareNotesWithCoach: Boolean(shareNotesWithCoach),
+      createdAt: now,
+      updatedAt: now,
+    };
+    saveCyclePrivacy(cyclePrivacy);
+  }
+
+  const response = NextResponse.json(
+    { success: true, message: "Account created." },
+    { status: 201 }
+  );
+
+  response.cookies.set("session", signSession({ userId: user.id }), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  return response;
+}

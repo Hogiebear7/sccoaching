@@ -1,3 +1,4 @@
+// Prototype surface (mock-data, unauthenticated) — see docs/surface-architecture.md.
 import Sidebar from "@/components/admin/Sidebar";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
