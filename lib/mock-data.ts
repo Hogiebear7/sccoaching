@@ -1,3 +1,7 @@
+// Prototype data for /app, /admin, /admin-mobile only — not wired to real
+// auth/db. See docs/surface-architecture.md before connecting any consumer
+// of this file to lib/db.ts or lib/session.ts.
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type Tier = "Basic" | "Premium" | "Elite";

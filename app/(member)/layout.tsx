@@ -1,3 +1,4 @@
+// Prototype surface (mock-data, unauthenticated) — see docs/surface-architecture.md.
 import BottomNav from "@/components/member/BottomNav";
 
 export default function MemberLayout({ children }: { children: React.ReactNode }) {

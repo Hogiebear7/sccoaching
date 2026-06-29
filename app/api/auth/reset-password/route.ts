@@ -1,0 +1,49 @@
+import { NextResponse } from "next/server";
+
+import { consumeResetToken, updateUserPassword } from "@/lib/db";
+import { hashPassword } from "@/lib/password";
+
+export async function POST(request: Request) {
+  let body: unknown;
+
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { success: false, message: "Invalid JSON body." },
+      { status: 400 }
+    );
+  }
+
+  const { token, password } = (body ?? {}) as Record<string, unknown>;
+
+  if (typeof token !== "string" || !token.trim()) {
+    return NextResponse.json(
+      { success: false, message: "Reset token is required." },
+      { status: 400 }
+    );
+  }
+
+  if (typeof password !== "string" || password.trim().length < 8) {
+    return NextResponse.json(
+      { success: false, message: "Password must be at least 8 characters." },
+      { status: 400 }
+    );
+  }
+
+  const userId = consumeResetToken(token);
+
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, message: "This reset link is invalid or has expired." },
+      { status: 400 }
+    );
+  }
+
+  updateUserPassword(userId, hashPassword(password));
+
+  return NextResponse.json(
+    { success: true, message: "Password updated. You can now log in." },
+    { status: 200 }
+  );
+}

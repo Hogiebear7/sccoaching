@@ -78,7 +78,56 @@ export default function AppDashboard() {
           </Card>
         </div>
       )}
+      {/* Ask Coach AI */}
+      <div>
+        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Coach</h2>
+        <Card className="p-0 overflow-hidden">
+          <div className="flex items-center gap-3 p-4">
+            <div className="w-12 h-12 rounded-2xl bg-teal-600/15 flex items-center justify-center flex-shrink-0">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-6 h-6 text-teal-400"
+              >
+                <path d="M12 3a7 7 0 0 0-7 7c0 2.1.93 4.09 2.54 5.43V19a2 2 0 0 0 2 2h4.92a2 2 0 0 0 2-2v-3.57A7 7 0 0 0 19 10a7 7 0 0 0-7-7z" />
+                <path d="M9.5 21h5" />
+              </svg>
+            </div>
 
+            <div className="flex-1 min-w-0">
+              <Link
+                href="/app/coach"
+                className="text-sm font-semibold text-zinc-100 hover:text-teal-300 focus:outline-none focus:text-teal-300"
+              >
+                Ask Coach AI
+              </Link>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Training, recovery, cycle & nutrition guidance
+              </p>
+            </div>
+
+            <Link
+              href="/app/coach"
+              aria-label="Open AI Coach"
+              className="text-zinc-500 hover:text-zinc-300 flex items-center justify-center"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="w-5 h-5"
+              >
+                <polyline points="9,18 15,12 9,6" />
+              </svg>
+            </Link>
+          </div>
+        </Card>
+      </div>
       {/* Last workout */}
       {lastSession && (
         <div>
