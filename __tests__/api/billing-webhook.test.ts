@@ -13,6 +13,16 @@ vi.mock("@/lib/db", () => ({
   findMembershipPlanById: mockFindMembershipPlanById,
   findSubscriptionByProviderOrderId: mockFindSubscriptionByProviderOrderId,
   saveSubscription: mockSaveSubscription,
+  // Commerce layer: no pass purchase matches in these membership scenarios,
+  // so every event falls through to the subscription path under test.
+  findPurchaseByProviderOrderId: vi.fn(() => undefined),
+  findClassPassProductById: vi.fn(() => undefined),
+  hasPaymentEvent: vi.fn(() => false),
+  recordPaymentEvent: vi.fn(),
+  savePurchase: vi.fn(),
+  appendPassLedgerEntry: vi.fn(),
+  findPassLedgerByPurchaseId: vi.fn(() => []),
+  findPassLedgerByUserId: vi.fn(() => []),
 }));
 
 const SIGNING_SECRET = "wsk_test_secret";

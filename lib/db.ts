@@ -247,6 +247,76 @@ export interface SubscriptionRecord {
   updatedAt: string;
 }
 
+// ── Commerce: purchases, pass products, webhook + entitlement ledgers ──
+//
+// Design invariants (see docs/payments-architecture.md):
+//  - PurchaseRecord is the internal order spine: one row per checkout
+//    attempt, linked to the provider by providerOrderId. Provider state is
+//    never the entitlement source of truth — a webhook flips the purchase
+//    status, and entitlements are derived from OUR records.
+//  - PaymentEventRecord is the webhook dedupe/audit ledger: a logical event
+//    key is recorded exactly once; replays are acknowledged but not applied.
+//  - PassLedgerEntryRecord is append-only. Balances are sums over entries;
+//    corrections are compensating entries, never mutations.
+
+export interface ClassPassProductRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  /** Number of class passes credited on successful payment. */
+  passCount: number;
+  priceCents: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PurchaseKind = "membership" | "pass_pack";
+export type PurchaseStatus = "pending" | "paid" | "failed" | "cancelled" | "refunded";
+
+export interface PurchaseRecord {
+  id: string;
+  userId: string;
+  kind: PurchaseKind;
+  /** MembershipPlanRecord.id or ClassPassProductRecord.id. */
+  productId: string;
+  /** Denormalized human label so audit rows survive product renames. */
+  description: string;
+  amountCents: number;
+  status: PurchaseStatus;
+  provider: BillingProvider;
+  providerOrderId: string | null;
+  /** Hosted checkout URL, kept so duplicate submits re-use it. */
+  checkoutUrl: string | null;
+  /** Duplicate-submit protection: one open purchase per key. */
+  idempotencyKey: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentEventRecord {
+  /** Logical event key, e.g. "ORDER_COMPLETED:<providerOrderId>". */
+  key: string;
+  provider: BillingProvider;
+  type: string;
+  entityId: string | null;
+  receivedAt: string;
+}
+
+export type PassLedgerReason = "purchase" | "refund_reversal" | "consume" | "staff_adjust";
+
+export interface PassLedgerEntryRecord {
+  id: string;
+  userId: string;
+  /** Positive credits, negative debits. Balance = sum of deltas. */
+  delta: number;
+  reason: PassLedgerReason;
+  /** Provenance for purchase-driven entries. */
+  purchaseId: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
 export interface RecoveryLogRecord {
   id: string;
   userId: string;
@@ -340,6 +410,10 @@ interface Database {
   coachNotes: CoachNoteRecord[];
   membershipPlans: MembershipPlanRecord[];
   subscriptions: SubscriptionRecord[];
+  classPassProducts: ClassPassProductRecord[];
+  purchases: PurchaseRecord[];
+  paymentEvents: PaymentEventRecord[];
+  passLedger: PassLedgerEntryRecord[];
   recoveryLogs: RecoveryLogRecord[];
   messages: MessageRecord[];
   notifications: NotificationRecord[];
@@ -372,6 +446,10 @@ function readDb(): Database {
       coachNotes: [],
       membershipPlans: [],
       subscriptions: [],
+      classPassProducts: [],
+      purchases: [],
+      paymentEvents: [],
+      passLedger: [],
       recoveryLogs: [],
       messages: [],
       notifications: [],
@@ -432,6 +510,10 @@ function readDb(): Database {
       extraSessionGrants: s.extraSessionGrants ?? [],
       periodLapsedNotifiedAt: s.periodLapsedNotifiedAt ?? null,
     })),
+    classPassProducts: parsed.classPassProducts ?? [],
+    purchases: parsed.purchases ?? [],
+    paymentEvents: parsed.paymentEvents ?? [],
+    passLedger: parsed.passLedger ?? [],
     recoveryLogs: parsed.recoveryLogs ?? [],
     messages: (parsed.messages ?? []).map((m) => ({ ...m, readAt: m.readAt ?? null })),
     notifications: (parsed.notifications ?? []).map((n) => ({
@@ -1163,4 +1245,74 @@ export function deletePushSubscriptionByEndpoint(userId: string, endpoint: strin
     (s) => !(s.userId === userId && s.endpoint === endpoint)
   );
   writeDb(db);
+}
+
+// ── Commerce helpers ───────────────────────────────────────────────────
+
+export function findClassPassProducts(): ClassPassProductRecord[] {
+  return readDb().classPassProducts;
+}
+
+export function findClassPassProductById(id: string): ClassPassProductRecord | undefined {
+  return readDb().classPassProducts.find((p) => p.id === id);
+}
+
+export function saveClassPassProduct(product: ClassPassProductRecord) {
+  const db = readDb();
+  const index = db.classPassProducts.findIndex((p) => p.id === product.id);
+  if (index === -1) db.classPassProducts.push(product);
+  else db.classPassProducts[index] = product;
+  writeDb(db);
+}
+
+export function findPurchaseById(id: string): PurchaseRecord | undefined {
+  return readDb().purchases.find((p) => p.id === id);
+}
+
+export function findPurchaseByProviderOrderId(orderId: string): PurchaseRecord | undefined {
+  return readDb().purchases.find((p) => p.providerOrderId === orderId);
+}
+
+export function findPurchaseByIdempotencyKey(key: string): PurchaseRecord | undefined {
+  return readDb().purchases.find((p) => p.idempotencyKey === key);
+}
+
+export function findPurchasesByUserId(userId: string): PurchaseRecord[] {
+  return readDb()
+    .purchases.filter((p) => p.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function savePurchase(purchase: PurchaseRecord) {
+  const db = readDb();
+  const index = db.purchases.findIndex((p) => p.id === purchase.id);
+  if (index === -1) db.purchases.push(purchase);
+  else db.purchases[index] = purchase;
+  writeDb(db);
+}
+
+// Webhook replay protection: true if this logical event was already applied.
+export function hasPaymentEvent(key: string): boolean {
+  return readDb().paymentEvents.some((e) => e.key === key);
+}
+
+export function recordPaymentEvent(event: PaymentEventRecord) {
+  const db = readDb();
+  if (db.paymentEvents.some((e) => e.key === event.key)) return;
+  db.paymentEvents.push(event);
+  writeDb(db);
+}
+
+export function appendPassLedgerEntry(entry: PassLedgerEntryRecord) {
+  const db = readDb();
+  db.passLedger.push(entry);
+  writeDb(db);
+}
+
+export function findPassLedgerByUserId(userId: string): PassLedgerEntryRecord[] {
+  return readDb().passLedger.filter((e) => e.userId === userId);
+}
+
+export function findPassLedgerByPurchaseId(purchaseId: string): PassLedgerEntryRecord[] {
+  return readDb().passLedger.filter((e) => e.purchaseId === purchaseId);
 }

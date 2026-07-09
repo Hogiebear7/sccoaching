@@ -2,10 +2,19 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  findClassPassProductById,
   findMembershipPlanById,
+  findPurchaseByProviderOrderId,
   findSubscriptionByProviderOrderId,
+  hasPaymentEvent,
+  recordPaymentEvent,
   saveSubscription,
 } from "@/lib/db";
+import {
+  applyPaidPassPurchase,
+  applyRefundedPassPurchase,
+  transitionPurchase,
+} from "@/lib/payments";
 import {
   isRevolutTimestampFresh,
   isRevolutWebhookConfigured,
@@ -86,6 +95,73 @@ export async function POST(request: NextRequest) {
       { success: false, message: "Malformed webhook payload." },
       { status: 400 }
     );
+  }
+
+  // ── One-off purchases (class pass packs) ─────────────────────────────
+  // Checked before the subscription path: a pass-pack order id can never be
+  // a subscription id. All outcomes acknowledge with 200 so the provider
+  // stops retrying; the event ledger is what makes replays harmless.
+  const purchase = findPurchaseByProviderOrderId(entityId);
+
+  if (purchase && purchase.kind === "pass_pack") {
+    const eventKey = `${event}:${entityId}`;
+
+    if (hasPaymentEvent(eventKey)) {
+      return NextResponse.json(
+        { success: true, message: "Event already processed." },
+        { status: 200 }
+      );
+    }
+
+    if (event === "ORDER_COMPLETED") {
+      const paid = transitionPurchase(purchase, "paid");
+      if (paid) {
+        const product = findClassPassProductById(purchase.productId);
+        // Product deleted since purchase? Credit from the denormalized
+        // record is impossible without a count — refuse silently never;
+        // fall back to the product row, which staff manage as append-only.
+        if (product) {
+          applyPaidPassPurchase(paid, product);
+        } else {
+          console.warn("[billing webhook] paid pass purchase has no product row", {
+            purchaseId: purchase.id,
+            productId: purchase.productId,
+          });
+        }
+      }
+      recordPaymentEvent({
+        key: eventKey,
+        provider: "revolut",
+        type: event,
+        entityId,
+        receivedAt: new Date().toISOString(),
+      });
+      return NextResponse.json(
+        { success: true, message: paid ? "Passes credited." : "No transition applied." },
+        { status: 200 }
+      );
+    }
+
+    if (event === "ORDER_FAILED" || event === "ORDER_PAYMENT_DECLINED") {
+      transitionPurchase(purchase, "failed");
+    } else if (event === "ORDER_CANCELLED") {
+      transitionPurchase(purchase, "cancelled");
+    } else if (event === "ORDER_REFUNDED") {
+      const refunded = transitionPurchase(purchase, "refunded");
+      if (refunded) applyRefundedPassPurchase(refunded);
+    } else {
+      // ORDER_AUTHORISED and anything else: informational for a pass pack.
+      return NextResponse.json({ success: true, message: "Event ignored." }, { status: 200 });
+    }
+
+    recordPaymentEvent({
+      key: eventKey,
+      provider: "revolut",
+      type: event,
+      entityId,
+      receivedAt: new Date().toISOString(),
+    });
+    return NextResponse.json({ success: true, message: "Purchase updated." }, { status: 200 });
   }
 
   const nextStatus = mapRevolutEventToStatus(event);
