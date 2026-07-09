@@ -356,7 +356,7 @@ export function SettingsView({
               type="button"
               onClick={handlePasswordReset}
               disabled={resetSending || resetSent}
-              className="shrink-0 rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-zinc-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-150 hover:border-white/[0.16] hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="shrink-0 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-zinc-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-150 hover:border-white/[0.16] hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {resetSending ? "Sending…" : resetSent ? "Link sent" : "Reset password"}
             </button>
@@ -376,7 +376,7 @@ export function SettingsView({
             <div className="flex items-center gap-2.5">
               <p className="text-sm font-medium text-zinc-100">{membership.planName ?? "No active plan"}</p>
               {membership.statusLabel && (
-                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] font-medium leading-none ${membership.statusIsActive ? "border-white/[0.1] bg-white/[0.05] text-zinc-300" : "border-white/[0.06] text-zinc-500"}`}>
+                <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-[3px] text-[11px] font-medium leading-none ${membership.statusIsActive ? "border-white/[0.1] bg-white/[0.05] text-zinc-300" : "border-white/[0.06] text-zinc-500"}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${membership.statusIsActive ? "bg-teal-400" : "bg-zinc-500"}`} />
                   {membership.statusLabel}
                 </span>
@@ -406,7 +406,7 @@ export function SettingsView({
               </p>
               {unitsError && <p className="mt-1 text-xs text-destructive">{unitsError}</p>}
             </div>
-            <div className="flex gap-0.5 rounded-[10px] border border-white/[0.09] bg-white/[0.03] p-0.5">
+            <div className="flex gap-0.5 rounded-lg border border-white/[0.09] bg-white/[0.03] p-0.5">
               {(["metric", "imperial"] as const).map((u) => (
                 <button
                   key={u}
@@ -449,12 +449,12 @@ export function SettingsView({
             </div>
 
             {reminderError ? (
-              <p className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <p className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {reminderError}
               </p>
             ) : null}
             {reminderSuccess ? (
-              <p className="mb-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+              <p className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
                 {reminderSuccess}
               </p>
             ) : null}
@@ -468,7 +468,7 @@ export function SettingsView({
                     key={mins}
                     type="button"
                     onClick={() => toggleTiming(mins)}
-                    className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                    className={`rounded-md border px-4 py-1.5 text-sm font-medium transition ${
                       active
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border text-muted-foreground hover:border-primary hover:text-primary"
@@ -498,7 +498,7 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={addCustomTiming}
-                className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition hover:border-primary hover:text-primary"
+                className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition hover:border-primary hover:text-primary"
               >
                 Add
               </button>
@@ -551,7 +551,7 @@ export function SettingsView({
                 type="button"
                 onClick={handleReminderSave}
                 disabled={reminderSaving}
-                className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {reminderSaving ? "Saving…" : "Save"}
               </button>
@@ -566,12 +566,12 @@ export function SettingsView({
             </p>
 
             {emailError && (
-              <p className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <p className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 {emailError}
               </p>
             )}
             {emailSuccess && (
-              <p className="mb-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
+              <p className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
                 {emailSuccess}
               </p>
             )}
@@ -612,12 +612,12 @@ export function SettingsView({
               </p>
 
               {pushError && (
-                <p className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <p className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                   {pushError}
                 </p>
               )}
               {pushSuccess && (
-                <p className="mb-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
+                <p className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
                   {pushSuccess}
                 </p>
               )}
@@ -643,7 +643,7 @@ export function SettingsView({
                     type="button"
                     disabled={pushWorking}
                     onClick={handleEnablePush}
-                    className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {pushWorking ? "Enabling…" : "Enable push notifications"}
                   </button>

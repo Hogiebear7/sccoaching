@@ -33,7 +33,7 @@ interface Props {
 export default function Badge({ variant = "basic", children, className = "" }: Props) {
   const dot = DOT_VARIANTS[variant];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] font-medium leading-none tracking-[0.01em] ${styles[variant]} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-[3px] text-[11px] font-medium leading-none tracking-[0.01em] ${styles[variant]} ${className}`}>
       {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
       {children}
     </span>

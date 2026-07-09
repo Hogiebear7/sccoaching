@@ -93,7 +93,7 @@ export function MessagesThread({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
+      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-6">
         {messages.length === 0 ? (
           <p className="text-sm text-zinc-400">No messages yet.</p>
         ) : (
@@ -107,7 +107,7 @@ export function MessagesThread({
                   className={`flex ${isOwnRole ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
+                    className={`max-w-[80%] rounded-[10px] px-4 py-3 text-sm ${
                       isOwnRole
                         ? "bg-teal-500 text-black"
                         : "border border-zinc-800 bg-zinc-900 text-zinc-100"
@@ -132,16 +132,16 @@ export function MessagesThread({
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-3xl border border-zinc-800 bg-zinc-900 p-4"
+        className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"
       >
         {formError ? (
-          <p className="mb-3 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+          <p className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
             {formError}
           </p>
         ) : null}
 
         {aiNote ? (
-          <p className="mb-3 rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm text-zinc-400">
+          <p className="mb-3 rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm text-zinc-400">
             {aiNote}
           </p>
         ) : null}
@@ -153,7 +153,7 @@ export function MessagesThread({
               setBody(e.target.value);
               setFormError(null);
             }}
-            className="min-h-[60px] flex-1 resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-500"
+            className="min-h-[60px] flex-1 resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-500"
             placeholder="Write a message…"
           />
           <div className="flex flex-col gap-2 self-end">
@@ -162,7 +162,7 @@ export function MessagesThread({
                 type="button"
                 onClick={handleDraftWithAi}
                 disabled={isDrafting}
-                className="rounded-xl border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-lg border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isDrafting ? "Drafting…" : "Draft with AI"}
               </button>
@@ -170,7 +170,7 @@ export function MessagesThread({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? "Sending…" : "Send"}
             </button>

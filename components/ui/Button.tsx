@@ -7,9 +7,9 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants = {
   primary:
-    "bg-gradient-to-b from-teal-500 to-teal-600 text-white border border-teal-700/60 " +
+    "bg-teal-500 text-white border border-teal-400/50 " +
     "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] " +
-    "hover:from-teal-400 hover:to-teal-500 active:from-teal-600 active:to-teal-600",
+    "hover:bg-teal-400 active:from-teal-600 active:to-teal-600",
   secondary:
     "border border-white/[0.1] bg-white/[0.04] text-zinc-200 " +
     "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] " +
@@ -22,8 +22,8 @@ const variants = {
 
 const sizes = {
   sm: "h-8 px-3 text-xs rounded-lg",
-  md: "h-10 px-4 text-sm rounded-[10px]",
-  lg: "h-12 px-6 text-[15px] rounded-xl",
+  md: "h-10 px-4 text-sm rounded-lg",
+  lg: "h-12 px-6 text-[15px] rounded-lg",
 };
 
 export default function Button({ variant = "primary", size = "md", className = "", children, ...props }: Props) {

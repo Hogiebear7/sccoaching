@@ -175,13 +175,13 @@ export function RecoveryView({
         </p>
 
         {formError && (
-          <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {formError}
           </p>
         )}
 
         {successMessage && (
-          <p className="mb-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+          <p className="mb-4 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             {successMessage}
           </p>
         )}
@@ -332,7 +332,7 @@ export function RecoveryView({
           <button
             type="submit"
             disabled={isSubmitting || justSaved}
-            className="inline-flex min-w-[132px] items-center justify-center gap-2 rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-90"
+            className="inline-flex min-w-[132px] items-center justify-center gap-2 rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-90"
           >
             {isSubmitting ? (
               <>
@@ -446,13 +446,13 @@ export function RecoveryView({
                     <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
                       {log.readinessScore !== null && (
                         <span
-                          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${readinessBadgeClass(log.readinessScore)}`}
+                          className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold ${readinessBadgeClass(log.readinessScore)}`}
                         >
                           Readiness {log.readinessScore}/100
                         </span>
                       )}
                       {load !== null && (
-                        <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                        <span className="rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                           Load {load}
                         </span>
                       )}
@@ -545,7 +545,7 @@ function ProgressModules({ logs }: { logs: RecoveryLogRecord[] }) {
               last 4 weeks · {mix.sessions} session{mix.sessions === 1 ? "" : "s"}
             </span>
           </div>
-          <div className="mt-4 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full">
+          <div className="mt-4 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-[3px]">
             {mix.easyPct > 0 && (
               <div className="bg-teal-400/90" style={{ width: `${mix.easyPct}%` }} />
             )}
@@ -616,7 +616,7 @@ function FormField({
 }
 
 function inputClass(hasError?: string) {
-  return `w-full rounded-xl border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
+  return `w-full rounded-lg border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
     hasError
       ? "border-destructive focus:border-destructive"
       : "border-border focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"

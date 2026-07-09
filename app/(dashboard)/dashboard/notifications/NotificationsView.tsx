@@ -97,7 +97,7 @@ export function NotificationsView({
             type="button"
             onClick={handleMarkAllRead}
             disabled={markingAll}
-            className="shrink-0 rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
+            className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
           >
             {markingAll ? "Marking…" : "Mark all read"}
           </button>
@@ -131,7 +131,7 @@ export function NotificationsView({
 
             const inner = (
               <div
-                className={`flex gap-3 rounded-2xl border p-4 transition ${
+                className={`flex gap-3 rounded-[10px] border p-4 transition ${
                   isUnread
                     ? isGold
                       ? "border-gold/25 bg-gold/5"
@@ -167,7 +167,7 @@ export function NotificationsView({
                     <div className="min-w-0">
                       {/* Type chip */}
                       <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                        className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                           isUnread
                             ? isGold
                               ? "bg-gold/15 text-gold"

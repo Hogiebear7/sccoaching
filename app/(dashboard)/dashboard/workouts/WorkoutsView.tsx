@@ -143,10 +143,10 @@ function ExerciseAutocomplete({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="e.g. Bench Press"
-        className="w-full rounded-xl border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+        className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
       />
       {open && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
           {suggestions.map((s) => (
             <button
               key={s.id}
@@ -511,7 +511,7 @@ export function WorkoutsView({
           value={lookupQuery}
           onChange={(e) => setLookupQuery(e.target.value)}
           placeholder="Search exercise history…"
-          className="w-full rounded-xl border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+          className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
         />
         {lookupQuery.trim() === "" ? (
           <p className="mt-3 text-sm text-muted-foreground">
@@ -527,7 +527,7 @@ export function WorkoutsView({
               Last performed &mdash;{" "}
               {lookupResults.length === 1 ? "1 entry" : `${lookupResults.length} entries`} found
             </p>
-            <div className="mt-2 rounded-xl border border-border bg-secondary/20 p-4">
+            <div className="mt-2 rounded-lg border border-border bg-secondary/20 p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">{latestMatch.date}</p>
@@ -559,13 +559,13 @@ export function WorkoutsView({
         </p>
 
         {formError && (
-          <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {formError}
           </p>
         )}
 
         {successMessage && (
-          <p className="mb-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+          <p className="mb-4 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             {successMessage}
           </p>
         )}
@@ -637,14 +637,14 @@ export function WorkoutsView({
               <button
                 type="button"
                 onClick={() => setExerciseRows((prev) => [...prev, newRow()])}
-                className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary"
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary"
               >
                 + Add exercise
               </button>
               <button
                 type="button"
                 onClick={() => setRunRows((prev) => [...prev, newRunRow()])}
-                className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary"
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary"
               >
                 + Add run
               </button>
@@ -652,7 +652,7 @@ export function WorkoutsView({
           </div>
 
           {exerciseRows.length === 0 && runRows.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
+            <p className="rounded-lg border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
               No entries added yet. Use the buttons above to log exercises or a run.
             </p>
           ) : (
@@ -660,7 +660,7 @@ export function WorkoutsView({
               {exerciseRows.map((row, idx) => (
                 <div
                   key={row.key}
-                  className="rounded-xl border border-border bg-secondary/20 p-4"
+                  className="rounded-lg border border-border bg-secondary/20 p-4"
                 >
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-xs font-medium text-muted-foreground">
@@ -697,7 +697,7 @@ export function WorkoutsView({
                           value={row.weight}
                           onChange={(e) => updateRow(row.key, { weight: e.target.value })}
                           placeholder="e.g. 60 kg"
-                          className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                         />
                       </div>
                       <div>
@@ -710,7 +710,7 @@ export function WorkoutsView({
                           value={row.reps}
                           onChange={(e) => updateRow(row.key, { reps: e.target.value })}
                           placeholder="e.g. 8"
-                          className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                         />
                       </div>
                       <div>
@@ -723,7 +723,7 @@ export function WorkoutsView({
                           value={row.sets}
                           onChange={(e) => updateRow(row.key, { sets: e.target.value })}
                           placeholder="e.g. 3"
-                          className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                         />
                       </div>
                     </div>
@@ -738,7 +738,7 @@ export function WorkoutsView({
                         value={row.notes}
                         onChange={(e) => updateRow(row.key, { notes: e.target.value })}
                         placeholder="e.g. Felt strong, could go heavier"
-                        className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                        className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                       />
                     </div>
                   </div>
@@ -748,7 +748,7 @@ export function WorkoutsView({
               {runRows.map((row, idx) => (
                 <div
                   key={row.key}
-                  className="rounded-xl border border-border bg-secondary/20 p-4"
+                  className="rounded-lg border border-border bg-secondary/20 p-4"
                 >
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-xs font-medium text-muted-foreground">
@@ -777,7 +777,7 @@ export function WorkoutsView({
                           value={row.distance}
                           onChange={(e) => updateRunRow(row.key, { distance: e.target.value })}
                           placeholder="e.g. 5.2"
-                          className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                         />
                       </div>
                       <div>
@@ -790,7 +790,7 @@ export function WorkoutsView({
                           value={row.duration}
                           onChange={(e) => updateRunRow(row.key, { duration: e.target.value })}
                           placeholder="e.g. 30:00"
-                          className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                         />
                       </div>
                     </div>
@@ -807,7 +807,7 @@ export function WorkoutsView({
                           value={row.reps}
                           onChange={(e) => updateRunRow(row.key, { reps: e.target.value })}
                           placeholder="e.g. 8"
-                          className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                         />
                       </div>
                       <div>
@@ -821,7 +821,7 @@ export function WorkoutsView({
                           value={row.sets}
                           onChange={(e) => updateRunRow(row.key, { sets: e.target.value })}
                           placeholder="e.g. 3"
-                          className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                         />
                       </div>
                     </div>
@@ -836,7 +836,7 @@ export function WorkoutsView({
                         value={row.notes}
                         onChange={(e) => updateRunRow(row.key, { notes: e.target.value })}
                         placeholder="e.g. Easy pace, felt good"
-                        className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                        className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                       />
                     </div>
                   </div>
@@ -850,7 +850,7 @@ export function WorkoutsView({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Saving…" : "Log workout"}
           </button>
@@ -917,7 +917,7 @@ export function WorkoutsView({
                   </div>
 
                   {session.durationMins !== null && (
-                    <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                    <span className="shrink-0 rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                       {session.durationMins} min
                     </span>
                   )}
@@ -990,7 +990,7 @@ export function WorkoutsView({
               {trackedExercises.map((name) => (
                 <span
                   key={name}
-                  className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
+                  className="flex items-center gap-1.5 rounded-md bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
                 >
                   {name}
                   <button
@@ -1023,10 +1023,10 @@ export function WorkoutsView({
                     : "Add an exercise to track…"
                 }
                 disabled={personalBests.length === 0}
-                className="w-full rounded-xl border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15 disabled:cursor-not-allowed disabled:opacity-50"
               />
               {trackOpen && filteredCandidates.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+                <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
                   {filteredCandidates.map((name) => (
                     <button
                       key={name}
@@ -1128,7 +1128,7 @@ function FormField({
 }
 
 function inputClass(hasError?: string) {
-  return `w-full rounded-xl border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
+  return `w-full rounded-lg border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
     hasError
       ? "border-destructive focus:border-destructive"
       : "border-border focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"

@@ -147,7 +147,7 @@ function Segmented<T extends string | number>({
   format: (v: T) => string;
 }) {
   return (
-    <div className={`grid gap-0.5 rounded-[10px] border border-white/[0.09] bg-white/[0.03] p-0.5`} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0,1fr))` }}>
+    <div className={`grid gap-0.5 rounded-lg border border-white/[0.09] bg-white/[0.03] p-0.5`} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0,1fr))` }}>
       {options.map((opt) => (
         <button
           key={String(opt)}
@@ -383,7 +383,7 @@ export function NutritionView({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(70%_100%_at_25%_0%,rgba(45,212,191,0.07),transparent)]" />
         <div className="relative">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(band.day)}`}>
+            <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(band.day)}`}>
               {band.label}
             </span>
             <span className="text-xs text-zinc-500 tabular-nums">Weighted 3-day load {load.toFixed(2)}</span>
@@ -500,7 +500,7 @@ export function NutritionView({
         href={`/dashboard/messages?prompt=${encodeURIComponent(aiPrompt)}`}
         className="panel hover-lift flex items-center gap-4 p-4"
       >
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-teal-500/25 bg-teal-500/10">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-teal-500/25 bg-teal-500/10">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5 text-teal-300">
             <path d="M12 3a7 7 0 0 0-7 7c0 2.1.93 4.09 2.54 5.43V19a2 2 0 0 0 2 2h4.92a2 2 0 0 0 2-2v-3.57A7 7 0 0 0 19 10a7 7 0 0 0-7-7z" />
             <path d="M9.5 21h5" />
@@ -574,7 +574,7 @@ export function NutritionView({
                       type="button"
                       onClick={() => applyRunPreset(preset.km)}
                       aria-pressed={runKm === preset.km}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] font-medium tabular-nums transition-[background-color,color,border-color] duration-150 active:scale-[0.97] ${
+                      className={`rounded-md border px-3 py-1.5 text-[11px] font-medium tabular-nums transition-[background-color,color,border-color] duration-150 active:scale-[0.97] ${
                         runKm === preset.km
                           ? "border-teal-500/40 bg-teal-500/[0.12] text-teal-300"
                           : "border-white/[0.1] bg-white/[0.04] text-zinc-400 hover:border-white/[0.14] hover:text-zinc-200"
@@ -611,7 +611,7 @@ export function NutritionView({
               <div>
                 <p className="label-caps mb-2 text-[10px]">{sportCfg.runMode ? "Run duration" : "Session length"}</p>
                 {sportCfg.runMode ? (
-                  <div className="rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-center">
+                  <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-center">
                     <p className="text-sm font-semibold text-zinc-100 tabular-nums">≈ {durationInfo.mins} min</p>
                     <p className="text-[10px] text-zinc-600">from distance & effort</p>
                   </div>
@@ -699,7 +699,7 @@ export function NutritionView({
           <div className="border-t border-white/[0.06] p-5">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium ${
                   drink.sodiumBadge === "optimal"
                     ? "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
                     : drink.sodiumBadge === "high"
@@ -768,7 +768,7 @@ export function NutritionView({
                   const open = openBenefit === item.name;
                   const detailId = `benefit-${item.name.toLowerCase().replace(/[^a-z]+/g, "-")}`;
                   return (
-                    <div key={item.name} className="rounded-xl border border-white/[0.08] bg-white/[0.03]">
+                    <div key={item.name} className="rounded-lg border border-white/[0.08] bg-white/[0.03]">
                       <button
                         type="button"
                         onClick={() => setOpenBenefit(open ? null : item.name)}
@@ -779,7 +779,7 @@ export function NutritionView({
                         <span>
                           <span className="text-[13px] font-semibold text-zinc-100">{item.name}</span>
                           <span
-                            className={`ml-2 rounded-full border px-2 py-0.5 align-middle text-[10px] font-medium ${
+                            className={`ml-2 rounded-md border px-2 py-0.5 align-middle text-[10px] font-medium ${
                               item.tag === "Electrolyte"
                                 ? "border-gold/30 bg-gold/[0.08] text-gold"
                                 : "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"

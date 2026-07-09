@@ -303,13 +303,13 @@ export function ProfileForm({
         </div>
 
         {formError ? (
-          <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {formError}
           </p>
         ) : null}
 
         {successMessage ? (
-          <p className="mb-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+          <p className="mb-4 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             {successMessage}
           </p>
         ) : null}
@@ -449,7 +449,7 @@ export function ProfileForm({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Saving…" : "Save changes"}
           </button>
@@ -486,14 +486,14 @@ export function ProfileForm({
           <button
             type="submit"
             disabled={bwSubmitting}
-            className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 sm:shrink-0"
+            className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-3 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 sm:shrink-0"
           >
             {bwSubmitting ? "Logging…" : "Log weight"}
           </button>
         </form>
 
         {bwError ? (
-          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {bwError}
           </p>
         ) : null}
@@ -511,7 +511,7 @@ export function ProfileForm({
                   key={value}
                   type="button"
                   onClick={() => setBwFilter(value)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                  className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
                     bwFilter === value
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border text-muted-foreground hover:border-primary hover:text-primary"
@@ -631,7 +631,7 @@ function FormField({
 }
 
 function inputClass(hasError?: string) {
-  return `w-full rounded-xl border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
+  return `w-full rounded-lg border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
     hasError
       ? "border-destructive focus:border-destructive"
       : "border-border focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"

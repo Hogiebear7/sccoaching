@@ -90,8 +90,8 @@ export default async function DashboardLayout({
           </nav>
 
           <div className="px-3 pb-4">
-            <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-teal-500 to-teal-600 text-[11px] font-semibold text-white ring-1 ring-white/15">
+            <div className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-teal-500 text-[11px] font-semibold text-white ring-1 ring-white/15">
                 {initials}
               </div>
               <div className="min-w-0">
@@ -128,7 +128,7 @@ export default async function DashboardLayout({
                       ? `Notifications — ${unreadNotifications} unread`
                       : "Notifications"
                   }
-                  className="relative flex h-9 w-9 items-center justify-center rounded-[10px] border border-white/[0.1] bg-white/[0.05] text-zinc-400 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100"
+                  className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] text-zinc-400 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100"
                 >
                   <svg
                     viewBox="0 0 24 24"
@@ -151,7 +151,7 @@ export default async function DashboardLayout({
                 <Link
                   href="/dashboard/settings"
                   aria-label="Settings"
-                  className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-white/[0.1] bg-white/[0.05] text-zinc-400 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] text-zinc-400 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100"
                 >
                   <svg
                     viewBox="0 0 24 24"
@@ -170,7 +170,7 @@ export default async function DashboardLayout({
                 {user?.role === "staff" ? (
                   <Link
                     href="/staff/classes"
-                    className="hidden rounded-[10px] border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100 sm:block"
+                    className="hidden rounded-lg border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100 sm:block"
                   >
                     Staff area
                   </Link>
@@ -179,7 +179,7 @@ export default async function DashboardLayout({
                 <form action="/api/auth/logout" method="POST">
                   <button
                     type="submit"
-                    className="rounded-[10px] border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100"
+                    className="rounded-lg border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100"
                   >
                     Log out
                   </button>
@@ -188,7 +188,7 @@ export default async function DashboardLayout({
                 <Link
                   href="/dashboard/profile"
                   aria-label="Edit profile"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-b from-teal-500 to-teal-600 text-[11px] font-semibold text-white ring-1 ring-white/15 transition-transform duration-150 active:scale-95 lg:hidden"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-500 text-[11px] font-semibold text-white ring-1 ring-white/15 transition-transform duration-150 active:scale-95 lg:hidden"
                 >
                   {initials}
                 </Link>

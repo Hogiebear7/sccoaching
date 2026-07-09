@@ -269,7 +269,7 @@ export default function SignupPage() {
     <main className="relative min-h-screen bg-zinc-950 px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,rgba(45,212,191,0.06),transparent)]">
       <div className="mx-auto w-full max-w-5xl">
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+          <aside className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
             {/* Long brand name in a 280px column — tighter tracking keeps it on one line */}
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
               {BRAND_NAME}
@@ -288,7 +288,7 @@ export default function SignupPage() {
                   <div
                     key={title}
                     aria-current={active ? "step" : undefined}
-                    className={`rounded-2xl border px-4 py-3 transition ${
+                    className={`rounded-[10px] border px-4 py-3 transition ${
                       active
                         ? "border-primary bg-primary/10"
                         : complete
@@ -346,7 +346,7 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+              <div className="h-2 overflow-hidden rounded-[3px] bg-zinc-800">
                 <div
                   className="h-full rounded-full bg-primary transition-all duration-300"
                   style={{ width: `${((step + 1) / totalSteps) * 100}%` }}
@@ -583,7 +583,7 @@ export default function SignupPage() {
                     All information is private to you unless you choose to share it.
                   </p>
 
-                  <label className="flex items-start gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                  <label className="flex items-start gap-3 rounded-[10px] border border-zinc-800 bg-zinc-950 p-4">
                     <input
                       type="checkbox"
                       checked={values.cycleTrackingEnabled}
@@ -605,7 +605,7 @@ export default function SignupPage() {
                     </span>
                   </label>
 
-                  <label className="flex items-start gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                  <label className="flex items-start gap-3 rounded-[10px] border border-zinc-800 bg-zinc-950 p-4">
                     <input
                       type="checkbox"
                       checked={values.menopauseSupportEnabled}
@@ -715,7 +715,7 @@ export default function SignupPage() {
                         </FormField>
                       </div>
 
-                      <div className="md:col-span-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                      <div className="md:col-span-2 rounded-[10px] border border-zinc-800 bg-zinc-950 p-4">
                         <p className="mb-3 text-sm font-medium text-zinc-100">
                           Coach sharing preferences
                         </p>
@@ -767,7 +767,7 @@ export default function SignupPage() {
                   </div>
 
                   {formError ? (
-                    <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                    <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
                       {formError}
                     </p>
                   ) : null}
@@ -848,7 +848,7 @@ export default function SignupPage() {
                   type="button"
                   onClick={goBack}
                   disabled={!mounted || step === 0}
-                  className="rounded-xl border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-lg border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Back
                 </button>
@@ -859,7 +859,7 @@ export default function SignupPage() {
                       type="button"
                       onClick={goNext}
                       disabled={!mounted}
-                      className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2.5 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       Next
                     </button>
@@ -868,7 +868,7 @@ export default function SignupPage() {
                       type="button"
                       onClick={handleSubmit}
                       disabled={!mounted || isSubmitting}
-                      className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2.5 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSubmitting ? "Creating account…" : "Create account"}
                     </button>
@@ -955,7 +955,7 @@ function ReviewCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+    <div className="rounded-[10px] border border-zinc-800 bg-zinc-950 p-4">
       <h4 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">
         {title}
       </h4>
@@ -974,7 +974,7 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 }
 
 function inputClass(hasError?: string) {
-  return `w-full rounded-xl border bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
+  return `w-full rounded-lg border bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
     hasError
       ? "border-red-500 focus:border-red-400"
       : "border-zinc-800 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"

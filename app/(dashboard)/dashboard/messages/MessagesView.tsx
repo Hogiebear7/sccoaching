@@ -29,7 +29,7 @@ export function MessagesView({
 
   return (
     <div className="space-y-4">
-      <div className="flex w-fit gap-0.5 rounded-[10px] border border-white/[0.09] bg-white/[0.03] p-0.5">
+      <div className="flex w-fit gap-0.5 rounded-lg border border-white/[0.09] bg-white/[0.03] p-0.5">
         <button
           type="button"
           onClick={() => setTab("ai")}

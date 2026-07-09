@@ -79,12 +79,12 @@ export function BookingsView({
       </div>
 
       {successMessage ? (
-        <p className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+        <p className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
           {successMessage}
         </p>
       ) : null}
 
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="text-lg font-semibold">Upcoming</h3>
 
         {upcomingBookings.length === 0 ? (
@@ -115,7 +115,7 @@ export function BookingsView({
       </div>
 
       {pastBookings.length > 0 ? (
-        <div className="rounded-3xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Past</h3>
           <div className="mt-5 space-y-3">
             {pastBookings.map((booking) => (
@@ -161,7 +161,7 @@ function BookingCard({
             </span>
           ) : (
             <span
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              className={`rounded-md px-3 py-1 text-xs font-semibold ${
                 booking.attended
                   ? "bg-primary/15 text-primary"
                   : "bg-muted text-muted-foreground"
@@ -170,7 +170,7 @@ function BookingCard({
               {booking.attended ? "Attended" : "Not checked in"}
             </span>
           )}
-          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+          <span className="rounded-md bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
             {booking.durationMins} min
           </span>
 
@@ -179,7 +179,7 @@ function BookingCard({
               type="button"
               onClick={onCancel}
               disabled={isCancelling}
-              className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isCancelling ? "Cancelling…" : "Cancel"}
             </button>
@@ -200,7 +200,7 @@ function BookingCard({
       ) : null}
 
       {error ? (
-        <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
         </p>
       ) : null}

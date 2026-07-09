@@ -160,7 +160,7 @@ export function AiChat({
   if (!configured) {
     return (
       <div className="panel p-8 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.03] text-zinc-500">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[10px] border border-white/[0.07] bg-white/[0.03] text-zinc-500">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
             <path d="M12 3a7 7 0 0 0-7 7c0 2.1.93 4.09 2.54 5.43V19a2 2 0 0 0 2 2h4.92a2 2 0 0 0 2-2v-3.57A7 7 0 0 0 19 10a7 7 0 0 0-7-7z" />
             <path d="M9.5 21h5" />
@@ -282,7 +282,7 @@ export function AiChat({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(70%_100%_at_25%_0%,rgba(45,212,191,0.07),transparent)]" />
         <div className="relative flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-teal-500/25 bg-teal-500/10">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-teal-500/25 bg-teal-500/10">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5 text-teal-300">
                 <path d="M12 3a7 7 0 0 0-7 7c0 2.1.93 4.09 2.54 5.43V19a2 2 0 0 0 2 2h4.92a2 2 0 0 0 2-2v-3.57A7 7 0 0 0 19 10a7 7 0 0 0-7-7z" />
                 <path d="M9.5 21h5" />
@@ -300,7 +300,7 @@ export function AiChat({
             <div className="flex flex-wrap items-center gap-1.5">
               {context && (
                 <>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(context.tierLabel)}`}>
+                  <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(context.tierLabel)}`}>
                     Today · {context.tierLabel}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
@@ -349,7 +349,7 @@ export function AiChat({
       >
         {messages.length === 0 ? (
           <div className="py-6 text-center">
-            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.03] text-zinc-500 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[10px] border border-white/[0.07] bg-white/[0.03] text-zinc-500 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
@@ -380,9 +380,9 @@ export function AiChat({
             return (
               <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  className={`max-w-[85%] rounded-[10px] px-4 py-3 text-sm leading-relaxed ${
                     isUser
-                      ? `rounded-br-md bg-gradient-to-b from-teal-500 to-teal-600 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)] ${msg.pending ? "opacity-70" : ""}`
+                      ? `rounded-br-md bg-teal-500 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)] ${msg.pending ? "opacity-70" : ""}`
                       : "rounded-bl-md border border-white/[0.05] bg-white/[0.05] text-zinc-100"
                   }`}
                 >
@@ -407,7 +407,7 @@ export function AiChat({
         {/* Waiting indicator before the first token arrives */}
         {isSending && !messages.some((m) => m.streaming) && (
           <div className="flex justify-start">
-            <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-white/[0.05] bg-white/[0.05] px-4 py-3">
+            <div className="flex items-center gap-2 rounded-[10px] rounded-bl-md border border-white/[0.05] bg-white/[0.05] px-4 py-3">
               <span className="flex items-center gap-1">
                 {[0, 1, 2].map((i) => (
                   <span
@@ -426,7 +426,7 @@ export function AiChat({
       {/* Composer */}
       <form onSubmit={handleSend} className="border-t border-white/[0.06] p-4">
         {error ? (
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5">
             <p className="text-sm text-destructive">{error}</p>
             {input.trim() && !isSending && (
               <button
@@ -460,7 +460,7 @@ export function AiChat({
           <button
             type="submit"
             disabled={isSending || !input.trim()}
-            className="self-end rounded-[10px] border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0"
+            className="self-end rounded-lg border border-teal-400/50 bg-teal-500 px-4 py-2.5 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0"
           >
             {isSending ? "…" : "Send"}
           </button>

@@ -28,7 +28,7 @@ type PrivacyState = {
 };
 
 function inputClass() {
-  return "w-full rounded-xl border border-border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15";
+  return "w-full rounded-lg border border-border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15";
 }
 
 export function CycleView({
@@ -189,7 +189,7 @@ export function CycleView({
 
       {/* Phase guidance card — shown when cycle tracking is enabled and data exists */}
       {cycleTrackingEnabled && phaseEstimate.phase !== "Unknown" && (
-        <div className="rounded-3xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-lg font-semibold">
               Estimated phase: {phaseEstimate.phaseLabel}
@@ -204,7 +204,7 @@ export function CycleView({
           <p className="mt-3 text-sm text-foreground">{phaseEstimate.explanation}</p>
 
           {phaseEstimate.confidence === "low" && (
-            <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-300">
+            <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-300">
               Your cycle regularity is set to irregular or unsure — treat this estimate as a
               rough reference only. Individual experience varies significantly.
             </p>
@@ -226,7 +226,7 @@ export function CycleView({
 
       {/* Phase prompt — shown when cycle tracking is enabled but no data yet */}
       {cycleTrackingEnabled && phaseEstimate.phase === "Unknown" && (
-        <div className="rounded-3xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Estimated phase</h3>
           <p className="mt-2 text-sm text-muted-foreground">
             Add your cycle information below to see a phase estimate. All information is private
@@ -237,7 +237,7 @@ export function CycleView({
 
       {/* Menopause support card — shown when preference is enabled */}
       {menopauseEnabled && (
-        <div className="rounded-3xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-lg font-semibold">Menopause support</h3>
             <span className="text-xs text-muted-foreground">Educational content only — not medical advice</span>
@@ -265,7 +265,7 @@ export function CycleView({
         </div>
       )}
 
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="text-lg font-semibold">Cycle information</h3>
         <p className="mt-2 text-sm text-muted-foreground">
           These details are private to you unless you choose to share them below.
@@ -354,13 +354,13 @@ export function CycleView({
           </label>
 
           {settingsError ? (
-            <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {settingsError}
             </p>
           ) : null}
 
           {settingsSuccess ? (
-            <p className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+            <p className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
               {settingsSuccess}
             </p>
           ) : null}
@@ -369,7 +369,7 @@ export function CycleView({
             <button
               type="submit"
               disabled={isSubmittingSettings}
-              className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmittingSettings ? "Saving…" : "Save settings"}
             </button>
@@ -377,7 +377,7 @@ export function CycleView({
         </form>
       </div>
 
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="text-lg font-semibold">Coach sharing preferences</h3>
         <p className="mt-2 text-sm text-muted-foreground">
           All options are off by default. Nothing is shared unless you explicitly turn it on. You
@@ -407,13 +407,13 @@ export function CycleView({
           </div>
 
           {privacyError ? (
-            <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {privacyError}
             </p>
           ) : null}
 
           {privacySuccess ? (
-            <p className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+            <p className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
               {privacySuccess}
             </p>
           ) : null}
@@ -422,7 +422,7 @@ export function CycleView({
             <button
               type="submit"
               disabled={isSubmittingPrivacy}
-              className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmittingPrivacy ? "Saving…" : "Save sharing preferences"}
             </button>
@@ -430,7 +430,7 @@ export function CycleView({
         </form>
       </div>
       {/* Menopause preference toggle */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="text-lg font-semibold">Preferences</h3>
         <p className="mt-2 text-sm text-muted-foreground">
           You can change these at any time. They are private to you.
@@ -449,7 +449,7 @@ export function CycleView({
               type="button"
               onClick={() => handleSaveMenopause(!menopauseEnabled)}
               disabled={isSubmittingMenopause}
-              className={`shrink-0 rounded-xl border px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`shrink-0 rounded-lg border px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                 menopauseEnabled
                   ? "border-primary bg-primary/20 text-primary hover:bg-primary/30"
                   : "border-border bg-muted text-muted-foreground hover:bg-muted/80"
@@ -461,12 +461,12 @@ export function CycleView({
         </div>
 
         {menopauseError && (
-          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {menopauseError}
           </p>
         )}
         {menopauseSuccess && (
-          <p className="mt-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+          <p className="mt-3 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             {menopauseSuccess}
           </p>
         )}

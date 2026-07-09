@@ -116,16 +116,16 @@ export function ProgrammeForm({ programme }: { programme?: ProgrammeRecord }) {
 
       <form
         onSubmit={handleSubmit}
-        className="panel rounded-3xl p-6"
+        className="panel rounded-xl p-6"
       >
         {formError ? (
-          <p className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
             {formError}
           </p>
         ) : null}
 
         {successMessage ? (
-          <p className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          <p className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
             {successMessage}
           </p>
         ) : null}
@@ -271,7 +271,7 @@ export function ProgrammeForm({ programme }: { programme?: ProgrammeRecord }) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting
               ? "Saving…"
@@ -304,7 +304,7 @@ function FormField({
 }
 
 function inputClass(hasError?: string) {
-  return `w-full rounded-xl border bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
+  return `w-full rounded-lg border bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
     hasError
       ? "border-red-500 focus:border-red-400"
       : "border-zinc-800 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"

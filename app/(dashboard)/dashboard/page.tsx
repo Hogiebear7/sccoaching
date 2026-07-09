@@ -206,8 +206,11 @@ export default async function DashboardPage() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-teal-950/70 via-teal-950/25 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[radial-gradient(85%_100%_at_50%_0%,rgba(45,212,191,0.14),transparent)]" />
         <div className="relative">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-teal-200/70">{today}</p>
-          <h1 className="text-display mt-1 text-[28px] leading-tight">Hi {firstName}.</h1>
+          <p className="flex items-center gap-2">
+            <span aria-hidden="true" className="h-3 w-[3px] rounded-[1px] bg-teal-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-teal-200/70">{today}</span>
+          </p>
+          <h1 className="title-athletic mt-2.5 text-[26px] leading-none">Hi {firstName}</h1>
           <p className="mt-2 text-sm text-zinc-400">Ready when you are.</p>
         </div>
       </div>
@@ -229,7 +232,7 @@ export default async function DashboardPage() {
                     <span className="text-sm text-zinc-500">/100</span>
                     {delta !== null && delta !== 0 && (
                       <span
-                        className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+                        className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
                           delta > 0
                             ? "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
                             : "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
@@ -343,7 +346,7 @@ export default async function DashboardPage() {
           <div className="border-t border-white/[0.06] p-3">
             <Link
               href="/dashboard/schedule"
-              className="flex w-full items-center justify-center rounded-[10px] border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px"
+              className="flex w-full items-center justify-center rounded-lg border border-teal-400/50 bg-teal-500 py-2.5 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px"
             >
               {nextBooking ? "View schedule" : "Book a session"}
             </Link>
@@ -372,12 +375,12 @@ export default async function DashboardPage() {
                 <p className="mt-0.5 text-xs text-zinc-500">Choose a plan to start booking sessions</p>
               ) : null}
             </div>
-            <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium ${membershipBadgeClass}`}>
+            <span className={`shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium ${membershipBadgeClass}`}>
               {membershipBadgeLabel}
             </span>
           </Link>
           <Link href="/dashboard/messages" className="flex items-center gap-4 px-5 py-4 transition-colors duration-150 hover:bg-white/[0.02]">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-teal-500/20 bg-teal-500/10">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-teal-500/20 bg-teal-500/10">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-teal-300">
                 <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
@@ -399,7 +402,7 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-2 gap-2.5">
           {quickActions.map(({ href, icon, label, hint }) => (
             <Link key={href} href={href} className="panel hover-lift flex h-full flex-col gap-3 p-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.05]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.09] bg-white/[0.05]">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-teal-300">
                   <path d={icon} />
                 </svg>

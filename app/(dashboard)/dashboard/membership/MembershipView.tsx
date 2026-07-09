@@ -180,7 +180,7 @@ export function MembershipView({
                 <p className="mt-2 text-xl font-semibold tracking-tight">{currentPlanName}</p>
               </div>
               <span
-                className={`shrink-0 text-[11px] rounded-full px-2.5 py-1 font-medium border ${statusBadgeClass(subscriptionStatus, periodLapsed, pendingIsStale)}`}
+                className={`shrink-0 text-[11px] rounded-md px-2.5 py-1 font-medium border ${statusBadgeClass(subscriptionStatus, periodLapsed, pendingIsStale)}`}
               >
                 {statusBadgeLabel(subscriptionStatus, periodLapsed, pendingIsStale)}
               </span>
@@ -188,7 +188,7 @@ export function MembershipView({
 
             {/* Alert: period lapsed */}
             {periodLapsed && (
-              <div className="mt-3 flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
                 <WarningIcon />
                 <span>
                   Your billing period ended on{" "}
@@ -204,7 +204,7 @@ export function MembershipView({
 
             {/* Alert: checkout expired */}
             {pendingIsStale && (
-              <div className="mt-3 flex items-start gap-2 rounded-xl border border-border bg-muted p-3 text-xs text-muted-foreground">
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-border bg-muted p-3 text-xs text-muted-foreground">
                 <ClockIcon />
                 <span>Your checkout session expired. Retry below to start a new one.</span>
               </div>
@@ -212,7 +212,7 @@ export function MembershipView({
 
             {/* Alert: past due */}
             {subscriptionStatus === "past_due" && !periodLapsed && (
-              <div className="mt-3 flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
                 <WarningIcon />
                 <span>
                   Your last payment failed. Update your payment method to keep your sessions.
@@ -314,12 +314,12 @@ export function MembershipView({
 
       {/* Action banners */}
       {formError && (
-        <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {formError}
         </p>
       )}
       {successMessage && (
-        <p className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+        <p className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
           {successMessage}
         </p>
       )}
@@ -362,7 +362,7 @@ export function MembershipView({
               return (
                 <div
                   key={plan.id}
-                  className={`rounded-2xl border p-5 shadow-[var(--shadow-card)] ${planCardClass(isCurrent, subscriptionStatus, periodLapsed)}`}
+                  className={`rounded-[10px] border p-5 shadow-[var(--shadow-card)] ${planCardClass(isCurrent, subscriptionStatus, periodLapsed)}`}
                 >
                   {/* Header: name left, price right */}
                   <div className="flex items-start justify-between gap-3">
@@ -380,18 +380,18 @@ export function MembershipView({
 
                   {/* Pills: sessions + categories */}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+                    <span className="rounded-md bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                       {formatSessionAllowance(plan.monthlySessionAllowance)}
                     </span>
                     {plan.allowedCategories.length === 0 ? (
-                      <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                      <span className="rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                         All class types
                       </span>
                     ) : (
                       plan.allowedCategories.map((category) => (
                         <span
                           key={category}
-                          className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground"
+                          className="rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground"
                         >
                           {classCategoryLabel(categories, category, deletedLabels)}
                         </span>
@@ -405,10 +405,10 @@ export function MembershipView({
                       type="button"
                       onClick={() => handleSelect(plan.id)}
                       disabled={isLockedIn || selectingId === plan.id}
-                      className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                      className={`w-full rounded-lg px-4 py-2 text-sm font-semibold transition ${
                         isLockedIn
                           ? "cursor-not-allowed bg-secondary text-secondary-foreground opacity-70"
-                          : "border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                          : "border border-teal-400/50 bg-teal-500 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
                       }`}
                     >
                       {buttonLabel}

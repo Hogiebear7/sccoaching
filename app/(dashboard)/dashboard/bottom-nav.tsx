@@ -33,16 +33,16 @@ export function BottomNavBar() {
   const slotPct = 100 / TABS.length;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-safe lg:hidden">
-      <ul className="relative mx-auto mb-3 flex max-w-2xl items-center rounded-2xl border border-white/[0.1] bg-zinc-950/90 px-1 py-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.35),0_20px_56px_-12px_rgba(0,0,0,0.65),inset_0_1px_0_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
-        {/* Sliding active pill — glides between equal-width slots. */}
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/[0.1] bg-zinc-950/95 pb-safe shadow-[0_-8px_32px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:hidden">
+      <ul className="relative mx-auto flex max-w-2xl items-stretch">
+        {/* Sliding active indicator — a blue instrument bar along the top edge. */}
         {activeIdx >= 0 && (
           <span
             aria-hidden="true"
-            className="absolute bottom-1.5 top-1.5 rounded-xl bg-blue-400/[0.12] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07)] transition-[left] duration-200 ease-out"
+            className="absolute -top-px h-[2px] rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)] transition-[left] duration-200 ease-out"
             style={{
-              left: `calc(0.25rem + ${activeIdx * slotPct}% - ${activeIdx * 0.1}rem)`,
-              width: `calc(${slotPct}% - 0.4rem)`,
+              left: `calc(${activeIdx * slotPct}% + ${slotPct / 4}%)`,
+              width: `${slotPct / 2}%`,
             }}
           />
         )}
@@ -50,13 +50,13 @@ export function BottomNavBar() {
           const active = idx === activeIdx;
           void exact;
           return (
-            <li key={href} className="relative z-10 flex-1">
+            <li key={href} className="flex-1">
               <Link
                 href={href}
-                className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[10px] transition-[color,transform] duration-150 active:scale-95 ${
+                className={`flex flex-col items-center gap-1 px-2 pb-2 pt-2.5 text-[9px] uppercase tracking-[0.1em] transition-[color,transform] duration-150 active:scale-95 ${
                   active
-                    ? "font-semibold text-blue-300"
-                    : "font-medium text-zinc-500 hover:text-zinc-300"
+                    ? "font-bold text-blue-300"
+                    : "font-semibold text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 <svg
