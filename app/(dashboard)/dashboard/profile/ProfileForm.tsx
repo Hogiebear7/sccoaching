@@ -449,7 +449,7 @@ export function ProfileForm({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Saving…" : "Save changes"}
           </button>
@@ -486,7 +486,7 @@ export function ProfileForm({
           <button
             type="submit"
             disabled={bwSubmitting}
-            className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-3 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 sm:shrink-0"
+            className="btn-primary px-5 py-3 disabled:cursor-not-allowed disabled:opacity-60 sm:shrink-0"
           >
             {bwSubmitting ? "Logging…" : "Log weight"}
           </button>
@@ -511,7 +511,7 @@ export function ProfileForm({
                   key={value}
                   type="button"
                   onClick={() => setBwFilter(value)}
-                  className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
                     bwFilter === value
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border text-muted-foreground hover:border-primary hover:text-primary"

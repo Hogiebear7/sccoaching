@@ -376,7 +376,7 @@ export function SettingsView({
             <div className="flex items-center gap-2.5">
               <p className="text-sm font-medium text-zinc-100">{membership.planName ?? "No active plan"}</p>
               {membership.statusLabel && (
-                <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-[3px] text-[11px] font-medium leading-none ${membership.statusIsActive ? "border-white/[0.1] bg-white/[0.05] text-zinc-300" : "border-white/[0.06] text-zinc-500"}`}>
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] font-medium leading-none ${membership.statusIsActive ? "border-white/[0.1] bg-white/[0.05] text-zinc-300" : "border-white/[0.06] text-zinc-500"}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${membership.statusIsActive ? "bg-teal-400" : "bg-zinc-500"}`} />
                   {membership.statusLabel}
                 </span>
@@ -468,7 +468,7 @@ export function SettingsView({
                     key={mins}
                     type="button"
                     onClick={() => toggleTiming(mins)}
-                    className={`rounded-md border px-4 py-1.5 text-sm font-medium transition ${
+                    className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
                       active
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border text-muted-foreground hover:border-primary hover:text-primary"
@@ -551,7 +551,7 @@ export function SettingsView({
                 type="button"
                 onClick={handleReminderSave}
                 disabled={reminderSaving}
-                className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {reminderSaving ? "Saving…" : "Save"}
               </button>
@@ -643,7 +643,7 @@ export function SettingsView({
                     type="button"
                     disabled={pushWorking}
                     onClick={handleEnablePush}
-                    className="rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {pushWorking ? "Enabling…" : "Enable push notifications"}
                   </button>

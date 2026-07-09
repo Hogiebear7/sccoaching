@@ -363,7 +363,7 @@ export function WorkoutHelper({
                   type="button"
                   onClick={() => setFocus(opt.value)}
                   aria-pressed={focus === opt.value}
-                  className={`rounded-md border px-3.5 py-1.5 text-xs font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-95 ${
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-95 ${
                     focus === opt.value
                       ? "border-teal-500/40 bg-teal-500/10 text-teal-300 shadow-[inset_0_1px_0_0_rgba(45,212,191,0.1)]"
                       : "border-white/[0.08] text-zinc-500 hover:border-white/[0.15] hover:text-zinc-300"
@@ -379,7 +379,7 @@ export function WorkoutHelper({
             type="button"
             onClick={handleGenerate}
             disabled={generating}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-teal-400/50 bg-teal-500 py-3 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:active:translate-y-0"
+            className="flex w-full items-center justify-center gap-2 btn-primary py-3 disabled:cursor-not-allowed disabled:opacity-70 disabled:active:translate-y-0"
           >
             {!generating && (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -399,7 +399,7 @@ export function WorkoutHelper({
         <div className="anim-rise p-5 sm:p-6">
           {/* Session summary — coach note */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(plan.tier)}`}>
+            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(plan.tier)}`}>
               {plan.tierLabel}
             </span>
             <span className="inline-flex items-center rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">

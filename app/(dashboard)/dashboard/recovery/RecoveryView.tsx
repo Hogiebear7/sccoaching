@@ -332,7 +332,7 @@ export function RecoveryView({
           <button
             type="submit"
             disabled={isSubmitting || justSaved}
-            className="inline-flex min-w-[132px] items-center justify-center gap-2 rounded-lg border border-teal-400/50 bg-teal-500 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-90"
+            className="inline-flex min-w-[132px] items-center justify-center gap-2 btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-90"
           >
             {isSubmitting ? (
               <>
@@ -446,13 +446,13 @@ export function RecoveryView({
                     <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
                       {log.readinessScore !== null && (
                         <span
-                          className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold ${readinessBadgeClass(log.readinessScore)}`}
+                          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${readinessBadgeClass(log.readinessScore)}`}
                         >
                           Readiness {log.readinessScore}/100
                         </span>
                       )}
                       {load !== null && (
-                        <span className="rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                        <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                           Load {load}
                         </span>
                       )}

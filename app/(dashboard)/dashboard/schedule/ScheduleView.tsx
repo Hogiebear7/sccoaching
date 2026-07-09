@@ -313,10 +313,10 @@ export function ScheduleView({
                               Coach: {classRecord.coachEmail}
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
-                              <span className="rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                              <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                                 {classCategoryLabel(categories, classRecord.category, deletedLabels)}
                               </span>
-                                <span className="rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                                <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                                 {classRecord.durationMins} min · {classRecord.bookedCount}/{classRecord.capacity}
                               </span>
                             </div>
@@ -324,7 +324,7 @@ export function ScheduleView({
 
                           <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
                             <span
-                              className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold ${statusStyle(classRecord)}`}
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusStyle(classRecord)}`}
                             >
                               {statusLabel(classRecord)}
                             </span>
@@ -337,7 +337,7 @@ export function ScheduleView({
                                     type="button"
                                     onClick={() => handleRespond(classRecord.waitlistEntryId!, "accept")}
                                     disabled={respondingEntryId === classRecord.waitlistEntryId}
-                                    className="rounded-lg border border-teal-400/50 bg-teal-500 px-4 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
                                     {respondingEntryId === classRecord.waitlistEntryId ? "Confirming…" : "Accept"}
                                   </button>
@@ -379,7 +379,7 @@ export function ScheduleView({
                                 type="button"
                                 onClick={() => handleBook(classRecord.id)}
                                 disabled={isSubmitting}
-                                className="rounded-lg border border-teal-400/50 bg-teal-500 px-4 py-2 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                                className="btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {isSubmitting ? "Booking…" : "Book"}
                               </button>

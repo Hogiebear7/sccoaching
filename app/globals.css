@@ -1,70 +1,98 @@
 @import "tailwindcss";
 
 /* ────────────────────────────────────────────────────────────────────
-   S&C Performance Coaching design system v5 — "carbon instrument"
-   Deep silver-graphite ramp (zinc-* overridden below) on an engineering-
-   grid backdrop. Sharp technical silhouettes (10px cards, 8px controls,
-   squared tags), kicker-bar headers, uppercase athletic display type.
-   Accents stay role-based: blue = selection/informational/data, gold =
-   premium/tier moments, teal = brand actions and positive states.
+   S&C Performance Coaching design system v6 — "liquid glass athletic"
+   A chromatic aurora backplate under frosted, semi-opaque glass shells.
+   Semantic token layer first (theme-swappable), legacy vars aliased onto
+   it, then shared surface/control recipes. Glass is selective: cards and
+   the dock are frosted; dense wells and inputs stay solid for clarity.
+   Accent roles unchanged: teal = brand action, blue = data/selection,
+   gold = premium moments.
    ──────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Deep silver-graphite neutrals (see @theme zinc overrides below).
-     The base sits deeper than v3 while cards hold their level — the
-     bigger jump is what makes every card read as machined hardware. */
-  --background:               oklch(0.185 0.004 255);
-  --foreground:               oklch(0.985 0.001 255);
-  --card:                     oklch(0.245 0.005 255);
-  --card-foreground:          oklch(0.985 0.001 255);
-  --popover:                  oklch(0.285 0.005 255);
-  --popover-foreground:       oklch(0.985 0.001 255);
+  /* ── Semantic tokens (the theme contract — a future light theme
+        re-declares this block only) ─────────────────────────────── */
+  --bg-0:                oklch(0.17 0.004 255);
+  --bg-1:                oklch(0.205 0.005 255);
+  --surface-1:           oklch(0.25 0.006 255);
+  --surface-2:           oklch(0.29 0.006 255);
+  --surface-3:           oklch(0.33 0.006 255);
+  --border-subtle:       oklch(1 0 0 / 0.07);
+  --border-default:      oklch(1 0 0 / 0.12);
+  --divider:             oklch(1 0 0 / 0.06);
+  --text-primary:        oklch(0.985 0.001 255);
+  --text-secondary:      oklch(0.75 0.005 255);
+  --text-tertiary:       oklch(0.58 0.006 255);
+  --accent-primary:      oklch(0.62 0.12 184);
+  --accent-primary-weak: oklch(0.62 0.12 184 / 0.12);
+  --accent-data:         oklch(0.62 0.19 260);
+  --accent-data-weak:    oklch(0.62 0.19 260 / 0.12);
+  --accent-premium:      oklch(0.78 0.14 85);
+  --success:             oklch(0.72 0.13 180);
+  --success-weak:        oklch(0.72 0.13 180 / 0.12);
+  --warning:             oklch(0.8 0.13 80);
+  --warning-weak:        oklch(0.8 0.13 80 / 0.12);
+  --danger:              oklch(0.6 0.22 25);
+  --danger-weak:         oklch(0.6 0.22 25 / 0.12);
+  --glass-alpha:         0.72;
+  --glass-blur:          14px;
+  --shadow-1: inset 0 1px 0 0 oklch(1 0 0 / 0.06), 0 1px 2px oklch(0 0 0 / 0.3), 0 6px 16px -6px oklch(0 0 0 / 0.4);
+  --shadow-2: inset 0 1px 0 0 oklch(1 0 0 / 0.07), 0 2px 6px oklch(0 0 0 / 0.3), 0 16px 40px -12px oklch(0 0 0 / 0.5), 0 24px 56px -16px oklch(0.5 0.08 210 / 0.14);
+  --shadow-3: inset 0 1px 0 0 oklch(1 0 0 / 0.08), 0 4px 12px oklch(0 0 0 / 0.35), 0 24px 64px -12px oklch(0 0 0 / 0.6), 0 32px 80px -16px oklch(0.5 0.08 230 / 0.18);
+  --radius: 1.25rem;
 
-  /* Brand teal */
-  --primary:                  oklch(0.6 0.118 184.7);
+  /* ── Legacy aliases (existing utilities/components resolve through
+        the semantic layer — do not point these at raw colors) ────── */
+  --background:               var(--bg-0);
+  --foreground:               var(--text-primary);
+  --card:                     var(--surface-1);
+  --card-foreground:          var(--text-primary);
+  --popover:                  var(--surface-2);
+  --popover-foreground:       var(--text-primary);
+  --primary:                  var(--accent-primary);
   --primary-hover:            oklch(0.704 0.14 182.5);
   --primary-foreground:       oklch(0.985 0 0);
-
-  /* Gold — reserved for achievement moments (streaks, PRs) */
-  --gold:                     oklch(0.78 0.14 85);
-  --gold-foreground:          oklch(0.21 0.004 255);
-
-  --secondary:                oklch(0.31 0.005 255);
-  --secondary-foreground:     oklch(0.985 0.001 255);
-  --muted:                    oklch(0.31 0.005 255);
-  --muted-foreground:         oklch(0.71 0.005 255);
-  --accent:                   oklch(0.31 0.005 255);
-  --accent-foreground:        oklch(0.985 0.001 255);
-
-  --destructive:              oklch(0.577 0.245 27.3);
+  --gold:                     var(--accent-premium);
+  --gold-foreground:          var(--bg-0);
+  --secondary:                var(--surface-3);
+  --secondary-foreground:     var(--text-primary);
+  --muted:                    var(--surface-3);
+  --muted-foreground:         var(--text-secondary);
+  --accent:                   var(--surface-3);
+  --accent-foreground:        var(--text-primary);
+  --destructive:              var(--danger);
   --destructive-foreground:   oklch(0.985 0 0);
-
-  --border:                   oklch(1 0 0 / 0.09);
-  --input:                    oklch(0.155 0.004 255);
-  --ring:                     oklch(0.62 0.19 260);
-
-  --sidebar:                  oklch(0.165 0.004 255);
-  --sidebar-foreground:       oklch(0.985 0.001 255);
-  --sidebar-muted-foreground: oklch(0.60 0.006 255);
-
-  --radius: 0.625rem;
-
-  /* Layered elevation with a machined top hairline baked in — every panel
-     catches light on its top edge without per-page classes. */
-  --shadow-card: inset 0 1px 0 0 oklch(1 0 0 / 0.05), 0 1px 2px oklch(0 0 0 / 0.35), 0 4px 10px -2px oklch(0 0 0 / 0.3), 0 16px 40px -12px oklch(0 0 0 / 0.55);
-  --shadow-elev: inset 0 1px 0 0 oklch(1 0 0 / 0.06), 0 2px 8px oklch(0 0 0 / 0.38), 0 10px 24px -6px oklch(0 0 0 / 0.35), 0 24px 64px -12px oklch(0 0 0 / 0.6);
+  --border:                   var(--border-default);
+  --input:                    oklch(0.145 0.004 255);
+  --ring:                     var(--accent-data);
+  --sidebar:                  oklch(0.155 0.004 255);
+  --sidebar-foreground:       var(--text-primary);
+  --sidebar-muted-foreground: var(--text-tertiary);
+  --shadow-card: var(--shadow-1);
+  --shadow-elev: var(--shadow-3);
 }
 
 @theme inline {
   /* Recolor the neutral ramp product-wide: same lightness steps as
      stock zinc, cool silver-grey at minimal chroma. */
-  --color-zinc-950: oklch(0.185 0.004 255);
-  --color-zinc-900: oklch(0.245 0.005 255);
-  --color-zinc-800: oklch(0.30 0.005 255);
+  --color-zinc-950: var(--bg-0);
+  --color-zinc-900: var(--surface-1);
+  --color-zinc-800: var(--surface-3);
   --color-zinc-700: oklch(0.39 0.005 255);
   --color-zinc-600: oklch(0.49 0.005 255);
-  --color-zinc-500: oklch(0.60 0.006 255);
-  --color-zinc-400: oklch(0.71 0.005 255);
+  --color-zinc-500: var(--text-tertiary);
+  --color-zinc-400: var(--text-secondary);
+  /* Semantic color names for new / migrated components */
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--text-primary);
+  --color-ink-2: var(--text-secondary);
+  --color-ink-3: var(--text-tertiary);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
   --color-zinc-300: oklch(0.83 0.004 255);
   --color-zinc-200: oklch(0.90 0.003 255);
   --color-zinc-100: oklch(0.95 0.002 255);
@@ -109,15 +137,14 @@
 }
 
 body {
-  /* Instrument backdrop: a faint engineering grid under a silver bloom.
-     The grid is barely-there texture that reads as precision, not noise;
-     both layers are fixed so pages scroll through the light. */
+  /* Aurora backplate: three fixed, low-chroma light fields (teal / blue /
+     cyan) behind every screen. This is what the glass refracts — pages
+     scroll through the light, and frosted shells pick up faint color. */
   background:
-    linear-gradient(oklch(1 0 0 / 0.016) 1px, oklch(0 0 0 / 0) 1px) fixed,
-    linear-gradient(90deg, oklch(1 0 0 / 0.016) 1px, oklch(0 0 0 / 0) 1px) fixed,
-    radial-gradient(120% 44% at 50% 0%, oklch(0.222 0.005 255), oklch(0 0 0 / 0) 70%) fixed,
-    var(--background);
-  background-size: 44px 44px, 44px 44px, auto, auto;
+    radial-gradient(52% 40% at 16% -6%, oklch(0.33 0.05 200 / 0.34), oklch(0 0 0 / 0) 70%) fixed,
+    radial-gradient(44% 36% at 90% 2%, oklch(0.32 0.05 262 / 0.28), oklch(0 0 0 / 0) 70%) fixed,
+    radial-gradient(64% 44% at 50% 110%, oklch(0.26 0.035 220 / 0.22), oklch(0 0 0 / 0) 72%) fixed,
+    var(--bg-0);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, sans-serif;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -168,25 +195,35 @@ html {
 /* Primary card surface: faint top luminance, hairline border, layered
    shadow. The gradient is what makes panels read as machined, not flat. */
 @utility panel {
-  background-color: var(--card);
-  background-image: linear-gradient(180deg, oklch(1 0 0 / 0.05), oklch(1 0 0 / 0) 38%);
-  border: 1px solid oklch(1 0 0 / 0.1);
+  background-color: oklch(0.25 0.006 255 / var(--glass-alpha));
+  background-image: linear-gradient(180deg, oklch(1 0 0 / 0.06), oklch(1 0 0 / 0) 42%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-2);
 }
 
 /* Elevated surface for sheets, modals, popovers */
 @utility panel-raised {
-  background-color: var(--popover);
-  background-image: linear-gradient(180deg, oklch(1 0 0 / 0.05), oklch(1 0 0 / 0) 40%);
-  border: 1px solid oklch(1 0 0 / 0.1);
-  border-radius: 0.75rem;
-  box-shadow: var(--shadow-elev);
+  background-color: oklch(0.29 0.006 255 / 0.8);
+  background-image: linear-gradient(180deg, oklch(1 0 0 / 0.07), oklch(1 0 0 / 0) 44%);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+}
+
+/* No-backdrop-filter fallback: glass shells become solid surfaces. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .panel { background-color: var(--surface-1); }
+  .panel-raised { background-color: var(--surface-2); }
 }
 
 /* Recessed wells inside panels (nested content, code, notes) */
 @utility well {
-  background-color: oklch(0 0 0 / 0.3);
+  background-color: oklch(0.13 0.004 255 / 0.75);
   border: 1px solid oklch(1 0 0 / 0.05);
   border-radius: 0.5rem;
   box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.25);
@@ -198,9 +235,9 @@ html {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  border: 1px solid oklch(1 0 0 / 0.1);
-  background-color: oklch(1 0 0 / 0.05);
-  border-radius: 0.375rem;
+  border: 1px solid var(--border-subtle);
+  background-color: oklch(1 0 0 / 0.07);
+  border-radius: 9999px;
   padding: 0.25rem 0.625rem;
   font-size: 0.6875rem;
   font-weight: 500;
@@ -234,13 +271,52 @@ html {
   color: oklch(0.57 0.006 255);
 }
 
-/* Uppercase athletic title treatment for page/hero headings. */
+/* Liquid-metal title treatment for page/hero headings: bold display type
+   with a subtle vertical sheen (background-clip text). */
 @utility title-athletic {
   font-family: var(--font-space-grotesk), var(--font-inter), system-ui, sans-serif;
-  text-transform: uppercase;
-  letter-spacing: 0.035em;
+  letter-spacing: -0.03em;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  background-image: linear-gradient(180deg, oklch(1 0 0), oklch(0.78 0.008 230));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* The one primary-action recipe: teal capsule with inner light and an
+   ambient brand glow. Sizing (px/py/width) stays at the call site. */
+@utility btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid oklch(0.72 0.13 180 / 0.45);
+  background-image: linear-gradient(180deg, oklch(0.66 0.125 182), oklch(0.57 0.118 185));
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  box-shadow: inset 0 1px 0 0 oklch(1 0 0 / 0.25), 0 4px 20px -6px oklch(0.62 0.12 184 / 0.55);
+  transition: filter 150ms ease, transform 150ms ease;
+
+  &:hover { filter: brightness(1.08); }
+  &:active { transform: translateY(1px); }
+  &:disabled { cursor: not-allowed; opacity: 0.6; }
+}
+
+/* Loading placeholder shimmer. */
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+@utility skeleton {
+  border-radius: 0.5rem;
+  background-image: linear-gradient(90deg, oklch(1 0 0 / 0.04) 25%, oklch(1 0 0 / 0.09) 50%, oklch(1 0 0 / 0.04) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
 }
 
 /* Display type: wordmark, page titles, hero numerals */
@@ -258,8 +334,8 @@ html {
 @utility input-field {
   width: 100%;
   background-color: var(--input);
-  border: 1px solid oklch(1 0 0 / 0.09);
-  border-radius: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
   padding: 0.625rem 0.875rem;
   font-size: 0.875rem;
   line-height: 1.25rem;

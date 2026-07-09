@@ -300,7 +300,7 @@ export function AiChat({
             <div className="flex flex-wrap items-center gap-1.5">
               {context && (
                 <>
-                  <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(context.tierLabel)}`}>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(context.tierLabel)}`}>
                     Today · {context.tierLabel}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
@@ -382,7 +382,7 @@ export function AiChat({
                 <div
                   className={`max-w-[85%] rounded-[10px] px-4 py-3 text-sm leading-relaxed ${
                     isUser
-                      ? `rounded-br-md bg-teal-500 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)] ${msg.pending ? "opacity-70" : ""}`
+                      ? `rounded-br-md bg-teal-500/90 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] ${msg.pending ? "opacity-70" : ""}`
                       : "rounded-bl-md border border-white/[0.05] bg-white/[0.05] text-zinc-100"
                   }`}
                 >
@@ -460,7 +460,7 @@ export function AiChat({
           <button
             type="submit"
             disabled={isSending || !input.trim()}
-            className="self-end rounded-lg border border-teal-400/50 bg-teal-500 px-4 py-2.5 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0"
+            className="self-end btn-primary px-4 py-2.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0"
           >
             {isSending ? "…" : "Send"}
           </button>

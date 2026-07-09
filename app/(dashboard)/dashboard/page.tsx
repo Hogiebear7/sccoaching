@@ -206,11 +206,8 @@ export default async function DashboardPage() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-teal-950/70 via-teal-950/25 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[radial-gradient(85%_100%_at_50%_0%,rgba(45,212,191,0.14),transparent)]" />
         <div className="relative">
-          <p className="flex items-center gap-2">
-            <span aria-hidden="true" className="h-3 w-[3px] rounded-[1px] bg-teal-400" />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-teal-200/70">{today}</span>
-          </p>
-          <h1 className="title-athletic mt-2.5 text-[26px] leading-none">Hi {firstName}</h1>
+          <p className="chip label-caps w-fit border-teal-400/20 bg-teal-400/[0.07] !text-teal-300/90">{today}</p>
+          <h1 className="title-athletic mt-3 text-[30px] leading-[1.05]">Hi {firstName}</h1>
           <p className="mt-2 text-sm text-zinc-400">Ready when you are.</p>
         </div>
       </div>
@@ -232,7 +229,7 @@ export default async function DashboardPage() {
                     <span className="text-sm text-zinc-500">/100</span>
                     {delta !== null && delta !== 0 && (
                       <span
-                        className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+                        className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
                           delta > 0
                             ? "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
                             : "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
@@ -346,7 +343,7 @@ export default async function DashboardPage() {
           <div className="border-t border-white/[0.06] p-3">
             <Link
               href="/dashboard/schedule"
-              className="flex w-full items-center justify-center rounded-lg border border-teal-400/50 bg-teal-500 py-2.5 text-[13px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px"
+              className="flex w-full items-center justify-center btn-primary py-2.5"
             >
               {nextBooking ? "View schedule" : "Book a session"}
             </Link>
@@ -375,7 +372,7 @@ export default async function DashboardPage() {
                 <p className="mt-0.5 text-xs text-zinc-500">Choose a plan to start booking sessions</p>
               ) : null}
             </div>
-            <span className={`shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium ${membershipBadgeClass}`}>
+            <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium ${membershipBadgeClass}`}>
               {membershipBadgeLabel}
             </span>
           </Link>

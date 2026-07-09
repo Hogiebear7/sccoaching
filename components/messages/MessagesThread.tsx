@@ -170,7 +170,7 @@ export function MessagesThread({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-lg bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? "Sending…" : "Send"}
             </button>

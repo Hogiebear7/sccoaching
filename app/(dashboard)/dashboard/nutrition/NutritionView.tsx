@@ -383,7 +383,7 @@ export function NutritionView({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(70%_100%_at_25%_0%,rgba(45,212,191,0.07),transparent)]" />
         <div className="relative">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(band.day)}`}>
+            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(band.day)}`}>
               {band.label}
             </span>
             <span className="text-xs text-zinc-500 tabular-nums">Weighted 3-day load {load.toFixed(2)}</span>
@@ -574,7 +574,7 @@ export function NutritionView({
                       type="button"
                       onClick={() => applyRunPreset(preset.km)}
                       aria-pressed={runKm === preset.km}
-                      className={`rounded-md border px-3 py-1.5 text-[11px] font-medium tabular-nums transition-[background-color,color,border-color] duration-150 active:scale-[0.97] ${
+                      className={`rounded-full border px-3 py-1.5 text-[11px] font-medium tabular-nums transition-[background-color,color,border-color] duration-150 active:scale-[0.97] ${
                         runKm === preset.km
                           ? "border-teal-500/40 bg-teal-500/[0.12] text-teal-300"
                           : "border-white/[0.1] bg-white/[0.04] text-zinc-400 hover:border-white/[0.14] hover:text-zinc-200"
@@ -699,7 +699,7 @@ export function NutritionView({
           <div className="border-t border-white/[0.06] p-5">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
                   drink.sodiumBadge === "optimal"
                     ? "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
                     : drink.sodiumBadge === "high"
@@ -779,7 +779,7 @@ export function NutritionView({
                         <span>
                           <span className="text-[13px] font-semibold text-zinc-100">{item.name}</span>
                           <span
-                            className={`ml-2 rounded-md border px-2 py-0.5 align-middle text-[10px] font-medium ${
+                            className={`ml-2 rounded-full border px-2 py-0.5 align-middle text-[10px] font-medium ${
                               item.tag === "Electrolyte"
                                 ? "border-gold/30 bg-gold/[0.08] text-gold"
                                 : "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"

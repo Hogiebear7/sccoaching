@@ -180,7 +180,7 @@ export function MembershipView({
                 <p className="mt-2 text-xl font-semibold tracking-tight">{currentPlanName}</p>
               </div>
               <span
-                className={`shrink-0 text-[11px] rounded-md px-2.5 py-1 font-medium border ${statusBadgeClass(subscriptionStatus, periodLapsed, pendingIsStale)}`}
+                className={`shrink-0 text-[11px] rounded-full px-2.5 py-1 font-medium border ${statusBadgeClass(subscriptionStatus, periodLapsed, pendingIsStale)}`}
               >
                 {statusBadgeLabel(subscriptionStatus, periodLapsed, pendingIsStale)}
               </span>
@@ -380,18 +380,18 @@ export function MembershipView({
 
                   {/* Pills: sessions + categories */}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-md bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                       {formatSessionAllowance(plan.monthlySessionAllowance)}
                     </span>
                     {plan.allowedCategories.length === 0 ? (
-                      <span className="rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                      <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                         All class types
                       </span>
                     ) : (
                       plan.allowedCategories.map((category) => (
                         <span
                           key={category}
-                          className="rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground"
+                          className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground"
                         >
                           {classCategoryLabel(categories, category, deletedLabels)}
                         </span>
@@ -408,7 +408,7 @@ export function MembershipView({
                       className={`w-full rounded-lg px-4 py-2 text-sm font-semibold transition ${
                         isLockedIn
                           ? "cursor-not-allowed bg-secondary text-secondary-foreground opacity-70"
-                          : "border border-teal-400/50 bg-teal-500 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:bg-teal-400 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                          : "border btn-primary text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] disabled:cursor-not-allowed disabled:opacity-60"
                       }`}
                     >
                       {buttonLabel}

@@ -161,7 +161,7 @@ function BookingCard({
             </span>
           ) : (
             <span
-              className={`rounded-md px-3 py-1 text-xs font-semibold ${
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
                 booking.attended
                   ? "bg-primary/15 text-primary"
                   : "bg-muted text-muted-foreground"
@@ -170,7 +170,7 @@ function BookingCard({
               {booking.attended ? "Attended" : "Not checked in"}
             </span>
           )}
-          <span className="rounded-md bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
             {booking.durationMins} min
           </span>
 
