@@ -65,7 +65,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 lg:grid lg:grid-cols-[1.1fr_1fr]">
+    <main className="min-h-screen text-zinc-100 lg:grid lg:grid-cols-[1.1fr_1fr]">
       {/* Brand panel */}
       <aside className="relative hidden overflow-hidden border-r border-white/[0.06] lg:flex lg:flex-col lg:justify-between lg:p-12">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-teal-950/80 via-teal-950/30 to-transparent" />

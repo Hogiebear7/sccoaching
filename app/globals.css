@@ -141,9 +141,9 @@ body {
      cyan) behind every screen. This is what the glass refracts — pages
      scroll through the light, and frosted shells pick up faint color. */
   background:
-    radial-gradient(52% 40% at 16% -6%, oklch(0.33 0.05 200 / 0.34), oklch(0 0 0 / 0) 70%) fixed,
-    radial-gradient(44% 36% at 90% 2%, oklch(0.32 0.05 262 / 0.28), oklch(0 0 0 / 0) 70%) fixed,
-    radial-gradient(64% 44% at 50% 110%, oklch(0.26 0.035 220 / 0.22), oklch(0 0 0 / 0) 72%) fixed,
+    radial-gradient(56% 42% at 14% -8%, oklch(0.46 0.09 195 / 0.5), oklch(0 0 0 / 0) 70%) fixed,
+    radial-gradient(48% 38% at 92% 0%, oklch(0.43 0.1 268 / 0.42), oklch(0 0 0 / 0) 70%) fixed,
+    radial-gradient(70% 48% at 50% 112%, oklch(0.36 0.06 215 / 0.36), oklch(0 0 0 / 0) 72%) fixed,
     var(--bg-0);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, sans-serif;

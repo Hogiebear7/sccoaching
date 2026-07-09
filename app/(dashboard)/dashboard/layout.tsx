@@ -63,10 +63,10 @@ export default async function DashboardLayout({
     .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-foreground">
+    <div className="min-h-screen text-foreground">
       <div className="grid min-h-screen lg:grid-cols-[232px_minmax(0,1fr)]">
         {/* Sidebar */}
-        <aside className="hidden border-r border-white/[0.06] bg-[--sidebar] lg:flex lg:h-screen lg:flex-col lg:sticky lg:top-0">
+        <aside className="hidden border-r border-white/[0.06] bg-[oklch(0.155_0.004_255/0.72)] backdrop-blur-xl lg:flex lg:h-screen lg:flex-col lg:sticky lg:top-0">
           <div className="px-5 pt-6 pb-5">
             <Link href="/dashboard" className="text-display text-lg text-zinc-50">
               S<span className="text-teal-400">&</span>C

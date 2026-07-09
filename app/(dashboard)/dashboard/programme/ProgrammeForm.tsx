@@ -116,7 +116,7 @@ export function ProgrammeForm({ programme }: { programme?: ProgrammeRecord }) {
 
       <form
         onSubmit={handleSubmit}
-        className="panel rounded-xl p-6"
+        className="panel p-6"
       >
         {formError ? (
           <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">

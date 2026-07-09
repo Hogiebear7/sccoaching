@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} h-full`}>
-      <body className="min-h-full bg-zinc-950 text-zinc-50 antialiased">
+      <body data-design="v6-liquid-glass" className="min-h-full text-zinc-50 antialiased">
         {children}
       </body>
     </html>
