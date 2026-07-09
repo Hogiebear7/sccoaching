@@ -42,3 +42,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# playwright transient output (baselines in e2e/*-snapshots ARE tracked)
+/test-results
+/playwright-report
