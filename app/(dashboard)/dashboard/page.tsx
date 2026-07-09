@@ -203,8 +203,6 @@ export default async function DashboardPage() {
 
       {/* Immersive header */}
       <div className="relative -mx-4 -mt-8 overflow-hidden border-b border-white/[0.06] px-4 pb-7 pt-9 sm:-mx-6 sm:px-6">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-teal-950/70 via-teal-950/25 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[radial-gradient(85%_100%_at_50%_0%,rgba(45,212,191,0.14),transparent)]" />
         <div className="relative">
           <p className="chip label-caps w-fit border-teal-400/20 bg-teal-400/[0.07] !text-teal-300/90">{today}</p>
           <h1 className="title-athletic mt-3 text-[30px] leading-[1.05]">Hi {firstName}</h1>

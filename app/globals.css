@@ -35,7 +35,7 @@
   --warning-weak:        oklch(0.8 0.13 80 / 0.12);
   --danger:              oklch(0.6 0.22 25);
   --danger-weak:         oklch(0.6 0.22 25 / 0.12);
-  --glass-alpha:         0.72;
+  --glass-alpha:         0.55;
   --glass-blur:          14px;
   --shadow-1: inset 0 1px 0 0 oklch(1 0 0 / 0.06), 0 1px 2px oklch(0 0 0 / 0.3), 0 6px 16px -6px oklch(0 0 0 / 0.4);
   --shadow-2: inset 0 1px 0 0 oklch(1 0 0 / 0.07), 0 2px 6px oklch(0 0 0 / 0.3), 0 16px 40px -12px oklch(0 0 0 / 0.5), 0 24px 56px -16px oklch(0.5 0.08 210 / 0.14);
@@ -141,9 +141,9 @@ body {
      cyan) behind every screen. This is what the glass refracts — pages
      scroll through the light, and frosted shells pick up faint color. */
   background:
-    radial-gradient(56% 42% at 14% -8%, oklch(0.46 0.09 195 / 0.5), oklch(0 0 0 / 0) 70%) fixed,
-    radial-gradient(48% 38% at 92% 0%, oklch(0.43 0.1 268 / 0.42), oklch(0 0 0 / 0) 70%) fixed,
-    radial-gradient(70% 48% at 50% 112%, oklch(0.36 0.06 215 / 0.36), oklch(0 0 0 / 0) 72%) fixed,
+    radial-gradient(58% 46% at 10% -8%, oklch(0.55 0.12 195 / 0.55), oklch(0 0 0 / 0) 62%) fixed,
+    radial-gradient(52% 46% at 102% 30%, oklch(0.52 0.13 272 / 0.48), oklch(0 0 0 / 0) 68%) fixed,
+    linear-gradient(158deg, oklch(0.36 0.08 198 / 0.5) 0%, oklch(0.25 0.03 235 / 0.22) 42%, oklch(0.33 0.1 272 / 0.44) 100%) fixed,
     var(--bg-0);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, sans-serif;
@@ -168,6 +168,12 @@ select option:disabled {
 select:required:invalid {
   /* Empty "Select…" placeholder option shown in the closed field */
   color: oklch(0.60 0.006 255);
+}
+
+/* TEMP DIAGNOSTIC — proves the live build; remove after verification */
+body {
+  outline: 6px solid magenta !important;
+  outline-offset: -6px;
 }
 
 * {
