@@ -38,7 +38,7 @@ export function isPeriodLapsed(
 // ambiguous between Dec 7 and Jul 12 depending on the reader's locale
 // assumptions. Always show an unambiguous month name instead.
 export function formatMembershipDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString(undefined, {
+  return new Date(isoDate).toLocaleDateString("en-GB", {
     year: "numeric",
     month: "short",
     day: "numeric",

@@ -23,7 +23,7 @@
   --divider:             oklch(1 0 0 / 0.12);
   --text-primary:        oklch(0.995 0.002 240);
   --text-secondary:      oklch(1 0 0 / 0.8);
-  --text-tertiary:       oklch(1 0 0 / 0.64);
+  --text-tertiary:       oklch(1 0 0 / 0.7);
   --accent-primary:      oklch(0.62 0.12 184);
   --accent-primary-weak: oklch(0.62 0.12 184 / 0.12);
   --accent-data:         oklch(0.78 0.13 235);

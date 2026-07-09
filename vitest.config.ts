@@ -4,6 +4,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
+    include: ["__tests__/**/*.test.ts"],
     environment: "node",
     env: {
       SESSION_SECRET: "test-session-secret-do-not-use-in-production",
