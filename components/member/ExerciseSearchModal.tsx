@@ -28,11 +28,12 @@ export default function ExerciseSearchModal({ memberId, onSelect, onClose }: Pro
     <div className="fixed inset-0 z-50 flex flex-col" onClick={onClose}>
       <div className="flex-1 bg-black/60 backdrop-blur-sm" />
       <div
-        className="bg-zinc-900 rounded-t-3xl border-t border-zinc-800 max-h-[80vh] flex flex-col"
+        className="panel-raised rounded-b-none border-b-0 max-h-[80vh] flex flex-col anim-rise"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <h3 className="font-semibold text-zinc-100">Add Exercise</h3>
+        <div className="mx-auto mt-2.5 h-1 w-9 rounded-full bg-white/[0.12]" />
+        <div className="flex items-center justify-between px-4 pt-2.5 pb-2">
+          <h3 className="font-semibold tracking-tight text-zinc-100">Add Exercise</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 p-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -49,7 +50,7 @@ export default function ExerciseSearchModal({ memberId, onSelect, onClose }: Pro
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search exercises…"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-teal-600"
+              className="input-field pl-9"
             />
           </div>
         </div>
@@ -63,16 +64,16 @@ export default function ExerciseSearchModal({ memberId, onSelect, onClose }: Pro
               <button
                 key={ex.id}
                 onClick={() => onSelect(ex)}
-                className="w-full text-left flex items-center justify-between py-3 border-b border-zinc-800 last:border-0 hover:bg-zinc-800/50 rounded-lg px-2 -mx-2 transition-colors"
+                className="w-full text-left flex items-center justify-between py-3 border-b border-zinc-800/60 last:border-0 hover:bg-white/[0.04] rounded-lg px-2 -mx-2 transition-colors duration-150"
               >
                 <div>
-                  <p className="text-sm font-medium text-zinc-100">{ex.name}</p>
-                  <p className="text-xs text-zinc-500">{ex.muscleGroup}</p>
+                  <p className="text-sm font-medium text-zinc-100 leading-tight">{ex.name}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">{ex.muscleGroup}</p>
                 </div>
                 {last ? (
                   <div className="text-right ml-2">
-                    <p className="text-xs font-medium text-teal-400">{last.maxWeightKg}kg × {last.reps}</p>
-                    <p className="text-[10px] text-zinc-600">{daysSince(last.date)}</p>
+                    <p className="text-xs font-medium text-teal-400 tabular-nums">{last.maxWeightKg}kg × {last.reps}</p>
+                    <p className="text-[10px] text-zinc-600 mt-0.5">{daysSince(last.date)}</p>
                   </div>
                 ) : (
                   <span className="text-[10px] text-zinc-600 ml-2">No history</span>

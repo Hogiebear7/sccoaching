@@ -1,0 +1,208 @@
+import { randomUUID } from "crypto";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+import {
+  createBooking,
+  findClassById,
+  findMembershipPlanById,
+  findSubscriptionByUserId,
+  findUserById,
+  findWaitlistEntryById,
+  saveSubscription,
+  saveWaitlistEntry,
+  type BookingRecord,
+} from "@/lib/db";
+import { hasActiveMembership } from "@/lib/membership";
+import { issueWaitlistOffer } from "@/lib/scheduling";
+import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
+import { verifySession } from "@/lib/session";
+
+export async function POST(request: NextRequest) {
+  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, message: "You must be signed in." },
+      { status: 401 }
+    );
+  }
+
+  const user = findUserById(userId);
+  if (!user) {
+    return NextResponse.json(
+      { success: false, message: "You must be signed in." },
+      { status: 401 }
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { success: false, message: "Invalid JSON body." },
+      { status: 400 }
+    );
+  }
+
+  const { entryId, action } = (body ?? {}) as Record<string, unknown>;
+
+  if (typeof entryId !== "string" || !entryId.trim()) {
+    return NextResponse.json(
+      { success: false, message: "entryId is required." },
+      { status: 400 }
+    );
+  }
+  if (action !== "accept" && action !== "reject") {
+    return NextResponse.json(
+      { success: false, message: "action must be 'accept' or 'reject'." },
+      { status: 400 }
+    );
+  }
+
+  // All synchronous from here — no await between check and write, so Node.js's
+  // single-threaded event loop prevents two concurrent requests from both
+  // passing the state check and double-booking.
+  const entry = findWaitlistEntryById(entryId);
+
+  if (!entry) {
+    return NextResponse.json(
+      { success: false, message: "Waitlist offer not found." },
+      { status: 404 }
+    );
+  }
+
+  if (entry.userId !== user.id) {
+    return NextResponse.json(
+      { success: false, message: "This offer is not for your account." },
+      { status: 403 }
+    );
+  }
+
+  if (entry.offerState !== "offered") {
+    const stateMessages: Record<string, string> = {
+      queued:   "You don't have a pending offer for this class yet.",
+      accepted: "This offer has already been accepted.",
+      rejected: "This offer has already been declined.",
+      expired:  "This offer has expired.",
+      removed:  "This waitlist entry has been removed.",
+    };
+    return NextResponse.json(
+      {
+        success: false,
+        message: stateMessages[entry.offerState] ?? "This offer is no longer active.",
+      },
+      { status: 409 }
+    );
+  }
+
+  const now = new Date().toISOString();
+
+  if (entry.offerExpiresAt && entry.offerExpiresAt <= now) {
+    saveWaitlistEntry({ ...entry, offerState: "expired", resolvedAt: now });
+    try {
+      issueWaitlistOffer(entry.classId);
+    } catch {
+      // Cascade failure is non-fatal.
+    }
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Your offer expired before you responded. The spot has been offered to the next person.",
+      },
+      { status: 409 }
+    );
+  }
+
+  if (action === "reject") {
+    saveWaitlistEntry({ ...entry, offerState: "rejected", resolvedAt: now });
+    try {
+      issueWaitlistOffer(entry.classId);
+    } catch {
+      // Cascade failure must not prevent the rejection completing.
+    }
+    return NextResponse.json({
+      success: true,
+      message: "Offer declined. You've been removed from the waitlist.",
+    });
+  }
+
+  // --- Accept ---
+
+  const classRecord = findClassById(entry.classId);
+  if (!classRecord) {
+    return NextResponse.json(
+      { success: false, message: "Class not found." },
+      { status: 404 }
+    );
+  }
+
+  const classDateTime = new Date(`${classRecord.date}T${classRecord.startTime}`);
+  if (classDateTime.getTime() < Date.now()) {
+    saveWaitlistEntry({ ...entry, offerState: "expired", resolvedAt: now });
+    return NextResponse.json(
+      { success: false, message: "This class has already started." },
+      { status: 409 }
+    );
+  }
+
+  // Re-check eligibility in case membership/sessions changed since offer was issued.
+  if (!hasActiveMembership(user.id)) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Your membership is no longer active. Renew it to book this class.",
+      },
+      { status: 403 }
+    );
+  }
+
+  const subscription = findSubscriptionByUserId(user.id);
+  const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+
+  if (subscription && plan && !isClassEligibleForPlan(classRecord.category, plan)) {
+    return NextResponse.json(
+      { success: false, message: "Your plan no longer covers this class type." },
+      { status: 403 }
+    );
+  }
+
+  if (subscription && plan) {
+    const remaining = remainingSessions(plan, subscription);
+    if (remaining !== null && remaining <= 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You've used all of your sessions for this billing period.",
+        },
+        { status: 403 }
+      );
+    }
+  }
+
+  const booking: BookingRecord = {
+    id: randomUUID(),
+    classId: entry.classId,
+    userId: user.id,
+    attendedAt: null,
+    createdAt: now,
+  };
+
+  createBooking(booking);
+
+  if (subscription) {
+    saveSubscription({
+      ...subscription,
+      sessionsUsedThisPeriod: subscription.sessionsUsedThisPeriod + 1,
+      updatedAt: now,
+    });
+  }
+
+  saveWaitlistEntry({ ...entry, offerState: "accepted", resolvedAt: now });
+
+  return NextResponse.json({
+    success: true,
+    message: "Booking confirmed! You're booked in.",
+  });
+}

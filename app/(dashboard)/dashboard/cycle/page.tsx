@@ -16,10 +16,10 @@ export default async function DashboardCyclePage() {
 
   if (!user) {
     return (
-      <section className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.24em] text-teal-400">Cycle tracking</p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-50">Not available</h2>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-400">
+      <section>
+        <p className="label-caps">Cycle tracking</p>
+        <h2 className="text-display mt-1 text-[28px] leading-tight text-zinc-50">Not available</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
           We couldn&apos;t load your account. Try logging out and back in.
         </p>
       </section>
@@ -30,10 +30,10 @@ export default async function DashboardCyclePage() {
 
   if (!profile?.cycleTrackingEligible) {
     return (
-      <section className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.24em] text-teal-400">Cycle tracking</p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-50">Not available</h2>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-400">
+      <section>
+        <p className="label-caps">Cycle tracking</p>
+        <h2 className="text-display mt-1 text-[28px] leading-tight text-zinc-50">Not available</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
           Cycle tracking is not available for this account.
         </p>
       </section>
@@ -46,6 +46,7 @@ export default async function DashboardCyclePage() {
   return (
     <CycleView
       cycleTrackingEnabled={profile.cycleTrackingEnabled}
+      menopauseSupportEnabled={profile.menopauseSupportEnabled}
       cycleSettings={cycleSettings}
       cyclePrivacy={cyclePrivacy}
     />

@@ -10,6 +10,8 @@ const {
   mockFindClassById,
   mockDeleteWaitlistEntry,
   mockPurgeExpiredResetTokens,
+  mockCreateNotification,
+  mockFindProfileByUserId,
 } = vi.hoisted(() => ({
   mockFindAllSubscriptions: vi.fn(),
   mockSaveSubscription: vi.fn(),
@@ -20,6 +22,8 @@ const {
   mockFindClassById: vi.fn(),
   mockDeleteWaitlistEntry: vi.fn(),
   mockPurgeExpiredResetTokens: vi.fn(),
+  mockCreateNotification: vi.fn(),
+  mockFindProfileByUserId: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -32,6 +36,8 @@ vi.mock("@/lib/db", () => ({
   findClassById: mockFindClassById,
   deleteWaitlistEntry: mockDeleteWaitlistEntry,
   purgeExpiredResetTokens: mockPurgeExpiredResetTokens,
+  createNotification: mockCreateNotification,
+  findProfileByUserId: mockFindProfileByUserId,
 }));
 
 const STALE_UPDATED_AT = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1h ago
@@ -48,6 +54,7 @@ function pendingSubscription(overrides: Partial<Record<string, unknown>> = {}) {
     currentPeriodEnd: null,
     lastWebhookEventAt: null,
     sessionsUsedThisPeriod: 0,
+    extraSessionGrants: [],
     periodLapsedNotifiedAt: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: STALE_UPDATED_AT,
@@ -103,6 +110,7 @@ function activeLapsedSubscription(overrides: Partial<Record<string, unknown>> = 
     currentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     lastWebhookEventAt: null,
     sessionsUsedThisPeriod: 0,
+    extraSessionGrants: [],
     periodLapsedNotifiedAt: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",

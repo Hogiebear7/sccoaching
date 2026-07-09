@@ -18,14 +18,14 @@ export default async function DashboardBookingsPage() {
 
   if (!user || !profile) {
     return (
-      <section className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.24em] text-teal-400">
+      <section>
+        <p className="label-caps">
           Bookings
         </p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-50">
+        <h2 className="text-display mt-1 text-[28px] leading-tight text-zinc-50">
           No bookings available
         </h2>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-400">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
           We couldn&apos;t load profile data for this account. Try logging out and
           back in.
         </p>

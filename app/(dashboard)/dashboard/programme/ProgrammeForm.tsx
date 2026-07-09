@@ -100,14 +100,14 @@ export function ProgrammeForm({ programme }: { programme?: ProgrammeRecord }) {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.24em] text-teal-400">
+      <div>
+        <p className="label-caps">
           Programme
         </p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-50">
+        <h2 className="text-display mt-1 text-[28px] leading-tight text-zinc-50">
           {programme ? programme.title : "Set up your programme"}
         </h2>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-400">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
           {programme
             ? "Update your training programme details below."
             : "No programme yet — fill in the details below to create one."}
@@ -116,7 +116,7 @@ export function ProgrammeForm({ programme }: { programme?: ProgrammeRecord }) {
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl"
+        className="panel rounded-3xl p-6"
       >
         {formError ? (
           <p className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
@@ -271,7 +271,7 @@ export function ProgrammeForm({ programme }: { programme?: ProgrammeRecord }) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting
               ? "Saving…"
@@ -307,6 +307,6 @@ function inputClass(hasError?: string) {
   return `w-full rounded-xl border bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
     hasError
       ? "border-red-500 focus:border-red-400"
-      : "border-zinc-800 focus:border-teal-500"
+      : "border-zinc-800 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
   }`;
 }

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
-import { findProfileByUserId, findUserById } from "@/lib/db";
+import { findBodyWeightLogsByUserId, findProfileByUserId, findUserById } from "@/lib/db";
+import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { verifySession } from "@/lib/session";
 import { ProfileForm } from "./ProfileForm";
 
@@ -12,11 +13,11 @@ export default async function ProfilePage() {
 
   if (!user || !profile) {
     return (
-      <div className="space-y-5 pt-2">
+      <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
+          <h1 className="text-display text-[28px]">Profile</h1>
         </div>
-        <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
+        <div className="panel p-5">
           <p className="text-sm text-muted-foreground">
             We couldn&apos;t load profile data for this account. Try logging out and
             back in.
@@ -26,5 +27,13 @@ export default async function ProfilePage() {
     );
   }
 
-  return <ProfileForm email={user.email} profile={profile} />;
+  const bodyWeightLogs = findBodyWeightLogsByUserId(user.id);
+
+  // Display the synced weight: latest log wins over the stored field.
+  const syncedProfile = {
+    ...profile,
+    currentWeightKg: resolveCurrentWeightKg(profile.currentWeightKg, bodyWeightLogs),
+  };
+
+  return <ProfileForm email={user.email} profile={syncedProfile} bodyWeightLogs={bodyWeightLogs} />;
 }

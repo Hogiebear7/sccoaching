@@ -12,11 +12,11 @@ export default async function DashboardRecoveryPage() {
 
   if (!user) {
     return (
-      <div className="space-y-5 pt-2">
+      <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Recovery</h1>
+          <h1 className="text-display text-[28px]">Recovery</h1>
         </div>
-        <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
+        <div className="panel p-5">
           <p className="text-sm text-muted-foreground">
             We couldn&apos;t load account data. Try logging out and back in.
           </p>

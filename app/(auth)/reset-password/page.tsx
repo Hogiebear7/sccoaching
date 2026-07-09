@@ -9,19 +9,19 @@ export default async function ResetPasswordPage({
   const { token } = await searchParams;
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-zinc-100">
+    <main className="relative min-h-screen bg-zinc-950 px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,rgba(45,212,191,0.06),transparent)]">
       <div className="mx-auto w-full max-w-md">
         <div className="mb-8">
-          <p className="text-sm uppercase tracking-[0.24em] text-teal-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">
             {BRAND_NAME}
           </p>
-          <h1 className="mt-3 text-3xl font-bold">Reset password</h1>
+          <h1 className="text-display mt-3 text-[30px]">Reset password</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Choose a new password for your account.
           </p>
         </div>
 
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
+        <div className="panel-raised anim-rise p-6">
           {token ? (
             <ResetPasswordForm token={token} />
           ) : (

@@ -9,7 +9,7 @@ import {
   findUserById,
   saveSubscription,
 } from "@/lib/db";
-import { promoteFromWaitlist, isCancellationEarly } from "@/lib/scheduling";
+import { issueWaitlistOffer, isCancellationEarly } from "@/lib/scheduling";
 import { verifySession } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
@@ -97,7 +97,11 @@ export async function POST(request: NextRequest) {
   deleteBooking(bookingId);
 
   if (classRecord) {
-    promoteFromWaitlist(classRecord.id);
+    try {
+      issueWaitlistOffer(classRecord.id);
+    } catch {
+      // Offer failure must never block the cancellation response.
+    }
   }
 
   const message = sessionRestored

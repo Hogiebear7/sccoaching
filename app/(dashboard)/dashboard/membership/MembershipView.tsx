@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { formatPriceCents, isPendingCheckoutStale } from "@/lib/billing";
+import { PageHeader } from "@/components/ui/PageHeader";
 import type { BillingProvider, ClassCategoryRecord, MembershipPlanRecord, SubscriptionStatus } from "@/lib/db";
 import {
   formatMembershipDate,
@@ -12,8 +13,8 @@ import {
 } from "@/lib/membership-status";
 import {
   classCategoryLabel,
-  formatRemainingSessions,
   formatSessionAllowance,
+  type ClassPassBalance,
 } from "@/lib/scheduling-status";
 
 function planCardClass(
@@ -91,7 +92,7 @@ export function MembershipView({
   subscriptionUpdatedAt,
   subscriptionCurrentPeriodEnd,
   subscriptionProvider,
-  remainingSessions,
+  passBalance,
   billingConfigured,
 }: {
   plans: MembershipPlanRecord[];
@@ -103,7 +104,7 @@ export function MembershipView({
   subscriptionUpdatedAt: string | null;
   subscriptionCurrentPeriodEnd: string | null;
   subscriptionProvider: BillingProvider | null;
-  remainingSessions: number | null;
+  passBalance: ClassPassBalance | null;
   billingConfigured: boolean;
 }) {
   const pendingIsStale =
@@ -159,23 +160,21 @@ export function MembershipView({
   }
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-8">
 
-      {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Membership</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Your plan controls which sessions you can book.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Club"
+        title="Membership"
+        subtitle="Your plan controls which sessions you can book."
+      />
 
       {/* Current plan card */}
-      <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
+      <div className="panel p-5">
         {currentPlanId && currentPlanName && subscriptionStatus ? (
           <>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="label-caps">
                   Current plan
                 </p>
                 <p className="mt-2 text-xl font-semibold tracking-tight">{currentPlanName}</p>
@@ -221,13 +220,6 @@ export function MembershipView({
               </div>
             )}
 
-            {/* Sessions remaining */}
-            {isActiveNotLapsed && remainingSessions !== null && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                {formatRemainingSessions(remainingSessions)} this billing period.
-              </p>
-            )}
-
             {/* Period end note */}
             {isActiveNotLapsed && subscriptionCurrentPeriodEnd && (
               subscriptionProvider === "revolut" ? (
@@ -262,6 +254,64 @@ export function MembershipView({
         </p>
       </div>
 
+      {/* Class passes this period */}
+      <div className="panel p-5">
+        <p className="label-caps">Class passes</p>
+
+        {!isActiveNotLapsed || !passBalance ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {currentPlanId
+              ? "Your membership isn't active right now — class passes appear here once it is."
+              : "Choose a plan below to get class passes."}
+          </p>
+        ) : passBalance.remaining === null ? (
+          <>
+            <p className="text-display mt-2 text-[28px] leading-tight">Unlimited</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Your plan has no monthly class cap — book as often as you like.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-display mt-2 text-[28px] leading-tight tabular-nums">
+              {passBalance.remaining}
+              <span className="ml-2 align-middle text-sm font-normal tracking-normal text-muted-foreground">
+                pass{passBalance.remaining === 1 ? "" : "es"} remaining
+              </span>
+            </p>
+
+            <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+              {passBalance.allowance} included · {passBalance.used} used
+              {passBalance.extra > 0 ? (
+                <> · <span className="font-medium text-gold">{passBalance.extra} extra</span></>
+              ) : null}
+            </p>
+
+            {passBalance.extra > 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Includes {passBalance.extra} bonus pass{passBalance.extra === 1 ? "" : "es"} added
+                by your coach for this period.
+              </p>
+            ) : null}
+
+            {passBalance.overusedBy > 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                You&apos;ve booked {passBalance.overusedBy} more than your current allowance this
+                period — nothing to fix on your side; talk to your coach if anything looks off.
+              </p>
+            ) : null}
+
+            <p className="mt-3 border-t border-white/[0.06] pt-3 text-[11px] text-muted-foreground">
+              Passes reset when your billing period renews
+              {subscriptionCurrentPeriodEnd
+                ? ` on ${formatMembershipDate(subscriptionCurrentPeriodEnd)}`
+                : ""}
+              .
+            </p>
+          </>
+        )}
+      </div>
+
       {/* Action banners */}
       {formError && (
         <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -276,12 +326,12 @@ export function MembershipView({
 
       {/* Plan list */}
       <div>
-        <p className="mb-3 px-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        <p className="mb-3 px-1 label-caps">
           {currentPlanId ? "Change plan" : "Available plans"}
         </p>
 
         {plans.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-card p-8 text-center">
+          <div className="empty-state">
             <p className="text-sm font-medium">No plans available yet</p>
             <p className="mt-1 text-xs text-muted-foreground">Check back soon.</p>
           </div>
@@ -358,7 +408,7 @@ export function MembershipView({
                       className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition ${
                         isLockedIn
                           ? "cursor-not-allowed bg-secondary text-secondary-foreground opacity-70"
-                          : "bg-primary text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          : "border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
                       }`}
                     >
                       {buttonLabel}

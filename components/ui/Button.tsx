@@ -6,22 +6,36 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants = {
-  primary:   "bg-teal-600 text-white hover:bg-teal-500 active:bg-teal-700",
-  secondary: "border border-zinc-700 text-zinc-200 hover:border-zinc-500 hover:text-white",
-  ghost:     "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800",
-  danger:    "bg-red-600/20 text-red-400 border border-red-600/40 hover:bg-red-600/30",
+  primary:
+    "bg-gradient-to-b from-teal-500 to-teal-600 text-white border border-teal-700/60 " +
+    "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] " +
+    "hover:from-teal-400 hover:to-teal-500 active:from-teal-600 active:to-teal-600",
+  secondary:
+    "border border-white/[0.1] bg-white/[0.04] text-zinc-200 " +
+    "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] " +
+    "hover:bg-white/[0.07] hover:border-white/[0.16] hover:text-white",
+  ghost:
+    "text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.06]",
+  danger:
+    "bg-red-500/10 text-red-400 border border-red-500/25 hover:bg-red-500/15 hover:border-red-500/40",
 };
 
 const sizes = {
   sm: "h-8 px-3 text-xs rounded-lg",
-  md: "h-10 px-4 text-sm rounded-xl",
-  lg: "h-12 px-6 text-base rounded-xl",
+  md: "h-10 px-4 text-sm rounded-[10px]",
+  lg: "h-12 px-6 text-[15px] rounded-xl",
 };
 
 export default function Button({ variant = "primary", size = "md", className = "", children, ...props }: Props) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      className={
+        "inline-flex items-center justify-center gap-2 font-medium tracking-[-0.006em] select-none " +
+        "transition-[background-color,border-color,color,transform,box-shadow] duration-150 " +
+        "active:translate-y-px " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 " +
+        `disabled:opacity-40 disabled:cursor-not-allowed disabled:active:translate-y-0 ${variants[variant]} ${sizes[size]} ${className}`
+      }
       {...props}
     >
       {children}

@@ -21,6 +21,7 @@ type ProfileFormValues = {
   sportPlayed: string;
   currentWeightKg: string;
   additionalInfo: string;
+  programmeEnabled: boolean;
 };
 
 type FormErrors = Partial<Record<keyof ProfileFormValues, string>>;
@@ -35,6 +36,7 @@ function toFormValues(email: string, profile: ProfileRecord): ProfileFormValues 
     sportPlayed: profile.sportPlayed ?? "",
     currentWeightKg: profile.currentWeightKg !== null ? String(profile.currentWeightKg) : "",
     additionalInfo: profile.additionalInfo ?? "",
+    programmeEnabled: profile.programmeEnabled ?? false,
   };
 }
 
@@ -96,7 +98,6 @@ export function StaffMemberEditor({
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-
     if (!validate()) return;
 
     setFormError(null);
@@ -184,23 +185,24 @@ export function StaffMemberEditor({
 
   return (
     <div className="space-y-6">
+      {/* Profile form */}
       <form
         onSubmit={handleSubmit}
-        className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6"
+        className="rounded-3xl border border-border bg-card p-6"
       >
-        <h3 className="text-lg font-semibold text-zinc-50">Profile</h3>
-        <p className="mt-1 text-sm text-zinc-400">
+        <h3 className="text-lg font-semibold">Profile</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
           Editing this member&apos;s core profile data.
         </p>
 
         {formError ? (
-          <p className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {formError}
           </p>
         ) : null}
 
         {successMessage ? (
-          <p className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          <p className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             {successMessage}
           </p>
         ) : null}
@@ -282,7 +284,7 @@ export function StaffMemberEditor({
             label={
               <>
                 Current weight (kg){" "}
-                <span className="text-xs font-normal text-zinc-500">optional</span>
+                <span className="text-xs font-normal text-muted-foreground">optional</span>
               </>
             }
             error={errors.currentWeightKg}
@@ -307,36 +309,70 @@ export function StaffMemberEditor({
               />
             </FormField>
           </div>
+
+          {/* Programme access — coach-enabled member feature */}
+          <div className="md:col-span-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={values.programmeEnabled}
+              onClick={() =>
+                setValues((prev) => ({ ...prev, programmeEnabled: !prev.programmeEnabled }))
+              }
+              className="well flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-white/[0.03]"
+            >
+              <span>
+                <span className="block text-sm font-medium text-foreground">Programme access</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Shows the Programme tab in this member&apos;s app. Off by default.
+                </span>
+              </span>
+              <span
+                className={[
+                  "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 transition-colors",
+                  values.programmeEnabled ? "border-primary bg-primary" : "border-border bg-muted",
+                ].join(" ")}
+              >
+                <span
+                  className={[
+                    "inline-block h-3 w-3 rounded-full bg-white shadow transition-transform",
+                    values.programmeEnabled ? "translate-x-4" : "translate-x-0.5",
+                  ].join(" ")}
+                />
+              </span>
+            </button>
+          </div>
         </div>
 
-        <div className="mt-6 flex justify-end border-t border-zinc-800 pt-4">
+        <div className="mt-6 flex justify-end border-t border-border pt-4">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Saving…" : "Save changes"}
           </button>
         </div>
       </form>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">Account access</h3>
-        <p className="mt-1 text-sm text-zinc-400">
+      {/* Account access */}
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">Account access</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
           Create a password reset link for this member.
         </p>
 
         {resetError ? (
-          <p className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {resetError}
           </p>
         ) : null}
 
         {resetMessage ? (
-          <div className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             <p>{resetMessage}</p>
             {resetUrl ? (
-              <p className="mt-2 break-all font-mono text-xs text-emerald-200">{resetUrl}</p>
+              <p className="mt-2 break-all font-mono text-xs text-primary/80">{resetUrl}</p>
             ) : null}
           </div>
         ) : null}
@@ -345,26 +381,27 @@ export function StaffMemberEditor({
           type="button"
           onClick={handleResetPassword}
           disabled={isResetting}
-          className="mt-4 rounded-xl border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 rounded-xl border border-border px-5 py-2 text-sm font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isResetting ? "Creating link…" : "Send password reset"}
         </button>
       </div>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">Coach notes</h3>
-        <p className="mt-1 text-sm text-zinc-400">
+      {/* Coach notes */}
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">Coach notes</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
           Internal notes, visible to staff only — not shown to the member.
         </p>
 
         {notesError ? (
-          <p className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {notesError}
           </p>
         ) : null}
 
         {notesSuccess ? (
-          <p className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          <p className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             {notesSuccess}
           </p>
         ) : null}
@@ -384,7 +421,7 @@ export function StaffMemberEditor({
             type="button"
             onClick={handleSaveNotes}
             disabled={isSavingNotes}
-            className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSavingNotes ? "Saving…" : "Save notes"}
           </button>
@@ -405,17 +442,17 @@ function FormField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-medium text-zinc-200">{label}</span>
+      <span className="mb-2 block text-sm font-medium text-foreground">{label}</span>
       {children}
-      {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+      {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
     </label>
   );
 }
 
 function inputClass(hasError?: string) {
-  return `w-full rounded-xl border bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
+  return `w-full rounded-xl border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
     hasError
-      ? "border-red-500 focus:border-red-400"
-      : "border-zinc-800 focus:border-teal-500"
+      ? "border-destructive focus:border-destructive"
+      : "border-border focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
   }`;
 }

@@ -45,7 +45,7 @@ export default function StrengthProgressChart({ series }: Props) {
           const y = PAD.t + (1 - t) * ch;
           return (
             <g key={t}>
-              <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#3f3f46" strokeWidth={0.5} strokeDasharray="3,3" />
+              <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#27272a" strokeWidth={0.5} strokeDasharray="3,3" />
               <text x={PAD.l - 4} y={y + 3} textAnchor="end" fontSize={7} fill="#71717a">{Math.round(val)}</text>
             </g>
           );
@@ -82,7 +82,7 @@ export default function StrengthProgressChart({ series }: Props) {
             <div key={s.label} className="flex items-center gap-1.5">
               <span className="w-2.5 h-0.5 rounded-full inline-block" style={{ backgroundColor: s.color }} />
               <span className="text-xs text-zinc-400">{s.label}</span>
-              {last && <span className="text-xs font-semibold" style={{ color: s.color }}>{last.maxWeightKg}kg</span>}
+              {last && <span className="text-xs font-semibold tabular-nums" style={{ color: s.color }}>{last.maxWeightKg}kg</span>}
             </div>
           );
         })}

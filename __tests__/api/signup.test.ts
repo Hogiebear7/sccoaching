@@ -24,6 +24,7 @@ const VALID_PAYLOAD = {
   password: "Str0ng!Pass",
   fullName: "New Athlete",
   phone: "555-0100",
+  dateOfBirth: "1994-03-12",
   gender: "Female",
   primaryGoal: "General Health",
   currentWeightKg: "65",
@@ -69,6 +70,9 @@ describe("POST /api/auth/signup", () => {
     const savedProfile = mockSaveProfile.mock.calls[0][0];
     expect(savedProfile.userId).toBe("user-2");
     expect(savedProfile.fullName).toBe("New Athlete");
+    // Signup is the one place weight can be entered manually — after this,
+    // it's read-only in Profile and driven by weight-log entries.
+    expect(savedProfile.currentWeightKg).toBe(65);
     expect(savedProfile.cycleTrackingEligible).toBe(true);
     expect(savedProfile.cycleTrackingEnabled).toBe(true);
 
@@ -79,6 +83,28 @@ describe("POST /api/auth/signup", () => {
 
     const sessionCookie = res.cookies.get("session");
     expect(verifySession(sessionCookie!.value)?.userId).toBe("user-2");
+  });
+
+  it("rejects a missing date of birth with 400", async () => {
+    const res = await callSignup({ ...VALID_PAYLOAD, dateOfBirth: "" });
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.message).toBe("Date of birth is required.");
+    expect(mockCreateUser).not.toHaveBeenCalled();
+    expect(mockSaveProfile).not.toHaveBeenCalled();
+  });
+
+  it("rejects a future or malformed date of birth with 400", async () => {
+    const future = new Date();
+    future.setFullYear(future.getFullYear() + 1);
+    const futureISO = future.toISOString().slice(0, 10);
+
+    for (const bad of [futureISO, "not-a-date"]) {
+      const res = await callSignup({ ...VALID_PAYLOAD, dateOfBirth: bad });
+      expect(res.status, `expected 400 for dateOfBirth="${bad}"`).toBe(400);
+    }
+    expect(mockSaveProfile).not.toHaveBeenCalled();
   });
 
   it("rejects a weak password without creating a user", async () => {

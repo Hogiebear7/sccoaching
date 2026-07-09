@@ -14,6 +14,9 @@ const {
   mockFindWaitlistEntryByClassAndUser,
   mockCreateWaitlistEntry,
   mockDeleteWaitlistEntry,
+  mockFindWaitlistEntriesByClassId,
+  mockSaveWaitlistEntry,
+  mockIssueWaitlistOffer,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindClassById: vi.fn(),
@@ -25,6 +28,9 @@ const {
   mockFindWaitlistEntryByClassAndUser: vi.fn(),
   mockCreateWaitlistEntry: vi.fn(),
   mockDeleteWaitlistEntry: vi.fn(),
+  mockFindWaitlistEntriesByClassId: vi.fn(),
+  mockSaveWaitlistEntry: vi.fn(),
+  mockIssueWaitlistOffer: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -38,6 +44,12 @@ vi.mock("@/lib/db", () => ({
   findWaitlistEntryByClassAndUser: mockFindWaitlistEntryByClassAndUser,
   createWaitlistEntry: mockCreateWaitlistEntry,
   deleteWaitlistEntry: mockDeleteWaitlistEntry,
+  findWaitlistEntriesByClassId: mockFindWaitlistEntriesByClassId,
+  saveWaitlistEntry: mockSaveWaitlistEntry,
+}));
+
+vi.mock("@/lib/scheduling", () => ({
+  issueWaitlistOffer: mockIssueWaitlistOffer,
 }));
 
 const MEMBER_USER = { id: "user-1", email: "athlete@example.com", role: "member" as const };
@@ -93,6 +105,7 @@ describe("POST /api/bookings/waitlist/join", () => {
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindWaitlistEntryByClassAndUser.mockReturnValue(undefined);
+    mockFindWaitlistEntriesByClassId.mockReturnValue([]);
   });
 
   it("rejects requests with no session cookie", async () => {
@@ -182,6 +195,8 @@ describe("POST /api/bookings/waitlist/leave", () => {
     mockFindUserById.mockReset();
     mockFindWaitlistEntryByClassAndUser.mockReset();
     mockDeleteWaitlistEntry.mockReset();
+    mockSaveWaitlistEntry.mockReset();
+    mockIssueWaitlistOffer.mockReset();
     mockFindUserById.mockReturnValue(MEMBER_USER);
   });
 
@@ -196,7 +211,7 @@ describe("POST /api/bookings/waitlist/leave", () => {
 
     const res = await callLeave({ classId: "class-1" }, cookie);
     expect(res.status).toBe(404);
-    expect(mockDeleteWaitlistEntry).not.toHaveBeenCalled();
+    expect(mockSaveWaitlistEntry).not.toHaveBeenCalled();
   });
 
   it("removes the member's waitlist entry", async () => {
@@ -208,6 +223,8 @@ describe("POST /api/bookings/waitlist/leave", () => {
 
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(mockDeleteWaitlistEntry).toHaveBeenCalledWith("wl-1");
+    // Entries are soft-removed (offerState "removed") for audit, not deleted.
+    expect(mockSaveWaitlistEntry).toHaveBeenCalledTimes(1);
+    expect(mockSaveWaitlistEntry.mock.calls[0][0]).toMatchObject({ id: "wl-1", offerState: "removed" });
   });
 });

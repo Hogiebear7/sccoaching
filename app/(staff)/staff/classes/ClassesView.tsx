@@ -67,10 +67,20 @@ function toFormValues(classRecord: ClassRecord): ClassFormValues {
   };
 }
 
-export function ClassesView({ classes, categories, deletedLabels }: { classes: ClassWithRoster[]; categories: ClassCategoryRecord[]; deletedLabels: Record<string, string> }) {
+export function ClassesView({
+  classes,
+  categories,
+  deletedLabels,
+}: {
+  classes: ClassWithRoster[];
+  categories: ClassCategoryRecord[];
+  deletedLabels: Record<string, string>;
+}) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [values, setValues] = useState<ClassFormValues>(() => emptyFormValues(categories[0]?.slug ?? ""));
+  const [values, setValues] = useState<ClassFormValues>(() =>
+    emptyFormValues(categories[0]?.slug ?? "")
+  );
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -81,17 +91,13 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
 
   async function handleToggleAttendance(bookingId: string, nextAttended: boolean) {
     setAttendanceUpdatingId(bookingId);
-
     try {
       const res = await fetch("/api/staff/bookings/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bookingId, attended: nextAttended }),
       });
-
-      if (res.ok) {
-        router.refresh();
-      }
+      if (res.ok) router.refresh();
     } finally {
       setAttendanceUpdatingId(null);
     }
@@ -129,7 +135,11 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
     if (!values.date.trim()) nextErrors.date = "Date is required.";
     if (!values.startTime.trim()) nextErrors.startTime = "Start time is required.";
 
-    if (values.date.trim() && values.startTime.trim() && !isFutureDateTime(values.date, values.startTime)) {
+    if (
+      values.date.trim() &&
+      values.startTime.trim() &&
+      !isFutureDateTime(values.date, values.startTime)
+    ) {
       nextErrors.startTime = "Class date and time must be in the future.";
     }
 
@@ -154,7 +164,6 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-
     if (!validate()) return;
 
     setFormError(null);
@@ -188,28 +197,30 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.24em] text-teal-400">Classes</p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-50">
+      {/* Header card */}
+      <div>
+        <p className="label-caps">Staff</p>
+        <h2 className="text-display mt-1 text-[28px] leading-tight">
           {isEditing ? "Edit class" : "Create a class"}
         </h2>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-400">
-          Classes you create here will appear on the customer schedule.
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          Classes you create here will appear on the member schedule.
         </p>
       </div>
 
+      {/* Create / edit form */}
       <form
         onSubmit={handleSubmit}
-        className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl"
+        className="panel rounded-3xl p-6"
       >
         {formError ? (
-          <p className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {formError}
           </p>
         ) : null}
 
         {successMessage ? (
-          <p className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          <p className="mb-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             {successMessage}
           </p>
         ) : null}
@@ -287,12 +298,12 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
           </FormField>
         </div>
 
-        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-zinc-800 pt-4 sm:flex-row sm:items-center sm:justify-end">
+        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-end">
           {isEditing ? (
             <button
               type="button"
               onClick={cancelEdit}
-              className="rounded-xl border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500"
+              className="rounded-xl border border-border px-5 py-2 text-sm font-medium text-foreground transition hover:bg-accent"
             >
               Cancel
             </button>
@@ -301,18 +312,19 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Saving…" : isEditing ? "Update class" : "Create class"}
           </button>
         </div>
       </form>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">All classes</h3>
+      {/* Class list */}
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">All classes</h3>
 
         {classes.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-400">
+          <p className="mt-3 text-sm text-muted-foreground">
             No classes yet. Create the first one above.
           </p>
         ) : (
@@ -320,28 +332,25 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
             {classes.map((classRecord) => (
               <div
                 key={classRecord.id}
-                className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"
+                className="well p-4"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-sm text-zinc-500">
+                    <p className="text-xs text-muted-foreground">
                       {classRecord.date} · {classRecord.startTime}
                     </p>
-                    <h4 className="mt-1 text-base font-semibold text-zinc-100">
-                      {classRecord.title}
-                    </h4>
-                    <p className="mt-2 text-sm text-zinc-400">
+                    <h4 className="mt-1 text-base font-semibold">{classRecord.title}</h4>
+                    <p className="mt-1 text-sm text-muted-foreground">
                       Coach: {classRecord.coachEmail}
                     </p>
                   </div>
 
                   <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-                    <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-400">
+                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                       {classCategoryLabel(categories, classRecord.category, deletedLabels)}
                     </span>
-                    <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-300">
-                      {classRecord.durationMins} min · {classRecord.bookedCount} of{" "}
-                      {classRecord.capacity} booked
+                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+                      {classRecord.durationMins} min · {classRecord.bookedCount}/{classRecord.capacity} booked
                       {classRecord.waitlist.length > 0
                         ? ` · ${classRecord.waitlist.length} waitlisted`
                         : ""}
@@ -349,19 +358,20 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
                     <button
                       type="button"
                       onClick={() => startEdit(classRecord)}
-                      className="rounded-xl border border-zinc-700 px-3 py-1 text-xs font-medium text-zinc-200 transition hover:border-zinc-500"
+                      className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
                     >
                       Edit
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-4 border-t border-zinc-800 pt-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                {/* Roster */}
+                <div className="mt-4 border-t border-border pt-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     Booked members
                   </p>
                   {classRecord.roster.length === 0 ? (
-                    <p className="mt-2 text-sm text-zinc-400">No members booked yet.</p>
+                    <p className="mt-2 text-sm text-muted-foreground">No members booked yet.</p>
                   ) : (
                     <ul className="mt-2 space-y-2">
                       {classRecord.roster.map((member) => {
@@ -376,24 +386,30 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
                             <div>
                               <Link
                                 href={`/staff/members/${member.userId}`}
-                                className="text-teal-400 transition hover:text-teal-300"
+                                className="text-gold transition hover:text-gold/80"
                               >
                                 {member.fullName ?? member.email}
                               </Link>
-                              <span className="text-zinc-500"> · {member.email}</span>
+                              <span className="text-muted-foreground"> · {member.email}</span>
                             </div>
 
                             <button
                               type="button"
-                              onClick={() => handleToggleAttendance(member.bookingId, !attended)}
+                              onClick={() =>
+                                handleToggleAttendance(member.bookingId, !attended)
+                              }
                               disabled={isUpdating}
                               className={`rounded-full px-3 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                                 attended
-                                  ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
-                                  : "border border-zinc-700 text-zinc-300 hover:border-zinc-500"
+                                  ? "bg-primary/15 text-primary hover:bg-primary/25"
+                                  : "border border-border text-foreground hover:bg-accent"
                               }`}
                             >
-                              {isUpdating ? "Updating…" : attended ? "Attended" : "Mark attended"}
+                              {isUpdating
+                                ? "Updating…"
+                                : attended
+                                ? "Attended"
+                                : "Mark attended"}
                             </button>
                           </li>
                         );
@@ -402,18 +418,19 @@ export function ClassesView({ classes, categories, deletedLabels }: { classes: C
                   )}
                 </div>
 
+                {/* Waitlist */}
                 {classRecord.waitlist.length > 0 ? (
-                  <div className="mt-4 border-t border-zinc-800 pt-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                  <div className="mt-4 border-t border-border pt-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                       Waitlist
                     </p>
                     <ul className="mt-2 space-y-1">
                       {classRecord.waitlist.map((member) => (
-                        <li key={member.userId} className="text-sm text-zinc-300">
-                          <span className="text-zinc-500">#{member.position}</span>{" "}
+                        <li key={member.userId} className="text-sm">
+                          <span className="text-muted-foreground">#{member.position}</span>{" "}
                           <Link
                             href={`/staff/members/${member.userId}`}
-                            className="text-teal-400 transition hover:text-teal-300"
+                            className="text-gold transition hover:text-gold/80"
                           >
                             {member.fullName ?? member.email}
                           </Link>
@@ -442,17 +459,17 @@ function FormField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-medium text-zinc-200">{label}</span>
+      <span className="mb-2 block text-sm font-medium text-foreground">{label}</span>
       {children}
-      {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+      {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
     </label>
   );
 }
 
 function inputClass(hasError?: string) {
-  return `w-full rounded-xl border bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
+  return `w-full rounded-xl border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
     hasError
-      ? "border-red-500 focus:border-red-400"
-      : "border-zinc-800 focus:border-teal-500"
+      ? "border-destructive focus:border-destructive"
+      : "border-border focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
   }`;
 }

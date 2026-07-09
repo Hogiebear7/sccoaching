@@ -59,12 +59,14 @@ export async function POST(request: Request) {
     password,
     fullName,
     phone,
+    dateOfBirth,
     gender,
     primaryGoal,
     sportPlayed,
     currentWeightKg,
     additionalInfo,
     cycleTrackingEnabled,
+    menopauseSupportEnabled,
     lastPeriodStartDate,
     averageCycleLengthDays,
     periodLengthDays,
@@ -137,6 +139,32 @@ export async function POST(request: Request) {
     );
   }
 
+  // Date of birth is required: a valid YYYY-MM-DD date in the past
+  // (matches the profile-update rule).
+  const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const dobRaw = typeof dateOfBirth === "string" ? dateOfBirth.trim() : "";
+
+  if (!dobRaw) {
+    return NextResponse.json(
+      { success: false, message: "Date of birth is required." },
+      { status: 400 }
+    );
+  }
+
+  if (
+    !ISO_DATE_RE.test(dobRaw) ||
+    Number.isNaN(new Date(dobRaw).getTime()) ||
+    dobRaw >= todayISO
+  ) {
+    return NextResponse.json(
+      { success: false, message: "Date of birth must be a valid date in the past." },
+      { status: 400 }
+    );
+  }
+
+  const dobValue = dobRaw;
+
   const weightValue =
     typeof currentWeightKg === "string" && currentWeightKg.trim() !== ""
       ? Number(currentWeightKg)
@@ -153,6 +181,7 @@ export async function POST(request: Request) {
     fullName: fullName.trim(),
     email: user.email,
     phone: phone.trim(),
+    dateOfBirth: dobValue,
     gender: genderValue,
     primaryGoal: primaryGoalValue,
     sportPlayed: sportPlayedValue || null,
@@ -160,6 +189,10 @@ export async function POST(request: Request) {
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
     cycleTrackingEligible: cycleEligible,
     cycleTrackingEnabled: cycleEligible ? Boolean(cycleTrackingEnabled) : false,
+    menopauseSupportEnabled: Boolean(menopauseSupportEnabled),
+    reminderTimingsMins: null,
+    emailNotificationsEnabled: true,
+    pushNotificationsEnabled: false,
     onboardingCompleted: true,
     createdAt: now,
     updatedAt: now,

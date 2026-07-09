@@ -12,7 +12,7 @@ export default function CoachScheduleCard({ cls }: { cls: GymClass }) {
   const spotsLeft = cls.capacity - cls.enrolled;
   const pct = Math.round((cls.enrolled / cls.capacity) * 100);
   return (
-    <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4">
+    <div className="panel p-4">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">

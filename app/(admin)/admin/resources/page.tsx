@@ -18,17 +18,17 @@ export default function AdminResourcesPage() {
           </Button>
         }
       />
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+      <div className="flex-1 overflow-y-auto px-8 py-8">
+        <div className="anim-rise panel overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">Title</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">Category</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">Shared</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">Size</th>
-                <th className="px-4 py-3" />
+              <tr className="border-b border-white/[0.08]">
+                <th className="px-5 py-3 text-left label-caps">Title</th>
+                <th className="px-5 py-3 text-left label-caps">Type</th>
+                <th className="px-5 py-3 text-left label-caps">Category</th>
+                <th className="px-5 py-3 text-left label-caps">Shared</th>
+                <th className="px-5 py-3 text-left label-caps">Size</th>
+                <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody>

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import ExerciseSearchModal from "./ExerciseSearchModal";
 import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
 import type { Exercise } from "@/lib/mock-data";
 
 interface LoggedSet { reps: string; weightKg: string; }
@@ -40,13 +41,13 @@ export default function WorkoutLogger({ memberId }: Props) {
   if (finished) {
     return (
       <div className="flex flex-col items-center py-12 gap-4 text-center">
-        <div className="w-16 h-16 rounded-full bg-teal-600/20 flex items-center justify-center">
+        <div className="w-16 h-16 rounded-full bg-teal-500/10 ring-1 ring-teal-500/25 flex items-center justify-center">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-8 h-8 text-teal-400">
             <polyline points="20,6 9,17 4,12" />
           </svg>
         </div>
         <div>
-          <p className="text-xl font-bold text-zinc-100">Session Complete!</p>
+          <p className="text-xl font-semibold tracking-tight text-zinc-100">Session Complete!</p>
           <p className="text-sm text-zinc-500 mt-1">{session.length} exercises logged</p>
         </div>
         <Button onClick={() => { setSession([]); setFinished(false); }} variant="secondary" size="md">
@@ -59,22 +60,24 @@ export default function WorkoutLogger({ memberId }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {session.length === 0 ? (
-        <div className="flex flex-col items-center py-10 gap-3 text-center">
-          <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-7 h-7 text-zinc-500">
+        <EmptyState
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
               <path d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-          </div>
-          <p className="text-zinc-400 text-sm">No exercises added yet.</p>
-        </div>
+          }
+          title="Start your session"
+          description="Add your first exercise and log sets as you go."
+          className="py-10"
+        />
       ) : (
         <div className="flex flex-col gap-3">
           {session.map((item, exIdx) => (
-            <div key={item.exercise.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4">
+            <div key={item.exercise.id} className="panel p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="font-semibold text-zinc-100 text-sm">{item.exercise.name}</p>
-                  <p className="text-xs text-zinc-500">{item.exercise.muscleGroup}</p>
+                  <p className="font-semibold tracking-tight text-zinc-100 text-sm leading-tight">{item.exercise.name}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">{item.exercise.muscleGroup}</p>
                 </div>
                 <button onClick={() => removeExercise(exIdx)} className="text-zinc-600 hover:text-red-400 transition-colors p-1">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
@@ -84,21 +87,21 @@ export default function WorkoutLogger({ memberId }: Props) {
               </div>
               {/* Set header */}
               <div className="grid grid-cols-[28px_1fr_1fr_40px] gap-2 mb-2 px-1">
-                <span className="text-[10px] text-zinc-600 text-center">SET</span>
-                <span className="text-[10px] text-zinc-600 text-center">WEIGHT (kg)</span>
-                <span className="text-[10px] text-zinc-600 text-center">REPS</span>
+                <span className="text-[10px] font-semibold tracking-[0.08em] text-zinc-600 text-center">SET</span>
+                <span className="text-[10px] font-semibold tracking-[0.08em] text-zinc-600 text-center">WEIGHT (KG)</span>
+                <span className="text-[10px] font-semibold tracking-[0.08em] text-zinc-600 text-center">REPS</span>
                 <span />
               </div>
               {item.sets.map((set, setIdx) => (
                 <div key={setIdx} className="grid grid-cols-[28px_1fr_1fr_40px] gap-2 mb-1.5 items-center">
-                  <span className="text-xs text-zinc-500 text-center font-medium">{setIdx + 1}</span>
+                  <span className="text-xs text-zinc-500 text-center font-medium tabular-nums">{setIdx + 1}</span>
                   <input
                     type="number"
                     inputMode="decimal"
                     value={set.weightKg}
                     onChange={(e) => updateSet(exIdx, setIdx, "weightKg", e.target.value)}
                     placeholder="0"
-                    className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-sm text-zinc-100 text-center placeholder-zinc-600 outline-none focus:border-teal-600"
+                    className="input-field rounded-lg px-2 py-1.5 text-center tabular-nums"
                   />
                   <input
                     type="number"
@@ -106,7 +109,7 @@ export default function WorkoutLogger({ memberId }: Props) {
                     value={set.reps}
                     onChange={(e) => updateSet(exIdx, setIdx, "reps", e.target.value)}
                     placeholder="0"
-                    className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-sm text-zinc-100 text-center placeholder-zinc-600 outline-none focus:border-teal-600"
+                    className="input-field rounded-lg px-2 py-1.5 text-center tabular-nums"
                   />
                   <button
                     onClick={() => setSession((prev) => prev.map((it, i) => i === exIdx ? { ...it, sets: it.sets.filter((_, j) => j !== setIdx) } : it))}
@@ -118,7 +121,7 @@ export default function WorkoutLogger({ memberId }: Props) {
                   </button>
                 </div>
               ))}
-              <button onClick={() => addSet(exIdx)} className="mt-2 text-xs text-teal-500 hover:text-teal-400 font-medium flex items-center gap-1">
+              <button onClick={() => addSet(exIdx)} className="mt-2 text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
                   <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                 </svg>

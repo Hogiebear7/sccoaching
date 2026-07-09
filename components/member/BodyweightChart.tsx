@@ -41,7 +41,7 @@ export default function BodyweightChart({ entries, targetWeight }: { entries: Bo
           const y = toY(val);
           return (
             <g key={t}>
-              <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#3f3f46" strokeWidth={0.5} strokeDasharray="3,3" />
+              <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#27272a" strokeWidth={0.5} strokeDasharray="3,3" />
               <text x={PAD.l - 4} y={y + 3} textAnchor="end" fontSize={7} fill="#71717a">{val.toFixed(0)}</text>
             </g>
           );
@@ -50,11 +50,11 @@ export default function BodyweightChart({ entries, targetWeight }: { entries: Bo
         <line x1={PAD.l} y1={targetY} x2={W - PAD.r} y2={targetY} stroke="#0d9488" strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
         <text x={W - PAD.r + 1} y={targetY + 3} fontSize={6} fill="#0d9488" opacity={0.7}>goal</text>
         {/* Area fill */}
-        <polygon points={areaPoints} fill="#0d9488" opacity={0.07} />
+        <polygon points={areaPoints} fill="#14b8a6" opacity={0.06} />
         {/* Line */}
-        <polyline points={linePoints} fill="none" stroke="#0d9488" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={linePoints} fill="none" stroke="#14b8a6" strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
         {/* Last dot */}
-        <circle cx={toX(entries.length - 1)} cy={toY(last.weightKg)} r={3} fill="#0d9488" />
+        <circle cx={toX(entries.length - 1)} cy={toY(last.weightKg)} r={3} fill="#14b8a6" stroke="#09090b" strokeWidth={1} />
         {/* X labels */}
         {[0, entries.length - 1].map((i) => (
           <text key={i} x={toX(i)} y={H - 3} textAnchor={i === 0 ? "start" : "end"} fontSize={7} fill="#71717a">
@@ -63,9 +63,9 @@ export default function BodyweightChart({ entries, targetWeight }: { entries: Bo
         ))}
       </svg>
       <div className="flex items-center justify-between mt-1">
-        <p className="text-xs text-zinc-500">Target: <span className="text-teal-400 font-medium">{targetWeight} kg</span></p>
-        <p className={`text-xs font-medium ${parseFloat(diff) <= 0 ? "text-teal-400" : "text-zinc-400"}`}>
-          {parseFloat(diff) <= 0 ? "▼" : "▲"} {Math.abs(parseFloat(diff))} kg over {entries.length} weeks
+        <p className="text-xs text-zinc-500">Target: <span className="text-teal-400 font-medium tabular-nums">{targetWeight} kg</span></p>
+        <p className={`text-xs font-medium tabular-nums ${parseFloat(diff) <= 0 ? "text-teal-400" : "text-zinc-400"}`}>
+          {parseFloat(diff) <= 0 ? "↓" : "↑"} {Math.abs(parseFloat(diff))} kg over {entries.length} weeks
         </p>
       </div>
     </div>

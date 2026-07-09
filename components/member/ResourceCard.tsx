@@ -26,8 +26,8 @@ function formatDate(d: string) {
 export default function ResourceCard({ resource }: { resource: Resource }) {
   const typeKey = resource.type.toLowerCase() as Parameters<typeof Badge>[0]["variant"];
   return (
-    <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4 flex items-start gap-3 active:scale-[0.98] transition-transform cursor-pointer">
-      <div className="flex-shrink-0 w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center">
+    <div className="panel p-4 flex items-start gap-3 cursor-pointer transition-[transform,border-color] duration-150 hover:border-white/[0.12] active:scale-[0.99]">
+      <div className="flex-shrink-0 w-10 h-10 bg-white/[0.05] border border-white/[0.05] rounded-xl flex items-center justify-center">
         {icons[resource.type]}
       </div>
       <div className="flex-1 min-w-0">

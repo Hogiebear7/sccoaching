@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import {
+  findBodyWeightLogsByUserId,
   findBookingsByUserId,
   findClassById,
   findCoachNoteByUserId,
@@ -17,7 +18,11 @@ import {
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
 import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
-import { remainingSessions } from "@/lib/scheduling-status";
+import { resolveCurrentWeightKg } from "@/lib/body-weight";
+import { describeDrinkSettings } from "@/lib/drink-settings";
+import { formatMembershipDate } from "@/lib/membership-status";
+import { buildDrinkMix, buildDrinkPlan } from "@/lib/nutrition";
+import { classPassBalance } from "@/lib/scheduling-status";
 import { MessagesThread } from "@/components/messages/MessagesThread";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
 import { MembershipStatusPanel } from "@/components/staff/MembershipStatusPanel";
@@ -34,8 +39,8 @@ function approximateCycleDay(lastPeriodStartDate: string, averageCycleLengthDays
 function CycleInfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[180px_minmax(0,1fr)]">
-      <span className="text-sm text-zinc-500">{label}</span>
-      <span className="text-sm text-zinc-100">{value}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-sm">{value}</span>
     </div>
   );
 }
@@ -51,17 +56,13 @@ export default async function StaffMemberDetailPage({
   if (!user) {
     return (
       <section className="space-y-6">
-        <Link
-          href="/staff/classes"
-          className="text-sm text-teal-400 transition hover:text-teal-300"
-        >
+        <Link href="/staff/classes" className="text-sm text-gold transition hover:text-gold/80">
           ← Back to classes
         </Link>
-
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.24em] text-teal-400">Member</p>
-          <h2 className="mt-2 text-3xl font-semibold text-zinc-50">Member not found</h2>
-          <p className="mt-3 max-w-2xl text-sm text-zinc-400">
+        <div>
+          <p className="label-caps">Member</p>
+          <h2 className="text-display mt-1 text-[28px] leading-tight">Member not found</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             This member account no longer exists.
           </p>
         </div>
@@ -70,8 +71,12 @@ export default async function StaffMemberDetailPage({
   }
 
   const profile = findProfileByUserId(user.id);
-  const cycleSettings = profile?.cycleTrackingEligible ? findCycleSettingsByUserId(user.id) : undefined;
-  const cyclePrivacy = profile?.cycleTrackingEligible ? findCyclePrivacyByUserId(user.id) : undefined;
+  const cycleSettings = profile?.cycleTrackingEligible
+    ? findCycleSettingsByUserId(user.id)
+    : undefined;
+  const cyclePrivacy = profile?.cycleTrackingEligible
+    ? findCyclePrivacyByUserId(user.id)
+    : undefined;
   const programme = findProgrammeByUserId(user.id);
   const sessions = findWorkoutSessionsByUserId(user.id);
   const coachNote = findCoachNoteByUserId(user.id);
@@ -79,14 +84,31 @@ export default async function StaffMemberDetailPage({
   const messages = findMessagesByMemberId(user.id);
   const activePlans = findMembershipPlans().filter((plan) => plan.isActive);
   const subscription = findSubscriptionByUserId(user.id);
-  const subscriptionPlan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+
+  // Drink calculator summary — computed with the member's synced weight so
+  // staff see the same numbers the member (and the AI coach) sees.
+  const drinkSettings = profile?.drinkSettings ?? null;
+  const drinkInput = drinkSettings
+    ? {
+        bodyWeightKg:
+          resolveCurrentWeightKg(
+            profile?.currentWeightKg ?? null,
+            findBodyWeightLogsByUserId(user.id)
+          ) ?? 75,
+        ...drinkSettings,
+      }
+    : null;
+  const drinkMix = drinkInput ? buildDrinkMix(drinkInput) : null;
+  const drinkPlan = drinkInput ? buildDrinkPlan(drinkInput) : null;
+  const subscriptionPlan = subscription?.planId
+    ? findMembershipPlanById(subscription.planId)
+    : undefined;
 
   const now = Date.now();
   const upcomingBookings = findBookingsByUserId(user.id)
     .map((booking) => {
       const classRecord = findClassById(booking.classId);
       if (!classRecord) return null;
-
       return {
         bookingId: booking.id,
         title: classRecord.title,
@@ -96,24 +118,22 @@ export default async function StaffMemberDetailPage({
         isPast: new Date(`${classRecord.date}T${classRecord.startTime}`).getTime() < now,
       };
     })
-    .filter((booking): booking is NonNullable<typeof booking> => booking !== null && !booking.isPast)
+    .filter((b): b is NonNullable<typeof b> => b !== null && !b.isPast)
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 
   return (
     <section className="space-y-6">
-      <Link
-        href="/staff/classes"
-        className="text-sm text-teal-400 transition hover:text-teal-300"
-      >
+      <Link href="/staff/classes" className="text-sm text-gold transition hover:text-gold/80">
         ← Back to classes
       </Link>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.24em] text-teal-400">Member</p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-50">
+      {/* Header */}
+      <div>
+        <p className="label-caps">Member</p>
+        <h2 className="text-display mt-1 text-[28px] leading-tight">
           {profile?.fullName ?? user.email}
         </h2>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-400">{user.email}</p>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{user.email}</p>
       </div>
 
       <CoachSummaryPanel memberId={user.id} />
@@ -127,15 +147,52 @@ export default async function StaffMemberDetailPage({
         currentProvider={subscription?.provider ?? null}
         currentUpdatedAt={subscription?.updatedAt ?? null}
         currentPeriodEnd={subscription?.currentPeriodEnd ?? null}
-        currentRemainingSessions={
-          subscriptionPlan && subscription ? remainingSessions(subscriptionPlan, subscription) : null
+        passBalance={
+          subscriptionPlan && subscription
+            ? classPassBalance(subscriptionPlan, subscription)
+            : null
         }
       />
 
+      {/* Drink calculator */}
+      {drinkSettings && drinkMix && drinkPlan ? (
+        <div className="rounded-3xl border border-border bg-card p-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-lg font-semibold">Drink calculator</h3>
+            <span className="text-xs text-muted-foreground">
+              {describeDrinkSettings(drinkSettings)}
+              {profile?.drinkSettingsUpdatedAt
+                ? ` · updated ${formatMembershipDate(profile.drinkSettingsUpdatedAt)}`
+                : ""}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+            {[
+              { name: "Maltodextrin", amount: `${drinkMix.maltodextrinG} g` },
+              { name: "Beta-alanine", amount: `${drinkMix.betaAlanineG} g` },
+              { name: "Chia seeds", amount: `${drinkMix.chiaG} g` },
+              { name: "Beetroot powder", amount: `${drinkMix.beetrootG} g` },
+              { name: "Orange concentrate", amount: `${drinkMix.orangeMl} ml` },
+              { name: "Salt", amount: `${drinkMix.saltG.toFixed(2)} g` },
+            ].map((row) => (
+              <div key={row.name} className="flex items-baseline justify-between gap-3">
+                <span className="text-sm text-muted-foreground">{row.name}</span>
+                <span className="text-sm font-medium tabular-nums">{row.amount}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-xs text-muted-foreground tabular-nums">
+            {drinkMix.carbsG.toFixed(0)} g carbs · {drinkMix.sodiumTotalMg} mg sodium ·{" "}
+            {drinkMix.nitrateMg} mg nitrate · {drinkMix.calories} kcal
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{drinkPlan.bottleAdvice}</p>
+        </div>
+      ) : null}
+
       {!profile ? (
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-          <h3 className="text-lg font-semibold text-zinc-50">Profile</h3>
-          <p className="mt-3 text-sm text-zinc-400">No profile data for this account yet.</p>
+        <div className="rounded-3xl border border-border bg-card p-6">
+          <h3 className="text-lg font-semibold">Profile</h3>
+          <p className="mt-3 text-sm text-muted-foreground">No profile data for this account yet.</p>
         </div>
       ) : (
         <StaffMemberEditor
@@ -146,26 +203,29 @@ export default async function StaffMemberDetailPage({
         />
       )}
 
+      {/* Cycle tracking */}
       {profile?.cycleTrackingEligible ? (
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-          <h3 className="text-lg font-semibold text-zinc-50">Cycle tracking</h3>
+        <div className="rounded-3xl border border-border bg-card p-6">
+          <h3 className="text-lg font-semibold">Cycle tracking</h3>
           {!profile.cycleTrackingEnabled ? (
-            <p className="mt-3 text-sm text-zinc-400">Member has not enabled cycle tracking.</p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Member has not enabled cycle tracking.
+            </p>
           ) : !cyclePrivacy ||
             (!cyclePrivacy.shareCurrentPhaseWithCoach &&
               !cyclePrivacy.shareExactDatesWithCoach &&
               !cyclePrivacy.shareNotesWithCoach) ? (
-            <p className="mt-3 text-sm text-zinc-400">
+            <p className="mt-3 text-sm text-muted-foreground">
               Cycle tracking is private — the member has not shared any information with coaches.
             </p>
           ) : (
             <div className="mt-4 space-y-3">
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-muted-foreground">
                 Shown based on member&apos;s sharing preferences. Approximate only — not medical
                 information.
               </p>
               {cycleSettings?.updatedAt ? (
-                <p className="text-xs text-zinc-600">
+                <p className="text-xs text-muted-foreground/50">
                   Updated{" "}
                   {new Date(cycleSettings.updatedAt).toLocaleDateString(undefined, {
                     year: "numeric",
@@ -202,52 +262,52 @@ export default async function StaffMemberDetailPage({
         </div>
       ) : null}
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">Programme</h3>
+      {/* Programme */}
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">Programme</h3>
         {!programme ? (
-          <p className="mt-3 text-sm text-zinc-400">No programme assigned yet.</p>
+          <p className="mt-3 text-sm text-muted-foreground">No programme assigned yet.</p>
         ) : (
           <div className="mt-3 space-y-2">
-            <p className="text-base font-semibold text-zinc-100">{programme.title}</p>
-            <p className="text-sm text-zinc-400">
+            <p className="text-base font-semibold">{programme.title}</p>
+            <p className="text-sm text-muted-foreground">
               Status: {programme.status}
               {programme.phase ? ` · ${programme.phase}` : ""}
             </p>
             {programme.currentWeek != null && programme.totalWeeks != null ? (
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-muted-foreground">
                 Week {programme.currentWeek} of {programme.totalWeeks}
               </p>
             ) : null}
             {programme.focus ? (
-              <p className="text-sm text-zinc-400">{programme.focus}</p>
+              <p className="text-sm text-muted-foreground">{programme.focus}</p>
             ) : null}
             {programme.notes ? (
-              <p className="text-sm text-zinc-400">Notes: {programme.notes}</p>
+              <p className="text-sm text-muted-foreground">Notes: {programme.notes}</p>
             ) : null}
           </div>
         )}
       </div>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">Workout history</h3>
+      {/* Workout history */}
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">Workout history</h3>
         {sessions.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-400">No workouts logged yet.</p>
+          <p className="mt-3 text-sm text-muted-foreground">No workouts logged yet.</p>
         ) : (
           <div className="mt-5 space-y-3">
             {sessions.map((session) => (
               <div
                 key={session.id}
-                className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"
+                className="well p-4"
               >
-                <p className="text-sm text-zinc-500">{session.date}</p>
-                <h4 className="mt-1 text-base font-semibold text-zinc-100">
-                  {session.title}
-                </h4>
+                <p className="text-xs text-muted-foreground">{session.date}</p>
+                <h4 className="mt-1 text-base font-semibold">{session.title}</h4>
                 {session.notes ? (
-                  <p className="mt-2 text-sm text-zinc-400">{session.notes}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{session.notes}</p>
                 ) : null}
                 {session.durationMins !== null ? (
-                  <span className="mt-2 inline-block rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-300">
+                  <span className="mt-2 inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                     {session.durationMins} min
                   </span>
                 ) : null}
@@ -257,40 +317,39 @@ export default async function StaffMemberDetailPage({
         )}
       </div>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">Recovery (last 7 entries)</h3>
+      {/* Recovery */}
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">Recovery (last 7 entries)</h3>
         {recoveryLogs.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-400">No recovery check-ins logged yet.</p>
+          <p className="mt-3 text-sm text-muted-foreground">No recovery check-ins logged yet.</p>
         ) : (
           <div className="mt-5 space-y-3">
             {recoveryLogs.map((log) => {
               const load = trainingLoadForLog(log);
-
               return (
                 <div
                   key={log.id}
-                  className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"
+                  className="well p-4"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-sm text-zinc-500">{log.date}</p>
-                      <p className="mt-1 text-sm text-zinc-300">
+                      <p className="text-xs text-muted-foreground">{log.date}</p>
+                      <p className="mt-1 text-sm">
                         Sleep {log.sleepHours}h · Quality {log.sleepQuality}/5 · Soreness{" "}
                         {log.soreness}/5 · Fatigue {log.fatigue}/5
                       </p>
                       {log.readinessScore !== null ? (
-                        <p className="mt-2 text-xs text-zinc-500">
+                        <p className="mt-2 text-xs text-muted-foreground">
                           {readinessGuidance(log.readinessScore)}
                         </p>
                       ) : null}
                     </div>
-
                     <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-                      <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-300">
+                      <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                         Readiness {log.readinessScore ?? "—"}/100
                       </span>
                       {load !== null ? (
-                        <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-300">
+                        <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                           Load {load}
                         </span>
                       ) : null}
@@ -303,24 +362,23 @@ export default async function StaffMemberDetailPage({
         )}
       </div>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">Upcoming bookings</h3>
+      {/* Upcoming bookings */}
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">Upcoming bookings</h3>
         {upcomingBookings.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-400">No upcoming bookings.</p>
+          <p className="mt-3 text-sm text-muted-foreground">No upcoming bookings.</p>
         ) : (
           <div className="mt-5 space-y-3">
             {upcomingBookings.map((booking) => (
               <div
                 key={booking.bookingId}
-                className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"
+                className="well p-4"
               >
-                <p className="text-sm text-zinc-500">
+                <p className="text-xs text-muted-foreground">
                   {booking.date} · {booking.startTime}
                 </p>
-                <h4 className="mt-1 text-base font-semibold text-zinc-100">
-                  {booking.title}
-                </h4>
-                <span className="mt-2 inline-block rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-300">
+                <h4 className="mt-1 text-base font-semibold">{booking.title}</h4>
+                <span className="mt-2 inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                   {booking.durationMins} min
                 </span>
               </div>
@@ -329,9 +387,10 @@ export default async function StaffMemberDetailPage({
         )}
       </div>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">Messages</h3>
-        <p className="mt-2 text-sm text-zinc-400">
+      {/* Messages */}
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">Messages</h3>
+        <p className="mt-2 text-sm text-muted-foreground">
           Conversation with {profile?.fullName ?? user.email}.
         </p>
         <div className="mt-4">

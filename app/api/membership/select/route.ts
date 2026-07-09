@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
     // Starting a checkout isn't payment confirmation, so it doesn't itself
     // start a new billing period — the webhook resets usage when it does.
     sessionsUsedThisPeriod: existingSubscription?.sessionsUsedThisPeriod ?? 0,
+    extraSessionGrants: existingSubscription?.extraSessionGrants ?? [],
     periodLapsedNotifiedAt: existingSubscription?.periodLapsedNotifiedAt ?? null,
     createdAt: existingSubscription?.createdAt ?? now,
     updatedAt: now,

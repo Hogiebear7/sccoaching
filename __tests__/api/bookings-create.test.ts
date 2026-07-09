@@ -15,6 +15,8 @@ const {
   mockSaveSubscription,
   mockFindWaitlistEntryByClassAndUser,
   mockDeleteWaitlistEntry,
+  mockFindWaitlistEntriesByClassId,
+  mockSaveWaitlistEntry,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindClassById: vi.fn(),
@@ -27,6 +29,8 @@ const {
   mockSaveSubscription: vi.fn(),
   mockFindWaitlistEntryByClassAndUser: vi.fn(),
   mockDeleteWaitlistEntry: vi.fn(),
+  mockFindWaitlistEntriesByClassId: vi.fn(),
+  mockSaveWaitlistEntry: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -41,6 +45,8 @@ vi.mock("@/lib/db", () => ({
   saveSubscription: mockSaveSubscription,
   findWaitlistEntryByClassAndUser: mockFindWaitlistEntryByClassAndUser,
   deleteWaitlistEntry: mockDeleteWaitlistEntry,
+  findWaitlistEntriesByClassId: mockFindWaitlistEntriesByClassId,
+  saveWaitlistEntry: mockSaveWaitlistEntry,
 }));
 
 const MEMBER_USER = { id: "user-1", email: "athlete@example.com", role: "member" as const };
@@ -68,6 +74,7 @@ const ACTIVE_SUBSCRIPTION = {
   currentPeriodEnd: null,
   lastWebhookEventAt: null,
   sessionsUsedThisPeriod: 2,
+  extraSessionGrants: [],
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -111,6 +118,9 @@ describe("POST /api/bookings/create", () => {
     mockSaveSubscription.mockReset();
     mockFindWaitlistEntryByClassAndUser.mockReset();
     mockDeleteWaitlistEntry.mockReset();
+    mockFindWaitlistEntriesByClassId.mockReset();
+    mockSaveWaitlistEntry.mockReset();
+    mockFindWaitlistEntriesByClassId.mockReturnValue([]);
     mockFindUserById.mockReturnValue(MEMBER_USER);
     // No plans configured by default, so membership gating doesn't apply —
     // matches the pre-Block-B behavior for all the existing tests below.
@@ -346,6 +356,8 @@ describe("POST /api/bookings/create", () => {
     expect(mockSaveSubscription).toHaveBeenCalledTimes(1);
     const savedSub = mockSaveSubscription.mock.calls[0][0];
     expect(savedSub.sessionsUsedThisPeriod).toBe(ACTIVE_SUBSCRIPTION.sessionsUsedThisPeriod + 1);
-    expect(mockDeleteWaitlistEntry).toHaveBeenCalledWith("wl-1");
+    // Stale entries are soft-removed (offerState "removed"), not deleted.
+    expect(mockSaveWaitlistEntry).toHaveBeenCalledTimes(1);
+    expect(mockSaveWaitlistEntry.mock.calls[0][0]).toMatchObject({ id: "wl-1", offerState: "removed" });
   });
 });

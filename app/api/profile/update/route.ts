@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
+import {
+  findBodyWeightLogsByUserId,
+  findProfileByUserId,
+  findUserById,
+  saveProfile,
+} from "@/lib/db";
+import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import {
   isFemaleGender,
   shouldShowSportPlayed,
@@ -56,10 +62,10 @@ export async function POST(request: NextRequest) {
   const {
     fullName,
     phone,
+    dateOfBirth,
     gender,
     primaryGoal,
     sportPlayed,
-    currentWeightKg,
     additionalInfo,
   } = (body ?? {}) as Record<string, unknown>;
 
@@ -102,10 +108,36 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const weightValue =
-    typeof currentWeightKg === "string" && currentWeightKg.trim() !== ""
-      ? Number(currentWeightKg)
-      : null;
+  // Date of birth is required: a valid YYYY-MM-DD date in the past.
+  const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const dobRaw = typeof dateOfBirth === "string" ? dateOfBirth.trim() : "";
+
+  if (!dobRaw) {
+    return NextResponse.json(
+      { success: false, message: "Date of birth is required." },
+      { status: 400 }
+    );
+  }
+
+  if (
+    !ISO_DATE_RE.test(dobRaw) ||
+    Number.isNaN(new Date(dobRaw).getTime()) ||
+    dobRaw >= todayISO
+  ) {
+    return NextResponse.json(
+      { success: false, message: "Date of birth must be a valid date in the past." },
+      { status: 400 }
+    );
+  }
+
+  // Current weight is read-only after signup: the latest body-weight log is
+  // the single source of truth, and this route deliberately ignores any
+  // submitted weight. Changing weight requires logging a new entry.
+  const syncedWeight = resolveCurrentWeightKg(
+    existingProfile.currentWeightKg,
+    findBodyWeightLogsByUserId(user.id)
+  );
 
   const cycleEligible = isFemaleGender(genderValue);
 
@@ -113,10 +145,11 @@ export async function POST(request: NextRequest) {
     ...existingProfile,
     fullName: fullName.trim(),
     phone: phone.trim(),
+    dateOfBirth: dobRaw,
     gender: genderValue,
     primaryGoal: primaryGoalValue,
     sportPlayed: sportPlayedValue || null,
-    currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
+    currentWeightKg: syncedWeight,
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
     cycleTrackingEligible: cycleEligible,
     cycleTrackingEnabled: cycleEligible ? existingProfile.cycleTrackingEnabled : false,

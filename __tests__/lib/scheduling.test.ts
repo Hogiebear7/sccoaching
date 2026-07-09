@@ -8,10 +8,8 @@ const {
   mockFindUserById,
   mockFindSubscriptionByUserId,
   mockFindMembershipPlanById,
-  mockCreateBooking,
-  mockSaveSubscription,
-  mockDeleteWaitlistEntry,
-  mockCreateMessage,
+  mockSaveWaitlistEntry,
+  mockCreateNotification,
   mockHasActiveMembership,
 } = vi.hoisted(() => ({
   mockFindClassById: vi.fn(),
@@ -21,10 +19,8 @@ const {
   mockFindUserById: vi.fn(),
   mockFindSubscriptionByUserId: vi.fn(),
   mockFindMembershipPlanById: vi.fn(),
-  mockCreateBooking: vi.fn(),
-  mockSaveSubscription: vi.fn(),
-  mockDeleteWaitlistEntry: vi.fn(),
-  mockCreateMessage: vi.fn(),
+  mockSaveWaitlistEntry: vi.fn(),
+  mockCreateNotification: vi.fn(),
   mockHasActiveMembership: vi.fn(),
 }));
 
@@ -36,16 +32,15 @@ vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
   findMembershipPlanById: mockFindMembershipPlanById,
-  createBooking: mockCreateBooking,
-  saveSubscription: mockSaveSubscription,
-  deleteWaitlistEntry: mockDeleteWaitlistEntry,
-  createMessage: mockCreateMessage,
+  saveWaitlistEntry: mockSaveWaitlistEntry,
+  createNotification: mockCreateNotification,
 }));
 
 vi.mock("@/lib/membership", () => ({
   hasActiveMembership: mockHasActiveMembership,
 }));
 
+// Class whose start time is well in the future (Christmas 2026).
 const CLASS = {
   id: "class-1",
   title: "Evening Strength",
@@ -79,9 +74,12 @@ const ACTIVE_SUBSCRIPTION = {
   provider: "none" as const,
   providerCustomerId: null,
   providerSubscriptionId: null,
+  providerSetupOrderId: null,
   currentPeriodEnd: null,
   lastWebhookEventAt: null,
   sessionsUsedThisPeriod: 0,
+  extraSessionGrants: [],
+  periodLapsedNotifiedAt: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -91,6 +89,10 @@ function waitlistEntry(userId: string, minutesAgo: number) {
     id: `wl-${userId}`,
     classId: "class-1",
     userId,
+    offerState: "queued" as const,
+    offerExpiresAt: null,
+    warningNotifiedAt: null,
+    resolvedAt: null,
     createdAt: new Date(Date.now() - minutesAgo * 60000).toISOString(),
   };
 }
@@ -102,10 +104,10 @@ describe("getCancellationCutoffHours / isCancellationEarly", () => {
     process.env.CANCELLATION_CUTOFF_HOURS = originalEnv;
   });
 
-  it("defaults to 12 hours when unset", async () => {
+  it("defaults to 3 hours when unset", async () => {
     delete process.env.CANCELLATION_CUTOFF_HOURS;
     const { getCancellationCutoffHours } = await import("@/lib/scheduling");
-    expect(getCancellationCutoffHours()).toBe(12);
+    expect(getCancellationCutoffHours()).toBe(3);
   });
 
   it("uses a configured value", async () => {
@@ -117,7 +119,7 @@ describe("getCancellationCutoffHours / isCancellationEarly", () => {
   it("falls back to the default for an invalid value", async () => {
     process.env.CANCELLATION_CUTOFF_HOURS = "not-a-number";
     const { getCancellationCutoffHours } = await import("@/lib/scheduling");
-    expect(getCancellationCutoffHours()).toBe(12);
+    expect(getCancellationCutoffHours()).toBe(3);
   });
 
   it("treats a class well outside the cutoff as early", async () => {
@@ -135,7 +137,30 @@ describe("getCancellationCutoffHours / isCancellationEarly", () => {
   });
 });
 
-describe("promoteFromWaitlist", () => {
+describe("computeOfferWindowMs", () => {
+  it("returns 3 hours when class is more than 3 hours away", async () => {
+    const { computeOfferWindowMs } = await import("@/lib/scheduling");
+    const now = Date.now();
+    const classMs = now + 4 * 60 * 60 * 1000;
+    expect(computeOfferWindowMs(classMs, now)).toBe(3 * 60 * 60 * 1000);
+  });
+
+  it("returns 90 minutes when class is between 90 min and 3 hours away", async () => {
+    const { computeOfferWindowMs } = await import("@/lib/scheduling");
+    const now = Date.now();
+    const classMs = now + 2 * 60 * 60 * 1000;
+    expect(computeOfferWindowMs(classMs, now)).toBe(90 * 60 * 1000);
+  });
+
+  it("returns 30 minutes when class is less than 90 minutes away", async () => {
+    const { computeOfferWindowMs } = await import("@/lib/scheduling");
+    const now = Date.now();
+    const classMs = now + 45 * 60 * 1000;
+    expect(computeOfferWindowMs(classMs, now)).toBe(30 * 60 * 1000);
+  });
+});
+
+describe("issueWaitlistOffer", () => {
   beforeEach(() => {
     mockFindClassById.mockReset();
     mockFindBookingsByClassId.mockReset();
@@ -144,13 +169,13 @@ describe("promoteFromWaitlist", () => {
     mockFindUserById.mockReset();
     mockFindSubscriptionByUserId.mockReset();
     mockFindMembershipPlanById.mockReset();
-    mockCreateBooking.mockReset();
-    mockSaveSubscription.mockReset();
-    mockDeleteWaitlistEntry.mockReset();
-    mockCreateMessage.mockReset();
+    mockSaveWaitlistEntry.mockReset();
+    mockCreateNotification.mockReset();
     mockHasActiveMembership.mockReset();
 
     mockFindClassById.mockReturnValue(CLASS);
+    mockFindBookingsByClassId.mockReturnValue([]);
+    mockFindWaitlistEntriesByClassId.mockReturnValue([]);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindUserById.mockImplementation((id: string) => ({ id, email: `${id}@example.com`, role: "member" }));
     mockFindMembershipPlanById.mockReturnValue(PLAN);
@@ -158,41 +183,59 @@ describe("promoteFromWaitlist", () => {
 
   it("does nothing when the class doesn't exist", async () => {
     mockFindClassById.mockReturnValue(undefined);
-    const { promoteFromWaitlist } = await import("@/lib/scheduling");
+    const { issueWaitlistOffer } = await import("@/lib/scheduling");
 
-    promoteFromWaitlist("class-1");
+    issueWaitlistOffer("class-1");
 
-    expect(mockCreateBooking).not.toHaveBeenCalled();
+    expect(mockSaveWaitlistEntry).not.toHaveBeenCalled();
   });
 
-  it("does nothing when there's no actual open spot", async () => {
-    mockFindBookingsByClassId.mockReturnValue([{ id: "b1", classId: "class-1", userId: "someone", attendedAt: null, createdAt: "now" }]);
-    const { promoteFromWaitlist } = await import("@/lib/scheduling");
+  it("does nothing when effectively full (bookings + open offers >= capacity)", async () => {
+    mockFindBookingsByClassId.mockReturnValue([
+      { id: "b1", classId: "class-1", userId: "someone", attendedAt: null, createdAt: "now" },
+    ]);
+    // capacity is 1, 1 booking → effectively full even with no offered slots
+    mockFindWaitlistEntriesByClassId.mockReturnValue([waitlistEntry("member-1", 5)]);
+    const { issueWaitlistOffer } = await import("@/lib/scheduling");
 
-    promoteFromWaitlist("class-1");
+    issueWaitlistOffer("class-1");
 
-    expect(mockCreateBooking).not.toHaveBeenCalled();
+    expect(mockSaveWaitlistEntry).not.toHaveBeenCalled();
   });
 
-  it("promotes the first eligible waitlisted member, consuming a session", async () => {
-    mockFindBookingsByClassId.mockReturnValue([]);
+  it("does nothing when a slot is already held by an open offer", async () => {
+    mockFindBookingsByClassId.mockReturnValue([]); // no confirmed bookings
+    // One offered slot — capacity 1 is fully held
+    mockFindWaitlistEntriesByClassId.mockReturnValue([
+      { ...waitlistEntry("member-1", 5), offerState: "offered" as const, offerExpiresAt: new Date(Date.now() + 3600_000).toISOString() },
+    ]);
+    const { issueWaitlistOffer } = await import("@/lib/scheduling");
+
+    issueWaitlistOffer("class-1");
+
+    expect(mockSaveWaitlistEntry).not.toHaveBeenCalled();
+  });
+
+  it("issues an offer to the first eligible queued member", async () => {
     mockFindWaitlistEntriesByClassId.mockReturnValue([waitlistEntry("member-1", 5)]);
     mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
     mockHasActiveMembership.mockReturnValue(true);
 
-    const { promoteFromWaitlist } = await import("@/lib/scheduling");
-    promoteFromWaitlist("class-1");
+    const { issueWaitlistOffer } = await import("@/lib/scheduling");
+    issueWaitlistOffer("class-1");
 
-    expect(mockCreateBooking).toHaveBeenCalledTimes(1);
-    expect(mockCreateBooking.mock.calls[0][0].userId).toBe("member-1");
-    expect(mockSaveSubscription).toHaveBeenCalledTimes(1);
-    expect(mockSaveSubscription.mock.calls[0][0].sessionsUsedThisPeriod).toBe(1);
-    expect(mockDeleteWaitlistEntry).toHaveBeenCalledWith("wl-member-1");
-    expect(mockCreateMessage).toHaveBeenCalledTimes(1);
+    expect(mockSaveWaitlistEntry).toHaveBeenCalledTimes(1);
+    const saved = mockSaveWaitlistEntry.mock.calls[0][0];
+    expect(saved.userId).toBe("member-1");
+    expect(saved.offerState).toBe("offered");
+    expect(saved.offerExpiresAt).not.toBeNull();
+    expect(mockCreateNotification).toHaveBeenCalledTimes(1);
+    const notif = mockCreateNotification.mock.calls[0][0];
+    expect(notif.type).toBe("waitlist_offer");
+    expect(notif.userId).toBe("member-1");
   });
 
-  it("skips a waitlisted member without an active membership", async () => {
-    mockFindBookingsByClassId.mockReturnValue([]);
+  it("skips a queued member without an active membership", async () => {
     mockFindWaitlistEntriesByClassId.mockReturnValue([
       waitlistEntry("inactive-member", 10),
       waitlistEntry("member-1", 5),
@@ -200,55 +243,61 @@ describe("promoteFromWaitlist", () => {
     mockHasActiveMembership.mockImplementation((id: string) => id === "member-1");
     mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
 
-    const { promoteFromWaitlist } = await import("@/lib/scheduling");
-    promoteFromWaitlist("class-1");
+    const { issueWaitlistOffer } = await import("@/lib/scheduling");
+    issueWaitlistOffer("class-1");
 
-    expect(mockCreateBooking).toHaveBeenCalledTimes(1);
-    expect(mockCreateBooking.mock.calls[0][0].userId).toBe("member-1");
+    expect(mockSaveWaitlistEntry).toHaveBeenCalledTimes(1);
+    expect(mockSaveWaitlistEntry.mock.calls[0][0].userId).toBe("member-1");
+    expect(mockSaveWaitlistEntry.mock.calls[0][0].offerState).toBe("offered");
   });
 
-  it("skips a waitlisted member whose plan doesn't cover this class category", async () => {
-    mockFindBookingsByClassId.mockReturnValue([]);
+  it("skips a queued member whose plan doesn't cover this class category", async () => {
     mockFindWaitlistEntriesByClassId.mockReturnValue([
-      waitlistEntry("mother-baby-member", 10),
+      waitlistEntry("restricted-member", 10),
       waitlistEntry("member-1", 5),
     ]);
     mockHasActiveMembership.mockReturnValue(true);
     mockFindSubscriptionByUserId.mockImplementation((id: string) =>
-      id === "mother-baby-member" ? { ...ACTIVE_SUBSCRIPTION, planId: "plan-mb" } : ACTIVE_SUBSCRIPTION
+      id === "restricted-member"
+        ? { ...ACTIVE_SUBSCRIPTION, planId: "plan-mb" }
+        : ACTIVE_SUBSCRIPTION
     );
     mockFindMembershipPlanById.mockImplementation((id: string) =>
-      id === "plan-mb" ? { ...PLAN, id: "plan-mb", allowedCategories: ["mother_and_baby"] } : PLAN
+      id === "plan-mb"
+        ? { ...PLAN, id: "plan-mb", allowedCategories: ["mother_and_baby"] }
+        : PLAN
     );
 
-    const { promoteFromWaitlist } = await import("@/lib/scheduling");
-    promoteFromWaitlist("class-1");
+    const { issueWaitlistOffer } = await import("@/lib/scheduling");
+    issueWaitlistOffer("class-1");
 
-    expect(mockCreateBooking).toHaveBeenCalledTimes(1);
-    expect(mockCreateBooking.mock.calls[0][0].userId).toBe("member-1");
+    expect(mockSaveWaitlistEntry).toHaveBeenCalledTimes(1);
+    expect(mockSaveWaitlistEntry.mock.calls[0][0].userId).toBe("member-1");
+    expect(mockSaveWaitlistEntry.mock.calls[0][0].offerState).toBe("offered");
   });
 
-  it("skips a waitlisted member with no remaining sessions", async () => {
-    mockFindBookingsByClassId.mockReturnValue([]);
+  it("skips a queued member with no remaining sessions", async () => {
     mockFindWaitlistEntriesByClassId.mockReturnValue([
       waitlistEntry("out-of-sessions", 10),
       waitlistEntry("member-1", 5),
     ]);
     mockHasActiveMembership.mockReturnValue(true);
     mockFindSubscriptionByUserId.mockImplementation((id: string) =>
-      id === "out-of-sessions" ? { ...ACTIVE_SUBSCRIPTION, sessionsUsedThisPeriod: 8 } : ACTIVE_SUBSCRIPTION
+      id === "out-of-sessions"
+        ? { ...ACTIVE_SUBSCRIPTION, sessionsUsedThisPeriod: 8 }
+        : ACTIVE_SUBSCRIPTION
     );
     mockFindMembershipPlanById.mockImplementation(() => ({ ...PLAN, monthlySessionAllowance: 8 }));
 
-    const { promoteFromWaitlist } = await import("@/lib/scheduling");
-    promoteFromWaitlist("class-1");
+    const { issueWaitlistOffer } = await import("@/lib/scheduling");
+    issueWaitlistOffer("class-1");
 
-    expect(mockCreateBooking).toHaveBeenCalledTimes(1);
-    expect(mockCreateBooking.mock.calls[0][0].userId).toBe("member-1");
+    expect(mockSaveWaitlistEntry).toHaveBeenCalledTimes(1);
+    expect(mockSaveWaitlistEntry.mock.calls[0][0].userId).toBe("member-1");
+    expect(mockSaveWaitlistEntry.mock.calls[0][0].offerState).toBe("offered");
   });
 
-  it("promotes at most one person even with multiple eligible waitlisted members", async () => {
-    mockFindBookingsByClassId.mockReturnValue([]);
+  it("issues at most one offer per call even with multiple eligible queued members", async () => {
     mockFindWaitlistEntriesByClassId.mockReturnValue([
       waitlistEntry("member-1", 10),
       waitlistEntry("member-2", 5),
@@ -256,9 +305,13 @@ describe("promoteFromWaitlist", () => {
     mockHasActiveMembership.mockReturnValue(true);
     mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
 
-    const { promoteFromWaitlist } = await import("@/lib/scheduling");
-    promoteFromWaitlist("class-1");
+    const { issueWaitlistOffer } = await import("@/lib/scheduling");
+    // Capacity is 1, no bookings, so exactly one offer should be issued.
+    issueWaitlistOffer("class-1");
 
-    expect(mockCreateBooking).toHaveBeenCalledTimes(1);
+    const offeredSaves = mockSaveWaitlistEntry.mock.calls.filter(
+      (c) => c[0].offerState === "offered"
+    );
+    expect(offeredSaves).toHaveLength(1);
   });
 });

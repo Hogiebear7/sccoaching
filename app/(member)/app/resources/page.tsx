@@ -11,8 +11,8 @@ export default function ResourcesPage() {
   const filtered = cat === "All" ? resources : resources.filter((r) => r.category === cat);
 
   return (
-    <div className="px-4 pt-6 pb-4">
-      <h1 className="text-2xl font-bold text-zinc-50">Resources</h1>
+    <div className="anim-rise px-4 pt-7 pb-4">
+      <h1 className="text-display text-[26px] text-zinc-50">Resources</h1>
       <p className="text-sm text-zinc-500 mt-0.5 mb-4">Guides and programs from your coach</p>
 
       {/* Filter chips */}
@@ -21,7 +21,7 @@ export default function ResourcesPage() {
           <button
             key={c}
             onClick={() => setCat(c)}
-            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${cat === c ? "bg-teal-600 text-white" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
+            className={`flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-95 ${cat === c ? "border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16)]" : "border border-white/[0.08] bg-zinc-900 text-zinc-400 hover:border-white/[0.15] hover:text-zinc-200"}`}
           >
             {c}
           </button>

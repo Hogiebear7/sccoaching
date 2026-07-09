@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findClassById, findClassCategories, findUserById, saveClass, type ClassCategory, type ClassRecord } from "@/lib/db";
-import { promoteFromWaitlist } from "@/lib/scheduling";
+import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isFutureDateTime } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 
@@ -130,10 +130,16 @@ export async function POST(request: NextRequest) {
 
   saveClass(classRecord);
 
-  // Raising capacity on an existing class can open a spot for whoever's
-  // first on the waitlist.
+  // Each additional seat opened by a capacity raise is a new slot to offer.
   if (existingClass && capacityResult.value > existingClass.capacity) {
-    promoteFromWaitlist(classRecord.id);
+    const newSlots = capacityResult.value - existingClass.capacity;
+    for (let i = 0; i < newSlots; i++) {
+      try {
+        issueWaitlistOffer(classRecord.id);
+      } catch {
+        // Offer failure must not block the save response.
+      }
+    }
   }
 
   return NextResponse.json(

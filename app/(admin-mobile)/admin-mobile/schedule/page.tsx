@@ -26,7 +26,7 @@ export default function CoachSchedulePage() {
 
   return (
     <div className="px-4 pt-6 pb-4 flex flex-col gap-4">
-      <h1 className="text-2xl font-bold text-zinc-50">Schedule</h1>
+      <h1 className="text-display text-[26px] text-zinc-50">Schedule</h1>
 
       {/* Date strip */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -40,8 +40,8 @@ export default function CoachSchedulePage() {
               onClick={() => setSelected(d)}
               className={`flex-shrink-0 flex flex-col items-center px-3 py-2.5 rounded-xl border transition-colors ${
                 isSelected
-                  ? "bg-teal-600 border-teal-600 text-white"
-                  : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                  ? "border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16)]"
+                  : "bg-zinc-900 border-white/[0.07] text-zinc-400 hover:border-white/[0.15] hover:text-zinc-200"
               }`}
             >
               <span className="text-[10px] uppercase tracking-wide font-medium">
@@ -63,7 +63,7 @@ export default function CoachSchedulePage() {
       {dayClasses.length > 0 ? (
         <div className="flex flex-col gap-3">
           {dayClasses.map((cls) => (
-            <CoachScheduleCard key={cls.id} gymClass={cls} />
+            <CoachScheduleCard key={cls.id} cls={cls} />
           ))}
         </div>
       ) : (

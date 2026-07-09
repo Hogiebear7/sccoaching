@@ -35,6 +35,36 @@ export interface ProgrammeRecord {
   updatedAt: string;
 }
 
+export type ExerciseSection = "upper_push" | "upper_pull" | "lower_push" | "lower_pull";
+
+export interface ExerciseRecord {
+  id: string;
+  name: string;
+  section: ExerciseSection;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Snapshot stored inline on each session row so historical records remain
+// readable even if the library exercise is later renamed or deleted.
+export interface WorkoutExerciseEntry {
+  exerciseId: string | null;
+  name: string;
+  weight: string | null;
+  reps: number | null;
+  sets: number | null;
+  notes: string | null;
+}
+
+export interface WorkoutRunEntry {
+  distance: number | null;
+  distanceUnit: "km";
+  durationSecs: number | null;
+  reps: number | null;
+  sets: number | null;
+  notes: string | null;
+}
+
 export interface WorkoutSessionRecord {
   id: string;
   userId: string;
@@ -42,8 +72,26 @@ export interface WorkoutSessionRecord {
   title: string;
   durationMins: number | null;
   notes: string | null;
+  exercises: WorkoutExerciseEntry[];
+  runs: WorkoutRunEntry[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AiMessageRecord {
+  id: string;
+  userId: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+}
+
+export interface BodyWeightLogRecord {
+  id: string;
+  userId: string;
+  date: string;
+  weightKg: number;
+  createdAt: string;
 }
 
 // ClassCategory is a string alias for category slugs. Valid values are the
@@ -61,6 +109,10 @@ export interface ClassCategoryRecord {
 // Seeded into fresh installs only. Existing DBs already have their own
 // category rows and are not affected by changes here.
 const DEFAULT_CLASS_CATEGORIES: ClassCategoryRecord[] = [
+  { id: "cat_general", slug: "general", name: "General", createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z" },
+  { id: "cat_strength", slug: "strength", name: "Strength", createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z" },
+  { id: "cat_cardio", slug: "cardio", name: "Cardio", createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z" },
+  { id: "cat_mother_and_baby", slug: "mother_and_baby", name: "Mother & Baby", createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z" },
   { id: "cat_semi_private_pt", slug: "semi_private_pt", name: "Semi-Private PT", createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z" },
   { id: "cat_parent_and_baby", slug: "parent_and_baby", name: "Parent and Baby Classes", createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z" },
 ];
@@ -87,10 +139,27 @@ export interface BookingRecord {
 }
 
 // FIFO queue for a full class. Position is implied by createdAt order.
+//
+// Lifecycle: queued → offered → accepted | rejected | expired
+//            queued | offered → removed (member withdrew)
+// Terminal states (accepted, rejected, expired, removed) are retained for
+// audit purposes and purged by the cleanup job once the class has started.
+export type WaitlistOfferState =
+  | "queued"    // waiting in FIFO line, no slot held
+  | "offered"   // provisional offer extended, one slot held against capacity
+  | "accepted"  // member accepted; a BookingRecord was created
+  | "rejected"  // member explicitly declined
+  | "expired"   // offer window elapsed without a response
+  | "removed";  // member withdrew from the waitlist
+
 export interface WaitlistEntryRecord {
   id: string;
   classId: string;
   userId: string;
+  offerState: WaitlistOfferState;
+  offerExpiresAt: string | null;      // ISO — set when state is "offered"
+  warningNotifiedAt: string | null;   // set once a window-narrowing warning is sent
+  resolvedAt: string | null;          // ISO timestamp when terminal state was reached
   createdAt: string;
 }
 
@@ -131,6 +200,18 @@ export type BillingProvider = "none" | "revolut";
 // staff manual override) should ever move a subscription to "active".
 export type SubscriptionStatus = "inactive" | "pending" | "active" | "past_due" | "canceled";
 
+// A manual class-pass credit granted by staff on top of the plan's monthly
+// allowance (goodwill, catch-up, promo, correction). Grants apply to the
+// current billing period only — they are cleared whenever a fresh period
+// begins, alongside sessionsUsedThisPeriod.
+export interface ExtraSessionGrant {
+  id: string;
+  amount: number;
+  note: string | null;
+  grantedByUserId: string;
+  createdAt: string;
+}
+
 export interface SubscriptionRecord {
   userId: string;
   planId: string | null;
@@ -155,6 +236,9 @@ export interface SubscriptionRecord {
   // current billing period. Reset to 0 whenever a fresh period begins (see
   // app/api/billing/webhook/route.ts and the staff manual-override route).
   sessionsUsedThisPeriod: number;
+  // Staff-granted extra class passes for the current billing period. Cleared
+  // whenever a fresh period begins, alongside sessionsUsedThisPeriod.
+  extraSessionGrants: ExtraSessionGrant[];
   // Set by the notify-lapsed-memberships job the first time it messages a
   // member about a lapsed period, so it doesn't re-notify on every run.
   // Reset to null whenever a fresh period begins, alongside sessionsUsedThisPeriod.
@@ -186,6 +270,38 @@ export interface MessageRecord {
   senderId: string;
   senderRole: "member" | "staff";
   body: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface PushSubscriptionRecord {
+  id: string;
+  userId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NotificationType =
+  | "message"
+  | "membership"
+  | "class_reminder"
+  | "cancellation"
+  | "waitlist_offer"
+  | "waitlist_timeout";
+
+export interface NotificationRecord {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  readAt: string | null;
+  linkHref: string | null;
+  dedupeKey: string | null;
   createdAt: string;
 }
 
@@ -211,6 +327,9 @@ interface Database {
   resetTokens: ResetTokenRecord[];
   programmes: ProgrammeRecord[];
   workoutSessions: WorkoutSessionRecord[];
+  exercises: ExerciseRecord[];
+  aiMessages: AiMessageRecord[];
+  bodyWeightLogs: BodyWeightLogRecord[];
   classes: ClassRecord[];
   classCategories: ClassCategoryRecord[];
   // slug → display name for categories that have been deleted. Populated by
@@ -223,10 +342,12 @@ interface Database {
   subscriptions: SubscriptionRecord[];
   recoveryLogs: RecoveryLogRecord[];
   messages: MessageRecord[];
+  notifications: NotificationRecord[];
   waitlistEntries: WaitlistEntryRecord[];
   jobRuns: JobRunRecord[];
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
+  pushSubscriptions: PushSubscriptionRecord[];
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -241,6 +362,9 @@ function readDb(): Database {
       resetTokens: [],
       programmes: [],
       workoutSessions: [],
+      exercises: [],
+      aiMessages: [],
+      bodyWeightLogs: [],
       classes: [],
       classCategories: DEFAULT_CLASS_CATEGORIES,
       deletedCategoryLabels: {},
@@ -250,10 +374,12 @@ function readDb(): Database {
       subscriptions: [],
       recoveryLogs: [],
       messages: [],
+      notifications: [],
       waitlistEntries: [],
       jobRuns: [],
       cycleSettings: [],
       cyclePrivacyPreferences: [],
+      pushSubscriptions: [],
     };
   }
 
@@ -262,10 +388,28 @@ function readDb(): Database {
 
   return {
     users: (parsed.users ?? []).map((user) => ({ ...user, role: user.role ?? "member" })),
-    profiles: parsed.profiles ?? [],
+    profiles: (parsed.profiles ?? []).map((p) => ({
+      ...p,
+      dateOfBirth: p.dateOfBirth ?? null,
+      menopauseSupportEnabled: p.menopauseSupportEnabled ?? false,
+      reminderTimingsMins: p.reminderTimingsMins ?? null,
+      emailNotificationsEnabled: p.emailNotificationsEnabled ?? true,
+      pushNotificationsEnabled: p.pushNotificationsEnabled ?? false,
+      preferredUnits: p.preferredUnits ?? "metric",
+      programmeEnabled: p.programmeEnabled ?? false,
+      drinkSettings: p.drinkSettings ?? null,
+      drinkSettingsUpdatedAt: p.drinkSettingsUpdatedAt ?? null,
+    })),
     resetTokens: parsed.resetTokens ?? [],
     programmes: parsed.programmes ?? [],
-    workoutSessions: parsed.workoutSessions ?? [],
+    workoutSessions: (parsed.workoutSessions ?? []).map((s) => ({
+      ...s,
+      exercises: s.exercises ?? [],
+      runs: s.runs ?? [],
+    })),
+    exercises: parsed.exercises ?? [],
+    aiMessages: parsed.aiMessages ?? [],
+    bodyWeightLogs: parsed.bodyWeightLogs ?? [],
     classes: (parsed.classes ?? []).map((c) => ({ ...c, category: c.category ?? "general" })),
     // Seed built-in categories if the DB predates this field.
     // One-way migration: rows with isActive === false (previously archived) are
@@ -285,14 +429,31 @@ function readDb(): Database {
       ...s,
       providerSetupOrderId: s.providerSetupOrderId ?? null,
       sessionsUsedThisPeriod: s.sessionsUsedThisPeriod ?? 0,
+      extraSessionGrants: s.extraSessionGrants ?? [],
       periodLapsedNotifiedAt: s.periodLapsedNotifiedAt ?? null,
     })),
     recoveryLogs: parsed.recoveryLogs ?? [],
-    messages: parsed.messages ?? [],
-    waitlistEntries: parsed.waitlistEntries ?? [],
+    messages: (parsed.messages ?? []).map((m) => ({ ...m, readAt: m.readAt ?? null })),
+    notifications: (parsed.notifications ?? []).map((n) => ({
+      ...n,
+      readAt: n.readAt ?? null,
+      linkHref: n.linkHref ?? null,
+      dedupeKey: n.dedupeKey ?? null,
+    })),
+    waitlistEntries: (parsed.waitlistEntries ?? []).map((e) => ({
+      ...e,
+      offerState: e.offerState ?? "queued",
+      offerExpiresAt: e.offerExpiresAt ?? null,
+      warningNotifiedAt: e.warningNotifiedAt ?? null,
+      resolvedAt: e.resolvedAt ?? null,
+    })),
     jobRuns: parsed.jobRuns ?? [],
     cycleSettings: parsed.cycleSettings ?? [],
     cyclePrivacyPreferences: parsed.cyclePrivacyPreferences ?? [],
+    pushSubscriptions: (parsed.pushSubscriptions ?? []).map((s) => ({
+      ...s,
+      userAgent: s.userAgent ?? null,
+    })),
   };
 }
 
@@ -650,25 +811,50 @@ export function createMessage(message: MessageRecord) {
   writeDb(db);
 }
 
-// FIFO order — first to join is first in line for promotion.
+// Active states — the entry is still relevant to capacity and queue position.
+// Terminal states (accepted, rejected, expired, removed) are kept for audit
+// and purged later by the cleanup job.
+const ACTIVE_OFFER_STATES: WaitlistOfferState[] = ["queued", "offered"];
+
+// FIFO order — first to join is first in line for a spot offer.
+// Returns only active (queued | offered) entries; terminal entries are
+// excluded so members can re-join after a rejection or expiry.
 export function findWaitlistEntriesByClassId(classId: string): WaitlistEntryRecord[] {
   const db = readDb();
   return db.waitlistEntries
-    .filter((entry) => entry.classId === classId)
+    .filter(
+      (entry) => entry.classId === classId && ACTIVE_OFFER_STATES.includes(entry.offerState)
+    )
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
+// Active entries for a user (queued or offered only).
 export function findWaitlistEntriesByUserId(userId: string): WaitlistEntryRecord[] {
   const db = readDb();
-  return db.waitlistEntries.filter((entry) => entry.userId === userId);
+  return db.waitlistEntries.filter(
+    (entry) => entry.userId === userId && ACTIVE_OFFER_STATES.includes(entry.offerState)
+  );
 }
 
+// Active entry for a specific class + user (excludes terminal states so
+// members can re-join after a rejection or expiry).
 export function findWaitlistEntryByClassAndUser(
   classId: string,
   userId: string
 ): WaitlistEntryRecord | undefined {
   const db = readDb();
-  return db.waitlistEntries.find((entry) => entry.classId === classId && entry.userId === userId);
+  return db.waitlistEntries.find(
+    (entry) =>
+      entry.classId === classId &&
+      entry.userId === userId &&
+      ACTIVE_OFFER_STATES.includes(entry.offerState)
+  );
+}
+
+// Look up any entry by id regardless of state (needed for the respond endpoint).
+export function findWaitlistEntryById(id: string): WaitlistEntryRecord | undefined {
+  const db = readDb();
+  return db.waitlistEntries.find((entry) => entry.id === id);
 }
 
 export function createWaitlistEntry(entry: WaitlistEntryRecord) {
@@ -677,12 +863,28 @@ export function createWaitlistEntry(entry: WaitlistEntryRecord) {
   writeDb(db);
 }
 
+// In-place update for state transitions (queued → offered → terminal).
+export function saveWaitlistEntry(entry: WaitlistEntryRecord) {
+  const db = readDb();
+  const index = db.waitlistEntries.findIndex((e) => e.id === entry.id);
+  if (index === -1) {
+    db.waitlistEntries.push(entry);
+  } else {
+    db.waitlistEntries[index] = entry;
+  }
+  writeDb(db);
+}
+
+// Physical deletion — only used by the cleanup job to purge terminal records
+// for classes that have already started.
 export function deleteWaitlistEntry(id: string) {
   const db = readDb();
   db.waitlistEntries = db.waitlistEntries.filter((entry) => entry.id !== id);
   writeDb(db);
 }
 
+// Returns ALL entries across all states — used by the cleanup job so it can
+// purge terminal records for past classes.
 export function findAllWaitlistEntries(): WaitlistEntryRecord[] {
   const db = readDb();
   return db.waitlistEntries;
@@ -797,5 +999,168 @@ export function saveCyclePrivacy(prefs: CyclePrivacyPreferencesRecord) {
   } else {
     db.cyclePrivacyPreferences[index] = prefs;
   }
+  writeDb(db);
+}
+
+// Exercise library
+
+export function findExercises(): ExerciseRecord[] {
+  const db = readDb();
+  return [...db.exercises].sort(
+    (a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name)
+  );
+}
+
+export function findExerciseById(id: string): ExerciseRecord | undefined {
+  const db = readDb();
+  return db.exercises.find((e) => e.id === id);
+}
+
+export function saveExercise(exercise: ExerciseRecord) {
+  const db = readDb();
+  const index = db.exercises.findIndex((e) => e.id === exercise.id);
+  if (index === -1) {
+    db.exercises.push(exercise);
+  } else {
+    db.exercises[index] = exercise;
+  }
+  writeDb(db);
+}
+
+// Historical workout rows store their own exerciseId+name snapshot, so
+// there is no integrity risk from hard-deleting a library exercise.
+export function deleteExercise(id: string) {
+  const db = readDb();
+  db.exercises = db.exercises.filter((e) => e.id !== id);
+  writeDb(db);
+}
+
+// AI chat messages (member-facing, deferred to Slice 3)
+
+export function findAiMessagesByUserId(userId: string): AiMessageRecord[] {
+  const db = readDb();
+  return db.aiMessages
+    .filter((m) => m.userId === userId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function createAiMessage(message: AiMessageRecord) {
+  const db = readDb();
+  db.aiMessages.push(message);
+  writeDb(db);
+}
+
+// Bodyweight logs (member-facing, deferred to Slice 7)
+
+export function findBodyWeightLogsByUserId(userId: string): BodyWeightLogRecord[] {
+  const db = readDb();
+  return db.bodyWeightLogs
+    .filter((l) => l.userId === userId)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export function saveBodyWeightLog(log: BodyWeightLogRecord) {
+  const db = readDb();
+  const index = db.bodyWeightLogs.findIndex((l) => l.id === log.id);
+  if (index === -1) {
+    db.bodyWeightLogs.push(log);
+  } else {
+    db.bodyWeightLogs[index] = log;
+  }
+  writeDb(db);
+}
+
+const MAX_STORED_NOTIFICATIONS = 500;
+
+export function findNotificationsByUserId(userId: string): NotificationRecord[] {
+  const db = readDb();
+  return db.notifications
+    .filter((n) => n.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findUnreadNotificationCount(userId: string): number {
+  const db = readDb();
+  return db.notifications.filter((n) => n.userId === userId && n.readAt === null).length;
+}
+
+export function createNotification(notification: NotificationRecord) {
+  const db = readDb();
+  db.notifications.push(notification);
+
+  if (db.notifications.length > MAX_STORED_NOTIFICATIONS) {
+    // Keep the most recent records per user — cull oldest globally
+    db.notifications = db.notifications
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, MAX_STORED_NOTIFICATIONS);
+  }
+
+  writeDb(db);
+}
+
+export function markNotificationRead(id: string, userId: string): boolean {
+  const db = readDb();
+  const n = db.notifications.find((x) => x.id === id && x.userId === userId);
+  if (!n) return false;
+  n.readAt = new Date().toISOString();
+  writeDb(db);
+  return true;
+}
+
+export function markAllNotificationsRead(userId: string) {
+  const db = readDb();
+  const now = new Date().toISOString();
+  db.notifications.forEach((n) => {
+    if (n.userId === userId && n.readAt === null) {
+      n.readAt = now;
+    }
+  });
+  writeDb(db);
+}
+
+export function findNotificationByDedupeKey(
+  userId: string,
+  dedupeKey: string
+): NotificationRecord | undefined {
+  const db = readDb();
+  return db.notifications.find((n) => n.userId === userId && n.dedupeKey === dedupeKey);
+}
+
+export function findAllBookings(): BookingRecord[] {
+  const db = readDb();
+  return db.bookings;
+}
+
+// ─── Push subscriptions ────────────────────────────────────────────────────────
+
+// Upsert by (userId, endpoint): updates keys + updatedAt for an existing
+// endpoint instead of inserting a duplicate row.
+export function savePushSubscription(sub: PushSubscriptionRecord): void {
+  const db = readDb();
+  const existing = db.pushSubscriptions.find(
+    (s) => s.userId === sub.userId && s.endpoint === sub.endpoint
+  );
+  if (existing) {
+    existing.p256dh = sub.p256dh;
+    existing.auth = sub.auth;
+    existing.userAgent = sub.userAgent;
+    existing.updatedAt = sub.updatedAt;
+  } else {
+    db.pushSubscriptions.push(sub);
+  }
+  writeDb(db);
+}
+
+export function findPushSubscriptionsByUserId(userId: string): PushSubscriptionRecord[] {
+  const db = readDb();
+  return db.pushSubscriptions.filter((s) => s.userId === userId);
+}
+
+// Scoped to userId so a user can only remove their own subscriptions.
+export function deletePushSubscriptionByEndpoint(userId: string, endpoint: string): void {
+  const db = readDb();
+  db.pushSubscriptions = db.pushSubscriptions.filter(
+    (s) => !(s.userId === userId && s.endpoint === endpoint)
+  );
   writeDb(db);
 }

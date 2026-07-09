@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
     sportPlayed,
     currentWeightKg,
     additionalInfo,
+    programmeEnabled,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof userId !== "string" || !userId.trim()) {
@@ -173,6 +174,7 @@ export async function POST(request: NextRequest) {
     currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
     additionalInfo:
       typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
+    programmeEnabled: programmeEnabled === true,
     cycleTrackingEligible: cycleEligible,
     cycleTrackingEnabled: cycleEligible ? existingProfile.cycleTrackingEnabled : false,
     updatedAt: new Date().toISOString(),

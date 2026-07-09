@@ -10,6 +10,7 @@ import {
   findMembershipPlanById,
   findSubscriptionByUserId,
   findUserById,
+  findWaitlistEntriesByClassId,
   findWaitlistEntryByClassAndUser,
   type WaitlistEntryRecord,
 } from "@/lib/db";
@@ -114,8 +115,12 @@ export async function POST(request: NextRequest) {
   }
 
   const currentBookings = findBookingsByClassId(classId).length;
+  // Slots held by open offers count as occupied — don't let members bypass the
+  // offer queue by joining the waitlist when the effective space is already zero.
+  const activeWaitlist = findWaitlistEntriesByClassId(classId);
+  const offeredCount = activeWaitlist.filter((e) => e.offerState === "offered").length;
 
-  if (currentBookings < classRecord.capacity) {
+  if (currentBookings + offeredCount < classRecord.capacity) {
     return NextResponse.json(
       { success: false, message: "This class still has space — book it directly instead." },
       { status: 409 }
@@ -126,13 +131,20 @@ export async function POST(request: NextRequest) {
     id: randomUUID(),
     classId,
     userId: user.id,
+    offerState: "queued",
+    offerExpiresAt: null,
+    warningNotifiedAt: null,
+    resolvedAt: null,
     createdAt: new Date().toISOString(),
   };
 
   createWaitlistEntry(entry);
 
   return NextResponse.json(
-    { success: true, message: "Added to the waitlist. We'll book you automatically if a spot opens." },
+    {
+      success: true,
+      message: "You're on the waitlist. If a spot opens up you'll receive an in-app offer to accept.",
+    },
     { status: 201 }
   );
 }

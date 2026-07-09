@@ -28,21 +28,21 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-zinc-100">
+    <main className="relative min-h-screen bg-zinc-950 px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,rgba(45,212,191,0.06),transparent)]">
       <div className="mx-auto w-full max-w-md">
         <div className="mb-8">
-          <p className="text-sm uppercase tracking-[0.24em] text-teal-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">
             {BRAND_NAME}
           </p>
-          <h1 className="mt-3 text-3xl font-bold">Forgot password</h1>
+          <h1 className="text-display mt-3 text-[30px]">Forgot password</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Enter your account email and we&apos;ll send you a reset link.
           </p>
         </div>
 
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
+        <div className="panel-raised anim-rise p-6">
           {submitted ? (
-            <p className="rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-200">
+            <p className="well px-4 py-3 text-sm text-zinc-200">
               If an account exists for that email, a password reset link has been sent.
             </p>
           ) : (
@@ -56,7 +56,7 @@ export default function ForgotPasswordPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-500"
+                  className="w-full rounded-xl border border-white/[0.08] bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
                   placeholder="you@example.com"
                 />
               </label>
@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full rounded-xl bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? "Sending…" : "Send reset link"}
               </button>

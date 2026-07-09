@@ -60,13 +60,58 @@ export function isClassEligibleForPlan(
   return plan.allowedCategories.length === 0 || plan.allowedCategories.includes(category);
 }
 
-// null = unlimited. Never negative.
+// Sum of staff-granted extra class passes for the current billing period.
+export function extraSessionsGranted(
+  subscription: Pick<SubscriptionRecord, "extraSessionGrants">
+): number {
+  return subscription.extraSessionGrants.reduce((sum, grant) => sum + grant.amount, 0);
+}
+
+// null = unlimited. Never negative. Includes staff-granted extra passes so
+// booking eligibility and every display agree on one number.
 export function remainingSessions(
   plan: Pick<MembershipPlanRecord, "monthlySessionAllowance">,
-  subscription: Pick<SubscriptionRecord, "sessionsUsedThisPeriod">
+  subscription: Pick<SubscriptionRecord, "sessionsUsedThisPeriod" | "extraSessionGrants">
 ): number | null {
   if (plan.monthlySessionAllowance === null) return null;
-  return Math.max(0, plan.monthlySessionAllowance - subscription.sessionsUsedThisPeriod);
+  return Math.max(
+    0,
+    plan.monthlySessionAllowance +
+      extraSessionsGranted(subscription) -
+      subscription.sessionsUsedThisPeriod
+  );
+}
+
+// Full breakdown behind remainingSessions, for class-pass displays:
+// included − used + extra = remaining. remaining === null means unlimited.
+// overusedBy > 0 means usage exceeded included + extra (e.g. a plan's
+// allowance was lowered mid-period) — remaining clamps to 0 so it can be
+// shown calmly instead of as a negative balance.
+export interface ClassPassBalance {
+  allowance: number | null;
+  used: number;
+  extra: number;
+  remaining: number | null;
+  overusedBy: number;
+}
+
+export function classPassBalance(
+  plan: Pick<MembershipPlanRecord, "monthlySessionAllowance">,
+  subscription: Pick<SubscriptionRecord, "sessionsUsedThisPeriod" | "extraSessionGrants">
+): ClassPassBalance {
+  const used = subscription.sessionsUsedThisPeriod;
+  const extra = extraSessionsGranted(subscription);
+  if (plan.monthlySessionAllowance === null) {
+    return { allowance: null, used, extra, remaining: null, overusedBy: 0 };
+  }
+  const raw = plan.monthlySessionAllowance + extra - used;
+  return {
+    allowance: plan.monthlySessionAllowance,
+    used,
+    extra,
+    remaining: Math.max(0, raw),
+    overusedBy: Math.max(0, -raw),
+  };
 }
 
 export function formatRemainingSessions(remaining: number | null): string {

@@ -1,3 +1,5 @@
+import type { DrinkSettings } from "./drink-settings";
+
 export type Gender = "Male" | "Female" | "Other";
 
 export type PrimaryGoal =
@@ -16,6 +18,8 @@ export type CycleEventType = "period_start" | "period_end" | "symptom" | "note";
 
 export type UserRole = "member" | "staff";
 
+export type MeasurementUnits = "metric" | "imperial";
+
 export interface UserRecord {
   id: string;
   email: string;
@@ -29,6 +33,7 @@ export interface ProfileRecord {
   fullName: string;
   email: string;
   phone: string;
+  dateOfBirth: string | null;
   gender: Gender;
   primaryGoal: PrimaryGoal;
   sportPlayed: string | null;
@@ -36,6 +41,25 @@ export interface ProfileRecord {
   additionalInfo: string | null;
   cycleTrackingEligible: boolean;
   cycleTrackingEnabled: boolean;
+  menopauseSupportEnabled: boolean;
+  reminderTimingsMins: number[] | null;
+  emailNotificationsEnabled: boolean;
+  pushNotificationsEnabled: boolean;
+  // Optional so records created before this field existed stay valid;
+  // readers should treat null/undefined as "metric" (see db.ts normalization).
+  preferredUnits?: MeasurementUnits;
+  // Programme tab access — off by default, enabled per member by staff.
+  // Optional for the same backwards-compatibility reason; treat undefined
+  // as false (see db.ts normalization).
+  programmeEnabled?: boolean;
+  // Last-saved Sports Performance Drink calculator settings (Nutrition tab).
+  // Synced from the client so they follow the member across devices, ground
+  // the AI coach server-side, and are visible to staff. Optional/null for
+  // records created before this field existed (see db.ts normalization).
+  drinkSettings?: DrinkSettings | null;
+  // When drinkSettings was last synced — shown to staff so they know how
+  // current the member's setup is. Null until the first sync.
+  drinkSettingsUpdatedAt?: string | null;
   onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
@@ -79,6 +103,7 @@ export interface SignupAccountValues {
 export interface SignupProfileValues {
   fullName: string;
   phone: string;
+  dateOfBirth: string;
   gender: Gender | "";
   primaryGoal: PrimaryGoal | "";
   sportPlayed: string;
@@ -88,6 +113,7 @@ export interface SignupProfileValues {
 
 export interface SignupCycleValues {
   cycleTrackingEnabled: boolean;
+  menopauseSupportEnabled: boolean;
   lastPeriodStartDate: string;
   averageCycleLengthDays: string;
   periodLengthDays: string;
@@ -109,12 +135,14 @@ export const DEFAULT_SIGNUP_VALUES: SignupFormValues = {
   confirmPassword: "",
   fullName: "",
   phone: "",
+  dateOfBirth: "",
   gender: "",
   primaryGoal: "",
   sportPlayed: "",
   currentWeightKg: "",
   additionalInfo: "",
   cycleTrackingEnabled: false,
+  menopauseSupportEnabled: false,
   lastPeriodStartDate: "",
   averageCycleLengthDays: "",
   periodLengthDays: "",

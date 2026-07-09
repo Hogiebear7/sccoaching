@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  findProfileByUserId,
   findProgrammeByUserId,
   findUserById,
   saveProgramme,
@@ -42,6 +43,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, message: "You must be signed in to update your programme." },
       { status: 401 }
+    );
+  }
+
+  // Programme is a coach-enabled feature — enforce at the data layer, not
+  // just in navigation.
+  const profile = findProfileByUserId(user.id);
+  if (!profile?.programmeEnabled) {
+    return NextResponse.json(
+      { success: false, message: "Programme access hasn't been enabled for this account." },
+      { status: 403 }
     );
   }
 

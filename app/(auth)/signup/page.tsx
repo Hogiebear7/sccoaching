@@ -1,7 +1,7 @@
 "use client";
 
-import { cloneElement, isValidElement, useEffect, useId, useMemo, useState } from "react";
-import type { ChangeEvent, ReactElement, ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -59,6 +59,9 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const sportVisible = shouldShowSportPlayed(values);
   const cycleEligible = shouldShowCycleTracking(values);
@@ -101,6 +104,7 @@ export default function SignupPage() {
       profile: {
         fullName: values.fullName,
         phone: values.phone,
+        dateOfBirth: values.dateOfBirth || "—",
         gender: values.gender || "—",
         primaryGoal: values.primaryGoal || "—",
         sportPlayed: sportVisible ? values.sportPlayed || "—" : "Not applicable",
@@ -110,6 +114,7 @@ export default function SignupPage() {
       cycle: cycleEligible
         ? {
             enabled: values.cycleTrackingEnabled ? "Yes" : "No",
+            menopauseSupport: values.menopauseSupportEnabled ? "Yes" : "No",
             lastPeriodStartDate:
               cycleFieldsVisible && values.lastPeriodStartDate
                 ? values.lastPeriodStartDate
@@ -182,6 +187,15 @@ export default function SignupPage() {
     if (currentStep === 1) {
       if (!values.fullName.trim()) nextErrors.fullName = "Full name is required.";
       if (!values.phone.trim()) nextErrors.phone = "Phone number is required.";
+
+      const dob = values.dateOfBirth.trim();
+      const todayISO = new Date().toISOString().slice(0, 10);
+      if (!dob) {
+        nextErrors.dateOfBirth = "Date of birth is required.";
+      } else if (Number.isNaN(new Date(dob).getTime()) || dob >= todayISO) {
+        nextErrors.dateOfBirth = "Enter a valid date in the past.";
+      }
+
       if (!values.gender) nextErrors.gender = "Please select a gender.";
     }
 
@@ -252,14 +266,15 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black px-4 py-8 text-zinc-100">
+    <main className="relative min-h-screen bg-zinc-950 px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,rgba(45,212,191,0.06),transparent)]">
       <div className="mx-auto w-full max-w-5xl">
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-            <p className="text-sm uppercase tracking-[0.24em] text-teal-400">
+            {/* Long brand name in a 280px column — tighter tracking keeps it on one line */}
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
               {BRAND_NAME}
             </p>
-            <h1 className="mt-3 text-3xl font-bold">Create your account</h1>
+            <h1 className="text-display mt-3 text-[30px]">Create your account</h1>
             <p className="mt-2 text-sm text-zinc-400">
               Set up your profile, goals, and optional cycle tracking preferences.
             </p>
@@ -275,7 +290,7 @@ export default function SignupPage() {
                     aria-current={active ? "step" : undefined}
                     className={`rounded-2xl border px-4 py-3 transition ${
                       active
-                        ? "border-teal-500 bg-teal-500/10"
+                        ? "border-primary bg-primary/10"
                         : complete
                         ? "border-zinc-700 bg-zinc-900"
                         : "border-zinc-800 bg-zinc-950"
@@ -285,7 +300,7 @@ export default function SignupPage() {
                       <div
                         className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
                           active
-                            ? "bg-teal-500 text-black"
+                            ? "bg-primary text-primary-foreground"
                             : complete
                             ? "bg-zinc-200 text-black"
                             : "bg-zinc-800 text-zinc-300"
@@ -315,7 +330,7 @@ export default function SignupPage() {
             </div>
           </aside>
 
-          <section className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
+          <section className="panel-raised anim-rise p-6">
             <div className="space-y-6">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -333,7 +348,7 @@ export default function SignupPage() {
 
               <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
                 <div
-                  className="h-full rounded-full bg-teal-500 transition-all duration-300"
+                  className="h-full rounded-full bg-primary transition-all duration-300"
                   style={{ width: `${((step + 1) / totalSteps) * 100}%` }}
                 />
               </div>
@@ -344,8 +359,9 @@ export default function SignupPage() {
                     Account details
                   </legend>
 
-                  <FormField label="Email" error={errors.email}>
+                  <FormField label="Email" id="signup-email" error={errors.email}>
                     <input
+                      id="signup-email"
                       type="email"
                       value={values.email}
                       onChange={(e) => handleTextChange("email", e)}
@@ -356,20 +372,23 @@ export default function SignupPage() {
 
                   <FormField
                     label="Password"
+                    id="signup-password"
                     hint={PASSWORD_REQUIREMENTS_HINT}
                     error={errors.password}
                     trailing={
                       <button
                         type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
+                        disabled={!mounted}
                         aria-label={showPassword ? "Hide password" : "Show password"}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs font-medium text-zinc-200 transition hover:bg-zinc-700"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs font-medium text-zinc-200 transition hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {showPassword ? "Hide" : "Show"}
                       </button>
                     }
                   >
                     <input
+                      id="signup-password"
                       type={showPassword ? "text" : "password"}
                       value={values.password}
                       onChange={(e) => handleTextChange("password", e)}
@@ -380,23 +399,26 @@ export default function SignupPage() {
 
                   <FormField
                     label="Confirm password"
+                    id="signup-confirm-password"
                     error={errors.confirmPassword}
                     trailing={
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        disabled={!mounted}
                         aria-label={
                           showConfirmPassword
                             ? "Hide confirm password"
                             : "Show confirm password"
                         }
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs font-medium text-zinc-200 transition hover:bg-zinc-700"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs font-medium text-zinc-200 transition hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {showConfirmPassword ? "Hide" : "Show"}
                       </button>
                     }
                   >
                     <input
+                      id="signup-confirm-password"
                       type={showConfirmPassword ? "text" : "password"}
                       value={values.confirmPassword}
                       onChange={(e) => handleTextChange("confirmPassword", e)}
@@ -413,8 +435,9 @@ export default function SignupPage() {
                     Basic profile
                   </legend>
 
-                  <FormField label="Full name" error={errors.fullName}>
+                  <FormField label="Full name" id="signup-full-name" error={errors.fullName}>
                     <input
+                      id="signup-full-name"
                       type="text"
                       value={values.fullName}
                       onChange={(e) => handleTextChange("fullName", e)}
@@ -423,18 +446,39 @@ export default function SignupPage() {
                     />
                   </FormField>
 
-                  <FormField label="Phone" error={errors.phone}>
+                  <FormField label="Phone" id="signup-phone" error={errors.phone}>
                     <input
+                      id="signup-phone"
                       type="tel"
                       value={values.phone}
                       onChange={(e) => handleTextChange("phone", e)}
                       className={inputClass(errors.phone)}
-                      placeholder="+91 98765 43210"
+                      placeholder="+353 83 123 4567"
                     />
                   </FormField>
 
-                  <FormField label="Gender" error={errors.gender}>
+                  <FormField
+                    label="Date of birth"
+                    id="signup-dob"
+                    error={errors.dateOfBirth}
+                  >
+                    <input
+                      id="signup-dob"
+                      type="date"
+                      required
+                      aria-required="true"
+                      value={values.dateOfBirth}
+                      onChange={(e) => handleTextChange("dateOfBirth", e)}
+                      max={new Date().toISOString().slice(0, 10)}
+                      className={inputClass(errors.dateOfBirth)}
+                    />
+                  </FormField>
+
+                  <FormField label="Gender" id="signup-gender" error={errors.gender}>
                     <select
+                      id="signup-gender"
+                      required
+                      aria-required="true"
                       value={values.gender}
                       onChange={(e) => handleTextChange("gender", e)}
                       className={inputClass(errors.gender)}
@@ -456,8 +500,11 @@ export default function SignupPage() {
                     Goals and context
                   </legend>
 
-                  <FormField label="Primary goal" error={errors.primaryGoal}>
+                  <FormField label="Primary goal" id="signup-primary-goal" error={errors.primaryGoal}>
                     <select
+                      id="signup-primary-goal"
+                      required
+                      aria-required="true"
                       value={values.primaryGoal}
                       onChange={(e) => handleTextChange("primaryGoal", e)}
                       className={inputClass(errors.primaryGoal)}
@@ -472,8 +519,9 @@ export default function SignupPage() {
                   </FormField>
 
                   {sportVisible && (
-                    <FormField label="Sport played" error={errors.sportPlayed}>
+                    <FormField label="Sport played" id="signup-sport-played" error={errors.sportPlayed}>
                       <input
+                        id="signup-sport-played"
                         type="text"
                         value={values.sportPlayed}
                         onChange={(e) => handleTextChange("sportPlayed", e)}
@@ -492,9 +540,11 @@ export default function SignupPage() {
                         </span>
                       </>
                     }
+                    id="signup-weight"
                     error={errors.currentWeightKg}
                   >
                     <input
+                      id="signup-weight"
                       type="number"
                       inputMode="decimal"
                       value={values.currentWeightKg}
@@ -506,9 +556,11 @@ export default function SignupPage() {
 
                   <FormField
                     label="Additional information"
+                    id="signup-additional-info"
                     error={errors.additionalInfo}
                   >
                     <textarea
+                      id="signup-additional-info"
                       value={values.additionalInfo}
                       onChange={(e) => handleTextChange("additionalInfo", e)}
                       className={`${inputClass(errors.additionalInfo)} min-h-[120px] resize-y`}
@@ -521,8 +573,15 @@ export default function SignupPage() {
               {isCycleStep && (
                 <fieldset className="space-y-4">
                   <legend className="mb-2 text-lg font-semibold text-zinc-50">
-                    Cycle tracking
+                    Female health options
                   </legend>
+
+                  <p className="text-sm text-zinc-400">
+                    Both options below are independent — you can enable either, both, or neither.
+                    You might want cycle tracking now, menopause support for relevant context,
+                    or both, depending on where you are in your training journey.
+                    All information is private to you unless you choose to share it.
+                  </p>
 
                   <label className="flex items-start gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
                     <input
@@ -534,7 +593,7 @@ export default function SignupPage() {
                           e.target.checked
                         )
                       }
-                      className="mt-1 h-4 w-4 accent-teal-500"
+                      className="mt-1 h-4 w-4 accent-primary"
                     />
                     <span>
                       <span className="block text-sm font-medium text-zinc-100">
@@ -546,13 +605,35 @@ export default function SignupPage() {
                     </span>
                   </label>
 
+                  <label className="flex items-start gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                    <input
+                      type="checkbox"
+                      checked={values.menopauseSupportEnabled}
+                      onChange={(e) =>
+                        handleCheckboxChange("menopauseSupportEnabled", e.target.checked)
+                      }
+                      className="mt-1 h-4 w-4 accent-primary"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-zinc-100">
+                        Receive menopause support information
+                      </span>
+                      <span className="mt-1 block text-sm text-zinc-400">
+                        Educational content on strength training, nutrition, and recovery
+                        relevant to perimenopause and post-menopause. Visible only to you.
+                      </span>
+                    </span>
+                  </label>
+
                   {cycleFieldsVisible && (
                     <div className="grid gap-4 md:grid-cols-2">
                       <FormField
                         label="Last period start date"
+                        id="signup-last-period"
                         error={errors.lastPeriodStartDate}
                       >
                         <input
+                          id="signup-last-period"
                           type="date"
                           value={values.lastPeriodStartDate}
                           onChange={(e) =>
@@ -564,9 +645,11 @@ export default function SignupPage() {
 
                       <FormField
                         label="Average cycle length (days)"
+                        id="signup-avg-cycle-length"
                         error={errors.averageCycleLengthDays}
                       >
                         <input
+                          id="signup-avg-cycle-length"
                           type="number"
                           value={values.averageCycleLengthDays}
                           onChange={(e) =>
@@ -581,9 +664,11 @@ export default function SignupPage() {
 
                       <FormField
                         label="Period length (days)"
+                        id="signup-period-length"
                         error={errors.periodLengthDays}
                       >
                         <input
+                          id="signup-period-length"
                           type="number"
                           value={values.periodLengthDays}
                           onChange={(e) =>
@@ -594,8 +679,9 @@ export default function SignupPage() {
                         />
                       </FormField>
 
-                      <FormField label="Regularity" error={errors.regularity}>
+                      <FormField label="Regularity" id="signup-regularity" error={errors.regularity}>
                         <select
+                          id="signup-regularity"
                           value={values.regularity}
                           onChange={(e) => handleTextChange("regularity", e)}
                           className={inputClass(errors.regularity)}
@@ -612,9 +698,11 @@ export default function SignupPage() {
                       <div className="md:col-span-2">
                         <FormField
                           label="Private notes"
+                          id="signup-private-notes"
                           error={errors.privateNotes}
                         >
                           <textarea
+                            id="signup-private-notes"
                             value={values.privateNotes}
                             onChange={(e) =>
                               handleTextChange("privateNotes", e)
@@ -694,6 +782,7 @@ export default function SignupPage() {
                       value={reviewData.profile.fullName || "—"}
                     />
                     <ReviewRow label="Phone" value={reviewData.profile.phone || "—"} />
+                    <ReviewRow label="Date of birth" value={reviewData.profile.dateOfBirth} />
                     <ReviewRow label="Gender" value={reviewData.profile.gender} />
                     <ReviewRow
                       label="Primary goal"
@@ -714,8 +803,9 @@ export default function SignupPage() {
                   </ReviewCard>
 
                   {reviewData.cycle ? (
-                    <ReviewCard title="Cycle tracking">
-                      <ReviewRow label="Enabled" value={reviewData.cycle.enabled} />
+                    <ReviewCard title="Female health options">
+                      <ReviewRow label="Cycle tracking" value={reviewData.cycle.enabled} />
+                      <ReviewRow label="Menopause support" value={reviewData.cycle.menopauseSupport} />
                       <ReviewRow
                         label="Last period start"
                         value={reviewData.cycle.lastPeriodStartDate}
@@ -757,7 +847,7 @@ export default function SignupPage() {
                 <button
                   type="button"
                   onClick={goBack}
-                  disabled={step === 0}
+                  disabled={!mounted || step === 0}
                   className="rounded-xl border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Back
@@ -768,7 +858,8 @@ export default function SignupPage() {
                     <button
                       type="button"
                       onClick={goNext}
-                      className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400"
+                      disabled={!mounted}
+                      className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       Next
                     </button>
@@ -776,8 +867,8 @@ export default function SignupPage() {
                     <button
                       type="button"
                       onClick={handleSubmit}
-                      disabled={isSubmitting}
-                      className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={!mounted || isSubmitting}
+                      className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSubmitting ? "Creating account…" : "Create account"}
                     </button>
@@ -794,52 +885,43 @@ export default function SignupPage() {
 
 function FormField({
   label,
+  id,
   hint,
   error,
   trailing,
   children,
 }: {
   label: ReactNode;
+  id: string;
   hint?: string;
   error?: string;
   trailing?: ReactNode;
   children: ReactNode;
 }) {
-  const hintId = useId();
-  const errorId = useId();
-
-  const describedBy =
-    [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ") ||
-    undefined;
-
-  const field = isValidElement(children)
-    ? cloneElement(children as ReactElement<{ "aria-describedby"?: string }>, {
-        "aria-describedby": describedBy,
-      })
-    : children;
-
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-medium text-zinc-200">{label}</span>
+    <div>
+      <label htmlFor={id} className="mb-2 block text-sm font-medium text-zinc-200">
+        {label}
+      </label>
       {hint ? (
-        <p id={hintId} className="mb-2 text-xs text-zinc-500">
+        <p className="mb-2 text-xs text-zinc-500">
           {hint}
         </p>
       ) : null}
       {trailing ? (
         <div className="relative">
-          {field}
+          {children}
           {trailing}
         </div>
       ) : (
-        field
+        children
       )}
       {error ? (
-        <p id={errorId} className="mt-1 text-xs text-red-400">
+        <p className="mt-1 text-xs text-red-400">
           {error}
         </p>
       ) : null}
-    </label>
+    </div>
   );
 }
 
@@ -858,7 +940,7 @@ function CheckboxRow({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 accent-teal-500"
+        className="h-4 w-4 accent-primary"
       />
       <span>{label}</span>
     </label>
@@ -892,9 +974,9 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 }
 
 function inputClass(hasError?: string) {
-  return `w-full rounded-xl border bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
+  return `w-full rounded-xl border bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
     hasError
       ? "border-red-500 focus:border-red-400"
-      : "border-zinc-800 focus:border-teal-500"
+      : "border-zinc-800 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
   }`;
 }

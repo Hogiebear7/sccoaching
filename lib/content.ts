@@ -3,7 +3,7 @@
 // pages. Plan/pricing data itself lives in lib/db.ts and is read directly
 // where needed — this file is just brand identity, key copy, and routes.
 
-export const BRAND_NAME = "S&C Performance";
+export const BRAND_NAME = "S&C Performance Coaching";
 
 export const BRAND_TAGLINE =
   "Training, programmes, and bookings — all in one place.";

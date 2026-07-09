@@ -122,6 +122,9 @@ export async function POST(
     sessionsUsedThisPeriod: isEnteringFreshActivePeriod
       ? 0
       : existingSubscription?.sessionsUsedThisPeriod ?? 0,
+    extraSessionGrants: isEnteringFreshActivePeriod
+      ? []
+      : existingSubscription?.extraSessionGrants ?? [],
     periodLapsedNotifiedAt: isEnteringFreshActivePeriod
       ? null
       : existingSubscription?.periodLapsedNotifiedAt ?? null,

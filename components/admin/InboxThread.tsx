@@ -22,20 +22,21 @@ export default function InboxThread({ message, active, onClick }: Props) {
   return (
     <div
       onClick={onClick}
-      className={`flex items-start gap-3 px-4 py-3.5 cursor-pointer border-b border-zinc-800 transition-colors ${active ? "bg-zinc-800" : "hover:bg-zinc-800/50"}`}
+      className={`relative flex cursor-pointer items-start gap-3 border-b border-white/[0.05] px-4 py-3.5 transition-colors duration-150 ${active ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"}`}
     >
-      <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300 flex-shrink-0 mt-0.5">
+      <span className={`absolute left-0 top-1/2 h-8 w-0.5 -translate-y-1/2 rounded-full bg-teal-400 transition-opacity duration-150 ${active ? "opacity-100" : "opacity-0"}`} />
+      <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[11px] font-semibold text-zinc-300 ring-1 ring-white/10">
         {initials}
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className={`text-sm font-medium truncate ${message.read ? "text-zinc-300" : "text-zinc-50"}`}>{person}</p>
-          <span className="text-[10px] text-zinc-500 flex-shrink-0">{formatTime(message.timestamp)}</span>
+          <p className={`truncate text-sm ${message.read ? "font-medium text-zinc-300" : "font-semibold text-zinc-50"}`}>{person}</p>
+          <span className="flex-shrink-0 text-[10px] text-zinc-500 tabular-nums">{formatTime(message.timestamp)}</span>
         </div>
-        <p className={`text-xs truncate mt-0.5 ${message.read ? "text-zinc-500" : "text-zinc-300 font-medium"}`}>{message.subject}</p>
-        <p className="text-xs text-zinc-600 truncate mt-0.5">{message.body.slice(0, 60)}…</p>
+        <p className={`mt-0.5 truncate text-xs ${message.read ? "text-zinc-500" : "font-medium text-zinc-300"}`}>{message.subject}</p>
+        <p className="mt-0.5 truncate text-xs text-zinc-600">{message.body.slice(0, 60)}…</p>
       </div>
-      {!message.read && <div className="w-2 h-2 rounded-full bg-teal-400 flex-shrink-0 mt-2" />}
+      {!message.read && <div className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-teal-400" />}
     </div>
   );
 }

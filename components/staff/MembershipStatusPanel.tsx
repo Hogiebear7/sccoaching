@@ -12,7 +12,7 @@ import {
   SUBSCRIPTION_STATUS_LABEL,
   SUBSCRIPTION_STATUS_STYLE,
 } from "@/lib/membership-status";
-import { formatRemainingSessions } from "@/lib/scheduling-status";
+import { formatRemainingSessions, type ClassPassBalance } from "@/lib/scheduling-status";
 
 const STATUS_OPTIONS: SubscriptionStatus[] = [
   "inactive",
@@ -31,7 +31,7 @@ export function MembershipStatusPanel({
   currentProvider,
   currentUpdatedAt,
   currentPeriodEnd,
-  currentRemainingSessions,
+  passBalance,
 }: {
   memberId: string;
   plans: MembershipPlanRecord[];
@@ -40,7 +40,7 @@ export function MembershipStatusPanel({
   currentStatus: SubscriptionStatus | null;
   currentProvider: "none" | "revolut" | null;
   currentUpdatedAt: string | null;
-  currentRemainingSessions: number | null;
+  passBalance: ClassPassBalance | null;
   currentPeriodEnd: string | null;
 }) {
   const pendingIsStale =
@@ -53,6 +53,49 @@ export function MembershipStatusPanel({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [grantAmount, setGrantAmount] = useState("1");
+  const [grantNote, setGrantNote] = useState("");
+  const [grantError, setGrantError] = useState<string | null>(null);
+  const [grantSuccess, setGrantSuccess] = useState<string | null>(null);
+  const [isGranting, setIsGranting] = useState(false);
+
+  async function handleGrant(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    const amount = Number(grantAmount);
+    if (!Number.isInteger(amount) || amount < 1 || amount > 20) {
+      setGrantError("Enter a whole number of classes between 1 and 20.");
+      return;
+    }
+
+    setGrantError(null);
+    setGrantSuccess(null);
+    setIsGranting(true);
+
+    try {
+      const res = await fetch(`/api/staff/members/${memberId}/extra-sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, note: grantNote.trim() || undefined }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setGrantError(data?.message ?? "Could not add extra classes. Please try again.");
+        return;
+      }
+
+      setGrantSuccess(data?.message ?? "Extra classes added.");
+      setGrantAmount("1");
+      setGrantNote("");
+      router.refresh();
+    } catch {
+      setGrantError("Something went wrong. Please try again.");
+    } finally {
+      setIsGranting(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -90,17 +133,17 @@ export function MembershipStatusPanel({
   }
 
   return (
-    <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-      <h3 className="text-lg font-semibold text-zinc-50">Membership</h3>
+    <div className="rounded-3xl border border-border bg-card p-6">
+      <h3 className="text-lg font-semibold">Membership</h3>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <span className="text-sm text-zinc-300">
+        <span className="text-sm text-foreground">
           {currentPlanName ?? "No plan selected"}
         </span>
         {currentStatus ? (
           <span
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              periodLapsed ? "bg-red-500/15 text-red-300" : SUBSCRIPTION_STATUS_STYLE[currentStatus]
+              periodLapsed ? "bg-destructive/15 text-destructive" : SUBSCRIPTION_STATUS_STYLE[currentStatus]
             }`}
           >
             {periodLapsed
@@ -110,48 +153,48 @@ export function MembershipStatusPanel({
                 : SUBSCRIPTION_STATUS_LABEL[currentStatus]}
           </span>
         ) : null}
-        {currentStatus === "active" && !periodLapsed ? (
-          <span className="text-xs text-zinc-500">
-            {formatRemainingSessions(currentRemainingSessions)}
+        {currentStatus === "active" && !periodLapsed && passBalance ? (
+          <span className="text-xs text-muted-foreground">
+            {formatRemainingSessions(passBalance.remaining)}
           </span>
         ) : null}
         {pendingIsStale ? (
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-muted-foreground">
             Member can retry checkout themselves — no action needed.
           </span>
         ) : null}
         {periodLapsed ? (
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-muted-foreground">
             Billing period ended {currentPeriodEnd ? formatMembershipDate(currentPeriodEnd) : ""} —
             recurring renewal isn&apos;t automatic yet. Member can renew themselves, or set status below.
           </span>
         ) : null}
         {currentProvider === "revolut" ? (
-          <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-medium text-zinc-400">
+          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
             Billed via Revolut
           </span>
         ) : null}
       </div>
 
       {plans.length === 0 ? (
-        <p className="mt-4 text-sm text-zinc-400">
+        <p className="mt-4 text-sm text-muted-foreground">
           No plans exist yet — create one on the Plans page first.
         </p>
       ) : (
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-muted-foreground">
             Manual override (cash payment, comp, or correcting a stuck state). This
             doesn&apos;t affect any in-progress Revolut checkout.
           </p>
 
           {error ? (
-            <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+            <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {error}
             </p>
           ) : null}
 
           {successMessage ? (
-            <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+            <p className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
               {successMessage}
             </p>
           ) : null}
@@ -160,7 +203,7 @@ export function MembershipStatusPanel({
             <select
               value={planId}
               onChange={(e) => setPlanId(e.target.value)}
-              className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-teal-500"
+              className="flex-1 rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
             >
               {plans.map((plan) => (
                 <option key={plan.id} value={plan.id}>
@@ -172,7 +215,7 @@ export function MembershipStatusPanel({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as SubscriptionStatus)}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-teal-500"
+              className="rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
             >
               {STATUS_OPTIONS.map((value) => (
                 <option key={value} value={value}>
@@ -184,13 +227,93 @@ export function MembershipStatusPanel({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? "Saving…" : "Update"}
             </button>
           </div>
         </form>
       )}
+
+      {/* Class passes this period */}
+      {passBalance ? (
+        <div className="mt-6 border-t border-white/[0.06] pt-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h4 className="text-sm font-semibold">Class passes this period</h4>
+            {passBalance.allowance === null ? (
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+                Unlimited plan
+              </span>
+            ) : (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {passBalance.allowance} included · {passBalance.used} used
+                {passBalance.extra > 0 ? (
+                  <> · <span className="text-gold">{passBalance.extra} extra</span></>
+                ) : null}{" "}
+                · <span className="font-semibold text-foreground">{passBalance.remaining} remaining</span>
+              </p>
+            )}
+          </div>
+
+          {passBalance.overusedBy > 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Used {passBalance.overusedBy} more than the current entitlement — adding extra
+              classes below brings the balance back up.
+            </p>
+          ) : null}
+
+          {passBalance.allowance !== null ? (
+            <form onSubmit={handleGrant} className="mt-3 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Add extra classes onto this period&apos;s balance (goodwill, catch-up, promo, or a
+                correction). Cleared when a new billing period starts.
+              </p>
+
+              {grantError ? (
+                <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {grantError}
+                </p>
+              ) : null}
+
+              {grantSuccess ? (
+                <p className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
+                  {grantSuccess}
+                </p>
+              ) : null}
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={20}
+                  step={1}
+                  value={grantAmount}
+                  onChange={(e) => setGrantAmount(e.target.value)}
+                  aria-label="Number of extra classes"
+                  className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15 tabular-nums sm:w-24"
+                />
+                <input
+                  type="text"
+                  value={grantNote}
+                  onChange={(e) => setGrantNote(e.target.value)}
+                  maxLength={200}
+                  placeholder="Reason (optional) — e.g. missed class goodwill"
+                  aria-label="Reason for extra classes"
+                  className="flex-1 rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/60 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                />
+                <button
+                  type="submit"
+                  disabled={isGranting}
+                  className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isGranting ? "Adding…" : "Add classes"}
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

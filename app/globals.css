@@ -1,42 +1,74 @@
 @import "tailwindcss";
 
-/* ─── Design tokens ─────────────────────────────────────────────────── */
+/* ────────────────────────────────────────────────────────────────────
+   S&C Performance Coaching design system v4
+   Foundation: deep silver-graphite ramp (zinc-* overridden below) with a
+   wider background→card gap so surfaces read clearly elevated. Accents
+   are role-based: blue = selection/informational/data, gold = premium/tier
+   moments, teal = brand actions and positive states.
+   ──────────────────────────────────────────────────────────────────── */
+
 :root {
-  --background:               oklch(0.14 0.01 260);
-  --foreground:               oklch(0.96 0 0);
-  --card:                     oklch(0.18 0.01 260);
-  --card-foreground:          oklch(0.96 0 0);
-  --popover:                  oklch(0.18 0.01 260);
-  --popover-foreground:       oklch(0.96 0 0);
+  /* Deep silver-graphite neutrals (see @theme zinc overrides below).
+     The base sits deeper than v3 while cards hold their level — the
+     bigger jump is what makes every card read as machined hardware. */
+  --background:               oklch(0.185 0.004 255);
+  --foreground:               oklch(0.985 0.001 255);
+  --card:                     oklch(0.245 0.005 255);
+  --card-foreground:          oklch(0.985 0.001 255);
+  --popover:                  oklch(0.285 0.005 255);
+  --popover-foreground:       oklch(0.985 0.001 255);
 
-  --primary:                  oklch(0.62 0.10 180);
-  --primary-foreground:       oklch(0.14 0 0);
+  /* Brand teal */
+  --primary:                  oklch(0.6 0.118 184.7);
+  --primary-hover:            oklch(0.704 0.14 182.5);
+  --primary-foreground:       oklch(0.985 0 0);
 
-  --secondary:                oklch(0.22 0.01 260);
-  --secondary-foreground:     oklch(0.96 0 0);
-  --muted:                    oklch(0.22 0.01 260);
-  --muted-foreground:         oklch(0.65 0.01 260);
-  --accent:                   oklch(0.22 0.01 260);
-  --accent-foreground:        oklch(0.96 0 0);
+  /* Gold — reserved for achievement moments (streaks, PRs) */
+  --gold:                     oklch(0.78 0.14 85);
+  --gold-foreground:          oklch(0.21 0.004 255);
 
-  --destructive:              oklch(0.55 0.2 25);
-  --destructive-foreground:   oklch(0.96 0 0);
+  --secondary:                oklch(0.31 0.005 255);
+  --secondary-foreground:     oklch(0.985 0.001 255);
+  --muted:                    oklch(0.31 0.005 255);
+  --muted-foreground:         oklch(0.71 0.005 255);
+  --accent:                   oklch(0.31 0.005 255);
+  --accent-foreground:        oklch(0.985 0.001 255);
 
-  --border:                   oklch(1 0 0 / 0.08);
-  --input:                    oklch(0.22 0.01 260);
-  --ring:                     oklch(0.62 0.10 180);
+  --destructive:              oklch(0.577 0.245 27.3);
+  --destructive-foreground:   oklch(0.985 0 0);
 
-  --sidebar:                  oklch(0.12 0.01 260);
-  --sidebar-foreground:       oklch(0.96 0 0);
-  --sidebar-muted-foreground: oklch(0.55 0.01 260);
+  --border:                   oklch(1 0 0 / 0.09);
+  --input:                    oklch(0.155 0.004 255);
+  --ring:                     oklch(0.62 0.19 260);
+
+  --sidebar:                  oklch(0.165 0.004 255);
+  --sidebar-foreground:       oklch(0.985 0.001 255);
+  --sidebar-muted-foreground: oklch(0.60 0.006 255);
 
   --radius: 1rem;
 
-  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.04), 0 4px 16px oklch(0 0 0 / 0.04);
-  --shadow-elev: 0 2px 4px oklch(0 0 0 / 0.06), 0 12px 32px oklch(0 0 0 / 0.08);
+  /* Layered elevation with a machined top hairline baked in — every panel
+     catches light on its top edge without per-page classes. */
+  --shadow-card: inset 0 1px 0 0 oklch(1 0 0 / 0.05), 0 1px 2px oklch(0 0 0 / 0.35), 0 4px 10px -2px oklch(0 0 0 / 0.3), 0 16px 40px -12px oklch(0 0 0 / 0.55);
+  --shadow-elev: inset 0 1px 0 0 oklch(1 0 0 / 0.06), 0 2px 8px oklch(0 0 0 / 0.38), 0 10px 24px -6px oklch(0 0 0 / 0.35), 0 24px 64px -12px oklch(0 0 0 / 0.6);
 }
 
 @theme inline {
+  /* Recolor the neutral ramp product-wide: same lightness steps as
+     stock zinc, cool silver-grey at minimal chroma. */
+  --color-zinc-950: oklch(0.185 0.004 255);
+  --color-zinc-900: oklch(0.245 0.005 255);
+  --color-zinc-800: oklch(0.30 0.005 255);
+  --color-zinc-700: oklch(0.39 0.005 255);
+  --color-zinc-600: oklch(0.49 0.005 255);
+  --color-zinc-500: oklch(0.60 0.006 255);
+  --color-zinc-400: oklch(0.71 0.005 255);
+  --color-zinc-300: oklch(0.83 0.004 255);
+  --color-zinc-200: oklch(0.90 0.003 255);
+  --color-zinc-100: oklch(0.95 0.002 255);
+  --color-zinc-50:  oklch(0.985 0.001 255);
+
   --color-background:               var(--background);
   --color-foreground:               var(--foreground);
   --color-card:                     var(--card);
@@ -44,7 +76,10 @@
   --color-popover:                  var(--popover);
   --color-popover-foreground:       var(--popover-foreground);
   --color-primary:                  var(--primary);
+  --color-primary-hover:            var(--primary-hover);
   --color-primary-foreground:       var(--primary-foreground);
+  --color-gold:                     var(--gold);
+  --color-gold-foreground:          var(--gold-foreground);
   --color-secondary:                var(--secondary);
   --color-secondary-foreground:     var(--secondary-foreground);
   --color-muted:                    var(--muted);
@@ -60,26 +95,239 @@
   --color-sidebar-foreground:       var(--sidebar-foreground);
 
   --font-sans: var(--font-inter);
+  --font-display: var(--font-space-grotesk);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-elev: var(--shadow-elev);
+}
+
+:root {
+  /* Native form controls (select menus, date pickers, scrollbars) render
+     in dark mode instead of the OS default light popups. */
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
+  /* Faint silver bloom at the top of every screen — depth without color.
+     Fixed so the page scrolls through the light rather than carrying it. */
+  background:
+    radial-gradient(120% 44% at 50% 0%, oklch(0.225 0.005 255), oklch(0 0 0 / 0) 70%) fixed,
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Readable native <select> menus everywhere: high-contrast option text on
+   the app's raised-surface color, with muted placeholder options. */
+select option,
+select optgroup {
+  background-color: var(--popover);
+  color: var(--foreground);
+}
+
+select option:disabled {
+  color: oklch(0.60 0.006 255);
+}
+
+select:required:invalid {
+  /* Empty "Select…" placeholder option shown in the closed field */
+  color: oklch(0.60 0.006 255);
 }
 
 * {
   box-sizing: border-box;
 }
 
+::selection {
+  background: oklch(0.62 0.19 260 / 0.35);
+}
+
+:focus-visible {
+  outline: 2px solid oklch(0.62 0.19 260 / 0.6);
+  outline-offset: 2px;
+}
+
+html {
+  scrollbar-color: oklch(0.39 0.005 255) transparent;
+}
+
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Surfaces ──────────────────────────────────────────────────────── */
+
+/* Primary card surface: faint top luminance, hairline border, layered
+   shadow. The gradient is what makes panels read as machined, not flat. */
+@utility panel {
+  background-color: var(--card);
+  background-image: linear-gradient(180deg, oklch(1 0 0 / 0.05), oklch(1 0 0 / 0) 38%);
+  border: 1px solid oklch(1 0 0 / 0.1);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+/* Elevated surface for sheets, modals, popovers */
+@utility panel-raised {
+  background-color: var(--popover);
+  background-image: linear-gradient(180deg, oklch(1 0 0 / 0.05), oklch(1 0 0 / 0) 40%);
+  border: 1px solid oklch(1 0 0 / 0.1);
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow-elev);
+}
+
+/* Recessed wells inside panels (nested content, code, notes) */
+@utility well {
+  background-color: oklch(0 0 0 / 0.3);
+  border: 1px solid oklch(1 0 0 / 0.05);
+  border-radius: 0.75rem;
+  box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.25);
+}
+
+/* Standard chip/badge shell — value-forward, crisp hairline, dark fill.
+   Pair with a role tint class when state matters. */
+@utility chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid oklch(1 0 0 / 0.1);
+  background-color: oklch(1 0 0 / 0.05);
+  border-radius: 9999px;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Empty/zero states: dashed hairline, breathing room, quiet copy. */
+@utility empty-state {
+  border: 1px dashed oklch(1 0 0 / 0.12);
+  background-color: oklch(1 0 0 / 0.015);
+  border-radius: var(--radius);
+  padding: 2rem;
+  text-align: center;
+}
+
+/* Data lines/points that should read as lit, not printed. */
+@utility chart-glow {
+  filter: drop-shadow(0 0 5px oklch(0.62 0.19 260 / 0.4));
+}
+
+/* ─── Typography ────────────────────────────────────────────────────── */
+
+/* Section micro-labels (table headers, stat labels, group titles) —
+   smaller and wider-tracked than v3 for a technical, instrument feel. */
+@utility label-caps {
+  font-size: 0.625rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: oklch(0.57 0.006 255);
+}
+
+/* Display type: wordmark, page titles, hero numerals */
+@utility text-display {
+  font-family: var(--font-space-grotesk), var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Forms ─────────────────────────────────────────────────────────── */
+
+/* The one input recipe. Inputs sit slightly below the surface
+   ("carved"), and rise to a blue focus ring. */
+@utility input-field {
+  width: 100%;
+  background-color: var(--input);
+  border: 1px solid oklch(1 0 0 / 0.09);
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  outline: none;
+  box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.3);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+
+  &::placeholder {
+    color: oklch(0.60 0.006 255);
+  }
+
+  &:focus {
+    border-color: oklch(0.62 0.19 260 / 0.55);
+    box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.3), 0 0 0 3px oklch(0.62 0.19 260 / 0.15);
+  }
+}
+
+/* ─── Motion ────────────────────────────────────────────────────────── */
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Page/section entrance. Confident ease-out, no bounce. */
+@utility anim-rise {
+  animation: rise 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@utility anim-fade {
+  animation: fade 320ms ease-out both;
+}
+
+/* Chart line entrance: draws left → right. Pair with pathLength={100} on
+   the SVG element so the dash math is resolution-independent. */
+@keyframes draw {
+  from { stroke-dashoffset: 100; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@utility anim-draw {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: draw 700ms cubic-bezier(0.16, 1, 0.3, 1) 120ms forwards;
+}
+
+/* Interactive cards: lift on hover, settle on press */
+@utility hover-lift {
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: oklch(1 0 0 / 0.14);
+    box-shadow: var(--shadow-elev);
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.995);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Layout helpers ────────────────────────────────────────────────── */
 
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 @utility pb-nav-safe {
-  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
 }

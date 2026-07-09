@@ -66,14 +66,12 @@ export function BookingsView({
 
   return (
     <section className="space-y-6">
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.24em] text-teal-400">
-          Bookings
-        </p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-50">
+      <div>
+        <p className="label-caps">Club</p>
+        <h2 className="text-display mt-1 text-[28px] leading-tight">
           My bookings
         </h2>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-400">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Classes you&apos;ve booked, in one place. Cancelling at least{" "}
           {cancellationCutoffHours}h before a class restores your session — cancelling
           later doesn&apos;t.
@@ -81,20 +79,20 @@ export function BookingsView({
       </div>
 
       {successMessage ? (
-        <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+        <p className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
           {successMessage}
         </p>
       ) : null}
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">Upcoming</h3>
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">Upcoming</h3>
 
         {upcomingBookings.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-400">
+          <p className="mt-3 text-sm text-muted-foreground">
             You don&apos;t have any upcoming bookings.{" "}
             <Link
               href="/dashboard/schedule"
-              className="text-teal-400 transition hover:text-teal-300"
+              className="text-gold transition hover:text-gold/80"
             >
               Browse the schedule
             </Link>{" "}
@@ -117,8 +115,8 @@ export function BookingsView({
       </div>
 
       {pastBookings.length > 0 ? (
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-          <h3 className="text-lg font-semibold text-zinc-50">Past</h3>
+        <div className="rounded-3xl border border-border bg-card p-6">
+          <h3 className="text-lg font-semibold">Past</h3>
           <div className="mt-5 space-y-3">
             {pastBookings.map((booking) => (
               <BookingCard key={booking.bookingId} booking={booking} cancellable={false} />
@@ -144,35 +142,35 @@ function BookingCard({
   onCancel?: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+    <div className="well p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             {booking.date} · {booking.startTime}
           </p>
-          <h4 className="mt-1 text-base font-semibold text-zinc-100">
+          <h4 className="mt-1 text-base font-semibold text-foreground">
             {booking.title}
           </h4>
-          <p className="mt-2 text-sm text-zinc-400">Coach: {booking.coachEmail}</p>
+          <p className="mt-2 text-sm text-muted-foreground">Coach: {booking.coachEmail}</p>
         </div>
 
         <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
           {cancellable ? (
-            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
+            <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
               Confirmed
             </span>
           ) : (
             <span
               className={`rounded-full px-3 py-1 text-xs font-semibold ${
                 booking.attended
-                  ? "bg-emerald-500/15 text-emerald-300"
-                  : "bg-zinc-800 text-zinc-400"
+                  ? "bg-primary/15 text-primary"
+                  : "bg-muted text-muted-foreground"
               }`}
             >
               {booking.attended ? "Attended" : "Not checked in"}
             </span>
           )}
-          <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-300">
+          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
             {booking.durationMins} min
           </span>
 
@@ -181,7 +179,7 @@ function BookingCard({
               type="button"
               onClick={onCancel}
               disabled={isCancelling}
-              className="rounded-xl border border-zinc-700 px-3 py-1 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isCancelling ? "Cancelling…" : "Cancel"}
             </button>
@@ -192,7 +190,7 @@ function BookingCard({
       {cancellable ? (
         <p
           className={`mt-3 text-xs ${
-            booking.willRestoreSession ? "text-zinc-500" : "text-amber-400"
+            booking.willRestoreSession ? "text-muted-foreground" : "text-amber-400"
           }`}
         >
           {booking.willRestoreSession
@@ -202,7 +200,7 @@ function BookingCard({
       ) : null}
 
       {error ? (
-        <p className="mt-3 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+        <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
         </p>
       ) : null}

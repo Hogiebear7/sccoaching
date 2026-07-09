@@ -1,12 +1,16 @@
 import { cookies } from "next/headers";
 
 import {
+  findExercises,
   findProfileByUserId,
+  findRecoveryLogsByUserId,
   findUserById,
   findWorkoutSessionsByUserId,
   type WorkoutSessionRecord,
 } from "@/lib/db";
+import { computeRollingTrainingLoad } from "@/lib/recovery";
 import { verifySession } from "@/lib/session";
+import type { HelperContext } from "@/lib/workout-helper";
 import { WorkoutsView } from "./WorkoutsView";
 
 function sumDurationThisWeek(sessions: WorkoutSessionRecord[]): number {
@@ -34,11 +38,11 @@ export default async function DashboardWorkoutsPage() {
 
   if (!user || !profile) {
     return (
-      <div className="space-y-5 pt-2">
+      <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Workouts</h1>
+          <h1 className="text-display text-[28px]">Workouts</h1>
         </div>
-        <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
+        <div className="panel p-5">
           <p className="text-sm text-muted-foreground">
             We couldn&apos;t load profile data for this account. Try logging out and back in.
           </p>
@@ -47,7 +51,27 @@ export default async function DashboardWorkoutsPage() {
     );
   }
 
+  const exercises = findExercises();
+
+  // Workout Helper context: today's readiness score plus the rolling
+  // 7-day training load already used by the Recovery tab.
+  const recoveryLogs = findRecoveryLogsByUserId(user.id);
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayLog = recoveryLogs.find((log) => log.date === todayISO);
+  const rollingLoad = computeRollingTrainingLoad(recoveryLogs);
+
+  const helperContext: HelperContext = {
+    readinessScore: todayLog?.readinessScore ?? null,
+    sevenDayLoad: rollingLoad.sevenDaySum,
+    daysWithLoad: rollingLoad.daysWithLoad,
+  };
+
   return (
-    <WorkoutsView sessions={sessions} weeklyDurationMins={sumDurationThisWeek(sessions)} />
+    <WorkoutsView
+      sessions={sessions}
+      weeklyDurationMins={sumDurationThisWeek(sessions)}
+      exercises={exercises}
+      helperContext={helperContext}
+    />
   );
 }

@@ -3,21 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { signSession } from "@/lib/session";
 
-const { mockFindUserById, mockFindClassById, mockSaveClass, mockPromoteFromWaitlist } = vi.hoisted(() => ({
+const { mockFindUserById, mockFindClassById, mockSaveClass, mockFindClassCategories, mockIssueWaitlistOffer } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindClassById: vi.fn(),
   mockSaveClass: vi.fn(),
-  mockPromoteFromWaitlist: vi.fn(),
+  mockFindClassCategories: vi.fn(),
+  mockIssueWaitlistOffer: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
   findClassById: mockFindClassById,
   saveClass: mockSaveClass,
+  findClassCategories: mockFindClassCategories,
 }));
 
 vi.mock("@/lib/scheduling", () => ({
-  promoteFromWaitlist: mockPromoteFromWaitlist,
+  issueWaitlistOffer: mockIssueWaitlistOffer,
 }));
 
 const STAFF_USER = { id: "staff-1", email: "coach@example.com", role: "staff" as const };
@@ -63,7 +65,14 @@ describe("POST /api/staff/classes", () => {
     mockFindUserById.mockReset();
     mockFindClassById.mockReset();
     mockSaveClass.mockReset();
-    mockPromoteFromWaitlist.mockReset();
+    mockFindClassCategories.mockReset();
+    mockIssueWaitlistOffer.mockReset();
+    mockFindClassCategories.mockReturnValue([
+      { slug: "general", name: "General" },
+      { slug: "strength", name: "Strength" },
+      { slug: "cardio", name: "Cardio" },
+      { slug: "mother_and_baby", name: "Mother & Baby" },
+    ]);
   });
 
   it("rejects requests with no session cookie", async () => {
@@ -221,7 +230,7 @@ describe("POST /api/staff/classes", () => {
     expect(saved.capacity).toBe(10);
     expect(saved.id).toBeTruthy();
     expect(saved.createdAt).toBe(saved.updatedAt);
-    expect(mockPromoteFromWaitlist).not.toHaveBeenCalled();
+    expect(mockIssueWaitlistOffer).not.toHaveBeenCalled();
   });
 
   it("updates an existing class, preserving id, coachUserId, and createdAt", async () => {
@@ -254,7 +263,7 @@ describe("POST /api/staff/classes", () => {
     expect(saved.capacity).toBe(8);
     expect(saved.updatedAt).not.toBe(EXISTING_CLASS.updatedAt);
     // Capacity went down (10 -> 8), not up, so no promotion should fire.
-    expect(mockPromoteFromWaitlist).not.toHaveBeenCalled();
+    expect(mockIssueWaitlistOffer).not.toHaveBeenCalled();
   });
 
   it("attempts waitlist promotion when capacity is raised on an existing class", async () => {
@@ -276,6 +285,6 @@ describe("POST /api/staff/classes", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(mockPromoteFromWaitlist).toHaveBeenCalledWith("class-1");
+    expect(mockIssueWaitlistOffer).toHaveBeenCalledWith("class-1");
   });
 });

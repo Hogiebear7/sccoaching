@@ -3,16 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { signSession } from "@/lib/session";
 
-const { mockFindUserById, mockFindProgrammeByUserId, mockSaveProgramme } = vi.hoisted(() => ({
+const { mockFindUserById, mockFindProgrammeByUserId, mockSaveProgramme, mockFindProfileByUserId } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindProgrammeByUserId: vi.fn(),
   mockSaveProgramme: vi.fn(),
+  mockFindProfileByUserId: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
   findProgrammeByUserId: mockFindProgrammeByUserId,
   saveProgramme: mockSaveProgramme,
+  findProfileByUserId: mockFindProfileByUserId,
 }));
 
 const EXISTING_PROGRAMME = {
@@ -49,6 +51,10 @@ describe("POST /api/programme/update", () => {
     mockFindProgrammeByUserId.mockReset();
     mockSaveProgramme.mockReset();
     mockFindUserById.mockReturnValue({ id: "user-1", email: "athlete@example.com" });
+    mockFindProfileByUserId.mockReset();
+    mockFindProfileByUserId.mockReturnValue({ userId: "user-1", programmeEnabled: true });
+    mockFindProfileByUserId.mockReset();
+    mockFindProfileByUserId.mockReturnValue({ userId: "user-1", programmeEnabled: true });
   });
 
   it("rejects requests with no session cookie", async () => {
@@ -111,6 +117,16 @@ describe("POST /api/programme/update", () => {
     const res = await callProgrammeUpdate({ title: "Valid Title", status: "bogus" }, cookie);
 
     expect(res.status).toBe(400);
+    expect(mockSaveProgramme).not.toHaveBeenCalled();
+  });
+
+  it("rejects with 403 when programme access isn't enabled for the member", async () => {
+    mockFindProfileByUserId.mockReturnValue({ userId: "user-1", programmeEnabled: false });
+    const cookie = signSession({ userId: "user-1" });
+
+    const res = await callProgrammeUpdate({ title: "Valid Title" }, cookie);
+
+    expect(res.status).toBe(403);
     expect(mockSaveProgramme).not.toHaveBeenCalled();
   });
 });

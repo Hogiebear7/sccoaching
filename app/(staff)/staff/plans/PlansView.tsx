@@ -66,7 +66,6 @@ export function PlansView({
   const isHalfConfigured = checkoutConfigured && !webhookConfigured;
   const router = useRouter();
 
-  // Plan form state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [values, setValues] = useState<PlanFormValues>(() => emptyFormValues());
   const [errors, setErrors] = useState<FormErrors>({});
@@ -74,7 +73,6 @@ export function PlansView({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Category management state
   const [catEditingId, setCatEditingId] = useState<string | null>(null);
   const [catName, setCatName] = useState("");
   const [catFormError, setCatFormError] = useState<string | null>(null);
@@ -85,7 +83,6 @@ export function PlansView({
 
   const isEditing = editingId !== null;
 
-  // Plan form handlers
   function handleTextChange(
     key: keyof PlanFormValues,
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -110,8 +107,6 @@ export function PlansView({
     setEditingId(plan.id);
     const knownSlugs = new Set(categories.map((c) => c.slug));
     const base = toFormValues(plan);
-    // Drop slugs for deleted categories — no checkbox is rendered for them
-    // and the server validates against current category slugs only.
     setValues({ ...base, allowedCategories: base.allowedCategories.filter((s) => knownSlugs.has(s)) });
     setErrors({});
     setFormError(null);
@@ -192,7 +187,6 @@ export function PlansView({
     }
   }
 
-  // Category management handlers
   function startEditCat(cat: ClassCategoryRecord) {
     setCatEditingId(cat.id);
     setCatName(cat.name);
@@ -265,12 +259,13 @@ export function PlansView({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.24em] text-teal-400">Plans</p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-50">
+      {/* Header card */}
+      <div>
+        <p className="label-caps">Staff</p>
+        <h2 className="text-display mt-1 text-[28px] leading-tight">
           {isEditing ? "Edit plan" : "Create a plan"}
         </h2>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-400">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Plans you create here appear to members on the membership page.{" "}
           {checkoutConfigured
             ? "Revolut checkout is configured — members are sent to Revolut to pay when they select a plan."
@@ -291,18 +286,19 @@ export function PlansView({
         </div>
       ) : null}
 
+      {/* Plan form */}
       <form
         onSubmit={handleSubmit}
-        className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl"
+        className="panel rounded-3xl p-6"
       >
         {formError ? (
-          <p className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {formError}
           </p>
         ) : null}
 
         {successMessage ? (
-          <p className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          <p className="mb-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             {successMessage}
           </p>
         ) : null}
@@ -358,14 +354,14 @@ export function PlansView({
                   }`}
                   placeholder="e.g. 8"
                 />
-                <label className="flex items-center gap-2 text-sm text-zinc-300">
+                <label className="flex items-center gap-2 text-sm text-foreground">
                   <input
                     type="checkbox"
                     checked={values.isUnlimited}
                     onChange={(e) =>
                       setValues((prev) => ({ ...prev, isUnlimited: e.target.checked }))
                     }
-                    className="h-4 w-4 accent-teal-500"
+                    className="h-4 w-4 accent-primary"
                   />
                   Unlimited sessions
                 </label>
@@ -376,22 +372,22 @@ export function PlansView({
           <div className="md:col-span-2">
             <FormField label="Class categories this plan can book" error={errors.allowedCategories}>
               {categories.length === 0 ? (
-                <p className="text-sm text-zinc-400">
+                <p className="text-sm text-muted-foreground">
                   No categories yet — add some in the{" "}
-                  <span className="text-teal-400">Manage categories</span> section below.
+                  <span className="text-gold">Manage categories</span> section below.
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-3">
                   {categories.map((cat) => (
                     <label
                       key={cat.slug}
-                      className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
+                      className="flex items-center gap-2 well rounded-xl px-3 py-2 text-sm text-foreground"
                     >
                       <input
                         type="checkbox"
                         checked={values.allowedCategories.includes(cat.slug)}
                         onChange={() => toggleCategory(cat.slug)}
-                        className="h-4 w-4 accent-teal-500"
+                        className="h-4 w-4 accent-primary"
                       />
                       {cat.name}
                     </label>
@@ -406,7 +402,7 @@ export function PlansView({
               label={
                 <>
                   Description{" "}
-                  <span className="text-xs font-normal text-zinc-500">optional</span>
+                  <span className="text-xs font-normal text-muted-foreground">optional</span>
                 </>
               }
               error={errors.description}
@@ -420,25 +416,25 @@ export function PlansView({
             </FormField>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-zinc-300 md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-foreground md:col-span-2">
             <input
               type="checkbox"
               checked={values.isActive}
               onChange={(e) =>
                 setValues((prev) => ({ ...prev, isActive: e.target.checked }))
               }
-              className="h-4 w-4 accent-teal-500"
+              className="h-4 w-4 accent-primary"
             />
             Visible to members
           </label>
         </div>
 
-        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-zinc-800 pt-4 sm:flex-row sm:items-center sm:justify-end">
+        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-end">
           {isEditing ? (
             <button
               type="button"
               onClick={cancelEdit}
-              className="rounded-xl border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500"
+              className="rounded-xl border border-border px-5 py-2 text-sm font-medium text-foreground transition hover:bg-accent"
             >
               Cancel
             </button>
@@ -447,18 +443,19 @@ export function PlansView({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Saving…" : isEditing ? "Update plan" : "Create plan"}
           </button>
         </div>
       </form>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-        <h3 className="text-lg font-semibold text-zinc-50">All plans</h3>
+      {/* Plan list */}
+      <div className="rounded-3xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold">All plans</h3>
 
         {plans.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-400">
+          <p className="mt-3 text-sm text-muted-foreground">
             No plans yet. Create the first one above.
           </p>
         ) : (
@@ -466,26 +463,24 @@ export function PlansView({
             {plans.map((plan) => (
               <div
                 key={plan.id}
-                className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"
+                className="well p-4"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h4 className="text-base font-semibold text-zinc-100">
-                      {plan.name}
-                    </h4>
+                    <h4 className="text-base font-semibold">{plan.name}</h4>
                     {plan.description ? (
-                      <p className="mt-2 text-sm text-zinc-400">{plan.description}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
                     ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {plan.allowedCategories.length === 0 ? (
-                        <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-400">
+                        <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                           All categories
                         </span>
                       ) : (
                         plan.allowedCategories.map((category) => (
                           <span
                             key={category}
-                            className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-400"
+                            className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
                           >
                             {classCategoryLabel(categories, category, deletedLabels)}
                           </span>
@@ -495,17 +490,17 @@ export function PlansView({
                   </div>
 
                   <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-                    <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-300">
+                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                       {formatPriceCents(plan.priceCents)} / {plan.billingInterval}
                     </span>
-                    <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-zinc-300">
+                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                       {formatSessionAllowance(plan.monthlySessionAllowance)}
                     </span>
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
                         plan.isActive
-                          ? "bg-emerald-500/15 text-emerald-300"
-                          : "bg-zinc-800 text-zinc-400"
+                          ? "bg-primary/15 text-primary"
+                          : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {plan.isActive ? "Visible" : "Hidden"}
@@ -513,7 +508,7 @@ export function PlansView({
                     <button
                       type="button"
                       onClick={() => startEdit(plan)}
-                      className="rounded-xl border border-zinc-700 px-3 py-1 text-xs font-medium text-zinc-200 transition hover:border-zinc-500"
+                      className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
                     >
                       Edit
                     </button>
@@ -526,35 +521,42 @@ export function PlansView({
       </div>
 
       {/* Category management */}
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-zinc-50">Manage categories</h3>
-        <p className="mt-1 text-sm text-zinc-400">
+      <div>
+        <h3 className="text-lg font-semibold">Manage categories</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
           Categories appear on the class and plan forms. Deleting a category removes it from future
           selections — existing classes and plans are not affected and will continue to display their
           category label.
         </p>
 
-        <form onSubmit={handleSaveCat} className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+        <form
+          onSubmit={handleSaveCat}
+          className="mt-5 well p-4"
+        >
           {catFormError ? (
-            <p className="mb-3 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            <p className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {catFormError}
             </p>
           ) : null}
           {catFormSuccess ? (
-            <p className="mb-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+            <p className="mb-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
               {catFormSuccess}
             </p>
           ) : null}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
-              <label className="mb-2 block text-sm font-medium text-zinc-200">
+              <label className="mb-2 block text-sm font-medium text-foreground">
                 {catEditingId ? "Category name" : "New category"}
               </label>
               <input
                 type="text"
                 value={catName}
-                onChange={(e) => { setCatName(e.target.value); setCatFormError(null); setCatFormSuccess(null); }}
+                onChange={(e) => {
+                  setCatName(e.target.value);
+                  setCatFormError(null);
+                  setCatFormSuccess(null);
+                }}
                 className={inputClass(catFormError && !catName.trim() ? "error" : undefined)}
                 placeholder="e.g. Yoga"
               />
@@ -564,7 +566,7 @@ export function PlansView({
                 <button
                   type="button"
                   onClick={cancelEditCat}
-                  className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500"
+                  className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-accent"
                 >
                   Cancel
                 </button>
@@ -572,7 +574,7 @@ export function PlansView({
               <button
                 type="submit"
                 disabled={isSavingCat}
-                className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSavingCat ? "Saving…" : catEditingId ? "Update" : "Add category"}
               </button>
@@ -581,29 +583,29 @@ export function PlansView({
         </form>
 
         {catDeleteError ? (
-          <p className="mt-3 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {catDeleteError}
           </p>
         ) : null}
 
         <div className="mt-4 space-y-2">
           {categories.length === 0 ? (
-            <p className="text-sm text-zinc-400">No categories yet. Add one above.</p>
+            <p className="text-sm text-muted-foreground">No categories yet. Add one above.</p>
           ) : (
             categories.map((cat) => (
               <div
                 key={cat.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-3"
+                className="flex flex-wrap items-center justify-between gap-2 well p-3"
               >
                 <div>
-                  <p className="text-sm font-medium text-zinc-200">{cat.name}</p>
-                  <p className="text-xs text-zinc-500">{cat.slug}</p>
+                  <p className="text-sm font-medium">{cat.name}</p>
+                  <p className="text-xs text-muted-foreground">{cat.slug}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => startEditCat(cat)}
-                    className="rounded-xl border border-zinc-700 px-3 py-1 text-xs font-medium text-zinc-200 transition hover:border-zinc-500"
+                    className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
                   >
                     Edit
                   </button>
@@ -611,7 +613,7 @@ export function PlansView({
                     type="button"
                     onClick={() => handleDeleteCat(cat.id)}
                     disabled={deletingCatId === cat.id}
-                    className="rounded-xl border border-red-500/30 px-3 py-1 text-xs font-medium text-red-400 transition hover:border-red-500/60 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-xl border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {deletingCatId === cat.id ? "Deleting…" : "Delete"}
                   </button>
@@ -636,17 +638,17 @@ function FormField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-medium text-zinc-200">{label}</span>
+      <span className="mb-2 block text-sm font-medium text-foreground">{label}</span>
       {children}
-      {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+      {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
     </label>
   );
 }
 
 function inputClass(hasError?: string) {
-  return `w-full rounded-xl border bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
+  return `w-full rounded-xl border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
     hasError
-      ? "border-red-500 focus:border-red-400"
-      : "border-zinc-800 focus:border-teal-500"
+      ? "border-destructive focus:border-destructive"
+      : "border-border focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
   }`;
 }

@@ -24,18 +24,18 @@ function SearchHistory() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by exercise name…"
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-teal-600"
+          className="input-field pl-9"
         />
       </div>
       {query.trim() && filtered.length > 0 && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+        <div className="panel p-4">
           {(() => {
             const ex = filtered[0].exercises.find((e) => e.name.toLowerCase().includes(query.toLowerCase()));
             const best = ex?.sets.reduce((b, s) => s.weightKg > b.weightKg ? s : b);
             return (
-              <div className="mb-3 p-3 bg-teal-600/10 border border-teal-600/20 rounded-xl">
+              <div className="mb-3 p-3 bg-teal-500/[0.07] border border-teal-500/20 rounded-xl">
                 <p className="text-xs text-zinc-500 mb-0.5">Last time you did <span className="text-zinc-300 font-medium">{ex?.name}</span></p>
-                <p className="text-sm font-bold text-teal-400">{best?.weightKg}kg × {best?.reps} reps</p>
+                <p className="text-display text-[15px] text-gold tabular-nums">{best?.weightKg}kg × {best?.reps} reps</p>
                 <p className="text-xs text-zinc-500">{new Date(filtered[0].date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
               </div>
             );
@@ -54,17 +54,17 @@ export default function WorkoutsPage() {
   const [tab, setTab] = useState<"log" | "history">("log");
 
   return (
-    <div className="pb-4">
-      <div className="px-4 pt-6 pb-4">
-        <h1 className="text-2xl font-bold text-zinc-50">Workouts</h1>
+    <div className="anim-rise pb-4">
+      <div className="px-4 pt-7 pb-4">
+        <h1 className="text-display text-[26px] text-zinc-50">Workouts</h1>
       </div>
-      {/* Tabs */}
-      <div className="flex mx-4 mb-4 bg-zinc-900 border border-zinc-800 rounded-xl p-1 gap-1">
+      {/* Segmented tabs */}
+      <div className="mx-4 mb-4 flex gap-0.5 rounded-xl border border-white/[0.07] bg-white/[0.02] p-0.5">
         {(["log", "history"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${tab === t ? "bg-teal-600 text-white" : "text-zinc-500 hover:text-zinc-300"}`}
+            className={`flex-1 rounded-[10px] py-2 text-sm font-medium capitalize transition-colors duration-150 ${tab === t ? "bg-white/[0.08] text-zinc-50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]" : "text-zinc-500 hover:text-zinc-300"}`}
           >
             {t === "log" ? "Log Workout" : "History"}
           </button>

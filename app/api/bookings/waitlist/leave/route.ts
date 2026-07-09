@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { deleteWaitlistEntry, findUserById, findWaitlistEntryByClassAndUser } from "@/lib/db";
+import { findUserById, findWaitlistEntryByClassAndUser, saveWaitlistEntry } from "@/lib/db";
+import { issueWaitlistOffer } from "@/lib/scheduling";
 import { verifySession } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
@@ -52,7 +53,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  deleteWaitlistEntry(entry.id);
+  const wasOffered = entry.offerState === "offered";
+  saveWaitlistEntry({
+    ...entry,
+    offerState: "removed",
+    resolvedAt: new Date().toISOString(),
+  });
+
+  if (wasOffered) {
+    try {
+      issueWaitlistOffer(entry.classId);
+    } catch {
+      // Cascade failure must not block the leave response.
+    }
+  }
 
   return NextResponse.json(
     { success: true, message: "Removed from the waitlist." },

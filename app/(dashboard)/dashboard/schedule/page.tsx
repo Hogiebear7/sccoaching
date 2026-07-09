@@ -27,11 +27,11 @@ export default async function DashboardSchedulePage() {
 
   if (!user || !profile) {
     return (
-      <div className="space-y-5 pt-2">
+      <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Schedule</h1>
+          <h1 className="text-display text-[28px]">Schedule</h1>
         </div>
-        <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
+        <div className="panel p-5">
           <p className="text-sm text-muted-foreground">
             We couldn&apos;t load profile data for this account. Try logging out and back in.
           </p>
@@ -81,9 +81,27 @@ export default async function DashboardSchedulePage() {
       const isBookedByMe = myBookedClassIds.has(classRecord.id);
       const isFull = bookedCount >= classRecord.capacity;
 
-      const waitlist = findWaitlistEntriesByClassId(classRecord.id);
-      const waitlistIndex = waitlist.findIndex((entry) => entry.userId === user.id);
-      const isWaitlistedByMe = waitlistIndex !== -1;
+      const waitlist = findWaitlistEntriesByClassId(classRecord.id); // active only
+      const myEntry = waitlist.find((entry) => entry.userId === user.id);
+      const isWaitlistedByMe = !!myEntry;
+      // Position is only meaningful while queued; offered members have already
+      // been "served" and their slot is held separately.
+      const queuedEntries = waitlist.filter((e) => e.offerState === "queued");
+      const waitlistPosition =
+        myEntry?.offerState === "queued"
+          ? queuedEntries.findIndex((e) => e.userId === user.id) + 1
+          : null;
+      const waitlistOfferState =
+        myEntry?.offerState === "offered" || myEntry?.offerState === "queued"
+          ? myEntry.offerState
+          : null;
+      const waitlistEntryId = myEntry?.id ?? null;
+      const offerExpiresAt = myEntry?.offerExpiresAt ?? null;
+
+      // Open offers hold slots — count them against capacity for direct-booking
+      // and join-waitlist checks.
+      const offeredCount = waitlist.filter((e) => e.offerState === "offered").length;
+      const effectiveFull = bookedCount + offeredCount >= classRecord.capacity;
 
       let blockReason: string | null = null;
 
@@ -103,8 +121,11 @@ export default async function DashboardSchedulePage() {
         bookedCount,
         isBookedByMe,
         isWaitlistedByMe,
-        waitlistPosition: isWaitlistedByMe ? waitlistIndex + 1 : null,
-        isFull,
+        waitlistPosition,
+        waitlistOfferState,
+        waitlistEntryId,
+        offerExpiresAt,
+        isFull: effectiveFull,
         blockReason,
       };
     });

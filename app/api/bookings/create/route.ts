@@ -11,11 +11,13 @@ import {
   findSubscriptionByUserId,
   findUserById,
   findWaitlistEntryByClassAndUser,
-  deleteWaitlistEntry,
+  findWaitlistEntriesByClassId,
+  saveWaitlistEntry,
   saveSubscription,
   type BookingRecord,
 } from "@/lib/db";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
+import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 
@@ -131,12 +133,16 @@ export async function POST(request: NextRequest) {
   }
 
   const currentBookings = findBookingsByClassId(classId).length;
+  // Open offers hold slots against capacity — a slot being offered to someone
+  // else is not available for a direct booking.
+  const activeWaitlist = findWaitlistEntriesByClassId(classId);
+  const offeredCount = activeWaitlist.filter((e) => e.offerState === "offered").length;
 
-  if (currentBookings >= classRecord.capacity) {
+  if (currentBookings + offeredCount >= classRecord.capacity) {
     return NextResponse.json(
       {
         success: false,
-        message: "This class is full. Join the waitlist to be notified if a spot opens.",
+        message: "This class is full. Join the waitlist and you'll receive an offer if a spot opens.",
         full: true,
       },
       { status: 409 }
@@ -161,10 +167,24 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Booking directly makes any waitlist entry for this class redundant.
+  // Booking directly supersedes any active waitlist entry for this class.
+  // If the entry was "offered", mark it removed and cascade to the next person
+  // so the slot that was being held by the offer is re-issued.
   const staleWaitlistEntry = findWaitlistEntryByClassAndUser(classId, user.id);
   if (staleWaitlistEntry) {
-    deleteWaitlistEntry(staleWaitlistEntry.id);
+    const wasOffered = staleWaitlistEntry.offerState === "offered";
+    saveWaitlistEntry({
+      ...staleWaitlistEntry,
+      offerState: "removed",
+      resolvedAt: new Date().toISOString(),
+    });
+    if (wasOffered) {
+      try {
+        issueWaitlistOffer(classId);
+      } catch {
+        // Cascade failure must not block the booking.
+      }
+    }
   }
 
   return NextResponse.json(

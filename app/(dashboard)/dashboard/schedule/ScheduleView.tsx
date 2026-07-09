@@ -13,6 +13,9 @@ type ScheduleClass = ClassRecord & {
   isBookedByMe: boolean;
   isWaitlistedByMe: boolean;
   waitlistPosition: number | null;
+  waitlistOfferState: "queued" | "offered" | null;
+  waitlistEntryId: string | null;
+  offerExpiresAt: string | null;
   isFull: boolean;
   blockReason: string | null;
 };
@@ -60,6 +63,8 @@ export function ScheduleView({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
   const [cancelBookingError, setCancelBookingError] = useState<Record<string, string>>({});
+  const [respondingEntryId, setRespondingEntryId] = useState<string | null>(null);
+  const [respondError, setRespondError] = useState<Record<string, string>>({});
 
   async function handleBook(classId: string) {
     setSubmittingClassId(classId);
@@ -163,6 +168,40 @@ export function ScheduleView({
     }
   }
 
+  async function handleRespond(entryId: string, action: "accept" | "reject") {
+    setRespondingEntryId(entryId);
+    setRespondError((prev) => ({ ...prev, [entryId]: "" }));
+    setSuccessMessage(null);
+
+    try {
+      const res = await fetch("/api/bookings/waitlist/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entryId, action }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setRespondError((prev) => ({
+          ...prev,
+          [entryId]: data?.message ?? "Could not respond to this offer.",
+        }));
+        return;
+      }
+
+      setSuccessMessage(data?.message ?? (action === "accept" ? "Booking confirmed!" : "Offer declined."));
+      router.refresh();
+    } catch {
+      setRespondError((prev) => ({
+        ...prev,
+        [entryId]: "Something went wrong. Please try again.",
+      }));
+    } finally {
+      setRespondingEntryId(null);
+    }
+  }
+
   const classesByDate = classes.reduce<Record<string, ScheduleClass[]>>((acc, cls) => {
     if (!acc[cls.date]) acc[cls.date] = [];
     acc[cls.date].push(cls);
@@ -171,12 +210,13 @@ export function ScheduleView({
   const sortedDates = Object.keys(classesByDate).sort();
 
   return (
-    <section className="space-y-5 pt-2">
+    <section className="space-y-8">
 
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Schedule</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="label-caps">Club</p>
+        <h1 className="text-display mt-1 text-[28px] leading-tight">Schedule</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Browse upcoming classes and book your spot.
           {remainingSessions !== null && (
             <>
@@ -240,7 +280,7 @@ export function ScheduleView({
       {/* Browse tab */}
       {tab === "browse" && (
         classes.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-card p-8 text-center">
+          <div className="empty-state">
             <p className="text-sm font-medium">No classes scheduled yet</p>
             <p className="mt-1 text-xs text-muted-foreground">Check back soon.</p>
           </div>
@@ -248,7 +288,7 @@ export function ScheduleView({
           <div className="space-y-5">
             {sortedDates.map((date) => (
               <section key={date}>
-                <p className="mb-2 px-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="mb-2 px-1 label-caps">
                   {formatGroupDate(date)}
                 </p>
                 <div className="space-y-3">
@@ -259,7 +299,7 @@ export function ScheduleView({
                     return (
                       <div
                         key={classRecord.id}
-                        className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)]"
+                        className="panel p-4"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
@@ -276,7 +316,7 @@ export function ScheduleView({
                               <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                                 {classCategoryLabel(categories, classRecord.category, deletedLabels)}
                               </span>
-                              <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                                <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                                 {classRecord.durationMins} min · {classRecord.bookedCount}/{classRecord.capacity}
                               </span>
                             </div>
@@ -289,7 +329,34 @@ export function ScheduleView({
                               {statusLabel(classRecord)}
                             </span>
 
-                            {classRecord.isBookedByMe ? null : classRecord.isWaitlistedByMe ? (
+                            {classRecord.isBookedByMe ? null
+                              : classRecord.waitlistOfferState === "offered" && classRecord.waitlistEntryId ? (
+                              <div className="flex flex-col items-start gap-1 sm:items-end">
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRespond(classRecord.waitlistEntryId!, "accept")}
+                                    disabled={respondingEntryId === classRecord.waitlistEntryId}
+                                    className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {respondingEntryId === classRecord.waitlistEntryId ? "Confirming…" : "Accept"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRespond(classRecord.waitlistEntryId!, "reject")}
+                                    disabled={respondingEntryId === classRecord.waitlistEntryId}
+                                    className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    Decline
+                                  </button>
+                                </div>
+                                {classRecord.offerExpiresAt && (
+                                  <p className="text-[11px] text-gold">
+                                    Expires {formatExpiry(classRecord.offerExpiresAt)}
+                                  </p>
+                                )}
+                              </div>
+                            ) : classRecord.isWaitlistedByMe ? (
                               <button
                                 type="button"
                                 onClick={() => handleWaitlist(classRecord.id, "leave")}
@@ -312,13 +379,24 @@ export function ScheduleView({
                                 type="button"
                                 onClick={() => handleBook(classRecord.id)}
                                 disabled={isSubmitting}
-                                className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {isSubmitting ? "Booking…" : "Book"}
                               </button>
                             )}
                           </div>
                         </div>
+
+                        {classRecord.waitlistOfferState === "offered" && (
+                          <div className="mt-3 flex items-start gap-2 rounded-xl border border-gold/25 bg-gold/8 px-3 py-2.5">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="mt-px h-4 w-4 shrink-0 text-gold">
+                              <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                            </svg>
+                            <p className="text-xs text-gold">
+                              You&apos;ve been offered a spot — accept or decline above before the offer expires.
+                            </p>
+                          </div>
+                        )}
 
                         {classRecord.blockReason && (
                           <p className="mt-3 rounded-xl bg-muted px-3 py-2 text-xs text-muted-foreground">
@@ -329,6 +407,12 @@ export function ScheduleView({
                         {cardError && (
                           <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                             {cardError}
+                          </p>
+                        )}
+
+                        {classRecord.waitlistEntryId && respondError[classRecord.waitlistEntryId] && (
+                          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                            {respondError[classRecord.waitlistEntryId]}
                           </p>
                         )}
                       </div>
@@ -344,14 +428,14 @@ export function ScheduleView({
       {/* My bookings tab */}
       {tab === "bookings" && (
         upcomingBookings.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-card p-8 text-center">
+          <div className="empty-state">
             <p className="text-sm font-medium">No upcoming bookings</p>
             <p className="mt-1 text-xs text-muted-foreground">Browse the schedule to book a session.</p>
           </div>
         ) : (
           <div className="space-y-3">
             {upcomingBookings.map((booking) => (
-              <div key={booking.bookingId} className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)]">
+              <div key={booking.bookingId} className="panel p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs text-muted-foreground">
@@ -363,7 +447,7 @@ export function ScheduleView({
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
+                    <span className="rounded-full border border-primary/20 bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">
                       Booked
                     </span>
                     <button
@@ -403,6 +487,7 @@ export function ScheduleView({
 
 function statusLabel(classRecord: ScheduleClass): string {
   if (classRecord.isBookedByMe) return "Booked";
+  if (classRecord.waitlistOfferState === "offered") return "Offer pending";
   if (classRecord.isWaitlistedByMe) return `Waitlisted #${classRecord.waitlistPosition}`;
   if (classRecord.blockReason) return "Not eligible";
   if (classRecord.isFull) return "Full";
@@ -410,9 +495,20 @@ function statusLabel(classRecord: ScheduleClass): string {
 }
 
 function statusStyle(classRecord: ScheduleClass): string {
-  if (classRecord.isBookedByMe) return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
+  if (classRecord.isBookedByMe) return "bg-primary/15 text-primary border-primary/20";
+  if (classRecord.waitlistOfferState === "offered") return "bg-gold/15 text-gold border-gold/20";
   if (classRecord.isWaitlistedByMe) return "bg-amber-500/15 text-amber-400 border-amber-500/20";
   if (classRecord.blockReason) return "bg-muted text-muted-foreground border-border";
   if (classRecord.isFull) return "bg-amber-500/15 text-amber-400 border-amber-500/20";
   return "bg-primary/10 text-primary border-primary/20";
+}
+
+function formatExpiry(iso: string): string {
+  const diffMs = new Date(iso).getTime() - Date.now();
+  if (diffMs <= 0) return "expired";
+  const diffMins = Math.floor(diffMs / 60_000);
+  if (diffMins < 60) return `in ${diffMins} min`;
+  const diffHrs = Math.floor(diffMins / 60);
+  const remMins = diffMins % 60;
+  return remMins > 0 ? `in ${diffHrs}h ${remMins}m` : `in ${diffHrs}h`;
 }

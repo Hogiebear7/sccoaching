@@ -2,7 +2,8 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { createMessage, findUserById, type MessageRecord } from "@/lib/db";
+import { createMessage, createNotification, findProfileByUserId, findUserById, type MessageRecord, type NotificationRecord } from "@/lib/db";
+import { sendPush } from "@/lib/push";
 import { verifySession } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
@@ -70,16 +71,51 @@ export async function POST(request: NextRequest) {
     resolvedMemberId = sender.id;
   }
 
+  const now = new Date().toISOString();
+
   const message: MessageRecord = {
     id: randomUUID(),
     memberId: resolvedMemberId,
     senderId: sender.id,
     senderRole: sender.role === "staff" ? "staff" : "member",
     body: messageBody.trim(),
-    createdAt: new Date().toISOString(),
+    readAt: null,
+    createdAt: now,
   };
 
   createMessage(message);
+
+  // Notify the recipient. Staff messages go to the member; member messages go
+  // to staff inboxes (currently no per-staff notification — skip for now).
+  if (sender.role === "staff") {
+    const senderProfile = findProfileByUserId(sender.id);
+    const senderName = senderProfile?.fullName?.trim() || null;
+
+    const notification: NotificationRecord = {
+      id: randomUUID(),
+      userId: resolvedMemberId,
+      type: "message",
+      title: senderName ? `New message from ${senderName}` : "New message from your coach",
+      body:
+        messageBody.trim().length > 120
+          ? messageBody.trim().slice(0, 117) + "…"
+          : messageBody.trim(),
+      readAt: null,
+      linkHref: "/dashboard/messages",
+      dedupeKey: null,
+      createdAt: now,
+    };
+    createNotification(notification);
+
+    const recipientProfile = findProfileByUserId(resolvedMemberId);
+    if (recipientProfile?.pushNotificationsEnabled !== false) {
+      void sendPush(resolvedMemberId, {
+        title: notification.title,
+        body: notification.body,
+        linkHref: notification.linkHref ?? "/dashboard/messages",
+      });
+    }
+  }
 
   return NextResponse.json(
     { success: true, message: "Message sent." },

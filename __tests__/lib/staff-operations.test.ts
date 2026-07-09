@@ -60,6 +60,7 @@ function activeSubscription(overrides: Partial<Record<string, unknown>> = {}) {
     currentPeriodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     lastWebhookEventAt: null,
     sessionsUsedThisPeriod: 0,
+    extraSessionGrants: [],
     periodLapsedNotifiedAt: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",

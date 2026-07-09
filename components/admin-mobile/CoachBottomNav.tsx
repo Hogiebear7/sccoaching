@@ -24,18 +24,20 @@ const tabs = [
 export default function CoachBottomNav() {
   const pathname = usePathname();
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-zinc-900/95 backdrop-blur-sm border-t border-zinc-800 z-50">
-      <div className="flex items-center justify-around h-16 px-1">
+    <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-[430px] -translate-x-1/2 px-3 pb-safe">
+      <div className="mb-3 flex items-center justify-around rounded-2xl border border-white/[0.08] bg-zinc-900/85 px-1 py-1.5 shadow-[0_2px_6px_rgba(0,0,0,0.3),0_16px_48px_-12px_rgba(0,0,0,0.55),inset_0_1px_0_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
         {tabs.map((tab) => {
           const active = tab.href === "/admin-mobile" ? pathname === "/admin-mobile" : pathname.startsWith(tab.href);
           return (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors ${active ? "text-teal-400" : "text-zinc-500 hover:text-zinc-300"}`}
+              className={`relative flex flex-col items-center gap-0.5 rounded-xl px-3.5 py-1.5 transition-[color,background-color,transform] duration-150 active:scale-95 ${
+                active ? "bg-white/[0.07] text-blue-300" : "text-zinc-500 hover:text-zinc-300"
+              }`}
             >
               {tab.icon}
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <span className={`text-[10px] tracking-[0.02em] ${active ? "font-semibold" : "font-medium"}`}>{tab.label}</span>
             </Link>
           );
         })}

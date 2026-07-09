@@ -19,8 +19,8 @@ export default function MembersPage() {
           </Button>
         }
       />
-      <div className="flex-1 overflow-y-auto p-6">
-        <MemberTable members={members} />
+      <div className="flex-1 overflow-y-auto px-8 py-8">
+        <div className="anim-rise"><MemberTable members={members} /></div>
       </div>
     </div>
   );

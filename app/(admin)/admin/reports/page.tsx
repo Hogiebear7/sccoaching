@@ -10,41 +10,41 @@ export default function ReportsPage() {
   return (
     <div className="flex flex-col overflow-hidden h-full">
       <TopBar title="Reports" subtitle="2025 Annual Summary" />
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto px-8 py-8">
         {/* Summary cards */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+        <div className="anim-rise grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
           {[
             { label: "Total Revenue", value: `$${totalRevenue.toLocaleString()}` },
             { label: "New Members", value: totalNew },
             { label: "Churned Members", value: totalChurn },
             { label: "Avg Visits/Member", value: avgVisits },
           ].map(({ label, value }) => (
-            <div key={label} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4">
-              <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium">{label}</p>
-              <p className="text-2xl font-bold text-zinc-50 mt-1">{value}</p>
-              <p className="text-xs text-zinc-600 mt-0.5">Jan – Dec 2025</p>
+            <div key={label} className="panel p-4">
+              <p className="label-caps">{label}</p>
+              <p className="text-display text-2xl text-zinc-50 mt-2 tabular-nums">{value}</p>
+              <p className="text-xs text-zinc-600 mt-1">Jan – Dec 2025</p>
             </div>
           ))}
         </div>
 
         {/* Monthly table */}
-        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+        <div className="panel overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-zinc-800">
+              <tr className="border-b border-white/[0.08]">
                 {["Month", "Revenue", "New Members", "Churned", "Avg Visits/Member"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">{h}</th>
+                  <th key={h} className="px-5 py-3 text-left label-caps">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-white/[0.05]">
               {monthlyReports.map((r) => (
-                <tr key={r.month} className="border-b border-zinc-800 last:border-0 hover:bg-zinc-800/30 transition-colors">
-                  <td className="px-4 py-3 text-sm font-medium text-zinc-200">{r.month}</td>
-                  <td className="px-4 py-3 text-sm text-zinc-100 font-semibold">${r.revenue.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-teal-400 font-medium">+{r.newMembers}</td>
-                  <td className="px-4 py-3 text-sm text-red-400">-{r.churnedMembers}</td>
-                  <td className="px-4 py-3 text-sm text-zinc-300">{r.avgVisitsPerMember.toFixed(1)}</td>
+                <tr key={r.month} className="hover:bg-white/[0.025] transition-colors duration-150">
+                  <td className="px-5 py-3.5 text-[13px] font-medium text-zinc-200">{r.month}</td>
+                  <td className="px-5 py-3.5 text-[13px] text-zinc-100 font-semibold tabular-nums">${r.revenue.toLocaleString()}</td>
+                  <td className="px-5 py-3.5 text-[13px] text-teal-400 font-medium tabular-nums">+{r.newMembers}</td>
+                  <td className="px-5 py-3.5 text-[13px] text-red-400 tabular-nums">-{r.churnedMembers}</td>
+                  <td className="px-5 py-3.5 text-[13px] text-zinc-300 tabular-nums">{r.avgVisitsPerMember.toFixed(1)}</td>
                 </tr>
               ))}
             </tbody>

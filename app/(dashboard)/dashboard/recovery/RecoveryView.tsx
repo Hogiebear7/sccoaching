@@ -5,6 +5,8 @@ import { useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { RecoveryLogRecord } from "@/lib/db";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { intensityMix, weeklyTrainingSummary } from "@/lib/progress";
 import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
 
 type RecoveryFormValues = {
@@ -64,6 +66,8 @@ export function RecoveryView({
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Post-save state for the submit-button morph (spinner → check → idle).
+  const [justSaved, setJustSaved] = useState(false);
 
   function handleChange(
     key: keyof RecoveryFormValues,
@@ -117,6 +121,8 @@ export function RecoveryView({
 
       setSuccessMessage(data?.message ?? "Recovery log saved.");
       setValues(emptyFormValues());
+      setJustSaved(true);
+      window.setTimeout(() => setJustSaved(false), 1400);
       router.refresh();
     } catch {
       setFormError("Something went wrong. Please try again.");
@@ -126,15 +132,13 @@ export function RecoveryView({
   }
 
   return (
-    <section className="space-y-5 pt-2">
+    <section className="space-y-8">
 
-      {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Recovery</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Log sleep, soreness, and fatigue to track your daily readiness.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Training"
+        title="Recovery"
+        subtitle="Log sleep, soreness, and fatigue to track your daily readiness."
+      />
 
       {/* Summary stats */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -159,12 +163,14 @@ export function RecoveryView({
         />
       </div>
 
+      <ProgressModules logs={logs} />
+
       {/* Check-in form */}
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]"
+        className="panel p-5"
       >
-        <p className="mb-4 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        <p className="mb-4 label-caps">
           Daily check-in
         </p>
 
@@ -325,17 +331,43 @@ export function RecoveryView({
         <div className="mt-6 flex justify-end border-t border-border pt-4">
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isSubmitting || justSaved}
+            className="inline-flex min-w-[132px] items-center justify-center gap-2 rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-90"
           >
-            {isSubmitting ? "Saving…" : "Save check-in"}
+            {isSubmitting ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white motion-reduce:animate-none"
+                />
+                Saving
+              </>
+            ) : justSaved ? (
+              <>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  className="anim-fade h-4 w-4"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                Saved
+              </>
+            ) : (
+              "Save check-in"
+            )}
           </button>
         </div>
       </form>
 
       {/* Recovery guidance */}
-      <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
-        <p className="mb-4 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+      <div className="panel p-5">
+        <p className="mb-4 label-caps">
           Recovery guidance
         </p>
         <div className="space-y-4">
@@ -372,12 +404,12 @@ export function RecoveryView({
 
       {/* Recent days */}
       <div>
-        <p className="mb-3 px-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        <p className="mb-3 px-1 label-caps">
           Recent days
         </p>
 
         {logs.length === 0 ? (
-          <div className="rounded-2xl border border-dashed bg-card p-8 text-center">
+          <div className="empty-state">
             <p className="text-sm font-medium">No check-ins logged yet</p>
             <p className="mt-1 text-xs text-muted-foreground">Save your first check-in above.</p>
           </div>
@@ -389,7 +421,7 @@ export function RecoveryView({
               return (
                 <div
                   key={log.id}
-                  className="rounded-2xl border bg-card p-4 shadow-[var(--shadow-card)]"
+                  className="panel p-4"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -437,6 +469,116 @@ export function RecoveryView({
   );
 }
 
+// Week-by-week training summary + intensity mix, derived from the same logs
+// the page already holds. Rendered only once there is real load data.
+function ProgressModules({ logs }: { logs: RecoveryLogRecord[] }) {
+  const todayISO = todayDateString();
+  const weeks = weeklyTrainingSummary(logs, todayISO, 5);
+  const mix = intensityMix(logs, todayISO);
+  const hasWeeks = weeks.some((w) => w.totalLoad > 0);
+
+  if (!hasWeeks && !mix) return null;
+
+  const maxDayLoad = Math.max(
+    1,
+    ...weeks.flatMap((w) => w.dayLoads.filter((l): l is number => l !== null))
+  );
+
+  function dotClass(load: number | null): string {
+    if (load === null) return "h-1 w-1 bg-white/[0.08]";
+    const ratio = load / maxDayLoad;
+    if (ratio > 0.66) return "h-3 w-3 bg-blue-400";
+    if (ratio > 0.33) return "h-2 w-2 bg-blue-400/80";
+    return "h-1.5 w-1.5 bg-blue-400/60";
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {hasWeeks && (
+        <div className="panel p-5">
+          <div className="flex items-baseline justify-between">
+            <h3 className="label-caps">Training Weeks</h3>
+            <span className="text-[10px] text-zinc-600">load = duration × RPE</span>
+          </div>
+          <div className="mt-4 space-y-2.5">
+            {weeks.map((week) => (
+              <div
+                key={week.weekStartISO}
+                className="grid grid-cols-[44px_1fr_auto_52px] items-center gap-3"
+              >
+                <span
+                  className={`text-xs font-semibold tabular-nums ${
+                    week.isCurrentWeek ? "text-blue-300" : "text-zinc-500"
+                  }`}
+                >
+                  {week.label}
+                </span>
+                <span className="flex items-center gap-2">
+                  {week.dayLoads.map((load, i) => (
+                    <span key={i} className="flex h-3 w-3 items-center justify-center">
+                      <span className={`rounded-full ${dotClass(load)}`} />
+                    </span>
+                  ))}
+                </span>
+                <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                  {week.totalLoad > 0 ? week.totalLoad : "—"}
+                </span>
+                <span className="text-right text-xs text-zinc-500 tabular-nums">
+                  {week.changePct !== null && week.totalLoad > 0
+                    ? `${week.changePct > 0 ? "+" : ""}${week.changePct}%`
+                    : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 border-t border-white/[0.06] pt-2.5 text-[10px] text-zinc-600">
+            Mon–Sun · dot size scales with that day&apos;s load · % vs previous week
+          </p>
+        </div>
+      )}
+
+      {mix && (
+        <div className="panel p-5">
+          <div className="flex items-baseline justify-between">
+            <h3 className="label-caps">Intensity Mix</h3>
+            <span className="text-[10px] text-zinc-600 tabular-nums">
+              last 4 weeks · {mix.sessions} session{mix.sessions === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="mt-4 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full">
+            {mix.easyPct > 0 && (
+              <div className="bg-teal-400/90" style={{ width: `${mix.easyPct}%` }} />
+            )}
+            {mix.moderatePct > 0 && (
+              <div className="bg-blue-400/90" style={{ width: `${mix.moderatePct}%` }} />
+            )}
+            {mix.hardPct > 0 && (
+              <div className="bg-gold/90" style={{ width: `${mix.hardPct}%` }} />
+            )}
+          </div>
+          <div className="mt-4 space-y-2">
+            {[
+              { label: "Easy", band: "RPE ≤ 5", pct: mix.easyPct, dot: "bg-teal-400" },
+              { label: "Moderate", band: "RPE 6–7", pct: mix.moderatePct, dot: "bg-blue-400" },
+              { label: "Hard", band: "RPE 8+", pct: mix.hardPct, dot: "bg-gold" },
+            ].map((row) => (
+              <div key={row.label} className="flex items-center gap-2.5">
+                <span className={`h-2 w-2 rounded-full ${row.dot}`} />
+                <span className="w-20 text-sm text-zinc-300">{row.label}</span>
+                <span className="flex-1 text-xs text-zinc-600">{row.band}</span>
+                <span className="text-display text-[15px] text-zinc-100 tabular-nums">{row.pct}%</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 border-t border-white/[0.06] pt-2.5 text-[10px] text-zinc-600">
+            Share of training load in each effort band, from your logged sessions.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SummaryStat({
   label,
   value,
@@ -447,9 +589,9 @@ function SummaryStat({
   detail: string;
 }) {
   return (
-    <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
-      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
+    <div className="panel p-5">
+      <p className="label-caps">{label}</p>
+      <p className="mt-2 text-display text-3xl tabular-nums">{value}</p>
       <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
     </div>
   );
@@ -477,6 +619,6 @@ function inputClass(hasError?: string) {
   return `w-full rounded-xl border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
     hasError
       ? "border-destructive focus:border-destructive"
-      : "border-border focus:border-primary"
+      : "border-border focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
   }`;
 }

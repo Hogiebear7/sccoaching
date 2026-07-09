@@ -10,7 +10,7 @@ const {
   mockDeleteBooking,
   mockFindSubscriptionByUserId,
   mockSaveSubscription,
-  mockPromoteFromWaitlist,
+  mockIssueWaitlistOffer,
   mockIsCancellationEarly,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -19,7 +19,7 @@ const {
   mockDeleteBooking: vi.fn(),
   mockFindSubscriptionByUserId: vi.fn(),
   mockSaveSubscription: vi.fn(),
-  mockPromoteFromWaitlist: vi.fn(),
+  mockIssueWaitlistOffer: vi.fn(),
   mockIsCancellationEarly: vi.fn(),
 }));
 
@@ -33,7 +33,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/scheduling", () => ({
-  promoteFromWaitlist: mockPromoteFromWaitlist,
+  issueWaitlistOffer: mockIssueWaitlistOffer,
   isCancellationEarly: mockIsCancellationEarly,
 }));
 
@@ -70,6 +70,7 @@ const ACTIVE_SUBSCRIPTION = {
   currentPeriodEnd: null,
   lastWebhookEventAt: null,
   sessionsUsedThisPeriod: 3,
+  extraSessionGrants: [],
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -95,7 +96,7 @@ describe("POST /api/bookings/cancel", () => {
     mockDeleteBooking.mockReset();
     mockFindSubscriptionByUserId.mockReset();
     mockSaveSubscription.mockReset();
-    mockPromoteFromWaitlist.mockReset();
+    mockIssueWaitlistOffer.mockReset();
     mockIsCancellationEarly.mockReset();
     mockFindUserById.mockReturnValue(MEMBER_USER);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
@@ -175,7 +176,7 @@ describe("POST /api/bookings/cancel", () => {
     expect(mockSaveSubscription).toHaveBeenCalledTimes(1);
     expect(mockSaveSubscription.mock.calls[0][0].sessionsUsedThisPeriod).toBe(2);
     expect(mockDeleteBooking).toHaveBeenCalledWith("booking-1");
-    expect(mockPromoteFromWaitlist).toHaveBeenCalledWith("class-1");
+    expect(mockIssueWaitlistOffer).toHaveBeenCalledWith("class-1");
   });
 
   it("does not restore the session when cancelling inside the cutoff", async () => {
@@ -218,6 +219,6 @@ describe("POST /api/bookings/cancel", () => {
     expect(res.status).toBe(200);
     expect(data.sessionRestored).toBe(false);
     expect(mockDeleteBooking).toHaveBeenCalledWith("booking-1");
-    expect(mockPromoteFromWaitlist).not.toHaveBeenCalled();
+    expect(mockIssueWaitlistOffer).not.toHaveBeenCalled();
   });
 });

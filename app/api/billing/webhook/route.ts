@@ -146,6 +146,7 @@ export async function POST(request: NextRequest) {
     status: nextStatus,
     currentPeriodEnd,
     sessionsUsedThisPeriod: isFreshPeriod ? 0 : subscription.sessionsUsedThisPeriod,
+    extraSessionGrants: isFreshPeriod ? [] : subscription.extraSessionGrants,
     periodLapsedNotifiedAt: isFreshPeriod ? null : subscription.periodLapsedNotifiedAt,
     lastWebhookEventAt: new Date(eventTimestampMs).toISOString(),
     updatedAt: new Date().toISOString(),

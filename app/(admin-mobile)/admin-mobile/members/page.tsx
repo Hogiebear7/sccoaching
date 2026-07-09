@@ -14,7 +14,7 @@ export default function CoachMembersPage() {
   return (
     <div className="px-4 pt-6 pb-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-zinc-50">Members</h1>
+        <h1 className="text-display text-[26px] text-zinc-50">Members</h1>
         <span className="text-sm text-zinc-500">{filtered.length} shown</span>
       </div>
 
@@ -28,7 +28,7 @@ export default function CoachMembersPage() {
           placeholder="Search members…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-teal-600"
+          className="input-field pl-9"
         />
       </div>
 

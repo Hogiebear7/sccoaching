@@ -83,12 +83,12 @@ export default function CoachPage() {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto flex min-h-screen max-w-4xl flex-col px-4 py-6 md:px-6">
+    <main className="min-h-screen bg-zinc-950 text-zinc-50">
+      <div className="anim-rise mx-auto flex min-h-screen max-w-4xl flex-col px-4 py-6 md:px-6">
         <header className="mb-6">
-          <p className="text-sm text-neutral-400">Coach</p>
-          <h1 className="text-3xl font-semibold">AI Coach</h1>
-          <p className="mt-2 max-w-2xl text-sm text-neutral-300">
+          <p className="label-caps">Coach</p>
+          <h1 className="text-display text-[26px] mt-1">AI Coach</h1>
+          <p className="mt-2 max-w-2xl text-sm text-zinc-400">
             Ask about workouts, recovery, food, or planning your week.
           </p>
         </header>
@@ -99,7 +99,7 @@ export default function CoachPage() {
               key={prompt}
               type="button"
               onClick={() => sendMessage(prompt)}
-              className="rounded-full border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-200 transition hover:bg-neutral-800"
+              className="rounded-full border border-white/[0.08] bg-zinc-900 px-4 py-2 text-[13px] text-zinc-300 transition-colors duration-150 hover:bg-white/[0.05] hover:text-zinc-100"
             >
               {prompt}
             </button>
@@ -108,15 +108,15 @@ export default function CoachPage() {
 
         <section
           aria-label="Conversation"
-          className="flex-1 space-y-4 rounded-3xl border border-neutral-800 bg-neutral-900/70 p-4"
+          className="panel flex-1 space-y-4 p-4"
         >
           {messages.map((message) => (
             <div
               key={message.id}
               className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${
                 message.role === "user"
-                  ? "ml-auto bg-cyan-500 text-black"
-                  : "bg-neutral-800 text-neutral-100"
+                  ? "ml-auto bg-gradient-to-b from-teal-500 to-teal-600 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]"
+                  : "bg-white/[0.06] border border-white/[0.05] text-zinc-100"
               }`}
             >
               {message.text}
@@ -139,13 +139,13 @@ export default function CoachPage() {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder="Ask your coach anything..."
-            className="flex-1 rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none ring-0 placeholder:text-neutral-500"
+            className="input-field flex-1 rounded-2xl px-4 py-3"
             aria-label="Message the AI coach"
           />
           <button
             type="submit"
             disabled={!canSend}
-            className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-medium text-black transition disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-2xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-5 py-3 text-sm font-medium text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0"
           >
             Send
           </button>

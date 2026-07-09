@@ -17,10 +17,10 @@ export function NavLink({
   return (
     <Link
       href={href}
-      className={`block rounded-2xl border px-4 py-3 text-sm font-medium transition ${
+      className={`block rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors duration-150 ${
         isActive
-          ? "border-teal-500 bg-zinc-900 text-zinc-100"
-          : "border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-teal-500 hover:bg-zinc-900 hover:text-zinc-100"
+          ? "border-blue-400/40 bg-white/[0.06] text-zinc-50"
+          : "border-transparent text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
       }`}
     >
       {children}

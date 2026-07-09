@@ -11,16 +11,33 @@ export default async function DashboardProgrammePage() {
   const profile = user ? findProfileByUserId(user.id) : undefined;
   const programme = user ? findProgrammeByUserId(user.id) : undefined;
 
+  // Coach-enabled feature: same "not available" pattern the Cycle tab uses
+  // when a member doesn't have access.
+  if (user && profile && !profile.programmeEnabled) {
+    return (
+      <section className="space-y-5">
+        <div>
+          <p className="label-caps">Programme</p>
+          <h1 className="text-display mt-1 text-[28px] text-foreground">Not available</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Programmes are set up with your coach. Ask at your next session, or message your
+            coach from the Messages tab, and this area will be switched on for you.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   if (!user || !profile) {
     return (
-      <section className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.24em] text-teal-400">
+      <section>
+        <p className="label-caps">
           Programme
         </p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-50">
+        <h2 className="text-display mt-1 text-[28px] leading-tight text-zinc-50">
           No programme yet
         </h2>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-400">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
           We couldn&apos;t load profile data for this account. Try logging out and
           back in.
         </p>

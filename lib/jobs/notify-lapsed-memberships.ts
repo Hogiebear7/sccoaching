@@ -1,12 +1,17 @@
 import { randomUUID } from "crypto";
 
 import {
+  createMessage,
+  createNotification,
   findAllSubscriptions,
   findAnyStaffUser,
   findMembershipPlanById,
-  createMessage,
+  findProfileByUserId,
   saveSubscription,
+  type NotificationRecord,
 } from "@/lib/db";
+import { sendEmail } from "@/lib/email";
+import { lapsedMembershipEmail } from "@/lib/email-templates";
 import { formatMembershipDate, isPeriodLapsed } from "@/lib/membership-status";
 import type { JobDefinition } from "./types";
 
@@ -43,8 +48,39 @@ export const notifyLapsedMembershipsJob: JobDefinition = {
         body: plan
           ? `Your ${plan.name} billing period ended on ${formatMembershipDate(subscription.currentPeriodEnd!)}. Select your plan again on the Membership page to keep booking classes.`
           : "Your billing period has ended. Select your plan again on the Membership page to keep booking classes.",
+        readAt: null,
         createdAt: now,
       });
+
+      const notification: NotificationRecord = {
+        id: randomUUID(),
+        userId: subscription.userId,
+        type: "membership",
+        title: "Your membership period has ended",
+        body: plan
+          ? `Your ${plan.name} billing period has ended. Visit the Membership page to keep booking classes.`
+          : "Your billing period has ended. Visit the Membership page to keep booking classes.",
+        readAt: null,
+        linkHref: "/dashboard/membership",
+        dedupeKey: null,
+        createdAt: now,
+      };
+      createNotification(notification);
+
+      const profile = findProfileByUserId(subscription.userId);
+      if (profile?.emailNotificationsEnabled !== false && profile?.email) {
+        const periodEndDate = subscription.currentPeriodEnd
+          ? formatMembershipDate(subscription.currentPeriodEnd)
+          : null;
+        void sendEmail({
+          to: profile.email,
+          ...lapsedMembershipEmail({
+            memberName: profile.fullName || profile.email,
+            planName: plan?.name ?? null,
+            periodEndDate,
+          }),
+        });
+      }
 
       saveSubscription({
         ...subscription,
