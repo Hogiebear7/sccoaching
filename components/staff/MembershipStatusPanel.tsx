@@ -138,7 +138,7 @@ export function MembershipStatusPanel({
   }
 
   return (
-    <div className="rounded-3xl border border-border bg-card p-6">
+    <div className="panel p-6">
       <h3 className="text-lg font-semibold">Membership</h3>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -208,7 +208,7 @@ export function MembershipStatusPanel({
             <select
               value={planId}
               onChange={(e) => setPlanId(e.target.value)}
-              className="flex-1 rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+              className="flex-1 input-field px-3 py-2"
             >
               {plans.map((plan) => (
                 <option key={plan.id} value={plan.id}>
@@ -220,7 +220,7 @@ export function MembershipStatusPanel({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as SubscriptionStatus)}
-              className="rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+              className="input-field px-3 py-2"
             >
               {STATUS_OPTIONS.map((value) => (
                 <option key={value} value={value}>
@@ -296,7 +296,7 @@ export function MembershipStatusPanel({
                   value={grantAmount}
                   onChange={(e) => setGrantAmount(e.target.value)}
                   aria-label="Number of extra classes"
-                  className="w-full rounded-xl border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15 tabular-nums sm:w-24"
+                  className="w-full input-field px-3 py-2 tabular-nums sm:w-24"
                 />
                 <input
                   type="text"

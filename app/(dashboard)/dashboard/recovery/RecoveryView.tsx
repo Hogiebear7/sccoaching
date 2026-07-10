@@ -6,6 +6,8 @@ import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { RecoveryLogRecord } from "@/lib/db";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ReadinessRing } from "@/components/ui/ReadinessRing";
+import { ScoreHelp } from "@/components/ui/ScoreHelp";
 import { intensityMix, weeklyTrainingSummary } from "@/lib/progress";
 import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
 
@@ -140,27 +142,49 @@ export function RecoveryView({
         subtitle="Log sleep, soreness, and fatigue to track your daily readiness."
       />
 
-      {/* Summary stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <SummaryStat
-          label="Today's readiness"
-          value={latestReadinessScore !== null ? `${latestReadinessScore} / 100` : "—"}
-          detail={latestGuidance ?? "Log today's recovery to get guidance."}
-        />
-        <SummaryStat
-          label="7-day training load"
-          value={rollingLoad.sevenDaySum > 0 ? String(rollingLoad.sevenDaySum) : "—"}
-          detail={
-            rollingLoad.daysWithLoad > 0
-              ? `Avg ${rollingLoad.sevenDayAverage} / day over ${rollingLoad.daysWithLoad} logged day${rollingLoad.daysWithLoad === 1 ? "" : "s"}.`
-              : "Log duration and RPE to track training load."
-          }
-        />
-        <SummaryStat
-          label="Entries logged"
-          value={String(logs.length)}
-          detail="Total recovery check-ins."
-        />
+      {/* Summary stats — readiness ring matches the Home module */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="panel col-span-2 flex items-center gap-4 p-4 sm:col-span-1 sm:flex-col sm:items-start sm:gap-3">
+          <ReadinessRing score={latestReadinessScore} size={64} />
+          <div className="min-w-0">
+            <p className="label-caps text-[10px]">Today&apos;s readiness</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              {latestGuidance ?? "Log today's recovery to get guidance."}
+            </p>
+            <ScoreHelp>
+              Readiness scores today&apos;s check-in out of 100 — sleep hours,
+              sleep quality, soreness, and fatigue each contribute up to 25
+              points. Higher means you&apos;re better recovered to train.
+            </ScoreHelp>
+          </div>
+        </div>
+        <div className="panel p-4">
+          <p className="label-caps text-[10px]">7-day load</p>
+          <p className="text-display mt-2 text-[24px] leading-none tabular-nums">
+            {rollingLoad.sevenDaySum > 0 ? rollingLoad.sevenDaySum : "—"}
+          </p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            {rollingLoad.daysWithLoad > 0
+              ? `Avg ${rollingLoad.sevenDayAverage}/day · ${rollingLoad.daysWithLoad} day${rollingLoad.daysWithLoad === 1 ? "" : "s"}`
+              : "Log duration & RPE"}
+          </p>
+          <ScoreHelp>
+            Training load is minutes × effort (RPE 1–10) for each session,
+            summed over the last 7 days. Under 1000 is light, 1000–2399
+            moderate, 2400+ high — the Workout Helper sizes sessions from it.
+          </ScoreHelp>
+        </div>
+        <div className="panel p-4">
+          <p className="label-caps text-[10px]">Check-ins</p>
+          <p className="text-display mt-2 text-[24px] leading-none tabular-nums">{logs.length}</p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            Total recovery entries
+          </p>
+          <ScoreHelp>
+            Every daily check-in sharpens your readiness trend, fuelling
+            guidance, and the AI coach&apos;s picture of how you recover.
+          </ScoreHelp>
+        </div>
       </div>
 
       <ProgressModules logs={logs} />
@@ -575,24 +599,6 @@ function ProgressModules({ logs }: { logs: RecoveryLogRecord[] }) {
           </p>
         </div>
       )}
-    </div>
-  );
-}
-
-function SummaryStat({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <div className="panel p-5">
-      <p className="label-caps">{label}</p>
-      <p className="mt-2 text-display text-3xl tabular-nums">{value}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
     </div>
   );
 }

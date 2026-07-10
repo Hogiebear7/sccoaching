@@ -150,7 +150,7 @@ export function OperationsView({
       </div>
 
       {/* Background jobs */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-semibold">Background jobs</h3>
           <button
@@ -212,7 +212,7 @@ export function OperationsView({
       </div>
 
       {/* Upcoming classes */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Upcoming classes</h3>
 
         {classes.length === 0 ? (
@@ -264,7 +264,7 @@ export function OperationsView({
       </div>
 
       {/* Members table */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Members</h3>
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">

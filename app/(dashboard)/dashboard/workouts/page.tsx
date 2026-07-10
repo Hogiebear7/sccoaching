@@ -6,28 +6,11 @@ import {
   findRecoveryLogsByUserId,
   findUserById,
   findWorkoutSessionsByUserId,
-  type WorkoutSessionRecord,
 } from "@/lib/db";
 import { computeRollingTrainingLoad } from "@/lib/recovery";
 import { verifySession } from "@/lib/session";
 import type { HelperContext } from "@/lib/workout-helper";
 import { WorkoutsView } from "./WorkoutsView";
-
-function sumDurationThisWeek(sessions: WorkoutSessionRecord[]): number {
-  const today = new Date();
-  const day = today.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + mondayOffset);
-
-  const mondayISO = monday.toISOString().slice(0, 10);
-  const todayISO = today.toISOString().slice(0, 10);
-
-  return sessions
-    .filter((session) => session.date >= mondayISO && session.date <= todayISO)
-    .reduce((total, session) => total + (session.durationMins ?? 0), 0);
-}
 
 export default async function DashboardWorkoutsPage() {
   const cookieStore = await cookies();
@@ -69,7 +52,6 @@ export default async function DashboardWorkoutsPage() {
   return (
     <WorkoutsView
       sessions={sessions}
-      weeklyDurationMins={sumDurationThisWeek(sessions)}
       exercises={exercises}
       helperContext={helperContext}
     />

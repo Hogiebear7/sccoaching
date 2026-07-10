@@ -188,7 +188,7 @@ export function StaffMemberEditor({
       {/* Profile form */}
       <form
         onSubmit={handleSubmit}
-        className="rounded-3xl border border-border bg-card p-6"
+        className="panel p-6"
       >
         <h3 className="text-lg font-semibold">Profile</h3>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -356,7 +356,7 @@ export function StaffMemberEditor({
       </form>
 
       {/* Account access */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Account access</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Create a password reset link for this member.
@@ -388,7 +388,7 @@ export function StaffMemberEditor({
       </div>
 
       {/* Coach notes */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Coach notes</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Internal notes, visible to staff only — not shown to the member.

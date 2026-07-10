@@ -320,7 +320,7 @@ export function ClassesView({
       </form>
 
       {/* Class list */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">All classes</h3>
 
         {classes.length === 0 ? (

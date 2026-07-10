@@ -42,8 +42,10 @@ export function BottomNavBar() {
             aria-hidden="true"
             className="absolute bottom-1 top-1 rounded-full bg-gradient-to-b from-teal-500 to-teal-600 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25),0_4px_16px_-4px_rgba(45,212,191,0.6)] transition-[left] duration-200 ease-out"
             style={{
-              left: `calc(0.25rem + ${activeIdx * slotPct}% - ${activeIdx * 0.1}rem)`,
-              width: `calc(${slotPct}% - 0.4rem)`,
+              // Slot width inside the padded capsule is (100% − 0.5rem)/5;
+              // the pill spans the full slot so the icon sits dead-centre.
+              left: `calc(0.25rem + ${activeIdx} * (${slotPct}% - 0.1rem))`,
+              width: `calc(${slotPct}% - 0.1rem)`,
             }}
           />
         )}

@@ -451,7 +451,7 @@ export function PlansView({
       </form>
 
       {/* Plan list */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">All plans</h3>
 
         {plans.length === 0 ? (

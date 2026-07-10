@@ -16,6 +16,16 @@ type ResolvedBooking = {
   willRestoreSession: boolean;
 };
 
+// Day + date together, matching the Schedule tab's presentation. Fixed
+// locale: server and browser must agree (hydration).
+function formatDayDate(isoDate: string): string {
+  return new Date(isoDate + "T00:00:00").toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
 export function BookingsView({
   upcomingBookings,
   pastBookings,
@@ -146,7 +156,7 @@ function BookingCard({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">
-            {booking.date} · {booking.startTime}
+            {formatDayDate(booking.date)} · {booking.startTime}
           </p>
           <h4 className="mt-1 text-base font-semibold text-foreground">
             {booking.title}

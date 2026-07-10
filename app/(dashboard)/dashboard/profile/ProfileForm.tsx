@@ -175,7 +175,6 @@ export function ProfileForm({
   const [bwError, setBwError] = useState<string | null>(null);
   const [bwSubmitting, setBwSubmitting] = useState(false);
   const [bwFilter, setBwFilter] = useState<BwFilter>("3months");
-  const [bwShowAll, setBwShowAll] = useState(false);
 
   // Read-only current weight, sourced from the latest weight log (the page
   // passes the resolved value). Updated locally the moment a new latest
@@ -527,25 +526,6 @@ export function ProfileForm({
               <BodyWeightTrendChart logs={applyBwFilter(bodyWeightLogs, bwFilter)} />
             </div>
 
-            {/* Recent entries */}
-            <div className="mt-4 space-y-2">
-              <p className="label-caps">Recent entries</p>
-              {(bwShowAll ? bodyWeightLogs : bodyWeightLogs.slice(0, 5)).map((log) => (
-                <div key={log.id} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{log.date}</span>
-                  <span className="font-medium">{log.weightKg} kg</span>
-                </div>
-              ))}
-              {bodyWeightLogs.length > 5 && (
-                <button
-                  type="button"
-                  onClick={() => setBwShowAll((prev) => !prev)}
-                  className="mt-1 text-xs text-primary transition hover:underline"
-                >
-                  {bwShowAll ? "Show less" : `Show all ${bodyWeightLogs.length} entries`}
-                </button>
-              )}
-            </div>
           </>
         )}
       </div>

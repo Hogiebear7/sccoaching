@@ -11,7 +11,7 @@ export interface ExerciseHistoryEntry {
 
 export interface PersonalBest {
   exerciseName: string;
-  heaviestWeight: { weightStr: string; value: number; date: string } | null;
+  heaviestWeight: { weightStr: string; value: number; date: string; reps: number | null } | null;
   highestReps: { reps: number; date: string } | null;
 }
 
@@ -58,7 +58,7 @@ export function computePersonalBests(sessions: WorkoutSessionRecord[]): Personal
     string,
     {
       displayName: string;
-      heaviest: { value: number; weightStr: string; date: string } | null;
+      heaviest: { value: number; weightStr: string; date: string; reps: number | null } | null;
       highestReps: { reps: number; date: string } | null;
     }
   >();
@@ -77,7 +77,7 @@ export function computePersonalBests(sessions: WorkoutSessionRecord[]): Personal
       if (ex.weight) {
         const num = parseFloat(ex.weight);
         if (Number.isFinite(num) && (group.heaviest === null || num > group.heaviest.value)) {
-          group.heaviest = { value: num, weightStr: ex.weight, date: session.date };
+          group.heaviest = { value: num, weightStr: ex.weight, date: session.date, reps: ex.reps };
         }
       }
 
@@ -161,4 +161,35 @@ export function getExerciseTrend(
   }
 
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export interface WeeklyWorkoutStats {
+  /** Sessions logged since Monday of the current ISO week. */
+  count: number;
+  /** Total volume lifted this week: Σ sets × reps × numeric weight (kg). */
+  totalKg: number;
+}
+
+export function weeklyWorkoutStats(
+  sessions: WorkoutSessionRecord[],
+  todayISO: string
+): WeeklyWorkoutStats {
+  const d = new Date(`${todayISO}T00:00:00Z`);
+  const day = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() + (day === 0 ? -6 : 1 - day));
+  const mondayISO = d.toISOString().slice(0, 10);
+
+  let count = 0;
+  let totalKg = 0;
+  for (const session of sessions) {
+    if (session.date < mondayISO || session.date > todayISO) continue;
+    count += 1;
+    for (const ex of session.exercises) {
+      if (!ex.weight) continue;
+      const w = parseFloat(ex.weight);
+      if (!Number.isFinite(w)) continue;
+      totalKg += (ex.sets ?? 1) * (ex.reps ?? 1) * w;
+    }
+  }
+  return { count, totalKg: Math.round(totalKg) };
 }

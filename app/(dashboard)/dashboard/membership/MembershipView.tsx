@@ -500,7 +500,7 @@ export function MembershipView({
               return (
                 <div
                   key={plan.id}
-                  className={`rounded-[10px] border p-5 shadow-[var(--shadow-card)] ${planCardClass(isCurrent, subscriptionStatus, periodLapsed)}`}
+                  className={`panel p-5 ${planCardClass(isCurrent, subscriptionStatus, periodLapsed)}`}
                 >
                   {/* Header: name left, price right */}
                   <div className="flex items-start justify-between gap-3">
@@ -511,14 +511,14 @@ export function MembershipView({
                       )}
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-lg font-semibold">{formatPriceCents(plan.priceCents)}</p>
+                      <p className="text-display text-[22px] tabular-nums">{formatPriceCents(plan.priceCents)}</p>
                       <p className="text-[11px] text-muted-foreground">per {plan.billingInterval}</p>
                     </div>
                   </div>
 
                   {/* Pills: sessions + categories */}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+                    <span className="chip border-gold/30 bg-gold/[0.08] text-[11px] font-semibold !text-gold">
                       {formatSessionAllowance(plan.monthlySessionAllowance)}
                     </span>
                     {plan.allowedCategories.length === 0 ? (

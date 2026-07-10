@@ -6,6 +6,7 @@ import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { ExerciseRecord, ExerciseSection, WorkoutRunEntry, WorkoutSessionRecord } from "@/lib/db";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { weeklyWorkoutStats } from "@/lib/workouts";
 import type { HelperContext } from "@/lib/workout-helper";
 import { WorkoutHelper } from "./WorkoutHelper";
 import {
@@ -46,6 +47,7 @@ type ExerciseRow = {
 type RunRow = {
   key: string;
   distance: string;
+  distanceUnit: "km" | "m";
   duration: string; // MM:SS or H:MM:SS user input
   reps: string;
   sets: string;
@@ -67,7 +69,7 @@ function newRow(): ExerciseRow {
 }
 
 function newRunRow(): RunRow {
-  return { key: crypto.randomUUID(), distance: "", duration: "", reps: "", sets: "", notes: "" };
+  return { key: crypto.randomUUID(), distance: "", distanceUnit: "km", duration: "", reps: "", sets: "", notes: "" };
 }
 
 // Parses "MM:SS" or "H:MM:SS" → total seconds, or a bare number as minutes.
@@ -290,17 +292,14 @@ function TrendChart({ points }: { points: ExerciseTrendPoint[] }) {
 
 export function WorkoutsView({
   sessions,
-  weeklyDurationMins,
   exercises,
   helperContext,
 }: {
   sessions: WorkoutSessionRecord[];
-  weeklyDurationMins: number;
   exercises: ExerciseRecord[];
   helperContext: HelperContext;
 }) {
   const router = useRouter();
-  const latestSession = sessions[0] ?? null;
 
   const [values, setValues] = useState<WorkoutFormValues>(() => emptyFormValues());
   const [errors, setErrors] = useState<FormErrors>({});
@@ -317,6 +316,10 @@ export function WorkoutsView({
   );
 
   const personalBests = useMemo(() => computePersonalBests(sessions), [sessions]);
+  const weeklyStats = useMemo(
+    () => weeklyWorkoutStats(sessions, new Date().toISOString().slice(0, 10)),
+    [sessions]
+  );
 
   // Pre-compute display parts for the most recent lookup match to avoid
   // duplicating the filter logic in JSX.
@@ -430,7 +433,12 @@ export function WorkoutsView({
 
     // Run rows with neither distance nor duration are silently dropped (API also drops them).
     const runsToSend = runRows.map((row) => ({
-      distance: row.distance.trim() ? parseFloat(row.distance) : null,
+      // Metres are converted on save — km stays the canonical stored unit.
+      distance: row.distance.trim()
+        ? row.distanceUnit === "m"
+          ? Math.round((parseFloat(row.distance) / 1000) * 1000) / 1000
+          : parseFloat(row.distance)
+        : null,
       distanceUnit: "km" as const,
       durationSecs: parseDuration(row.duration),
       reps: row.reps.trim() ? parseInt(row.reps, 10) : null,
@@ -473,29 +481,25 @@ export function WorkoutsView({
         subtitle="Record your training sessions and keep a history over time."
       />
 
-      {/* Summary stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <SummaryStat
-          label="Total sessions"
-          value={String(sessions.length)}
-          detail="All workouts logged."
-        />
-        <SummaryStat
-          label="This week"
-          value={weeklyDurationMins > 0 ? `${weeklyDurationMins} min` : "—"}
-          detail="Total duration since Monday."
-        />
-        <SummaryStat
-          label="Latest session"
-          value={latestSession ? latestSession.title : "—"}
-          detail={
-            latestSession
-              ? `${latestSession.date}${
-                  latestSession.durationMins !== null ? ` · ${latestSession.durationMins} min` : ""
-                }`
-              : "No sessions yet."
-          }
-        />
+      {/* Summary stats — compact weekly row */}
+      <div className="panel grid grid-cols-3 divide-x divide-white/[0.06]">
+        <div className="px-3 py-3.5 text-center sm:px-4">
+          <p className="label-caps text-[9px]">This week</p>
+          <p className="text-display mt-1.5 text-[20px] leading-none tabular-nums">{weeklyStats.count}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">workout{weeklyStats.count === 1 ? "" : "s"}</p>
+        </div>
+        <div className="px-3 py-3.5 text-center sm:px-4">
+          <p className="label-caps text-[9px]">Volume</p>
+          <p className="text-display mt-1.5 text-[20px] leading-none tabular-nums">
+            {weeklyStats.totalKg > 0 ? weeklyStats.totalKg.toLocaleString("en-GB") : "—"}
+          </p>
+          <p className="mt-1 text-[10px] text-muted-foreground">kg lifted this week</p>
+        </div>
+        <div className="px-3 py-3.5 text-center sm:px-4">
+          <p className="label-caps text-[9px]">All time</p>
+          <p className="text-display mt-1.5 text-[20px] leading-none tabular-nums">{sessions.length}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">sessions logged</p>
+        </div>
       </div>
 
       {/* Workout Helper */}
@@ -767,18 +771,31 @@ export function WorkoutsView({
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-foreground">
-                          Distance (km){" "}
+                          Distance{" "}
                           <span className="font-normal text-muted-foreground">optional</span>
                         </label>
-                        <input
-                          type="number"
-                          min={0}
-                          step="any"
-                          value={row.distance}
-                          onChange={(e) => updateRunRow(row.key, { distance: e.target.value })}
-                          placeholder="e.g. 5.2"
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                        />
+                        <div className="flex gap-1.5">
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={row.distance}
+                            onChange={(e) => updateRunRow(row.key, { distance: e.target.value })}
+                            placeholder={row.distanceUnit === "m" ? "e.g. 400" : "e.g. 5.2"}
+                            className="w-full min-w-0 rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                          />
+                          <select
+                            value={row.distanceUnit}
+                            onChange={(e) =>
+                              updateRunRow(row.key, { distanceUnit: e.target.value as "km" | "m" })
+                            }
+                            aria-label="Distance unit"
+                            className="w-16 shrink-0 rounded-lg border border-border bg-input px-2 py-2 text-sm text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                          >
+                            <option value="km">km</option>
+                            <option value="m">m</option>
+                          </select>
+                        </div>
                       </div>
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-foreground">
@@ -948,30 +965,36 @@ export function WorkoutsView({
                 className="panel p-4"
               >
                 <p className="text-sm font-semibold text-foreground">{pb.exerciseName}</p>
-                <div className="mt-2 space-y-1.5">
-                  {pb.heaviestWeight && (
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-xs text-muted-foreground">Heaviest</span>
-                      <span className="text-sm font-medium text-foreground">
-                        {pb.heaviestWeight.weightStr}{" "}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          {pb.heaviestWeight.date}
+                {pb.heaviestWeight ? (
+                  <>
+                    <p className="text-display mt-2 text-[22px] leading-none tabular-nums">
+                      {Number.isFinite(parseFloat(pb.heaviestWeight.weightStr))
+                        ? `${pb.heaviestWeight.value} kg`
+                        : pb.heaviestWeight.weightStr}
+                      {pb.heaviestWeight.reps !== null && (
+                        <span className="ml-1.5 text-sm font-normal tracking-normal text-muted-foreground">
+                          ({pb.heaviestWeight.reps} rep{pb.heaviestWeight.reps === 1 ? "" : "s"})
                         </span>
+                      )}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
+                      {pb.heaviestWeight.date}
+                      {pb.highestReps && pb.highestReps.reps !== pb.heaviestWeight.reps
+                        ? ` · best reps ×${pb.highestReps.reps}`
+                        : ""}
+                    </p>
+                  </>
+                ) : pb.highestReps ? (
+                  <>
+                    <p className="text-display mt-2 text-[22px] leading-none tabular-nums">
+                      ×{pb.highestReps.reps}
+                      <span className="ml-1.5 text-sm font-normal tracking-normal text-muted-foreground">
+                        (reps)
                       </span>
-                    </div>
-                  )}
-                  {pb.highestReps && (
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-xs text-muted-foreground">Most reps</span>
-                      <span className="text-sm font-medium text-foreground">
-                        {pb.highestReps.reps}{" "}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          {pb.highestReps.date}
-                        </span>
-                      </span>
-                    </div>
-                  )}
-                </div>
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">{pb.highestReps.date}</p>
+                  </>
+                ) : null}
               </div>
             ))}
           </div>
@@ -1090,24 +1113,6 @@ export function WorkoutsView({
 }
 
 // --- Shared sub-components ---
-
-function SummaryStat({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <div className="panel p-5">
-      <p className="label-caps">{label}</p>
-      <p className="mt-2 text-display text-3xl tabular-nums">{value}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
-    </div>
-  );
-}
 
 function FormField({
   label,

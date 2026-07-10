@@ -146,7 +146,7 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
       </div>
 
       {/* Add form */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Add exercise</h3>
         <form onSubmit={handleAdd} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
@@ -198,7 +198,7 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
       ) : null}
 
       {bySection.map(({ value, label, exercises: sectionExercises }) => (
-        <div key={value} className="rounded-3xl border border-border bg-card p-6">
+        <div key={value} className="panel p-6">
           <h3 className="text-lg font-semibold">{label}</h3>
 
           {sectionExercises.length === 0 ? (

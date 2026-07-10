@@ -36,7 +36,7 @@ export function CoachSummaryPanel({ memberId }: { memberId: string }) {
   }
 
   return (
-    <div className="rounded-3xl border border-border bg-card p-6">
+    <div className="panel p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-semibold">Coach summary (AI)</h3>
         <button

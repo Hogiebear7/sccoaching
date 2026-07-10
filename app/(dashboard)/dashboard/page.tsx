@@ -23,10 +23,11 @@ import {
   weeklyTrainingSummary,
 } from "@/lib/progress";
 import { computeRollingTrainingLoad, readinessGuidance } from "@/lib/recovery";
-import { formatRemainingSessions, remainingSessions } from "@/lib/scheduling-status";
+import { classPassBalance, formatRemainingSessions, remainingSessions } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
 import { CountUp } from "@/components/ui/CountUp";
+import { ReadinessRing } from "@/components/ui/ReadinessRing";
 
 function readinessStatus(score: number): string {
   if (score >= 80) return "Primed";
@@ -118,6 +119,10 @@ export default async function DashboardPage() {
   const rolling = computeRollingTrainingLoad(recoveryLogs);
   const loadBand = classifyLoad(rolling.sevenDaySum, rolling.daysWithLoad);
   const weekChange = weeklyTrainingSummary(recoveryLogs, todayISO, 2)[0]?.changePct ?? null;
+  const monthPasses =
+    subscriptionPlan && subscription && subscription.status === "active" && !isPeriodLapsed(subscription)
+      ? classPassBalance(subscriptionPlan, subscription)
+      : null;
   const sessionsLast7 = sessions.filter((s) => s.date >= (() => {
     const d = new Date();
     d.setDate(d.getDate() - 6);
@@ -169,10 +174,10 @@ export default async function DashboardPage() {
 
   const quickActions = [
     {
-      href: "/dashboard/schedule",
-      icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
-      label: "Book a session",
-      hint: "Schedule",
+      href: "/dashboard/nutrition",
+      icon: "M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.657 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657zM9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z",
+      label: "Nutrition",
+      hint: "Fuel & hydration",
     },
     {
       href: "/dashboard/workouts",
@@ -210,6 +215,52 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* Hero: next session */}
+      <div>
+        <div className="mb-2.5 flex items-baseline justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="label-caps">Next Session</h2>
+            {monthPasses && (
+              <span className="chip text-[10px] font-semibold tabular-nums">
+                {monthPasses.remaining === null
+                  ? "Unlimited classes"
+                  : `${monthPasses.remaining} class${monthPasses.remaining === 1 ? "" : "es"} left this month`}
+              </span>
+            )}
+          </div>
+          <Link href="/dashboard/bookings" className="text-xs font-medium text-blue-400 transition-colors duration-150 hover:text-blue-300">My bookings →</Link>
+        </div>
+        <div className="panel overflow-hidden">
+          {nextBooking ? (
+            <div className="flex items-stretch">
+              <div className="flex w-[88px] flex-shrink-0 flex-col items-center justify-center gap-0.5 border-r border-white/[0.08] bg-white/[0.03] py-6">
+                <span className="text-display text-[24px] leading-none tabular-nums">{nextBooking.startTime.split(":")[0]}</span>
+                <span className="text-[13px] leading-none text-zinc-500 tabular-nums">:{nextBooking.startTime.split(":")[1]}</span>
+              </div>
+              <div className="min-w-0 flex-1 p-4">
+                <p className="text-display text-[17px] leading-tight">{nextBooking.title}</p>
+                <p className="mt-1 text-[13px] text-zinc-400 tabular-nums">
+                  {nextBooking.date} · {nextBooking.durationMins} min
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="px-5 py-6 text-center">
+              <p className="text-display text-[17px]">Nothing booked</p>
+              <p className="mt-1 text-[13px] text-zinc-500">Browse the schedule to reserve your next session.</p>
+            </div>
+          )}
+          <div className="border-t border-white/[0.06] p-3">
+            <Link
+              href="/dashboard/schedule"
+              className="flex w-full items-center justify-center btn-primary py-2.5"
+            >
+              {nextBooking ? "View schedule" : "Book a session"}
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* Readiness + key numbers */}
       <div>
         <div className="mb-2.5 flex items-baseline justify-between">
@@ -220,39 +271,41 @@ export default async function DashboardPage() {
           <div className={`pointer-events-none absolute inset-0 ${readinessWashClass(todayReadiness)}`} />
           <div className="relative flex items-start justify-between gap-4">
             <div className="min-w-0">
-              {todayReadiness !== null ? (
-                <>
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-display text-[44px] leading-none tabular-nums"><CountUp value={todayReadiness} durationMs={600} /></p>
-                    <span className="text-sm text-zinc-500">/100</span>
-                    {delta !== null && delta !== 0 && (
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
-                          delta > 0
-                            ? "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
-                            : "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
-                        }`}
-                      >
-                        {delta > 0 ? "▲" : "▼"} {Math.abs(delta)}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1.5 text-sm font-semibold tracking-tight text-zinc-200">
-                    {readinessStatus(todayReadiness)}
-                  </p>
-                  <p className="mt-1 max-w-[36ch] text-[12px] leading-relaxed text-zinc-500">
-                    {readinessGuidance(todayReadiness)}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-display text-[44px] leading-none text-zinc-600">—</p>
-                  <p className="mt-1.5 text-sm font-semibold tracking-tight text-zinc-300">No check-in yet</p>
-                  <p className="mt-1 max-w-[36ch] text-[12px] leading-relaxed text-zinc-500">
-                    Log today&apos;s recovery to get a readiness score and session guidance.
-                  </p>
-                </>
-              )}
+              <div className="flex items-start gap-4">
+                <ReadinessRing score={todayReadiness} />
+                <div className="min-w-0">
+                  {todayReadiness !== null ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold tracking-tight text-zinc-200">
+                          {readinessStatus(todayReadiness)}
+                        </p>
+                        {delta !== null && delta !== 0 && (
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+                              delta > 0
+                                ? "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
+                                : "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
+                            }`}
+                          >
+                            {delta > 0 ? "▲" : "▼"} {Math.abs(delta)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 max-w-[34ch] text-[12px] leading-relaxed text-zinc-500">
+                        {readinessGuidance(todayReadiness)}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold tracking-tight text-zinc-300">No check-in yet</p>
+                      <p className="mt-1 max-w-[34ch] text-[12px] leading-relaxed text-zinc-500">
+                        Log today&apos;s recovery to get a readiness score and session guidance.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
             {hasTrend && (
               <div className="shrink-0 text-right">
@@ -308,43 +361,6 @@ export default async function DashboardPage() {
             <p className="label-caps text-[9px]">Sessions</p>
             <p className="text-display mt-1.5 text-[20px] leading-none tabular-nums"><CountUp value={sessionsLast7} /></p>
             <p className="mt-1 text-[10px] text-zinc-600">workouts · 7 days</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Hero: next session */}
-      <div>
-        <div className="mb-2.5 flex items-baseline justify-between">
-          <h2 className="label-caps">Next Session</h2>
-          <Link href="/dashboard/bookings" className="text-xs font-medium text-blue-400 transition-colors duration-150 hover:text-blue-300">My bookings →</Link>
-        </div>
-        <div className="panel overflow-hidden">
-          {nextBooking ? (
-            <div className="flex items-stretch">
-              <div className="flex w-[88px] flex-shrink-0 flex-col items-center justify-center gap-0.5 border-r border-white/[0.08] bg-white/[0.03] py-6">
-                <span className="text-display text-[24px] leading-none tabular-nums">{nextBooking.startTime.split(":")[0]}</span>
-                <span className="text-[13px] leading-none text-zinc-500 tabular-nums">:{nextBooking.startTime.split(":")[1]}</span>
-              </div>
-              <div className="min-w-0 flex-1 p-4">
-                <p className="text-display text-[17px] leading-tight">{nextBooking.title}</p>
-                <p className="mt-1 text-[13px] text-zinc-400 tabular-nums">
-                  {nextBooking.date} · {nextBooking.durationMins} min
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="px-5 py-6 text-center">
-              <p className="text-display text-[17px]">Nothing booked</p>
-              <p className="mt-1 text-[13px] text-zinc-500">Browse the schedule to reserve your next session.</p>
-            </div>
-          )}
-          <div className="border-t border-white/[0.06] p-3">
-            <Link
-              href="/dashboard/schedule"
-              className="flex w-full items-center justify-center btn-primary py-2.5"
-            >
-              {nextBooking ? "View schedule" : "Book a session"}
-            </Link>
           </div>
         </div>
       </div>

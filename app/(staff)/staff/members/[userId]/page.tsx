@@ -162,7 +162,7 @@ export default async function StaffMemberDetailPage({
 
       {/* Drink calculator */}
       {drinkSettings && drinkMix && drinkPlan ? (
-        <div className="rounded-3xl border border-border bg-card p-6">
+        <div className="panel p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-lg font-semibold">Drink calculator</h3>
             <span className="text-xs text-muted-foreground">
@@ -196,7 +196,7 @@ export default async function StaffMemberDetailPage({
       ) : null}
 
       {!profile ? (
-        <div className="rounded-3xl border border-border bg-card p-6">
+        <div className="panel p-6">
           <h3 className="text-lg font-semibold">Profile</h3>
           <p className="mt-3 text-sm text-muted-foreground">No profile data for this account yet.</p>
         </div>
@@ -211,7 +211,7 @@ export default async function StaffMemberDetailPage({
 
       {/* Cycle tracking */}
       {profile?.cycleTrackingEligible ? (
-        <div className="rounded-3xl border border-border bg-card p-6">
+        <div className="panel p-6">
           <h3 className="text-lg font-semibold">Cycle tracking</h3>
           {!profile.cycleTrackingEnabled ? (
             <p className="mt-3 text-sm text-muted-foreground">
@@ -269,7 +269,7 @@ export default async function StaffMemberDetailPage({
       ) : null}
 
       {/* Programme */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Programme</h3>
         {!programme ? (
           <p className="mt-3 text-sm text-muted-foreground">No programme assigned yet.</p>
@@ -296,7 +296,7 @@ export default async function StaffMemberDetailPage({
       </div>
 
       {/* Workout history */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Workout history</h3>
         {sessions.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">No workouts logged yet.</p>
@@ -324,7 +324,7 @@ export default async function StaffMemberDetailPage({
       </div>
 
       {/* Recovery */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Recovery (last 7 entries)</h3>
         {recoveryLogs.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">No recovery check-ins logged yet.</p>
@@ -369,7 +369,7 @@ export default async function StaffMemberDetailPage({
       </div>
 
       {/* Upcoming bookings */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Upcoming bookings</h3>
         {upcomingBookings.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">No upcoming bookings.</p>
@@ -394,7 +394,7 @@ export default async function StaffMemberDetailPage({
       </div>
 
       {/* Messages */}
-      <div className="rounded-3xl border border-border bg-card p-6">
+      <div className="panel p-6">
         <h3 className="text-lg font-semibold">Messages</h3>
         <p className="mt-2 text-sm text-muted-foreground">
           Conversation with {profile?.fullName ?? user.email}.
