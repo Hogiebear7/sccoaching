@@ -106,6 +106,11 @@ function formatRun(run: WorkoutRunEntry): string {
   const parts: string[] = [];
   if (run.distance !== null) parts.push(`${run.distance} ${run.distanceUnit}`);
   if (run.durationSecs !== null) parts.push(formatDuration(run.durationSecs));
+  // Pace only when both sides of the division exist — never inferred.
+  if (run.distance !== null && run.distance > 0 && run.durationSecs !== null && run.durationSecs > 0) {
+    const paceSecs = Math.round(run.durationSecs / run.distance);
+    parts.push(`${Math.floor(paceSecs / 60)}:${String(paceSecs % 60).padStart(2, "0")} /km`);
+  }
   if (run.sets !== null && run.reps !== null) parts.push(`${run.sets}×${run.reps}`);
   else if (run.sets !== null) parts.push(`${run.sets} sets`);
   else if (run.reps !== null) parts.push(`${run.reps} reps`);
@@ -1003,17 +1008,22 @@ export function WorkoutsView({
 
       {/* Track progression */}
       <div>
-        <p className="mb-3 px-1 label-caps">
-          Track progression
-        </p>
-
-        <div className="panel p-5">
+        <div className="mb-2.5 flex items-baseline justify-between px-1">
+          <p className="label-caps">Track progression</p>
           {trackedExercises.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-2">
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              {trackedExercises.length}/5 tracked
+            </span>
+          )}
+        </div>
+
+        <div className="panel p-4">
+          {trackedExercises.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-1.5">
               {trackedExercises.map((name) => (
                 <span
                   key={name}
-                  className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
+                  className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground"
                 >
                   {name}
                   <button
@@ -1046,7 +1056,7 @@ export function WorkoutsView({
                     : "Add an exercise to track…"
                 }
                 disabled={personalBests.length === 0}
-                className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-lg border border-border bg-input px-3.5 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15 disabled:cursor-not-allowed disabled:opacity-50"
               />
               {trackOpen && filteredCandidates.length > 0 && (
                 <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
@@ -1073,32 +1083,28 @@ export function WorkoutsView({
           )}
 
           {trackedExercises.length === 0 && personalBests.length > 0 && (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Select up to 5 exercises from your logged history to see how you&apos;ve progressed
-              over time.
+            <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
+              Pick up to 5 exercises from your history to chart progression.
             </p>
           )}
         </div>
 
         {trackedExercises.length > 0 && (
-          <div className="mt-4 space-y-4">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {trackedExercises.map((name) => {
               const points = trendData[name] ?? [];
               const useWeight = points.some((p) => p.weightNum !== null);
               const hasReps = points.some((p) => p.reps !== null);
               const chartLabel = useWeight ? "Weight trend" : hasReps ? "Reps trend" : "";
               return (
-                <div
-                  key={name}
-                  className="panel p-4"
-                >
+                <div key={name} className="panel p-3.5">
                   <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-sm font-semibold text-foreground">{name}</p>
+                    <p className="text-[13px] font-semibold text-foreground">{name}</p>
                     {chartLabel && (
-                      <p className="text-xs text-muted-foreground">{chartLabel}</p>
+                      <p className="text-[11px] text-muted-foreground">{chartLabel}</p>
                     )}
                   </div>
-                  <div className="mt-2">
+                  <div className="mt-1.5">
                     <TrendChart points={points} />
                   </div>
                 </div>

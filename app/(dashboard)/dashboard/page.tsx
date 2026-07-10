@@ -247,17 +247,22 @@ export default async function DashboardPage() {
           ) : (
             <div className="px-5 py-6 text-center">
               <p className="text-display text-[17px]">Nothing booked</p>
-              <p className="mt-1 text-[13px] text-zinc-500">Browse the schedule to reserve your next session.</p>
+              <p className="mt-1 text-[13px] text-zinc-500">Reserve your next session in a couple of taps.</p>
+              <Link href="/dashboard/schedule" className="btn-primary mt-4 w-full py-2.5">
+                Book a session
+              </Link>
             </div>
           )}
-          <div className="border-t border-white/[0.06] p-3">
-            <Link
-              href="/dashboard/schedule"
-              className="flex w-full items-center justify-center btn-primary py-2.5"
-            >
-              {nextBooking ? "View schedule" : "Book a session"}
-            </Link>
-          </div>
+          {nextBooking && (
+            <div className="border-t border-white/[0.06] p-3">
+              <Link
+                href="/dashboard/schedule"
+                className="flex w-full items-center justify-center btn-primary py-2.5"
+              >
+                View schedule
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 

@@ -232,7 +232,7 @@ export function MembershipStatusPanel({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? "Saving…" : "Update"}
             </button>
@@ -310,7 +310,7 @@ export function MembershipStatusPanel({
                 <button
                   type="submit"
                   disabled={isGranting}
-                  className="rounded-xl border border-teal-700/60 bg-gradient-to-b from-teal-500 to-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] transition-[background-color,transform] duration-150 hover:from-teal-400 hover:to-teal-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isGranting ? "Adding…" : "Add classes"}
                 </button>
