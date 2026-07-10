@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 
 import {
   findClassCategories,
+  findClassPassProducts,
   findDeletedCategoryLabels,
   findMembershipPlanById,
   findMembershipPlans,
@@ -14,7 +15,16 @@ import { classPassBalance } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 import { MembershipView } from "./MembershipView";
 
-export default async function DashboardMembershipPage() {
+export default async function DashboardMembershipPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ passes?: string }>;
+}) {
+  // Return-from-Stripe banner state; informational only — entitlements come
+  // from the webhook, never from this redirect.
+  const { passes } = await searchParams;
+  const passCheckoutStatus =
+    passes === "pending" ? "pending" : passes === "cancelled" ? "cancelled" : null;
   const cookieStore = await cookies();
   const userId = verifySession(cookieStore.get("session")?.value)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
@@ -52,6 +62,8 @@ export default async function DashboardMembershipPage() {
         currentPlan && subscription ? classPassBalance(currentPlan, subscription) : null
       }
       purchasedPasses={purchasedPassBalance(user.id)}
+      passProducts={findClassPassProducts().filter((p) => p.isActive)}
+      passCheckoutStatus={passCheckoutStatus}
       subscriptionProvider={subscription?.provider ?? null}
       billingConfigured={isBillingProviderConfigured()}
     />

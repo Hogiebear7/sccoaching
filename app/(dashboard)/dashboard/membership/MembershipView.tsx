@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { formatPriceCents, isPendingCheckoutStale } from "@/lib/billing";
 import { PageHeader } from "@/components/ui/PageHeader";
-import type { BillingProvider, ClassCategoryRecord, MembershipPlanRecord, SubscriptionStatus } from "@/lib/db";
+import type { BillingProvider, ClassCategoryRecord, ClassPassProductRecord, MembershipPlanRecord, SubscriptionStatus } from "@/lib/db";
 import {
   formatMembershipDate,
   isPeriodLapsed,
@@ -94,6 +94,8 @@ export function MembershipView({
   subscriptionProvider,
   passBalance,
   purchasedPasses,
+  passProducts,
+  passCheckoutStatus,
   billingConfigured,
 }: {
   plans: MembershipPlanRecord[];
@@ -109,6 +111,9 @@ export function MembershipView({
   /** Purchased pass-pack balance from the ledger — separate from the plan's
       monthly allowance and never reset by billing periods. */
   purchasedPasses: number;
+  passProducts: ClassPassProductRecord[];
+  /** Return-from-checkout banner state ("pending" | "cancelled"). */
+  passCheckoutStatus: string | null;
   billingConfigured: boolean;
 }) {
   const pendingIsStale =
@@ -129,6 +134,52 @@ export function MembershipView({
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [buyingProductId, setBuyingProductId] = useState<string | null>(null);
+  const [passError, setPassError] = useState<string | null>(null);
+  // One idempotency key per product per page visit: a double-click (or a
+  // back-navigation retry) resumes the same checkout instead of creating a
+  // second Stripe session.
+  const passKeysRef = useRef<Map<string, string>>(new Map());
+
+  function passKeyFor(productId: string): string {
+    let key = passKeysRef.current.get(productId);
+    if (!key) {
+      key = crypto.randomUUID();
+      passKeysRef.current.set(productId, key);
+    }
+    return key;
+  }
+
+  async function handleBuyPasses(productId: string) {
+    setBuyingProductId(productId);
+    setPassError(null);
+
+    try {
+      const res = await fetch("/api/passes/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, idempotencyKey: passKeyFor(productId) }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setPassError(data?.message ?? "Could not start checkout. Please try again.");
+        return;
+      }
+
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return; // keep the loading state while the browser navigates
+      }
+
+      setPassError("Checkout could not be started. Please try again.");
+    } catch {
+      setPassError("Something went wrong. Please try again.");
+    } finally {
+      setBuyingProductId(null);
+    }
+  }
 
   async function handleSelect(planId: string) {
     setSelectingId(planId);
@@ -331,6 +382,73 @@ export function MembershipView({
           </div>
         )}
       </div>
+
+      {/* Buy class passes — one-off pass packs, separate from the plan */}
+      {passProducts.length > 0 && (
+        <div>
+          <p className="mb-3 px-1 label-caps">Buy Class Passes</p>
+
+          {passCheckoutStatus === "pending" && (
+            <p className="mb-3 rounded-lg border border-teal-500/25 bg-teal-500/[0.08] px-4 py-3 text-sm text-teal-300">
+              Payment received — your passes will appear above within a few
+              seconds, once Stripe confirms the payment.
+            </p>
+          )}
+          {passCheckoutStatus === "cancelled" && (
+            <p className="mb-3 rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-3 text-sm text-muted-foreground">
+              Checkout cancelled — no payment was taken.
+            </p>
+          )}
+          {passError && (
+            <p className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {passError}
+            </p>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {passProducts.map((product) => (
+              <div key={product.id} className="panel flex flex-col p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{product.name}</p>
+                    {product.description && (
+                      <p className="mt-1 text-xs text-muted-foreground">{product.description}</p>
+                    )}
+                  </div>
+                  <span className="chip shrink-0 border-gold/30 bg-gold/[0.08] text-[11px] font-semibold !text-gold">
+                    {product.passCount} passes
+                  </span>
+                </div>
+                <p className="text-display mt-3 text-[22px] tabular-nums">
+                  {formatPriceCents(product.priceCents)}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleBuyPasses(product.id)}
+                  disabled={buyingProductId !== null}
+                  className="btn-primary mt-4 w-full px-4 py-2.5 disabled:cursor-not-allowed"
+                >
+                  {buyingProductId === product.id ? (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white motion-reduce:animate-none"
+                      />
+                      Starting checkout…
+                    </>
+                  ) : (
+                    "Buy pack"
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            Pass packs top up your monthly plan passes and never expire with the
+            billing period. They&apos;re added automatically once payment is confirmed.
+          </p>
+        </div>
+      )}
 
       {/* Action banners */}
       {formError && (
