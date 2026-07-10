@@ -18,6 +18,7 @@ import {
 } from "@/lib/db";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
 import { issueWaitlistOffer } from "@/lib/scheduling";
+import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 
@@ -105,6 +106,7 @@ export async function POST(request: NextRequest) {
 
   const subscription = user.role === "member" ? findSubscriptionByUserId(user.id) : undefined;
   const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+  let coverWithPurchasedPass = false;
 
   if (user.role === "member") {
     if (subscription && plan && !isClassEligibleForPlan(classRecord.category, plan)) {
@@ -121,13 +123,21 @@ export async function POST(request: NextRequest) {
       const remaining = remainingSessions(plan, subscription);
 
       if (remaining !== null && remaining <= 0) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "You've used all of your sessions for this billing period.",
-          },
-          { status: 403 }
-        );
+        // Monthly allowance exhausted — purchased pass packs cover the
+        // overflow. The actual consume happens after the booking exists so
+        // the ledger entry carries the booking id.
+        if (purchasedPassBalance(user.id) > 0) {
+          coverWithPurchasedPass = true;
+        } else {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                "You've used all of your sessions for this billing period, and you have no pass packs left.",
+            },
+            { status: 403 }
+          );
+        }
       }
     }
   }
@@ -160,11 +170,17 @@ export async function POST(request: NextRequest) {
   createBooking(booking);
 
   if (subscription) {
-    saveSubscription({
-      ...subscription,
-      sessionsUsedThisPeriod: subscription.sessionsUsedThisPeriod + 1,
-      updatedAt: new Date().toISOString(),
-    });
+    if (coverWithPurchasedPass) {
+      // Ledger debit, keyed to the booking — the monthly counter is not
+      // touched, so plan usage and pack usage stay separately auditable.
+      consumePurchasedPass({ userId: user.id, bookingId: booking.id });
+    } else {
+      saveSubscription({
+        ...subscription,
+        sessionsUsedThisPeriod: subscription.sessionsUsedThisPeriod + 1,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   }
 
   // Booking directly supersedes any active waitlist entry for this class.

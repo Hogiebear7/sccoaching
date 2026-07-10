@@ -10,16 +10,32 @@
 // faking a successful checkout. See docs/billing-revolut.md for what's
 // needed to make it live.
 
-import type { BillingProvider, MembershipPlanRecord } from "./db";
+import type { BillingProvider, ClassPassProductRecord, MembershipPlanRecord } from "./db";
 import {
   createRevolutCustomer,
+  createRevolutOrder,
   createRevolutSubscription,
   isRevolutConfigured,
 } from "./providers/revolut";
 import { isRevolutWebhookConfigured } from "./providers/revolut-webhook";
+import {
+  createStripePassCheckout,
+  createStripeSubscriptionCheckout,
+  isStripeConfigured,
+} from "./providers/stripe";
+import { isStripeWebhookConfigured } from "./providers/stripe-webhook";
+
+// Stripe is the primary provider; Revolut remains as a configured fallback
+// so existing sandbox setups keep working. Selection is by configuration:
+// whichever provider has its secret key set wins, Stripe first.
+export function activeBillingProvider(): BillingProvider {
+  if (isStripeConfigured()) return "stripe";
+  if (isRevolutConfigured()) return "revolut";
+  return "none";
+}
 
 export function isBillingProviderConfigured(): boolean {
-  return isRevolutConfigured();
+  return activeBillingProvider() !== "none";
 }
 
 // A provider can be "half-configured" — checkout works (secret key set) but
@@ -30,9 +46,15 @@ export function getBillingConfigurationStatus(): {
   checkoutConfigured: boolean;
   webhookConfigured: boolean;
 } {
+  const provider = activeBillingProvider();
   return {
-    checkoutConfigured: isRevolutConfigured(),
-    webhookConfigured: isRevolutWebhookConfigured(),
+    checkoutConfigured: provider !== "none",
+    webhookConfigured:
+      provider === "stripe"
+        ? isStripeWebhookConfigured()
+        : provider === "revolut"
+          ? isRevolutWebhookConfigured()
+          : false,
   };
 }
 
@@ -71,13 +93,48 @@ export async function createCheckoutForPlan(input: {
   // duplicate customer records for the same member across multiple checkouts.
   existingCustomerId?: string | null;
 }): Promise<CheckoutResult> {
-  if (!isBillingProviderConfigured()) {
+  const provider = activeBillingProvider();
+
+  if (provider === "none") {
     return {
       provider: "none",
       checkoutUrl: null,
       providerSubscriptionId: null,
       providerSetupOrderId: null,
       providerCustomerId: null,
+      error: null,
+    };
+  }
+
+  if (provider === "stripe") {
+    // Stripe: the subscription id only exists after payment; the session id
+    // is stored (providerSetupOrderId) so the checkout.session.completed
+    // webhook can find this subscription row and attach the real ids.
+    const result = await createStripeSubscriptionCheckout({
+      amountCents: input.plan.priceCents,
+      planName: input.plan.name,
+      interval: input.plan.billingInterval === "annual" ? "year" : "month",
+      internalReference: `${input.member.id}:${input.plan.id}:${Date.now()}`,
+      customerEmail: input.member.email,
+    });
+
+    if (!result.ok) {
+      return {
+        provider: "stripe",
+        checkoutUrl: null,
+        providerSubscriptionId: null,
+        providerSetupOrderId: null,
+        providerCustomerId: null,
+        error: result.message,
+      };
+    }
+
+    return {
+      provider: "stripe",
+      checkoutUrl: result.checkoutUrl,
+      providerSubscriptionId: null,
+      providerSetupOrderId: result.sessionId,
+      providerCustomerId: input.existingCustomerId ?? null,
       error: null,
     };
   }
@@ -127,4 +184,59 @@ export async function createCheckoutForPlan(input: {
     providerCustomerId: customerId,
     error: null,
   };
+}
+
+export interface PassCheckoutResult {
+  provider: BillingProvider;
+  /** Stripe checkout session id / Revolut order id. */
+  providerOrderId: string | null;
+  checkoutUrl: string | null;
+  error: string | null;
+}
+
+// One-off checkout for a class pass pack. The internal purchase id doubles
+// as the provider idempotency key and the reconciliation reference.
+export async function createPassPackCheckout(input: {
+  member: { id: string; email: string };
+  product: ClassPassProductRecord;
+  purchaseId: string;
+}): Promise<PassCheckoutResult> {
+  const provider = activeBillingProvider();
+
+  if (provider === "stripe") {
+    const result = await createStripePassCheckout({
+      amountCents: input.product.priceCents,
+      productName: `${input.product.name} (${input.product.passCount} class passes)`,
+      purchaseId: input.purchaseId,
+      customerEmail: input.member.email,
+    });
+    if (!result.ok) {
+      return { provider: "stripe", providerOrderId: null, checkoutUrl: null, error: result.message };
+    }
+    return {
+      provider: "stripe",
+      providerOrderId: result.sessionId,
+      checkoutUrl: result.checkoutUrl,
+      error: null,
+    };
+  }
+
+  if (provider === "revolut") {
+    const result = await createRevolutOrder({
+      amountCents: input.product.priceCents,
+      internalReference: input.purchaseId,
+      customerEmail: input.member.email,
+    });
+    if (!result.ok) {
+      return { provider: "revolut", providerOrderId: null, checkoutUrl: null, error: result.message };
+    }
+    return {
+      provider: "revolut",
+      providerOrderId: result.orderId,
+      checkoutUrl: result.checkoutUrl,
+      error: null,
+    };
+  }
+
+  return { provider: "none", providerOrderId: null, checkoutUrl: null, error: "No payment provider is configured." };
 }

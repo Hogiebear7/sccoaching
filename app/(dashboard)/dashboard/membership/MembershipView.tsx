@@ -93,6 +93,7 @@ export function MembershipView({
   subscriptionCurrentPeriodEnd,
   subscriptionProvider,
   passBalance,
+  purchasedPasses,
   billingConfigured,
 }: {
   plans: MembershipPlanRecord[];
@@ -105,6 +106,9 @@ export function MembershipView({
   subscriptionCurrentPeriodEnd: string | null;
   subscriptionProvider: BillingProvider | null;
   passBalance: ClassPassBalance | null;
+  /** Purchased pass-pack balance from the ledger — separate from the plan's
+      monthly allowance and never reset by billing periods. */
+  purchasedPasses: number;
   billingConfigured: boolean;
 }) {
   const pendingIsStale =
@@ -309,6 +313,22 @@ export function MembershipView({
               .
             </p>
           </>
+        )}
+
+        {/* Purchased pass packs — separate pool, doesn't reset */}
+        {purchasedPasses > 0 && (
+          <div className="mt-3 border-t border-white/[0.06] pt-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-sm font-semibold tracking-tight">Pass packs</span>
+              <span className="text-display text-[17px] text-gold tabular-nums">
+                {purchasedPasses} pass{purchasedPasses === 1 ? "" : "es"}
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              Purchased passes — used automatically once your monthly passes run out.
+              They don&apos;t reset with your billing period.
+            </p>
+          </div>
         )}
       </div>
 

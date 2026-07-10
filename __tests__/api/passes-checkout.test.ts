@@ -10,7 +10,8 @@ const {
   mockFindClassPassProductById,
   mockIsConfigured,
   mockIsStale,
-  mockCreateRevolutOrder,
+  mockActiveProvider,
+  mockCreatePassPackCheckout,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindPurchaseByIdempotencyKey: vi.fn(),
@@ -18,7 +19,8 @@ const {
   mockFindClassPassProductById: vi.fn(),
   mockIsConfigured: vi.fn(),
   mockIsStale: vi.fn(),
-  mockCreateRevolutOrder: vi.fn(),
+  mockActiveProvider: vi.fn(),
+  mockCreatePassPackCheckout: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -35,10 +37,8 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/billing", () => ({
   isBillingProviderConfigured: mockIsConfigured,
   isPendingCheckoutStale: mockIsStale,
-}));
-
-vi.mock("@/lib/providers/revolut", () => ({
-  createRevolutOrder: mockCreateRevolutOrder,
+  activeBillingProvider: mockActiveProvider,
+  createPassPackCheckout: mockCreatePassPackCheckout,
 }));
 
 const MEMBER = { id: "user-1", email: "athlete@example.com", role: "member" as const };
@@ -77,17 +77,19 @@ describe("POST /api/passes/checkout", () => {
     mockFindPurchaseByIdempotencyKey.mockReturnValue(undefined);
     mockIsConfigured.mockReturnValue(true);
     mockIsStale.mockReturnValue(false);
-    mockCreateRevolutOrder.mockResolvedValue({
-      ok: true,
-      orderId: "rev-order-1",
-      checkoutUrl: "https://checkout.revolut.example/x",
+    mockActiveProvider.mockReturnValue("stripe");
+    mockCreatePassPackCheckout.mockResolvedValue({
+      provider: "stripe",
+      providerOrderId: "cs_test_1",
+      checkoutUrl: "https://checkout.stripe.example/x",
+      error: null,
     });
   });
 
   it("rejects unauthenticated requests", async () => {
     const res = await callCheckout({ productId: "pack-10" });
     expect(res.status).toBe(401);
-    expect(mockCreateRevolutOrder).not.toHaveBeenCalled();
+    expect(mockCreatePassPackCheckout).not.toHaveBeenCalled();
   });
 
   it("requires a product id", async () => {
@@ -108,7 +110,7 @@ describe("POST /api/passes/checkout", () => {
     const res = await callCheckout({ productId: "pack-10" }, cookie());
     expect(res.status).toBe(503);
     expect(mockSavePurchase).not.toHaveBeenCalled();
-    expect(mockCreateRevolutOrder).not.toHaveBeenCalled();
+    expect(mockCreatePassPackCheckout).not.toHaveBeenCalled();
   });
 
   it("duplicate submit re-uses the fresh pending checkout — no second provider order", async () => {
@@ -116,7 +118,7 @@ describe("POST /api/passes/checkout", () => {
       id: "pur-existing",
       userId: MEMBER.id,
       status: "pending",
-      checkoutUrl: "https://checkout.revolut.example/existing",
+      checkoutUrl: "https://checkout.stripe.example/existing",
       updatedAt: new Date().toISOString(),
     });
 
@@ -126,8 +128,8 @@ describe("POST /api/passes/checkout", () => {
     expect(res.status).toBe(200);
     expect(data.reused).toBe(true);
     expect(data.purchaseId).toBe("pur-existing");
-    expect(data.checkoutUrl).toBe("https://checkout.revolut.example/existing");
-    expect(mockCreateRevolutOrder).not.toHaveBeenCalled();
+    expect(data.checkoutUrl).toBe("https://checkout.stripe.example/existing");
+    expect(mockCreatePassPackCheckout).not.toHaveBeenCalled();
     expect(mockSavePurchase).not.toHaveBeenCalled();
   });
 
@@ -137,7 +139,7 @@ describe("POST /api/passes/checkout", () => {
 
     expect(res.status).toBe(200);
     expect(data.reused).toBe(false);
-    expect(data.checkoutUrl).toBe("https://checkout.revolut.example/x");
+    expect(data.checkoutUrl).toBe("https://checkout.stripe.example/x");
 
     // First save: pending, no provider linkage yet
     const first = mockSavePurchase.mock.calls[0][0];
@@ -149,20 +151,28 @@ describe("POST /api/passes/checkout", () => {
       idempotencyKey: "user-1:abc",
     });
     // Provider order carries OUR purchase id as the reconciliation ref
-    expect(mockCreateRevolutOrder).toHaveBeenCalledWith(
-      expect.objectContaining({ internalReference: first.id, amountCents: 12000 })
+    expect(mockCreatePassPackCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purchaseId: first.id,
+        member: expect.objectContaining({ id: MEMBER.id }),
+      })
     );
     // Second save: provider ids attached
     const second = mockSavePurchase.mock.calls[1][0];
     expect(second).toMatchObject({
       id: first.id,
-      providerOrderId: "rev-order-1",
-      checkoutUrl: "https://checkout.revolut.example/x",
+      providerOrderId: "cs_test_1",
+      checkoutUrl: "https://checkout.stripe.example/x",
     });
   });
 
   it("marks the purchase failed when the provider call fails", async () => {
-    mockCreateRevolutOrder.mockResolvedValue({ ok: false, message: "boom" });
+    mockCreatePassPackCheckout.mockResolvedValue({
+      provider: "stripe",
+      providerOrderId: null,
+      checkoutUrl: null,
+      error: "boom",
+    });
 
     const res = await callCheckout({ productId: "pack-10" }, cookie());
 
@@ -186,7 +196,7 @@ describe("POST /api/passes/checkout", () => {
 
     expect(res.status).toBe(200);
     expect(data.reused).toBe(false);
-    expect(mockCreateRevolutOrder).toHaveBeenCalledTimes(1);
+    expect(mockCreatePassPackCheckout).toHaveBeenCalledTimes(1);
     // New purchase got a retired (suffixed) key so the old row keeps its own
     const first = mockSavePurchase.mock.calls[0][0];
     expect(first.idempotencyKey.startsWith("user-1:abc:")).toBe(true);

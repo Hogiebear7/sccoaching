@@ -9,6 +9,7 @@ import {
   findUserById,
 } from "@/lib/db";
 import { isBillingProviderConfigured } from "@/lib/billing";
+import { purchasedPassBalance } from "@/lib/payments";
 import { classPassBalance } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 import { MembershipView } from "./MembershipView";
@@ -50,6 +51,7 @@ export default async function DashboardMembershipPage() {
       passBalance={
         currentPlan && subscription ? classPassBalance(currentPlan, subscription) : null
       }
+      purchasedPasses={purchasedPassBalance(user.id)}
       subscriptionProvider={subscription?.provider ?? null}
       billingConfigured={isBillingProviderConfigured()}
     />

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import {
   findBodyWeightLogsByUserId,
+  findPassLedgerByUserId,
   findBookingsByUserId,
   findClassById,
   findCoachNoteByUserId,
@@ -22,6 +23,7 @@ import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { describeDrinkSettings } from "@/lib/drink-settings";
 import { formatMembershipDate } from "@/lib/membership-status";
 import { buildDrinkMix, buildDrinkPlan } from "@/lib/nutrition";
+import { purchasedPassBalance } from "@/lib/payments";
 import { classPassBalance } from "@/lib/scheduling-status";
 import { MessagesThread } from "@/components/messages/MessagesThread";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
@@ -152,6 +154,10 @@ export default async function StaffMemberDetailPage({
             ? classPassBalance(subscriptionPlan, subscription)
             : null
         }
+        purchasedPasses={purchasedPassBalance(user.id)}
+        passLedger={findPassLedgerByUserId(user.id)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, 6)}
       />
 
       {/* Drink calculator */}

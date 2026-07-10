@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import { hasActiveMembership } from "@/lib/membership";
 import { issueWaitlistOffer } from "@/lib/scheduling";
+import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {
   }
 
   const subscription = findSubscriptionByUserId(user.id);
+  let coverWithPurchasedPass = false;
   const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
 
   if (subscription && plan && !isClassEligibleForPlan(classRecord.category, plan)) {
@@ -171,13 +173,18 @@ export async function POST(request: NextRequest) {
   if (subscription && plan) {
     const remaining = remainingSessions(plan, subscription);
     if (remaining !== null && remaining <= 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "You've used all of your sessions for this billing period.",
-        },
-        { status: 403 }
-      );
+      if (purchasedPassBalance(user.id) > 0) {
+        coverWithPurchasedPass = true;
+      } else {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "You've used all of your sessions for this billing period, and you have no pass packs left.",
+          },
+          { status: 403 }
+        );
+      }
     }
   }
 
@@ -192,7 +199,9 @@ export async function POST(request: NextRequest) {
   createBooking(booking);
 
   if (subscription) {
-    saveSubscription({
+    if (coverWithPurchasedPass) {
+      consumePurchasedPass({ userId: user.id, bookingId: booking.id });
+    } else saveSubscription({
       ...subscription,
       sessionsUsedThisPeriod: subscription.sessionsUsedThisPeriod + 1,
       updatedAt: now,

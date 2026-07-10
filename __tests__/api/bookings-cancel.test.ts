@@ -12,6 +12,8 @@ const {
   mockSaveSubscription,
   mockIssueWaitlistOffer,
   mockIsCancellationEarly,
+  mockAppendPassLedgerEntry,
+  mockFindPassLedgerByBookingId,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindBookingById: vi.fn(),
@@ -21,6 +23,8 @@ const {
   mockSaveSubscription: vi.fn(),
   mockIssueWaitlistOffer: vi.fn(),
   mockIsCancellationEarly: vi.fn(),
+  mockAppendPassLedgerEntry: vi.fn(),
+  mockFindPassLedgerByBookingId: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -30,6 +34,12 @@ vi.mock("@/lib/db", () => ({
   deleteBooking: mockDeleteBooking,
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
   saveSubscription: mockSaveSubscription,
+  appendPassLedgerEntry: mockAppendPassLedgerEntry,
+  findPassLedgerByBookingId: mockFindPassLedgerByBookingId,
+  findPassLedgerByUserId: vi.fn(() => []),
+  findPassLedgerByPurchaseId: vi.fn(() => []),
+  findClassPassProductById: vi.fn(),
+  savePurchase: vi.fn(),
 }));
 
 vi.mock("@/lib/scheduling", () => ({
@@ -98,6 +108,9 @@ describe("POST /api/bookings/cancel", () => {
     mockSaveSubscription.mockReset();
     mockIssueWaitlistOffer.mockReset();
     mockIsCancellationEarly.mockReset();
+    mockAppendPassLedgerEntry.mockReset();
+    mockFindPassLedgerByBookingId.mockReset();
+    mockFindPassLedgerByBookingId.mockReturnValue([]);
     mockFindUserById.mockReturnValue(MEMBER_USER);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
     mockIsCancellationEarly.mockReturnValue(true);
@@ -177,6 +190,46 @@ describe("POST /api/bookings/cancel", () => {
     expect(mockSaveSubscription.mock.calls[0][0].sessionsUsedThisPeriod).toBe(2);
     expect(mockDeleteBooking).toHaveBeenCalledWith("booking-1");
     expect(mockIssueWaitlistOffer).toHaveBeenCalledWith("class-1");
+  });
+
+  it("returns a purchased pass on early cancel instead of touching the counter", async () => {
+    mockFindBookingById.mockReturnValue(SOME_BOOKING);
+    mockFindClassById.mockReturnValue(FUTURE_CLASS);
+    mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
+    mockIsCancellationEarly.mockReturnValue(true);
+    // This booking consumed a purchased pass
+    mockFindPassLedgerByBookingId.mockReturnValue([
+      { id: "led-1", userId: MEMBER_USER.id, delta: -1, reason: "consume", purchaseId: null, bookingId: "booking-1", note: null, createdAt: "x" },
+    ]);
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
+
+    expect(res.status).toBe(200);
+    expect(mockAppendPassLedgerEntry).toHaveBeenCalledTimes(1);
+    expect(mockAppendPassLedgerEntry.mock.calls[0][0]).toMatchObject({
+      delta: 1,
+      reason: "consume_reversal",
+      bookingId: "booking-1",
+    });
+    // The plan counter is left alone — the pass pool is what gets refunded
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("late cancellation keeps a consumed pass consumed", async () => {
+    mockFindBookingById.mockReturnValue(SOME_BOOKING);
+    mockFindClassById.mockReturnValue(FUTURE_CLASS);
+    mockIsCancellationEarly.mockReturnValue(false);
+    mockFindPassLedgerByBookingId.mockReturnValue([
+      { id: "led-1", userId: MEMBER_USER.id, delta: -1, reason: "consume", purchaseId: null, bookingId: "booking-1", note: null, createdAt: "x" },
+    ]);
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
+
+    expect(res.status).toBe(200);
+    expect(mockAppendPassLedgerEntry).not.toHaveBeenCalled();
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
   });
 
   it("does not restore the session when cancelling inside the cutoff", async () => {

@@ -9,6 +9,7 @@ import {
   findUserById,
   saveSubscription,
 } from "@/lib/db";
+import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer, isCancellationEarly } from "@/lib/scheduling";
 import { verifySession } from "@/lib/session";
 
@@ -81,15 +82,22 @@ export async function POST(request: NextRequest) {
     }
 
     if (isCancellationEarly(classDateTime)) {
-      const subscription = findSubscriptionByUserId(user.id);
-
-      if (subscription) {
-        saveSubscription({
-          ...subscription,
-          sessionsUsedThisPeriod: Math.max(0, subscription.sessionsUsedThisPeriod - 1),
-          updatedAt: new Date().toISOString(),
-        });
+      // Same cancellation-window rule for both pools. If this booking spent
+      // a purchased pass, return that pass (once); otherwise refund the
+      // monthly counter as before. Late cancellations keep either consumed.
+      if (reversePassConsumption(bookingId)) {
         sessionRestored = true;
+      } else {
+        const subscription = findSubscriptionByUserId(user.id);
+
+        if (subscription) {
+          saveSubscription({
+            ...subscription,
+            sessionsUsedThisPeriod: Math.max(0, subscription.sessionsUsedThisPeriod - 1),
+            updatedAt: new Date().toISOString(),
+          });
+          sessionRestored = true;
+        }
       }
     }
   }

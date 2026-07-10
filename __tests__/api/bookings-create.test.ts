@@ -17,6 +17,9 @@ const {
   mockDeleteWaitlistEntry,
   mockFindWaitlistEntriesByClassId,
   mockSaveWaitlistEntry,
+  mockAppendPassLedgerEntry,
+  mockFindPassLedgerByUserId,
+  mockFindPassLedgerByBookingId,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindClassById: vi.fn(),
@@ -31,6 +34,9 @@ const {
   mockDeleteWaitlistEntry: vi.fn(),
   mockFindWaitlistEntriesByClassId: vi.fn(),
   mockSaveWaitlistEntry: vi.fn(),
+  mockAppendPassLedgerEntry: vi.fn(),
+  mockFindPassLedgerByUserId: vi.fn(),
+  mockFindPassLedgerByBookingId: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -47,6 +53,12 @@ vi.mock("@/lib/db", () => ({
   deleteWaitlistEntry: mockDeleteWaitlistEntry,
   findWaitlistEntriesByClassId: mockFindWaitlistEntriesByClassId,
   saveWaitlistEntry: mockSaveWaitlistEntry,
+  appendPassLedgerEntry: mockAppendPassLedgerEntry,
+  findPassLedgerByUserId: mockFindPassLedgerByUserId,
+  findPassLedgerByBookingId: mockFindPassLedgerByBookingId,
+  findPassLedgerByPurchaseId: vi.fn(() => []),
+  findClassPassProductById: vi.fn(),
+  savePurchase: vi.fn(),
 }));
 
 const MEMBER_USER = { id: "user-1", email: "athlete@example.com", role: "member" as const };
@@ -120,7 +132,12 @@ describe("POST /api/bookings/create", () => {
     mockDeleteWaitlistEntry.mockReset();
     mockFindWaitlistEntriesByClassId.mockReset();
     mockSaveWaitlistEntry.mockReset();
+    mockAppendPassLedgerEntry.mockReset();
+    mockFindPassLedgerByUserId.mockReset();
+    mockFindPassLedgerByBookingId.mockReset();
     mockFindWaitlistEntriesByClassId.mockReturnValue([]);
+    mockFindPassLedgerByUserId.mockReturnValue([]);
+    mockFindPassLedgerByBookingId.mockReturnValue([]);
     mockFindUserById.mockReturnValue(MEMBER_USER);
     // No plans configured by default, so membership gating doesn't apply —
     // matches the pre-Block-B behavior for all the existing tests below.
@@ -297,6 +314,36 @@ describe("POST /api/bookings/create", () => {
     expect(mockCreateBooking).not.toHaveBeenCalled();
   });
 
+  it("covers an exhausted allowance with a purchased pass — ledger debit, counter untouched", async () => {
+    mockFindMembershipPlans.mockReturnValue([
+      { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
+    ]);
+    mockFindSubscriptionByUserId.mockReturnValue({ ...ACTIVE_SUBSCRIPTION, sessionsUsedThisPeriod: 8 });
+    mockFindMembershipPlanById.mockReturnValue({ ...UNLIMITED_PLAN, monthlySessionAllowance: 8 });
+    mockFindClassById.mockReturnValue(SOME_CLASS);
+    mockFindBookingsByUserId.mockReturnValue([]);
+    mockFindBookingsByClassId.mockReturnValue([]);
+    // Member owns a 10-pack with 5 left
+    mockFindPassLedgerByUserId.mockReturnValue([{ delta: 10 }, { delta: -5 }]);
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    const res = await callBookingsCreate({ classId: "class-1" }, cookie);
+
+    expect(res.status).toBe(201);
+    expect(mockCreateBooking).toHaveBeenCalledTimes(1);
+    const bookingId = mockCreateBooking.mock.calls[0][0].id;
+    // One consume entry keyed to the booking…
+    expect(mockAppendPassLedgerEntry).toHaveBeenCalledTimes(1);
+    expect(mockAppendPassLedgerEntry.mock.calls[0][0]).toMatchObject({
+      userId: MEMBER_USER.id,
+      delta: -1,
+      reason: "consume",
+      bookingId,
+    });
+    // …and the monthly counter is NOT incremented
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+
   it("blocks booking once the member has used their full session allowance", async () => {
     mockFindMembershipPlans.mockReturnValue([
       { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
@@ -313,7 +360,9 @@ describe("POST /api/bookings/create", () => {
 
     expect(res.status).toBe(403);
     expect(data.message).toMatch(/used all of your sessions/i);
+    expect(data.message).toMatch(/no pass packs left/i);
     expect(mockCreateBooking).not.toHaveBeenCalled();
+    expect(mockAppendPassLedgerEntry).not.toHaveBeenCalled();
   });
 
   it("allows booking on an unlimited plan regardless of sessions used", async () => {

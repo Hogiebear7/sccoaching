@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockAppendPassLedgerEntry,
   mockFindClassPassProductById,
+  mockFindPassLedgerByBookingId,
   mockFindPassLedgerByPurchaseId,
   mockFindPassLedgerByUserId,
   mockSavePurchase,
 } = vi.hoisted(() => ({
   mockAppendPassLedgerEntry: vi.fn(),
   mockFindClassPassProductById: vi.fn(),
+  mockFindPassLedgerByBookingId: vi.fn(),
   mockFindPassLedgerByPurchaseId: vi.fn(),
   mockFindPassLedgerByUserId: vi.fn(),
   mockSavePurchase: vi.fn(),
@@ -17,6 +19,7 @@ const {
 vi.mock("@/lib/db", () => ({
   appendPassLedgerEntry: mockAppendPassLedgerEntry,
   findClassPassProductById: mockFindClassPassProductById,
+  findPassLedgerByBookingId: mockFindPassLedgerByBookingId,
   findPassLedgerByPurchaseId: mockFindPassLedgerByPurchaseId,
   findPassLedgerByUserId: mockFindPassLedgerByUserId,
   savePurchase: mockSavePurchase,
@@ -27,7 +30,9 @@ import {
   applyRefundedPassPurchase,
   buildPassPackPurchase,
   canTransitionPurchase,
+  consumePurchasedPass,
   purchasedPassBalance,
+  reversePassConsumption,
   transitionPurchase,
 } from "@/lib/payments";
 import type { PurchaseRecord } from "@/lib/db";
@@ -42,6 +47,7 @@ const PURCHASE: PurchaseRecord = {
   status: "pending",
   provider: "revolut",
   providerOrderId: "rev-order-1",
+  providerPaymentRef: null,
   checkoutUrl: "https://checkout.example/x",
   idempotencyKey: "user-1:pack-10",
   createdAt: "2026-07-09T10:00:00.000Z",
@@ -66,6 +72,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockFindPassLedgerByPurchaseId.mockReturnValue([]);
   mockFindPassLedgerByUserId.mockReturnValue([]);
+  mockFindPassLedgerByBookingId.mockReturnValue([]);
 });
 
 describe("purchase state machine", () => {
@@ -168,6 +175,7 @@ describe("buildPassPackPurchase", () => {
         updatedAt: "2026-01-01T00:00:00.000Z",
       },
       idempotencyKey: "user-9:pack-5",
+      provider: "stripe",
     });
     expect(purchase).toMatchObject({
       userId: "user-9",
@@ -177,6 +185,66 @@ describe("buildPassPackPurchase", () => {
       status: "pending",
       providerOrderId: null,
       idempotencyKey: "user-9:pack-5",
+      provider: "stripe",
     });
+  });
+});
+
+describe("consumePurchasedPass / reversePassConsumption", () => {
+  function consumeEntry() {
+    return {
+      id: "led-c1",
+      userId: "user-1",
+      delta: -1,
+      reason: "consume" as const,
+      purchaseId: null,
+      bookingId: "bk-1",
+      note: null,
+      createdAt: "2026-07-10T09:00:00.000Z",
+    };
+  }
+
+  it("spends one pass keyed to the booking", () => {
+    mockFindPassLedgerByUserId.mockReturnValue([{ delta: 5 }]);
+    expect(consumePurchasedPass({ userId: "user-1", bookingId: "bk-1" })).toBe(true);
+    expect(mockAppendPassLedgerEntry.mock.calls[0][0]).toMatchObject({
+      userId: "user-1",
+      delta: -1,
+      reason: "consume",
+      bookingId: "bk-1",
+    });
+  });
+
+  it("refuses with no balance and never double-consumes the same booking", () => {
+    mockFindPassLedgerByUserId.mockReturnValue([]);
+    expect(consumePurchasedPass({ userId: "user-1", bookingId: "bk-1" })).toBe(false);
+
+    mockFindPassLedgerByUserId.mockReturnValue([{ delta: 5 }]);
+    mockFindPassLedgerByBookingId.mockReturnValue([consumeEntry()]);
+    expect(consumePurchasedPass({ userId: "user-1", bookingId: "bk-1" })).toBe(false);
+    expect(mockAppendPassLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it("reverses a consumption exactly once, and only if it happened", () => {
+    // nothing consumed → nothing to reverse
+    expect(reversePassConsumption("bk-1")).toBe(false);
+
+    // consumed → one compensating +1
+    mockFindPassLedgerByBookingId.mockReturnValue([consumeEntry()]);
+    expect(reversePassConsumption("bk-1")).toBe(true);
+    expect(mockAppendPassLedgerEntry.mock.calls[0][0]).toMatchObject({
+      delta: 1,
+      reason: "consume_reversal",
+      bookingId: "bk-1",
+    });
+
+    // retry → already reversed, no second entry
+    mockAppendPassLedgerEntry.mockClear();
+    mockFindPassLedgerByBookingId.mockReturnValue([
+      consumeEntry(),
+      { ...consumeEntry(), id: "led-c2", delta: 1, reason: "consume_reversal" as const },
+    ]);
+    expect(reversePassConsumption("bk-1")).toBe(false);
+    expect(mockAppendPassLedgerEntry).not.toHaveBeenCalled();
   });
 });

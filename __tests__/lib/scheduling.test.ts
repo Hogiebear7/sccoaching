@@ -25,6 +25,13 @@ const {
 }));
 
 vi.mock("@/lib/db", () => ({
+  // Pass-pack coverage in offer eligibility: default = no purchased passes
+  findPassLedgerByUserId: vi.fn(() => []),
+  findPassLedgerByBookingId: vi.fn(() => []),
+  findPassLedgerByPurchaseId: vi.fn(() => []),
+  appendPassLedgerEntry: vi.fn(),
+  findClassPassProductById: vi.fn(),
+  savePurchase: vi.fn(),
   findClassById: mockFindClassById,
   findBookingsByClassId: mockFindBookingsByClassId,
   findBookingsByUserId: mockFindBookingsByUserId,

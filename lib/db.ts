@@ -193,7 +193,7 @@ export interface MembershipPlanRecord {
 
 // "none" means no real payment provider is wired up, or the member's plan
 // was activated manually by staff — see lib/billing.ts.
-export type BillingProvider = "none" | "revolut";
+export type BillingProvider = "none" | "stripe" | "revolut";
 
 // "pending" = a checkout was created with the provider but payment hasn't
 // been confirmed yet (webhook hasn't fired). Only a provider webhook (or a
@@ -286,6 +286,9 @@ export interface PurchaseRecord {
   status: PurchaseStatus;
   provider: BillingProvider;
   providerOrderId: string | null;
+  /** Provider payment reference (Stripe PaymentIntent) — how refund events
+      are correlated back to a purchase. Set from the completed webhook. */
+  providerPaymentRef: string | null;
   /** Hosted checkout URL, kept so duplicate submits re-use it. */
   checkoutUrl: string | null;
   /** Duplicate-submit protection: one open purchase per key. */
@@ -303,7 +306,12 @@ export interface PaymentEventRecord {
   receivedAt: string;
 }
 
-export type PassLedgerReason = "purchase" | "refund_reversal" | "consume" | "staff_adjust";
+export type PassLedgerReason =
+  | "purchase"
+  | "refund_reversal"
+  | "consume"
+  | "consume_reversal"
+  | "staff_adjust";
 
 export interface PassLedgerEntryRecord {
   id: string;
@@ -313,6 +321,9 @@ export interface PassLedgerEntryRecord {
   reason: PassLedgerReason;
   /** Provenance for purchase-driven entries. */
   purchaseId: string | null;
+  /** Provenance for booking-driven entries (consume / consume_reversal) —
+      what makes double-consumption and double-reversal detectable. */
+  bookingId: string | null;
   note: string | null;
   createdAt: string;
 }
@@ -511,9 +522,15 @@ function readDb(): Database {
       periodLapsedNotifiedAt: s.periodLapsedNotifiedAt ?? null,
     })),
     classPassProducts: parsed.classPassProducts ?? [],
-    purchases: parsed.purchases ?? [],
+    purchases: (parsed.purchases ?? []).map((p) => ({
+      ...p,
+      providerPaymentRef: p.providerPaymentRef ?? null,
+    })),
     paymentEvents: parsed.paymentEvents ?? [],
-    passLedger: parsed.passLedger ?? [],
+    passLedger: (parsed.passLedger ?? []).map((e) => ({
+      ...e,
+      bookingId: e.bookingId ?? null,
+    })),
     recoveryLogs: parsed.recoveryLogs ?? [],
     messages: (parsed.messages ?? []).map((m) => ({ ...m, readAt: m.readAt ?? null })),
     notifications: (parsed.notifications ?? []).map((n) => ({
@@ -1315,4 +1332,20 @@ export function findPassLedgerByUserId(userId: string): PassLedgerEntryRecord[] 
 
 export function findPassLedgerByPurchaseId(purchaseId: string): PassLedgerEntryRecord[] {
   return readDb().passLedger.filter((e) => e.purchaseId === purchaseId);
+}
+
+export function findPassLedgerByBookingId(bookingId: string): PassLedgerEntryRecord[] {
+  return readDb().passLedger.filter((e) => e.bookingId === bookingId);
+}
+
+export function findPurchaseByProviderPaymentRef(ref: string): PurchaseRecord | undefined {
+  return readDb().purchases.find((p) => p.providerPaymentRef === ref);
+}
+
+export function findSubscriptionBySetupOrderId(
+  setupOrderId: string
+): SubscriptionRecord | undefined {
+  return readDb().subscriptions.find(
+    (subscription) => subscription.providerSetupOrderId === setupOrderId
+  );
 }

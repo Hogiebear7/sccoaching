@@ -5,6 +5,55 @@ Production-minded commerce for memberships (recurring) and class pass packs
 (provider setup) — this doc covers the internal model, flows, and safety
 properties.
 
+## Provider: Stripe-first
+
+Stripe is the **primary provider** (`activeBillingProvider()` in
+lib/billing.ts picks Stripe when `STRIPE_SECRET_KEY` is set; Revolut remains
+a configured fallback). Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+(whsec_), optional `STRIPE_CURRENCY` (default eur), `APP_BASE_URL`.
+
+**Correct Stripe usage implemented:**
+- Memberships → Checkout Sessions in `subscription` mode (inline recurring
+  price_data). The session id is stored on the subscription row
+  (providerSetupOrderId); the real subscription id (sub_…) and customer id
+  arrive via `checkout.session.completed` and are attached then.
+- Pass packs → Checkout Sessions in `payment` mode. The internal purchase
+  id rides as client_reference_id + session metadata + PaymentIntent
+  metadata, and doubles as the **Idempotency-Key** (`pass:<purchaseId>`) so
+  even a duplicate that slips past the app guard can't create two sessions.
+- Webhook `/api/stripe/webhook`: Stripe-Signature verified (HMAC over
+  `t.body`, 5-min tolerance). Event ids (evt_…) are the dedupe key —
+  Stripe retries reuse the id, so replays acknowledge and skip.
+- Delayed payment methods: sessions completing with `payment_status !==
+  "paid"` are not credited; `async_payment_succeeded` credits,
+  `async_payment_failed` marks failed, `expired` marks cancelled.
+- Refunds: `charge.refunded` correlates via the stored PaymentIntent
+  (providerPaymentRef) with metadata fallback → `paid → refunded` + one
+  compensating ledger entry.
+- Subscription lifecycle: `invoice.payment_failed` → past_due,
+  `customer.subscription.deleted` → canceled; period lapse remains computed
+  live so access never outlives payment.
+
+Register these webhook events in the Stripe dashboard:
+`checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+`checkout.session.async_payment_failed`, `checkout.session.expired`,
+`charge.refunded`, `invoice.payment_failed`,
+`customer.subscription.deleted`.
+
+## Pass consumption (implemented)
+
+Purchased passes are a separate pool from the plan's monthly allowance:
+- Booking with allowance exhausted + positive pack balance → booking is
+  created and ONE `consume` ledger entry is written, keyed to the booking
+  id (the monthly counter is untouched). No balance → honest 403.
+- Early cancellation (existing cutoff rule) returns whichever pool paid:
+  ledger `consume_reversal` (once, only if consumed) or the counter
+  decrement as before. Late cancellation keeps either consumed.
+- Waitlist offer acceptance uses the same coverage logic, and offer
+  eligibility counts pack balances so members with packs aren't skipped.
+- Member view: "Pass packs" shown separately in the Membership class-pass
+  panel. Staff view: pack balance + recent ledger in the member editor.
+
 ## Layering
 
 ```

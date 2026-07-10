@@ -17,6 +17,7 @@ import { sendEmail } from "./email";
 import { waitlistOfferEmail } from "./email-templates";
 import { sendPush } from "./push";
 import { hasActiveMembership } from "./membership";
+import { purchasedPassBalance } from "./payments";
 import { isClassEligibleForPlan, remainingSessions } from "./scheduling-status";
 
 const DEFAULT_CANCELLATION_CUTOFF_HOURS = 3;
@@ -113,7 +114,7 @@ export function issueWaitlistOffer(classId: string): void {
     if (!isClassEligibleForPlan(classRecord.category, plan)) continue;
 
     const remaining = remainingSessions(plan, subscription);
-    if (remaining !== null && remaining <= 0) continue;
+    if (remaining !== null && remaining <= 0 && purchasedPassBalance(entry.userId) <= 0) continue;
 
     // Issue the offer.
     const windowMs = computeOfferWindowMs(classMs, now);

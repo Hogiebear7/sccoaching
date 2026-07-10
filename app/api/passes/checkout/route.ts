@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { isBillingProviderConfigured } from "@/lib/billing";
+import {
+  activeBillingProvider,
+  createPassPackCheckout,
+  isBillingProviderConfigured,
+} from "@/lib/billing";
 import {
   findPurchaseByIdempotencyKey,
   findUserById,
@@ -12,7 +16,6 @@ import {
   findActivePassProduct,
   isPurchaseCheckoutReusable,
 } from "@/lib/payments";
-import { createRevolutOrder } from "@/lib/providers/revolut";
 import { verifySession } from "@/lib/session";
 
 // Starts a one-off checkout for a class pass pack.
@@ -112,22 +115,23 @@ export async function POST(request: NextRequest) {
     userId: user.id,
     product,
     idempotencyKey: existing ? `${cleanKey}:${Date.now()}` : cleanKey,
+    provider: activeBillingProvider(),
   });
   savePurchase(purchase);
 
-  // merchant_order_ext_ref = our purchase id — the reconciliation thread
-  // between provider dashboard rows and our internal ledger.
-  const order = await createRevolutOrder({
-    amountCents: product.priceCents,
-    internalReference: purchase.id,
-    customerEmail: user.email,
+  // The internal purchase id is both the provider idempotency key and the
+  // reconciliation reference between dashboard rows and our ledger.
+  const order = await createPassPackCheckout({
+    member: { id: user.id, email: user.email },
+    product,
+    purchaseId: purchase.id,
   });
 
-  if (!order.ok) {
+  if (order.error !== null || order.providerOrderId === null) {
     savePurchase({ ...purchase, status: "failed", updatedAt: new Date().toISOString() });
     console.warn("[passes checkout] provider order creation failed", {
       purchaseId: purchase.id,
-      message: order.message,
+      message: order.error,
     });
     return NextResponse.json(
       { success: false, message: "Could not start checkout. Please try again." },
@@ -137,7 +141,7 @@ export async function POST(request: NextRequest) {
 
   savePurchase({
     ...purchase,
-    providerOrderId: order.orderId,
+    providerOrderId: order.providerOrderId,
     checkoutUrl: order.checkoutUrl,
     updatedAt: new Date().toISOString(),
   });

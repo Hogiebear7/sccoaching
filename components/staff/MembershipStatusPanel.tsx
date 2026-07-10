@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 
 import { formatPriceCents, isPendingCheckoutStale } from "@/lib/billing";
-import type { MembershipPlanRecord, SubscriptionStatus } from "@/lib/db";
+import type { BillingProvider, MembershipPlanRecord, PassLedgerEntryRecord, SubscriptionStatus } from "@/lib/db";
 import {
   formatMembershipDate,
   isPeriodLapsed,
@@ -32,16 +32,21 @@ export function MembershipStatusPanel({
   currentUpdatedAt,
   currentPeriodEnd,
   passBalance,
+  purchasedPasses,
+  passLedger,
 }: {
   memberId: string;
   plans: MembershipPlanRecord[];
   currentPlanId: string | null;
   currentPlanName: string | null;
   currentStatus: SubscriptionStatus | null;
-  currentProvider: "none" | "revolut" | null;
+  currentProvider: BillingProvider | null;
   currentUpdatedAt: string | null;
   passBalance: ClassPassBalance | null;
   currentPeriodEnd: string | null;
+  purchasedPasses: number;
+  /** Most recent pass-ledger entries (already limited server-side). */
+  passLedger: PassLedgerEntryRecord[];
 }) {
   const pendingIsStale =
     currentStatus === "pending" && currentUpdatedAt !== null && isPendingCheckoutStale(currentUpdatedAt);
@@ -169,9 +174,9 @@ export function MembershipStatusPanel({
             recurring renewal isn&apos;t automatic yet. Member can renew themselves, or set status below.
           </span>
         ) : null}
-        {currentProvider === "revolut" ? (
+        {currentProvider === "revolut" || currentProvider === "stripe" ? (
           <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            Billed via Revolut
+            Billed via {currentProvider === "stripe" ? "Stripe" : "Revolut"}
           </span>
         ) : null}
       </div>
@@ -314,6 +319,50 @@ export function MembershipStatusPanel({
           ) : null}
         </div>
       ) : null}
+
+      {/* Purchased pass packs — ledger-backed, separate from the monthly
+          allowance and from staff extra grants. */}
+      {(purchasedPasses !== 0 || passLedger.length > 0) && (
+        <div className="mt-6 border-t border-white/[0.06] pt-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h4 className="text-sm font-semibold">Pass packs</h4>
+            <span
+              className={`text-sm font-semibold tabular-nums ${purchasedPasses < 0 ? "text-destructive" : ""}`}
+            >
+              {purchasedPasses} remaining
+              {purchasedPasses < 0 ? " (refunded after use)" : ""}
+            </span>
+          </div>
+          {passLedger.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {passLedger.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-baseline justify-between gap-3 text-xs"
+                >
+                  <span className="text-muted-foreground">
+                    {formatMembershipDate(entry.createdAt)} · {PASS_LEDGER_LABEL[entry.reason]}
+                    {entry.note ? ` — ${entry.note}` : ""}
+                  </span>
+                  <span
+                    className={`font-semibold tabular-nums ${entry.delta > 0 ? "text-primary" : "text-muted-foreground"}`}
+                  >
+                    {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+const PASS_LEDGER_LABEL: Record<PassLedgerEntryRecord["reason"], string> = {
+  purchase: "Pack purchased",
+  refund_reversal: "Refund",
+  consume: "Used on a booking",
+  consume_reversal: "Returned (early cancel)",
+  staff_adjust: "Staff adjustment",
+};
