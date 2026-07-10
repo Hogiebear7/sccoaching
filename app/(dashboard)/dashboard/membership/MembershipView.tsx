@@ -169,7 +169,7 @@ export function MembershipView({
       }
 
       if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+        window.location.assign(data.checkoutUrl);
         return; // keep the loading state while the browser navigates
       }
 
