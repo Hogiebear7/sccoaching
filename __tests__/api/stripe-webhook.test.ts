@@ -276,4 +276,20 @@ describe("stripe webhook", () => {
     });
     expect(mockSaveSubscription.mock.calls[0][0].status).toBe("canceled");
   });
+
+  it("reads the subscription id from 2025+ nested invoice payloads", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active",
+      providerSubscriptionId: "sub_123",
+    });
+
+    await postEvent({
+      id: "evt_10",
+      type: "invoice.payment_failed",
+      object: { id: "in_2", parent: { subscription_details: { subscription: "sub_123" } } },
+    });
+    expect(mockSaveSubscription.mock.calls[0][0].status).toBe("past_due");
+  });
 });

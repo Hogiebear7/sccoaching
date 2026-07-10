@@ -198,9 +198,7 @@ export async function POST(request: NextRequest) {
         ? typeof object.id === "string"
           ? object.id
           : null
-        : typeof object.subscription === "string"
-          ? object.subscription
-          : null;
+        : readInvoiceSubscriptionId(object);
 
     if (subscriptionId) {
       // Reuses the shared finder: Stripe subscription ids are stored in
@@ -236,6 +234,22 @@ function findPassPurchaseForSession(
     if (byId && byId.kind === "pass_pack") return byId;
   }
   return undefined;
+}
+
+// Invoice → subscription id across Stripe API versions: older versions put
+// it at invoice.subscription; 2025+ versions nest it under
+// invoice.parent.subscription_details.subscription.
+function readInvoiceSubscriptionId(object: Record<string, unknown>): string | null {
+  if (typeof object.subscription === "string") return object.subscription;
+  const parent = object.parent;
+  if (typeof parent === "object" && parent !== null) {
+    const details = (parent as Record<string, unknown>).subscription_details;
+    if (typeof details === "object" && details !== null) {
+      const sub = (details as Record<string, unknown>).subscription;
+      if (typeof sub === "string") return sub;
+    }
+  }
+  return null;
 }
 
 function readMetadataPurchaseId(object: Record<string, unknown>): string | null {
