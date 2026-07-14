@@ -266,6 +266,97 @@ describe("POST /api/staff/classes", () => {
     expect(mockIssueWaitlistOffer).not.toHaveBeenCalled();
   });
 
+  it("repeatWeeks creates one class per week on the same weekday and time", async () => {
+    mockFindUserById.mockReturnValue(STAFF_USER);
+    mockFindClassById.mockReturnValue(undefined);
+    const cookie = signSession({ userId: STAFF_USER.id });
+
+    const res = await callStaffClasses(
+      {
+        title: "Weekly Strength",
+        category: "strength",
+        date: FUTURE_DATE,
+        startTime: "18:00",
+        durationMins: "60",
+        capacity: "10",
+        repeatWeeks: "4",
+      },
+      cookie
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.message).toBe("Created 4 weekly classes.");
+    expect(mockSaveClass).toHaveBeenCalledTimes(4);
+
+    const savedDates = mockSaveClass.mock.calls.map((c) => c[0].date);
+    const first = new Date(`${FUTURE_DATE}T00:00:00`);
+    for (let week = 0; week < 4; week++) {
+      const expected = new Date(first);
+      expected.setDate(first.getDate() + week * 7);
+      const y = expected.getFullYear();
+      const m = String(expected.getMonth() + 1).padStart(2, "0");
+      const d = String(expected.getDate()).padStart(2, "0");
+      expect(savedDates[week]).toBe(`${y}-${m}-${d}`);
+    }
+
+    // Distinct ids, same everything else.
+    const ids = new Set(mockSaveClass.mock.calls.map((c) => c[0].id));
+    expect(ids.size).toBe(4);
+    for (const call of mockSaveClass.mock.calls) {
+      expect(call[0].startTime).toBe("18:00");
+      expect(call[0].capacity).toBe(10);
+    }
+  });
+
+  it("rejects out-of-range repeatWeeks with 400", async () => {
+    mockFindUserById.mockReturnValue(STAFF_USER);
+    mockFindClassById.mockReturnValue(undefined);
+    const cookie = signSession({ userId: STAFF_USER.id });
+
+    for (const repeatWeeks of ["0", "13", "2.5", "abc"]) {
+      const res = await callStaffClasses(
+        {
+          title: "Weekly Strength",
+          category: "strength",
+          date: FUTURE_DATE,
+          startTime: "18:00",
+          durationMins: "60",
+          capacity: "10",
+          repeatWeeks,
+        },
+        cookie
+      );
+      expect(res.status).toBe(400);
+    }
+    expect(mockSaveClass).not.toHaveBeenCalled();
+  });
+
+  it("ignores repeatWeeks when editing an existing class", async () => {
+    mockFindUserById.mockReturnValue(STAFF_USER);
+    mockFindClassById.mockReturnValue(EXISTING_CLASS);
+    const cookie = signSession({ userId: STAFF_USER.id });
+
+    const res = await callStaffClasses(
+      {
+        id: "class-1",
+        title: "Updated Class",
+        category: "strength",
+        date: LATER_FUTURE_DATE,
+        startTime: "19:00",
+        durationMins: "45",
+        capacity: "8",
+        repeatWeeks: "6",
+      },
+      cookie
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.message).toBe("Class updated.");
+    expect(mockSaveClass).toHaveBeenCalledTimes(1);
+  });
+
   it("attempts waitlist promotion when capacity is raised on an existing class", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue(EXISTING_CLASS);

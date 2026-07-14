@@ -614,6 +614,19 @@ export function createUser(email: string, passwordHash: string): StoredUser {
   return user;
 }
 
+// Soft-deactivation toggle. Archived accounts can't sign in; nothing else is
+// touched so bookings, purchases and the pass ledger stay intact.
+export function setUserArchived(userId: string, archived: boolean): boolean {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return false;
+
+  user.archivedAt = archived ? new Date().toISOString() : null;
+  user.updatedAt = new Date().toISOString();
+  writeDb(db);
+  return true;
+}
+
 export function updateUserPassword(userId: string, passwordHash: string) {
   const db = readDb();
   const user = db.users.find((u) => u.id === userId);
@@ -718,6 +731,14 @@ export function saveClass(classRecord: ClassRecord) {
     db.classes[index] = classRecord;
   }
 
+  writeDb(db);
+}
+
+// Physical deletion — callers are responsible for unwinding bookings and
+// waitlist entries first (see /api/staff/classes/delete).
+export function deleteClass(id: string) {
+  const db = readDb();
+  db.classes = db.classes.filter((classRecord) => classRecord.id !== id);
   writeDb(db);
 }
 
@@ -837,6 +858,21 @@ export function saveMembershipPlan(plan: MembershipPlanRecord) {
     db.membershipPlans[index] = plan;
   }
 
+  writeDb(db);
+}
+
+// How many member subscriptions (any status) reference this plan. Any
+// reference means the plan record is still load-bearing for display and
+// history, so it must be archived rather than deleted.
+export function countSubscriptionsByPlanId(planId: string): number {
+  const db = readDb();
+  return db.subscriptions.filter((subscription) => subscription.planId === planId).length;
+}
+
+// Physical deletion — only safe when countSubscriptionsByPlanId is 0.
+export function deleteMembershipPlan(id: string) {
+  const db = readDb();
+  db.membershipPlans = db.membershipPlans.filter((plan) => plan.id !== id);
   writeDb(db);
 }
 

@@ -34,6 +34,15 @@ export async function POST(request: Request) {
     );
   }
 
+  // Checked only after the password verifies, so this message never leaks
+  // account state to someone who doesn't hold the credentials.
+  if (user.archivedAt) {
+    return NextResponse.json(
+      { success: false, message: "This account has been deactivated. Contact the club to restore access." },
+      { status: 403 }
+    );
+  }
+
   const response = NextResponse.json(
     { success: true, message: "Logged in." },
     { status: 200 }

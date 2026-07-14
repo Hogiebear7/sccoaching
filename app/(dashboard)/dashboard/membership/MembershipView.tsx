@@ -250,8 +250,8 @@ export function MembershipView({
                   {subscriptionCurrentPeriodEnd
                     ? formatMembershipDate(subscriptionCurrentPeriodEnd)
                     : "an earlier date"}
-                  {subscriptionProvider === "revolut"
-                    ? ". Your Revolut subscription may have been cancelled or a payment failed — select your plan below to continue."
+                  {subscriptionProvider === "stripe" || subscriptionProvider === "revolut"
+                    ? ". Your subscription may have been cancelled or a payment failed — select your plan below to continue."
                     : ". Select your plan below to continue."}
                 </span>
               </div>
@@ -277,11 +277,10 @@ export function MembershipView({
 
             {/* Period end note */}
             {isActiveNotLapsed && subscriptionCurrentPeriodEnd && (
-              subscriptionProvider === "revolut" ? (
+              subscriptionProvider === "stripe" || subscriptionProvider === "revolut" ? (
                 <p className="mt-2 text-xs text-muted-foreground">
                   Billing period ends{" "}
-                  {formatMembershipDate(subscriptionCurrentPeriodEnd)} · renews automatically via
-                  Revolut.
+                  {formatMembershipDate(subscriptionCurrentPeriodEnd)} · renews automatically.
                 </p>
               ) : (
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -305,7 +304,7 @@ export function MembershipView({
         >
           {!billingConfigured
             ? "Online payment isn’t set up yet — selecting a plan records your choice only. Staff can activate your membership manually."
-            : "Selecting a plan sets up a recurring Revolut subscription. Membership activates once the first payment is confirmed."}
+            : "Selecting a plan sets up a recurring subscription through our secure Stripe checkout. Membership activates once the first payment is confirmed."}
         </p>
       </div>
 

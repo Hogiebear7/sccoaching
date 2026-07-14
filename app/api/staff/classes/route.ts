@@ -7,6 +7,17 @@ import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isFutureDateTime } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 
+// Weekly date arithmetic in plain Y-M-D space, deliberately avoiding
+// Date→ISO round-trips whose UTC conversion can shift the calendar day.
+function addWeeks(isoDate: string, weeks: number): string {
+  if (weeks === 0) return isoDate;
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const next = new Date(y, m - 1, d + weeks * 7);
+  const mm = String(next.getMonth() + 1).padStart(2, "0");
+  const dd = String(next.getDate()).padStart(2, "0");
+  return `${next.getFullYear()}-${mm}-${dd}`;
+}
+
 function parseRequiredPositiveInt(
   value: unknown
 ): { ok: true; value: number } | { ok: false } {
@@ -55,7 +66,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { id, title, category, date, startTime, durationMins, capacity } =
+  const { id, title, category, date, startTime, durationMins, capacity, repeatWeeks } =
     (body ?? {}) as Record<string, unknown>;
 
   if (typeof title !== "string" || !title.trim()) {
@@ -113,37 +124,59 @@ export async function POST(request: NextRequest) {
   }
 
   const existingClass = typeof id === "string" && id.trim() ? findClassById(id) : undefined;
+
+  // Recurrence: weekly repeats only, materialised at creation time so every
+  // occurrence is an ordinary class (bookings, waitlists, rosters unchanged).
+  // Ignored on edits — editing always targets a single occurrence.
+  let repeatCount = 1;
+  if (!existingClass && repeatWeeks !== undefined && repeatWeeks !== null && repeatWeeks !== "") {
+    const parsed = Number(repeatWeeks);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 12) {
+      return NextResponse.json(
+        { success: false, message: "Repeat must be between 1 and 12 weeks." },
+        { status: 400 }
+      );
+    }
+    repeatCount = parsed;
+  }
+
   const now = new Date().toISOString();
+  const firstClassId = existingClass?.id ?? randomUUID();
 
-  const classRecord: ClassRecord = {
-    id: existingClass?.id ?? randomUUID(),
-    title: title.trim(),
-    category: category as ClassCategory,
-    coachUserId: existingClass?.coachUserId ?? user.id,
-    date: date.trim(),
-    startTime: startTime.trim(),
-    durationMins: durationResult.value,
-    capacity: capacityResult.value,
-    createdAt: existingClass?.createdAt ?? now,
-    updatedAt: now,
-  };
+  for (let week = 0; week < repeatCount; week++) {
+    const classRecord: ClassRecord = {
+      id: week === 0 ? firstClassId : randomUUID(),
+      title: title.trim(),
+      category: category as ClassCategory,
+      coachUserId: existingClass?.coachUserId ?? user.id,
+      date: addWeeks(date.trim(), week),
+      startTime: startTime.trim(),
+      durationMins: durationResult.value,
+      capacity: capacityResult.value,
+      createdAt: existingClass?.createdAt ?? now,
+      updatedAt: now,
+    };
 
-  saveClass(classRecord);
+    saveClass(classRecord);
+  }
 
   // Each additional seat opened by a capacity raise is a new slot to offer.
   if (existingClass && capacityResult.value > existingClass.capacity) {
     const newSlots = capacityResult.value - existingClass.capacity;
     for (let i = 0; i < newSlots; i++) {
       try {
-        issueWaitlistOffer(classRecord.id);
+        issueWaitlistOffer(firstClassId);
       } catch {
         // Offer failure must not block the save response.
       }
     }
   }
 
-  return NextResponse.json(
-    { success: true, message: existingClass ? "Class updated." : "Class created." },
-    { status: 200 }
-  );
+  const message = existingClass
+    ? "Class updated."
+    : repeatCount > 1
+      ? `Created ${repeatCount} weekly classes.`
+      : "Class created.";
+
+  return NextResponse.json({ success: true, message }, { status: 200 });
 }

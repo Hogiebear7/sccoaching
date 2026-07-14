@@ -27,6 +27,7 @@ import { purchasedPassBalance } from "@/lib/payments";
 import { classPassBalance } from "@/lib/scheduling-status";
 import { MessagesThread } from "@/components/messages/MessagesThread";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
+import { MemberAccountPanel } from "@/components/staff/MemberAccountPanel";
 import { MembershipStatusPanel } from "@/components/staff/MembershipStatusPanel";
 import { StaffMemberEditor } from "./StaffMemberEditor";
 
@@ -132,11 +133,24 @@ export default async function StaffMemberDetailPage({
       {/* Header */}
       <div>
         <p className="label-caps">Member</p>
-        <h2 className="text-display mt-1 text-[28px] leading-tight">
-          {profile?.fullName ?? user.email}
-        </h2>
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <h2 className="text-display text-[28px] leading-tight">
+            {profile?.fullName ?? user.email}
+          </h2>
+          {user.archivedAt ? (
+            <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+              Archived
+            </span>
+          ) : null}
+        </div>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{user.email}</p>
       </div>
+
+      <MemberAccountPanel
+        memberId={user.id}
+        email={user.email}
+        archivedAt={user.archivedAt ?? null}
+      />
 
       <CoachSummaryPanel memberId={user.id} />
 

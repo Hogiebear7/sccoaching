@@ -53,7 +53,14 @@ export function MembershipStatusPanel({
   const periodLapsed =
     currentStatus !== null && isPeriodLapsed({ status: currentStatus, currentPeriodEnd });
   const router = useRouter();
-  const [planId, setPlanId] = useState(currentPlanId ?? plans[0]?.id ?? "");
+  // Only seed from the member's current plan when it's actually in the
+  // selectable list (an archived plan isn't) — otherwise the select would
+  // display one plan while submitting another.
+  const [planId, setPlanId] = useState(
+    currentPlanId && plans.some((p) => p.id === currentPlanId)
+      ? currentPlanId
+      : plans[0]?.id ?? ""
+  );
   const [status, setStatus] = useState<SubscriptionStatus>(currentStatus ?? "inactive");
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -189,7 +196,7 @@ export function MembershipStatusPanel({
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <p className="text-xs text-muted-foreground">
             Manual override (cash payment, comp, or correcting a stuck state). This
-            doesn&apos;t affect any in-progress Revolut checkout.
+            doesn&apos;t affect any in-progress online checkout.
           </p>
 
           {error ? (

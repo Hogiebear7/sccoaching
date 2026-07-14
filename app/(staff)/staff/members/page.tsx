@@ -21,6 +21,8 @@ export default async function StaffMembersPage() {
       userId: member.id,
       email: member.email,
       fullName: profile?.fullName ?? null,
+      joinedAt: member.createdAt,
+      archivedAt: member.archivedAt ?? null,
       currentPlanId: sub?.planId ?? null,
       currentPlanName: plan?.name ?? null,
       currentStatus: sub?.status ?? null,

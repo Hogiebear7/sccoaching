@@ -37,6 +37,7 @@ type ClassFormValues = {
   startTime: string;
   durationMins: string;
   capacity: string;
+  repeatWeeks: string;
 };
 
 type FormErrors = Partial<Record<keyof ClassFormValues, string>>;
@@ -53,6 +54,7 @@ function emptyFormValues(defaultCategory = "general"): ClassFormValues {
     startTime: "",
     durationMins: "",
     capacity: "",
+    repeatWeeks: "1",
   };
 }
 
@@ -64,6 +66,8 @@ function toFormValues(classRecord: ClassRecord): ClassFormValues {
     startTime: classRecord.startTime,
     durationMins: String(classRecord.durationMins),
     capacity: String(classRecord.capacity),
+    // Editing always targets this single occurrence.
+    repeatWeeks: "1",
   };
 }
 
@@ -86,8 +90,48 @@ export function ClassesView({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [attendanceUpdatingId, setAttendanceUpdatingId] = useState<string | null>(null);
+  const [showUpcoming, setShowUpcoming] = useState(true);
+  const [showPast, setShowPast] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   const isEditing = editingId !== null;
+
+  // findClasses() sorts ascending, which is right for upcoming; past reads
+  // best most-recent-first.
+  const upcomingClasses = classes.filter((c) => isFutureDateTime(c.date, c.startTime));
+  const pastClasses = classes.filter((c) => !isFutureDateTime(c.date, c.startTime)).reverse();
+
+  async function handleDelete(classId: string) {
+    setDeletingId(classId);
+    setDeleteError(null);
+    setDeleteMessage(null);
+
+    try {
+      const res = await fetch("/api/staff/classes/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: classId }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setDeleteError(data?.message ?? "Could not delete class. Please try again.");
+        return;
+      }
+
+      setDeleteMessage(data?.message ?? "Class deleted.");
+      setConfirmDeleteId(null);
+      router.refresh();
+    } catch {
+      setDeleteError("Something went wrong. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   async function handleToggleAttendance(bookingId: string, nextAttended: boolean) {
     setAttendanceUpdatingId(bookingId);
@@ -296,7 +340,32 @@ export function ClassesView({
               placeholder="e.g. 12"
             />
           </FormField>
+
+          {!isEditing ? (
+            <FormField label="Repeat" error={errors.repeatWeeks}>
+              <select
+                value={values.repeatWeeks}
+                onChange={(e) => handleTextChange("repeatWeeks", e)}
+                className={inputClass(errors.repeatWeeks)}
+              >
+                <option value="1">One-off (no repeat)</option>
+                {Array.from({ length: 11 }, (_, i) => i + 2).map((weeks) => (
+                  <option key={weeks} value={String(weeks)}>
+                    Weekly for {weeks} weeks
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          ) : null}
         </div>
+
+        {!isEditing && Number(values.repeatWeeks) > 1 ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Creates {values.repeatWeeks} classes — same name, time, duration and capacity, one per
+            week starting on the date above. Each one can be edited or deleted individually
+            afterwards.
+          </p>
+        ) : null}
 
         <div className="mt-6 flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-end">
           {isEditing ? (
@@ -319,51 +388,138 @@ export function ClassesView({
         </div>
       </form>
 
-      {/* Class list */}
-      <div className="panel p-6">
-        <h3 className="text-lg font-semibold">All classes</h3>
+      {/* Class list — delete feedback lives above both groups so it stays
+          visible whichever section the class was in. */}
+      {deleteError ? (
+        <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {deleteError}
+        </p>
+      ) : null}
+      {deleteMessage ? (
+        <p className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+          {deleteMessage}
+        </p>
+      ) : null}
 
-        {classes.length === 0 ? (
+      {classes.length === 0 ? (
+        <div className="panel p-6">
+          <h3 className="text-lg font-semibold">All classes</h3>
           <p className="mt-3 text-sm text-muted-foreground">
             No classes yet. Create the first one above.
           </p>
-        ) : (
-          <div className="mt-5 space-y-3">
-            {classes.map((classRecord) => (
-              <div
-                key={classRecord.id}
-                className="well p-4"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      {classRecord.date} · {classRecord.startTime}
-                    </p>
-                    <h4 className="mt-1 text-base font-semibold">{classRecord.title}</h4>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Coach: {classRecord.coachEmail}
-                    </p>
-                  </div>
+        </div>
+      ) : (
+        <>
+          <CollapsibleSection
+            title="Upcoming classes"
+            count={upcomingClasses.length}
+            isOpen={showUpcoming}
+            onToggle={() => setShowUpcoming((open) => !open)}
+          >
+            {upcomingClasses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nothing scheduled — create a class above.
+              </p>
+            ) : (
+              upcomingClasses.map((classRecord) => renderClassCard(classRecord, true))
+            )}
+          </CollapsibleSection>
 
-                  <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                      {classCategoryLabel(categories, classRecord.category, deletedLabels)}
-                    </span>
-                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                      {classRecord.durationMins} min · {classRecord.bookedCount}/{classRecord.capacity} booked
-                      {classRecord.waitlist.length > 0
-                        ? ` · ${classRecord.waitlist.length} waitlisted`
-                        : ""}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => startEdit(classRecord)}
-                      className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
-                    >
-                      Edit
-                    </button>
-                  </div>
+          <CollapsibleSection
+            title="Past classes"
+            count={pastClasses.length}
+            isOpen={showPast}
+            onToggle={() => setShowPast((open) => !open)}
+          >
+            {pastClasses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No past classes yet.</p>
+            ) : (
+              pastClasses.map((classRecord) => renderClassCard(classRecord, false))
+            )}
+          </CollapsibleSection>
+        </>
+      )}
+    </div>
+  );
+
+  function renderClassCard(classRecord: ClassWithRoster, canDelete: boolean) {
+    const isConfirmingDelete = confirmDeleteId === classRecord.id;
+    const isDeleting = deletingId === classRecord.id;
+
+    return (
+      <div key={classRecord.id} className="well p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground">
+              {classRecord.date} · {classRecord.startTime}
+            </p>
+            <h4 className="mt-1 text-base font-semibold">{classRecord.title}</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Coach: {classRecord.coachEmail}
+            </p>
+          </div>
+
+          <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+              {classCategoryLabel(categories, classRecord.category, deletedLabels)}
+            </span>
+            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+              {classRecord.durationMins} min · {classRecord.bookedCount}/{classRecord.capacity} booked
+              {classRecord.waitlist.length > 0
+                ? ` · ${classRecord.waitlist.length} waitlisted`
+                : ""}
+            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => startEdit(classRecord)}
+                className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
+              >
+                Edit
+              </button>
+              {canDelete && !isConfirmingDelete ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmDeleteId(classRecord.id);
+                    setDeleteError(null);
+                    setDeleteMessage(null);
+                  }}
+                  className="rounded-xl border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60"
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
+            {canDelete && isConfirmingDelete ? (
+              <div className="flex flex-col items-start gap-1.5 sm:items-end">
+                <p className="text-[11px] text-muted-foreground sm:text-right">
+                  {classRecord.bookedCount > 0
+                    ? `Cancels ${classRecord.bookedCount} booking${classRecord.bookedCount === 1 ? "" : "s"} and returns each member's class pass.`
+                    : "This can't be undone."}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(classRecord.id)}
+                    disabled={isDeleting}
+                    className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isDeleting ? "Deleting…" : "Confirm delete"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteId(null)}
+                    disabled={isDeleting}
+                    className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Keep class
+                  </button>
                 </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
 
                 {/* Roster */}
                 <div className="mt-4 border-t border-border pt-4">
@@ -439,11 +595,52 @@ export function ClassesView({
                     </ul>
                   </div>
                 ) : null}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
+    );
+  }
+}
+
+function CollapsibleSection({
+  title,
+  count,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string;
+  count: number;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="panel p-6">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span className="flex items-baseline gap-2">
+          <span className="text-lg font-semibold">{title}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
+        </span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        >
+          <path d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen ? <div className="mt-5 space-y-3">{children}</div> : null}
     </div>
   );
 }

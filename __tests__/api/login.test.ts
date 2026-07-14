@@ -52,6 +52,27 @@ describe("POST /api/auth/login", () => {
     expect(data.message).toBe("Invalid email or password.");
   });
 
+  it("blocks an archived account even with valid credentials", async () => {
+    mockFindUserByEmail.mockReturnValue({
+      id: "user-1",
+      email: "athlete@example.com",
+      passwordHash: hashPassword("correct-horse-battery-staple"),
+      archivedAt: "2026-07-01T00:00:00.000Z",
+      createdAt: "now",
+      updatedAt: "now",
+    });
+
+    const res = await callLogin({
+      email: "athlete@example.com",
+      password: "correct-horse-battery-staple",
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(403);
+    expect(data.message).toContain("deactivated");
+    expect(res.cookies.get("session")).toBeUndefined();
+  });
+
   it("accepts valid credentials and sets a verifiable signed session cookie", async () => {
     mockFindUserByEmail.mockReturnValue({
       id: "user-1",

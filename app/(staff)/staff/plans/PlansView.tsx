@@ -55,11 +55,14 @@ export function PlansView({
   plans,
   categories,
   deletedLabels,
+  memberCounts,
   billingStatus,
 }: {
   plans: MembershipPlanRecord[];
   categories: ClassCategoryRecord[];
   deletedLabels: Record<string, string>;
+  /** Subscriptions (any status) referencing each plan — nonzero blocks delete. */
+  memberCounts: Record<string, number>;
   billingStatus: { checkoutConfigured: boolean; webhookConfigured: boolean };
 }) {
   const { checkoutConfigured, webhookConfigured } = billingStatus;
@@ -72,6 +75,11 @@ export function PlansView({
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [planActionId, setPlanActionId] = useState<string | null>(null);
+  const [confirmPlanDeleteId, setConfirmPlanDeleteId] = useState<string | null>(null);
+  const [planActionError, setPlanActionError] = useState<string | null>(null);
+  const [planActionMessage, setPlanActionMessage] = useState<string | null>(null);
 
   const [catEditingId, setCatEditingId] = useState<string | null>(null);
   const [catName, setCatName] = useState("");
@@ -187,6 +195,61 @@ export function PlansView({
     }
   }
 
+  async function handleToggleArchive(plan: MembershipPlanRecord) {
+    setPlanActionId(plan.id);
+    setPlanActionError(null);
+    setPlanActionMessage(null);
+
+    try {
+      const res = await fetch("/api/staff/plans/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: plan.id, isActive: !plan.isActive }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setPlanActionError(data?.message ?? "Could not update plan. Please try again.");
+        return;
+      }
+
+      setPlanActionMessage(data?.message ?? "Plan updated.");
+      router.refresh();
+    } catch {
+      setPlanActionError("Something went wrong. Please try again.");
+    } finally {
+      setPlanActionId(null);
+    }
+  }
+
+  async function handleDeletePlan(planId: string) {
+    setPlanActionId(planId);
+    setPlanActionError(null);
+    setPlanActionMessage(null);
+
+    try {
+      const res = await fetch("/api/staff/plans/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: planId }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setPlanActionError(data?.message ?? "Could not delete plan. Please try again.");
+        return;
+      }
+
+      setPlanActionMessage(data?.message ?? "Plan deleted.");
+      setConfirmPlanDeleteId(null);
+      router.refresh();
+    } catch {
+      setPlanActionError("Something went wrong. Please try again.");
+    } finally {
+      setPlanActionId(null);
+    }
+  }
+
   function startEditCat(cat: ClassCategoryRecord) {
     setCatEditingId(cat.id);
     setCatName(cat.name);
@@ -268,8 +331,8 @@ export function PlansView({
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Plans you create here appear to members on the membership page.{" "}
           {checkoutConfigured
-            ? "Revolut checkout is configured — members are sent to Revolut to pay when they select a plan."
-            : "Revolut isn't configured yet, so members selecting a plan only records intent — no charge occurs. See docs/billing-revolut.md for setup."}
+            ? "Online checkout is configured — members are sent to a secure Stripe checkout to pay when they select a plan."
+            : "Online payment isn't configured yet, so members selecting a plan only records intent — no charge occurs. See docs/payments-architecture.md for setup."}
         </p>
       </div>
 
@@ -280,8 +343,8 @@ export function PlansView({
             Checkout is set up, but the webhook signing secret isn&apos;t — payments
             won&apos;t be confirmed automatically, so members will get stuck on
             &quot;Awaiting payment&quot; after paying. Set{" "}
-            <code>REVOLUT_WEBHOOK_SIGNING_SECRET</code> (see{" "}
-            <code>docs/billing-revolut.md</code>) to fix this.
+            <code>STRIPE_WEBHOOK_SECRET</code> (see{" "}
+            <code>docs/payments-architecture.md</code>) to fix this.
           </p>
         </div>
       ) : null}
@@ -454,13 +517,30 @@ export function PlansView({
       <div className="panel p-6">
         <h3 className="text-lg font-semibold">All plans</h3>
 
+        {planActionError ? (
+          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {planActionError}
+          </p>
+        ) : null}
+        {planActionMessage ? (
+          <p className="mt-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+            {planActionMessage}
+          </p>
+        ) : null}
+
         {plans.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">
             No plans yet. Create the first one above.
           </p>
         ) : (
           <div className="mt-5 space-y-3">
-            {plans.map((plan) => (
+            {plans.map((plan) => {
+              const memberCount = memberCounts[plan.id] ?? 0;
+              const canDelete = memberCount === 0;
+              const isConfirmingDelete = confirmPlanDeleteId === plan.id;
+              const isBusy = planActionId === plan.id;
+
+              return (
               <div
                 key={plan.id}
                 className="well p-4"
@@ -503,19 +583,79 @@ export function PlansView({
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {plan.isActive ? "Visible" : "Hidden"}
+                      {plan.isActive ? "Visible" : "Archived"}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => startEdit(plan)}
-                      className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
-                    >
-                      Edit
-                    </button>
+                    {memberCount > 0 ? (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {memberCount} member{memberCount === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(plan)}
+                        className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleArchive(plan)}
+                        disabled={isBusy}
+                        className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isBusy ? "Saving…" : plan.isActive ? "Archive" : "Unarchive"}
+                      </button>
+                      {canDelete && !isConfirmingDelete ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmPlanDeleteId(plan.id);
+                            setPlanActionError(null);
+                            setPlanActionMessage(null);
+                          }}
+                          className="rounded-xl border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60"
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
+                    {!canDelete ? (
+                      <p className="max-w-[220px] text-[11px] text-muted-foreground sm:text-right">
+                        In use by {memberCount} member{memberCount === 1 ? "" : "s"} — can&apos;t
+                        be deleted. Archive it to hide it from new customers.
+                      </p>
+                    ) : null}
+                    {canDelete && isConfirmingDelete ? (
+                      <div className="flex flex-col items-start gap-1.5 sm:items-end">
+                        <p className="text-[11px] text-muted-foreground sm:text-right">
+                          No members reference this plan. This can&apos;t be undone.
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePlan(plan.id)}
+                            disabled={isBusy}
+                            className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isBusy ? "Deleting…" : "Confirm delete"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmPlanDeleteId(null)}
+                            disabled={isBusy}
+                            className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Keep plan
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -24,6 +24,11 @@ export interface UserRecord {
   id: string;
   email: string;
   role: UserRole;
+  // Soft-deactivation: an archived account can't sign in and is hidden from
+  // the default staff member list, but all history (bookings, purchases,
+  // ledger) stays intact and auditable. Optional so pre-existing records
+  // without the field read as "not archived".
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

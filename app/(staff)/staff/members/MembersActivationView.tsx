@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { formatPriceCents } from "@/lib/billing";
 import type { MembershipPlanRecord, SubscriptionStatus } from "@/lib/db";
@@ -18,12 +18,54 @@ export type MemberRow = {
   userId: string;
   email: string;
   fullName: string | null;
+  joinedAt: string;
+  archivedAt: string | null;
   currentPlanId: string | null;
   currentPlanName: string | null;
   currentStatus: SubscriptionStatus | null;
   currentPeriodEnd: string | null;
   currentRemainingSessions: number | null;
 };
+
+type SortOrder = "name-asc" | "name-desc" | "joined-desc" | "joined-asc";
+type ExpiryFilter = "all" | "expiring-30" | "expired" | "no-expiry";
+
+const SORT_LABEL: Record<SortOrder, string> = {
+  "name-asc": "Name A–Z",
+  "name-desc": "Name Z–A",
+  "joined-desc": "Newest joined",
+  "joined-asc": "Oldest joined",
+};
+
+const EXPIRY_LABEL: Record<ExpiryFilter, string> = {
+  all: "Any expiry",
+  "expiring-30": "Expiring within 30 days",
+  expired: "Period ended",
+  "no-expiry": "No expiry set",
+};
+
+function rowDisplayName(row: MemberRow): string {
+  return row.fullName ?? row.email;
+}
+
+function matchesExpiry(row: MemberRow, filter: ExpiryFilter): boolean {
+  const nowMs = Date.now();
+  switch (filter) {
+    case "all":
+      return true;
+    case "no-expiry":
+      return row.currentPeriodEnd === null;
+    case "expired":
+      return (
+        row.currentPeriodEnd !== null && new Date(row.currentPeriodEnd).getTime() < nowMs
+      );
+    case "expiring-30": {
+      if (row.currentPeriodEnd === null) return false;
+      const endMs = new Date(row.currentPeriodEnd).getTime();
+      return endMs >= nowMs && endMs <= nowMs + 30 * 86_400_000;
+    }
+  }
+}
 
 export function MembersActivationView({
   rows,
@@ -32,6 +74,42 @@ export function MembersActivationView({
   rows: MemberRow[];
   plans: MembershipPlanRecord[];
 }) {
+  const [search, setSearch] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");
+  const [expiryFilter, setExpiryFilter] = useState<ExpiryFilter>("all");
+  const [showArchived, setShowArchived] = useState(false);
+
+  const archivedCount = rows.filter((row) => row.archivedAt !== null).length;
+
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    const filtered = rows.filter((row) => {
+      if (!showArchived && row.archivedAt !== null) return false;
+      if (!matchesExpiry(row, expiryFilter)) return false;
+      if (!query) return true;
+      // First name, last name, or email — a plain substring match covers all
+      // three without needing to split names.
+      return (
+        (row.fullName ?? "").toLowerCase().includes(query) ||
+        row.email.toLowerCase().includes(query)
+      );
+    });
+
+    return filtered.sort((a, b) => {
+      switch (sortOrder) {
+        case "name-asc":
+          return rowDisplayName(a).localeCompare(rowDisplayName(b));
+        case "name-desc":
+          return rowDisplayName(b).localeCompare(rowDisplayName(a));
+        case "joined-desc":
+          return b.joinedAt.localeCompare(a.joinedAt);
+        case "joined-asc":
+          return a.joinedAt.localeCompare(b.joinedAt);
+      }
+    });
+  }, [rows, search, sortOrder, expiryFilter, showArchived]);
+
   return (
     <div className="space-y-5">
       <div>
@@ -55,10 +133,59 @@ export function MembersActivationView({
           </svg>
           <span>
             Manual override — sets provider to &ldquo;none&rdquo;, resets session count to 0. Use
-            for cash payments, comps, or local testing. Does not interact with Revolut.
+            for cash payments, comps, or local testing. Does not touch online billing.
           </span>
         </div>
       </div>
+
+      {/* Search + filters */}
+      {rows.length > 0 ? (
+        <div className="panel flex flex-wrap items-center gap-2 p-3">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or email"
+            aria-label="Search members by name or email"
+            className="min-w-[180px] flex-1 input-field px-3 py-2 text-sm"
+          />
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+            aria-label="Sort members"
+            className="input-field px-3 py-2 text-sm"
+          >
+            {(Object.keys(SORT_LABEL) as SortOrder[]).map((value) => (
+              <option key={value} value={value}>
+                {SORT_LABEL[value]}
+              </option>
+            ))}
+          </select>
+          <select
+            value={expiryFilter}
+            onChange={(e) => setExpiryFilter(e.target.value as ExpiryFilter)}
+            aria-label="Filter by membership expiry"
+            className="input-field px-3 py-2 text-sm"
+          >
+            {(Object.keys(EXPIRY_LABEL) as ExpiryFilter[]).map((value) => (
+              <option key={value} value={value}>
+                {EXPIRY_LABEL[value]}
+              </option>
+            ))}
+          </select>
+          {archivedCount > 0 ? (
+            <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              Show archived ({archivedCount})
+            </label>
+          ) : null}
+        </div>
+      ) : null}
 
       {plans.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/[0.12] bg-white/[0.02] p-6 text-center">
@@ -73,9 +200,13 @@ export function MembersActivationView({
         </div>
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">No member accounts yet.</p>
+      ) : visibleRows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No members match the current search and filters.
+        </p>
       ) : (
         <div className="space-y-3">
-          {rows.map((row) => (
+          {visibleRows.map((row) => (
             <MemberCard key={row.userId} row={row} plans={plans} />
           ))}
         </div>
@@ -93,8 +224,12 @@ function MemberCard({
 }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
+  // Seed from the current plan only when it's in the selectable list — an
+  // archived plan isn't, and the select would show one plan but submit another.
   const [selectedPlanId, setSelectedPlanId] = useState(
-    row.currentPlanId ?? plans[0]?.id ?? ""
+    row.currentPlanId && plans.some((p) => p.id === row.currentPlanId)
+      ? row.currentPlanId
+      : plans[0]?.id ?? ""
   );
   const [periodEnd, setPeriodEnd] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -157,6 +292,11 @@ function MemberCard({
           ) : null}
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
+            {row.archivedAt ? (
+              <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                Archived
+              </span>
+            ) : null}
             {row.currentStatus ? (
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -192,6 +332,10 @@ function MemberCard({
             ) : isCurrentlyActive ? (
               <span className="text-xs text-muted-foreground/50">No expiry set</span>
             ) : null}
+
+            <span className="text-xs text-muted-foreground/50">
+              Joined {formatMembershipDate(row.joinedAt)}
+            </span>
           </div>
         </div>
 
@@ -202,7 +346,7 @@ function MemberCard({
           >
             Details →
           </Link>
-          {plans.length > 0 ? (
+          {plans.length > 0 && row.archivedAt === null ? (
             <button
               type="button"
               onClick={() => {

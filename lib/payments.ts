@@ -152,7 +152,7 @@ export function consumePurchasedPass(input: { userId: string; bookingId: string 
 // Compensating +1 for an early-enough cancellation (the caller applies the
 // app's existing cancellation-window rule; this function only guarantees
 // once-only reversal of an actual consumption).
-export function reversePassConsumption(bookingId: string): boolean {
+export function reversePassConsumption(bookingId: string, note?: string): boolean {
   const entries = findPassLedgerByBookingId(bookingId);
   const consumed = entries.find((e) => e.reason === "consume");
   if (!consumed) return false;
@@ -165,7 +165,7 @@ export function reversePassConsumption(bookingId: string): boolean {
     reason: "consume_reversal",
     purchaseId: null,
     bookingId,
-    note: "Early cancellation — pass returned",
+    note: note ?? "Early cancellation — pass returned",
     createdAt: new Date().toISOString(),
   });
   return true;
