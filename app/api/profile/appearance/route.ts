@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
-import { isPaletteId } from "@/lib/palettes";
+import { isPaletteId, isThemeId } from "@/lib/palettes";
 import { verifySession } from "@/lib/session";
 
 // The client downsizes photos to a small square JPEG before upload, so this
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { palette, avatarDataUrl } = (body ?? {}) as Record<string, unknown>;
+  const { palette, theme, avatarDataUrl } = (body ?? {}) as Record<string, unknown>;
   const updated = { ...profile };
   let changed = false;
 
@@ -59,6 +59,17 @@ export async function POST(request: NextRequest) {
       );
     }
     updated.palette = palette;
+    changed = true;
+  }
+
+  if (theme !== undefined) {
+    if (!isThemeId(theme)) {
+      return NextResponse.json(
+        { success: false, message: "Choose one of the preset themes." },
+        { status: 400 }
+      );
+    }
+    updated.theme = theme;
     changed = true;
   }
 

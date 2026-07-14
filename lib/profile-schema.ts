@@ -70,6 +70,9 @@ export interface ProfileRecord {
   avatarDataUrl?: string | null;
   // Accent palette preset id (see lib/palettes.ts). Undefined = default teal.
   palette?: string;
+  // Whole-app theme preset id (lib/palettes.ts THEME_OPTIONS). Undefined =
+  // default midnight.
+  theme?: string;
   onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
@@ -121,6 +124,8 @@ export interface SignupProfileValues {
   additionalInfo: string;
   // Accent palette preset id (lib/palettes.ts) — always set; defaults to teal.
   palette: string;
+  // Whole-app theme preset id — always set; defaults to midnight.
+  theme: string;
 }
 
 export interface SignupCycleValues {
@@ -154,6 +159,7 @@ export const DEFAULT_SIGNUP_VALUES: SignupFormValues = {
   currentWeightKg: "",
   additionalInfo: "",
   palette: "teal",
+  theme: "midnight",
   cycleTrackingEnabled: false,
   menopauseSupportEnabled: false,
   lastPeriodStartDate: "",

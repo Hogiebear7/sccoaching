@@ -63,12 +63,13 @@ export default async function DashboardLayout({
     .toUpperCase();
 
   const avatarUrl = profile?.avatarDataUrl ?? null;
-  // Accent palette preset — omitted entirely for the default so the base
-  // :root tokens apply untouched.
+  // Accent palette + whole-app theme presets — omitted entirely for the
+  // defaults so the base :root tokens apply untouched.
   const palette = profile?.palette && profile.palette !== "teal" ? profile.palette : undefined;
+  const theme = profile?.theme && profile.theme !== "midnight" ? profile.theme : undefined;
 
   return (
-    <div className="min-h-screen text-foreground" data-palette={palette}>
+    <div className="min-h-screen text-foreground" data-palette={palette} data-theme={theme}>
       <div className="grid min-h-screen lg:grid-cols-[232px_minmax(0,1fr)]">
         {/* Sidebar */}
         <aside className="hidden border-r border-white/[0.06] bg-[oklch(0.155_0.004_255/0.72)] backdrop-blur-xl lg:flex lg:h-screen lg:flex-col lg:sticky lg:top-0">

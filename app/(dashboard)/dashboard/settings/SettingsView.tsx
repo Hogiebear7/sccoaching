@@ -435,6 +435,7 @@ export function SettingsView({
           fullName={profile.fullName}
           initialAvatarDataUrl={profile.avatarDataUrl ?? null}
           initialPalette={profile.palette ?? null}
+          initialTheme={profile.theme ?? null}
         />
       </div>
 

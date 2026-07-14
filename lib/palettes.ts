@@ -23,3 +23,29 @@ export const PALETTE_OPTIONS: {
 export function isPaletteId(value: unknown): value is PaletteId {
   return typeof value === "string" && PALETTE_OPTIONS.some((p) => p.id === value);
 }
+
+// ── Whole-app theme presets ────────────────────────────────────────────
+// Separate axis from the accent palette: the theme re-tints the dark base
+// (backgrounds, surfaces, atmosphere) via `[data-theme="…"]` blocks in
+// globals.css, while the accent keeps colouring actions. Every preset stays
+// a dark base at the same lightness steps, so text/contrast are unchanged.
+
+export type ThemeId = "midnight" | "graphite" | "forest" | "plum";
+
+export const DEFAULT_THEME: ThemeId = "midnight";
+
+export const THEME_OPTIONS: {
+  id: ThemeId;
+  label: string;
+  /** Swatch colour for pickers — matches the theme's base surface. */
+  swatch: string;
+}[] = [
+  { id: "midnight", label: "Midnight", swatch: "oklch(0.4 0.07 250)" },
+  { id: "graphite", label: "Graphite", swatch: "oklch(0.38 0.008 255)" },
+  { id: "forest",   label: "Forest",   swatch: "oklch(0.38 0.05 175)" },
+  { id: "plum",     label: "Plum",     swatch: "oklch(0.38 0.06 320)" },
+];
+
+export function isThemeId(value: unknown): value is ThemeId {
+  return typeof value === "string" && THEME_OPTIONS.some((t) => t.id === value);
+}

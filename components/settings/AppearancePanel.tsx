@@ -3,7 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
-import { DEFAULT_PALETTE, PALETTE_OPTIONS, isPaletteId, type PaletteId } from "@/lib/palettes";
+import {
+  DEFAULT_PALETTE,
+  DEFAULT_THEME,
+  PALETTE_OPTIONS,
+  THEME_OPTIONS,
+  isPaletteId,
+  isThemeId,
+  type PaletteId,
+  type ThemeId,
+} from "@/lib/palettes";
 
 // Square photos keep every avatar spot (sidebar, header, future rosters)
 // consistent; 256px is plenty for the largest one we render.
@@ -33,10 +42,12 @@ export function AppearancePanel({
   fullName,
   initialAvatarDataUrl,
   initialPalette,
+  initialTheme,
 }: {
   fullName: string;
   initialAvatarDataUrl: string | null;
   initialPalette: string | null;
+  initialTheme: string | null;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,8 +55,12 @@ export function AppearancePanel({
   const [palette, setPalette] = useState<PaletteId>(
     isPaletteId(initialPalette) ? initialPalette : DEFAULT_PALETTE
   );
+  const [theme, setTheme] = useState<ThemeId>(
+    isThemeId(initialTheme) ? initialTheme : DEFAULT_THEME
+  );
   const [isSavingPhoto, setIsSavingPhoto] = useState(false);
   const [isSavingPalette, setIsSavingPalette] = useState(false);
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const initials = (fullName || "?")
@@ -55,7 +70,11 @@ export function AppearancePanel({
     .slice(0, 2)
     .toUpperCase();
 
-  async function saveAppearance(patch: { avatarDataUrl?: string | null; palette?: PaletteId }) {
+  async function saveAppearance(patch: {
+    avatarDataUrl?: string | null;
+    palette?: PaletteId;
+    theme?: ThemeId;
+  }) {
     const res = await fetch("/api/profile/appearance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -102,6 +121,22 @@ export function AppearancePanel({
       setError(e instanceof Error ? e.message : "Could not remove the photo.");
     } finally {
       setIsSavingPhoto(false);
+    }
+  }
+
+  async function handleThemeSelect(next: ThemeId) {
+    if (next === theme || isSavingTheme) return;
+    setError(null);
+    const previous = theme;
+    setTheme(next);
+    setIsSavingTheme(true);
+    try {
+      await saveAppearance({ theme: next });
+    } catch (e) {
+      setTheme(previous);
+      setError(e instanceof Error ? e.message : "Could not save the theme.");
+    } finally {
+      setIsSavingTheme(false);
     }
   }
 
@@ -180,6 +215,42 @@ export function AppearancePanel({
               Remove
             </button>
           ) : null}
+        </div>
+      </div>
+
+      {/* App theme */}
+      <div className="mt-5 border-t border-white/[0.06] pt-4">
+        <p className="text-sm font-medium text-zinc-100">App theme</p>
+        <p className="mt-0.5 text-xs text-zinc-500">
+          Re-tints the whole app&apos;s background. Preset options only — readability is
+          identical on every theme.
+        </p>
+        <div role="radiogroup" aria-label="App theme" className="mt-3 flex flex-wrap gap-2">
+          {THEME_OPTIONS.map((option) => {
+            const selected = theme === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => handleThemeSelect(option.id)}
+                disabled={isSavingTheme}
+                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed ${
+                  selected
+                    ? "border-white/40 bg-white/[0.08] text-zinc-50"
+                    : "border-white/[0.12] text-zinc-400 hover:border-white/30 hover:text-zinc-200"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 rounded-full ring-1 ring-white/25"
+                  style={{ backgroundColor: option.swatch }}
+                />
+                {option.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

@@ -33,8 +33,8 @@ function emptyFormValues(): RecoveryFormValues {
   return {
     date: todayDateString(),
     sleepHours: "",
-    sleepQuality: "3",
-    soreness: "3",
+    sleepQuality: "5",
+    soreness: "5",
     fatigue: "3",
     trainingDurationMins: "",
     rpe: "",
@@ -50,6 +50,7 @@ function readinessBadgeClass(score: number): string {
 }
 
 const SCALE_OPTIONS = [1, 2, 3, 4, 5];
+const SCALE_OPTIONS_10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export function RecoveryView({
   logs,
@@ -233,13 +234,13 @@ export function RecoveryView({
             />
           </FormField>
 
-          <FormField label="Sleep quality (1=poor, 5=excellent)" error={errors.sleepQuality}>
+          <FormField label="Sleep quality (1=poor, 10=excellent)" error={errors.sleepQuality}>
             <select
               value={values.sleepQuality}
               onChange={(e) => handleChange("sleepQuality", e)}
               className={inputClass(errors.sleepQuality)}
             >
-              {SCALE_OPTIONS.map((n) => (
+              {SCALE_OPTIONS_10.map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
@@ -247,13 +248,13 @@ export function RecoveryView({
             </select>
           </FormField>
 
-          <FormField label="Soreness (1=none, 5=very sore)" error={errors.soreness}>
+          <FormField label="Soreness (1=none, 10=very sore)" error={errors.soreness}>
             <select
               value={values.soreness}
               onChange={(e) => handleChange("soreness", e)}
               className={inputClass(errors.soreness)}
             >
-              {SCALE_OPTIONS.map((n) => (
+              {SCALE_OPTIONS_10.map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
@@ -451,8 +452,8 @@ export function RecoveryView({
                     <div>
                       <p className="text-xs text-muted-foreground">{log.date}</p>
                       <p className="mt-1 text-sm text-foreground">
-                        Sleep {log.sleepHours}h · Quality {log.sleepQuality}/5 · Soreness{" "}
-                        {log.soreness}/5 · Fatigue {log.fatigue}/5
+                        Sleep {log.sleepHours}h · Quality {log.sleepQuality}/10 · Soreness{" "}
+                        {log.soreness}/10 · Fatigue {log.fatigue}/5
                       </p>
                       {log.goal && (
                         <p className="mt-2 text-sm text-muted-foreground">Goal: {log.goal}</p>

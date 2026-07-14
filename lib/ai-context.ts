@@ -125,8 +125,8 @@ export function buildCoachingContext(input: CoachingContextInput): CoachingConte
   if (todayLog && readinessScore !== null) {
     lines.push(`- Readiness score: ${readinessScore}/100 (logged today)`);
     if (todayLog.sleepHours !== null) lines.push(`- Sleep: ${todayLog.sleepHours} h`);
-    if (todayLog.sleepQuality !== null) lines.push(`- Sleep quality: ${todayLog.sleepQuality}/5`);
-    if (todayLog.soreness !== null) lines.push(`- Soreness: ${todayLog.soreness}/5 (higher = more sore)`);
+    if (todayLog.sleepQuality !== null) lines.push(`- Sleep quality: ${todayLog.sleepQuality}/10`);
+    if (todayLog.soreness !== null) lines.push(`- Soreness: ${todayLog.soreness}/10 (higher = more sore)`);
     if (todayLog.fatigue !== null) lines.push(`- Fatigue: ${todayLog.fatigue}/5 (higher = more fatigued)`);
     lines.push(`- App guidance for this score: ${readinessGuidance(readinessScore)}`);
   } else {

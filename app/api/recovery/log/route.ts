@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const sleepQualityResult = parseRequiredRange(sleepQuality, 1, 5);
+  const sleepQualityResult = parseRequiredRange(sleepQuality, 1, 10);
   if (!sleepQualityResult.ok) {
     return NextResponse.json(
       { success: false, message: "Sleep quality must be between 1 and 5." },
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const sorenessResult = parseRequiredRange(soreness, 1, 5);
+  const sorenessResult = parseRequiredRange(soreness, 1, 10);
   if (!sorenessResult.ok) {
     return NextResponse.json(
       { success: false, message: "Soreness must be between 1 and 5." },
@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
     sleepQuality: sleepQualityResult.value,
     soreness: sorenessResult.value,
     fatigue: fatigueResult.value,
+    scale10: true,
     trainingDurationMins: durationResult.value,
     rpe: rpeResult.value,
     goal: typeof goal === "string" && goal.trim() ? goal.trim() : null,

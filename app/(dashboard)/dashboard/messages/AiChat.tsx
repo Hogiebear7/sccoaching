@@ -308,9 +308,19 @@ export function AiChat({
                     Readiness <span className="tabular-nums">{context.readinessScore ?? "—"}</span>
                     {context.readinessDelta != null && context.readinessDelta !== 0 && (
                       <span
-                        className={`tabular-nums ${context.readinessDelta > 0 ? "text-teal-300" : "text-amber-300"}`}
+                        className={`inline-flex items-center gap-0.5 tabular-nums ${context.readinessDelta > 0 ? "text-teal-300" : "text-amber-300"}`}
                       >
-                        {context.readinessDelta > 0 ? "▲" : "▼"}{Math.abs(context.readinessDelta)}
+                        {/* Same SVG arrow as the home readiness chip — text
+                            triangles misalign on mobile fonts. */}
+                        <svg
+                          viewBox="0 0 8 8"
+                          aria-hidden="true"
+                          className={`h-2 w-2 shrink-0 ${context.readinessDelta > 0 ? "" : "rotate-180"}`}
+                          fill="currentColor"
+                        >
+                          <path d="M4 1 L7.2 6.4 H0.8 Z" />
+                        </svg>
+                        {Math.abs(context.readinessDelta)}
                       </span>
                     )}
                   </span>

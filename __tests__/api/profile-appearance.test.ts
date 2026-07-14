@@ -65,6 +65,26 @@ describe("POST /api/profile/appearance", () => {
     expect(mockSaveProfile).not.toHaveBeenCalled();
   });
 
+  it("saves a preset theme and rejects unknown ones", async () => {
+    const ok = await callAppearance({ theme: "forest" }, signSession({ userId: USER.id }));
+    expect(ok.status).toBe(200);
+    expect(mockSaveProfile.mock.calls[0][0].theme).toBe("forest");
+
+    mockSaveProfile.mockClear();
+    const bad = await callAppearance({ theme: "neon" }, signSession({ userId: USER.id }));
+    expect(bad.status).toBe(400);
+    expect(mockSaveProfile).not.toHaveBeenCalled();
+  });
+
+  it("saves theme and palette together in one request", async () => {
+    const res = await callAppearance(
+      { theme: "plum", palette: "ember" },
+      signSession({ userId: USER.id })
+    );
+    expect(res.status).toBe(200);
+    expect(mockSaveProfile.mock.calls[0][0]).toMatchObject({ theme: "plum", palette: "ember" });
+  });
+
   it("saves a valid raster data URL and removes with null", async () => {
     const ok = await callAppearance(
       { avatarDataUrl: VALID_AVATAR },

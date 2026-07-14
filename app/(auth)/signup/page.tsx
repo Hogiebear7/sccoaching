@@ -20,7 +20,7 @@ import {
   PRIMARY_GOAL_OPTIONS,
 } from "@/lib/profile-options";
 import { BRAND_NAME } from "@/lib/content";
-import { PALETTE_OPTIONS } from "@/lib/palettes";
+import { PALETTE_OPTIONS, THEME_OPTIONS } from "@/lib/palettes";
 
 type FormErrors = Partial<Record<keyof SignupFormValues, string>>;
 
@@ -568,6 +568,46 @@ export default function SignupPage() {
                       placeholder={ADDITIONAL_INFO_PLACEHOLDER}
                     />
                   </FormField>
+
+                  <div>
+                    <p className="mb-1 text-sm font-medium text-zinc-200">App theme</p>
+                    <p className="mb-3 text-xs text-zinc-500">
+                      The overall background tint of your app. You can change it any time in
+                      Settings.
+                    </p>
+                    <div
+                      role="radiogroup"
+                      aria-label="App theme"
+                      className="flex flex-wrap gap-2"
+                    >
+                      {THEME_OPTIONS.map((option) => {
+                        const selected = values.theme === option.id;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            onClick={() =>
+                              setValues((prev) => ({ ...prev, theme: option.id }))
+                            }
+                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                              selected
+                                ? "border-white/40 bg-white/[0.08] text-zinc-50"
+                                : "border-white/[0.12] text-zinc-400 hover:border-white/30 hover:text-zinc-200"
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="h-3.5 w-3.5 rounded-full ring-1 ring-white/25"
+                              style={{ backgroundColor: option.swatch }}
+                            />
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   <div>
                     <p className="mb-1 text-sm font-medium text-zinc-200">Accent colour</p>

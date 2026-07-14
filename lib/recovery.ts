@@ -6,8 +6,8 @@ function clamp(value: number, min: number, max: number): number {
 
 // Coaching-oriented readiness score (0-100), not a medical assessment.
 // Each input contributes up to 25 points: sleep duration (capped at 8h),
-// sleep quality (1-5, higher is better), soreness and fatigue (1-5, lower
-// is better — inverted so less soreness/fatigue scores higher).
+// sleep quality (1-10, higher is better), soreness (1-10) and fatigue
+// (1-5) — both inverted so less soreness/fatigue scores higher.
 export function computeReadinessScore(input: {
   sleepHours: number;
   sleepQuality: number;
@@ -15,8 +15,8 @@ export function computeReadinessScore(input: {
   fatigue: number;
 }): number {
   const sleepHoursScore = (clamp(input.sleepHours, 0, 8) / 8) * 25;
-  const sleepQualityScore = (clamp(input.sleepQuality - 1, 0, 4) / 4) * 25;
-  const sorenessScore = (clamp(5 - input.soreness, 0, 4) / 4) * 25;
+  const sleepQualityScore = (clamp(input.sleepQuality - 1, 0, 9) / 9) * 25;
+  const sorenessScore = (clamp(10 - input.soreness, 0, 9) / 9) * 25;
   const fatigueScore = (clamp(5 - input.fatigue, 0, 4) / 4) * 25;
 
   return Math.round(sleepHoursScore + sleepQualityScore + sorenessScore + fatigueScore);

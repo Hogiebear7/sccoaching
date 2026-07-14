@@ -341,9 +341,15 @@ export interface RecoveryLogRecord {
   userId: string;
   date: string;
   sleepHours: number | null;
+  /** 1–10, higher is better. Entries written before the scale change were
+      1–5 and are doubled on read (see normalizeRecoveryScale). */
   sleepQuality: number | null;
+  /** 1–10, higher is more sore. Same legacy normalization as sleepQuality. */
   soreness: number | null;
+  /** Still 1–5 (1=fresh, 5=exhausted) — deliberately unchanged. */
   fatigue: number | null;
+  /** Marks entries recorded on the 1–10 scale. Absent = legacy 1–5. */
+  scale10?: boolean;
   trainingDurationMins: number | null;
   rpe: number | null;
   goal: string | null;
@@ -447,6 +453,20 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
+// Sleep quality and soreness moved from a 1-5 to a 1-10 scale. Legacy
+// entries (no scale10 flag) double on read — 1,2,3,4,5 -> 2,4,6,8,10 — so
+// every reader sees one consistent scale. Stored readinessScore values
+// are untouched: they were computed on the scale in force at the time.
+export function normalizeRecoveryScale(log: RecoveryLogRecord): RecoveryLogRecord {
+  if (log.scale10) return log;
+  return {
+    ...log,
+    sleepQuality: log.sleepQuality === null ? null : Math.min(10, log.sleepQuality * 2),
+    soreness: log.soreness === null ? null : Math.min(10, log.soreness * 2),
+    scale10: true,
+  };
+}
+
 function readDb(): Database {
   if (!existsSync(DB_PATH)) {
     return {
@@ -539,7 +559,7 @@ function readDb(): Database {
       ...e,
       bookingId: e.bookingId ?? null,
     })),
-    recoveryLogs: parsed.recoveryLogs ?? [],
+    recoveryLogs: (parsed.recoveryLogs ?? []).map(normalizeRecoveryScale),
     messages: (parsed.messages ?? []).map((m) => ({ ...m, readAt: m.readAt ?? null })),
     notifications: (parsed.notifications ?? []).map((n) => ({
       ...n,

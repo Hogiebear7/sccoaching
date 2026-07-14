@@ -24,6 +24,7 @@ import {
 } from "@/lib/progress";
 import { computeRollingTrainingLoad, readinessGuidance } from "@/lib/recovery";
 import { classPassBalance, formatRemainingSessions, remainingSessions } from "@/lib/scheduling-status";
+import { formatFriendlyClassDate } from "@/lib/dates";
 import { verifySession } from "@/lib/session";
 import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
 import { CountUp } from "@/components/ui/CountUp";
@@ -248,7 +249,7 @@ export default async function DashboardPage() {
               <div className="min-w-0 flex-1 p-4">
                 <p className="text-display text-[17px] leading-tight">{nextBooking.title}</p>
                 <p className="mt-1 text-[13px] text-zinc-400 tabular-nums">
-                  {nextBooking.date} · {nextBooking.durationMins} min
+                  {formatFriendlyClassDate(nextBooking.date)} · {nextBooking.durationMins} min
                 </p>
               </div>
             </div>
@@ -295,13 +296,26 @@ export default async function DashboardPage() {
                         </p>
                         {delta !== null && delta !== 0 && (
                           <span
-                            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+                            aria-label={`${delta > 0 ? "Up" : "Down"} ${Math.abs(delta)} since yesterday`}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-none tabular-nums ${
                               delta > 0
                                 ? "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
                                 : "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
                             }`}
                           >
-                            {delta > 0 ? "▲" : "▼"} {Math.abs(delta)}
+                            {/* SVG instead of ▲/▼ text glyphs — the unicode
+                                triangles size and sit differently per device
+                                font, which is what made the chip look broken
+                                on mobile. */}
+                            <svg
+                              viewBox="0 0 8 8"
+                              aria-hidden="true"
+                              className={`h-2 w-2 shrink-0 ${delta > 0 ? "" : "rotate-180"}`}
+                              fill="currentColor"
+                            >
+                              <path d="M4 1 L7.2 6.4 H0.8 Z" />
+                            </svg>
+                            {Math.abs(delta)}
                           </span>
                         )}
                       </div>

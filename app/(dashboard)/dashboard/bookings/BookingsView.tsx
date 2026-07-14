@@ -1,5 +1,6 @@
 "use client";
 
+import { formatFriendlyClassDate } from "@/lib/dates";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -16,15 +17,9 @@ type ResolvedBooking = {
   willRestoreSession: boolean;
 };
 
-// Day + date together, matching the Schedule tab's presentation. Fixed
-// locale: server and browser must agree (hydration).
-function formatDayDate(isoDate: string): string {
-  return new Date(isoDate + "T00:00:00").toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
+// Day + date together, matching the Schedule tab's presentation (friendly
+// weekday format with Today/Tomorrow prefixes; locale pinned inside).
+const formatDayDate = formatFriendlyClassDate;
 
 export function BookingsView({
   upcomingBookings,

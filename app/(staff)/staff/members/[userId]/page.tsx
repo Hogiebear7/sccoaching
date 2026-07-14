@@ -355,8 +355,8 @@ export default async function StaffMemberDetailPage({
                     <div>
                       <p className="text-xs text-muted-foreground">{log.date}</p>
                       <p className="mt-1 text-sm">
-                        Sleep {log.sleepHours}h · Quality {log.sleepQuality}/5 · Soreness{" "}
-                        {log.soreness}/5 · Fatigue {log.fatigue}/5
+                        Sleep {log.sleepHours}h · Quality {log.sleepQuality}/10 · Soreness{" "}
+                        {log.soreness}/10 · Fatigue {log.fatigue}/5
                       </p>
                       {log.readinessScore !== null ? (
                         <p className="mt-2 text-xs text-muted-foreground">

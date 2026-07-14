@@ -1,5 +1,6 @@
 "use client";
 
+import { formatFriendlyClassDate } from "@/lib/dates";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -31,13 +32,9 @@ type UpcomingBooking = {
   willRestoreSession: boolean;
 };
 
-function formatGroupDate(isoDate: string): string {
-  return new Date(isoDate + "T00:00:00").toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-}
+// Shared friendly format (adds Today/Tomorrow prefixes) keeps the group
+// headings and booking rows reading the same way.
+const formatGroupDate = formatFriendlyClassDate;
 
 export function ScheduleView({
   classes,
@@ -439,7 +436,7 @@ export function ScheduleView({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      {booking.date} · {booking.startTime}
+                      {formatFriendlyClassDate(booking.date)} · {booking.startTime}
                     </p>
                     <h4 className="mt-1 text-sm font-semibold">{booking.title}</h4>
                     <p className="mt-1 text-xs text-muted-foreground">
