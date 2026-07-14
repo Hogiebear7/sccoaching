@@ -62,8 +62,13 @@ export default async function DashboardLayout({
     .slice(0, 2)
     .toUpperCase();
 
+  const avatarUrl = profile?.avatarDataUrl ?? null;
+  // Accent palette preset — omitted entirely for the default so the base
+  // :root tokens apply untouched.
+  const palette = profile?.palette && profile.palette !== "teal" ? profile.palette : undefined;
+
   return (
-    <div className="min-h-screen text-foreground">
+    <div className="min-h-screen text-foreground" data-palette={palette}>
       <div className="grid min-h-screen lg:grid-cols-[232px_minmax(0,1fr)]">
         {/* Sidebar */}
         <aside className="hidden border-r border-white/[0.06] bg-[oklch(0.155_0.004_255/0.72)] backdrop-blur-xl lg:flex lg:h-screen lg:flex-col lg:sticky lg:top-0">
@@ -91,9 +96,17 @@ export default async function DashboardLayout({
 
           <div className="px-3 pb-4">
             <div className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-teal-500 text-[11px] font-semibold text-white ring-1 ring-white/15">
-                {initials}
-              </div>
+              {avatarUrl ? (
+                <div
+                  aria-hidden="true"
+                  className="h-8 w-8 flex-shrink-0 rounded-full bg-cover bg-center ring-1 ring-white/15"
+                  style={{ backgroundImage: `url(${avatarUrl})` }}
+                />
+              ) : (
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-teal-500 text-[11px] font-semibold text-white ring-1 ring-white/15">
+                  {initials}
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium leading-tight text-zinc-200">
                   {profile?.fullName ?? "Signed in"}
@@ -188,9 +201,12 @@ export default async function DashboardLayout({
                 <Link
                   href="/dashboard/profile"
                   aria-label="Edit profile"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-500 text-[11px] font-semibold text-white ring-1 ring-white/15 transition-transform duration-150 active:scale-95 lg:hidden"
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-semibold text-white ring-1 ring-white/15 transition-transform duration-150 active:scale-95 lg:hidden ${
+                    avatarUrl ? "bg-cover bg-center" : "bg-teal-500"
+                  }`}
+                  style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}
                 >
-                  {initials}
+                  {avatarUrl ? null : initials}
                 </Link>
               </div>
             </div>

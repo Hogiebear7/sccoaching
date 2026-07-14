@@ -40,12 +40,16 @@ export function BottomNavBar() {
         {activeIdx >= 0 && (
           <span
             aria-hidden="true"
-            className="absolute bottom-1 top-1 rounded-full bg-gradient-to-b from-teal-500 to-teal-600 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25),0_4px_16px_-4px_rgba(45,212,191,0.6)] transition-[left] duration-200 ease-out"
+            className="absolute bottom-1 top-1 rounded-full transition-[left] duration-200 ease-out"
             style={{
               // Slot width inside the padded capsule is (100% − 0.5rem)/5;
               // the pill spans the full slot so the icon sits dead-centre.
               left: `calc(0.25rem + ${activeIdx} * (${slotPct}% - 0.1rem))`,
               width: `calc(${slotPct}% - 0.1rem)`,
+              // Accent tokens (not hardcoded teal) so palette presets recolour
+              // the active pill along with the rest of the actions.
+              backgroundImage: "linear-gradient(180deg, var(--accent-grad-top), var(--accent-grad-bottom))",
+              boxShadow: "inset 0 1px 0 0 rgba(255,255,255,0.25), 0 4px 16px -4px var(--accent-glow)",
             }}
           />
         )}

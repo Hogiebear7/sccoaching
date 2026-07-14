@@ -206,8 +206,16 @@ export default async function DashboardPage() {
   return (
     <section className="anim-rise space-y-8">
 
-      {/* Immersive header */}
+      {/* Immersive header. The empty absolute layer below is the slot for
+          future gym imagery: drop a bg-cover image element (or bg-[url(…)])
+          into it and the scrim gradient keeps the greeting readable — no
+          layout change needed, content already sits on its own layer. */}
       <div className="relative -mx-4 -mt-8 overflow-hidden border-b border-white/[0.06] px-4 pb-7 pt-9 sm:-mx-6 sm:px-6">
+        <div aria-hidden="true" className="absolute inset-0">
+          {/* Future header image goes here (absolute inset-0, bg-cover), plus
+              a bottom-up scrim (e.g. bg-gradient-to-t from-[--bg-0]) so the
+              greeting stays readable over photography. Empty for now. */}
+        </div>
         <div className="relative">
           <p className="chip label-caps w-fit border-teal-400/20 bg-teal-400/[0.07] !text-teal-300/90">{today}</p>
           <h1 className="title-athletic mt-3 text-[30px] leading-[1.05]">Hi {firstName}</h1>

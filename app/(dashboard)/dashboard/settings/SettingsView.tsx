@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import type { MeasurementUnits, ProfileRecord } from "@/lib/profile-schema";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AppearancePanel } from "@/components/settings/AppearancePanel";
 
 // Inlined at build time via the NEXT_PUBLIC_ prefix. Null when not configured.
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null;
@@ -425,6 +426,16 @@ export function SettingsView({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Appearance */}
+      <div>
+        <h2 className="label-caps mb-2.5">Appearance</h2>
+        <AppearancePanel
+          fullName={profile.fullName}
+          initialAvatarDataUrl={profile.avatarDataUrl ?? null}
+          initialPalette={profile.palette ?? null}
+        />
       </div>
 
       {/* Notifications */}

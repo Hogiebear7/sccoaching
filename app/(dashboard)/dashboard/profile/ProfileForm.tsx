@@ -54,6 +54,14 @@ function shortDate(iso: string): string {
   return `${months[m - 1]} ${d}`;
 }
 
+// Consecutive entries more than this far apart get a dashed connector so a
+// long logging gap is visibly different from a steady trend.
+const BW_GAP_DAYS = 35;
+
+function daysBetween(a: string, b: string): number {
+  return Math.abs(new Date(`${b}T00:00:00`).getTime() - new Date(`${a}T00:00:00`).getTime()) / 86_400_000;
+}
+
 function BodyWeightTrendChart({ logs }: { logs: BodyWeightLogRecord[] }) {
   if (logs.length < 2) {
     return (
@@ -79,8 +87,23 @@ function BodyWeightTrendChart({ logs }: { logs: BodyWeightLogRecord[] }) {
     BW_PAD.top + innerH - ((val - minY) / yRange) * innerH;
 
   const plotted = logs.map((l, i) => ({ x: toX(i), y: toY(l.weightKg), val: l.weightKg, date: l.date }));
-  const points = plotted.map((p) => `${p.x},${p.y}`).join(" ");
   const labelStep = Math.max(1, Math.ceil(logs.length / 6));
+
+  // One <line> per connector rather than one polyline, so a segment that
+  // spans a long logging gap can render dashed.
+  const segments = plotted.slice(1).map((p, i) => ({
+    x1: plotted[i].x,
+    y1: plotted[i].y,
+    x2: p.x,
+    y2: p.y,
+    isGap: daysBetween(plotted[i].date, p.date) > BW_GAP_DAYS,
+  }));
+
+  const areaPoints = [
+    `${plotted[0].x},${BW_PAD.top + innerH}`,
+    ...plotted.map((p) => `${p.x},${p.y}`),
+    `${plotted[plotted.length - 1].x},${BW_PAD.top + innerH}`,
+  ].join(" ");
 
   return (
     <svg
@@ -99,17 +122,21 @@ function BodyWeightTrendChart({ logs }: { logs: BodyWeightLogRecord[] }) {
         x2={BW_PAD.left + innerW} y2={BW_PAD.top + innerH}
         stroke="currentColor" strokeOpacity={0.12} strokeWidth={1}
       />
-      <polyline
-        points={points}
-        fill="none"
-        style={{ stroke: "hsl(var(--primary))" }}
-        strokeWidth={2}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
+      <polygon points={areaPoints} style={{ fill: "var(--primary)" }} opacity={0.08} />
+      {segments.map((s, i) => (
+        <line
+          key={i}
+          x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2}
+          style={{ stroke: "var(--primary)" }}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeDasharray={s.isGap ? "3 5" : undefined}
+          strokeOpacity={s.isGap ? 0.55 : 1}
+        />
+      ))}
       {plotted.map(({ x, y, val, date }, i) => (
         <g key={i}>
-          <circle cx={x} cy={y} r={3.5} style={{ fill: "hsl(var(--primary))" }} />
+          <circle cx={x} cy={y} r={3.5} style={{ fill: "var(--primary)" }} />
           <text x={x} y={y - 8} textAnchor="middle" fontSize={8} fill="currentColor" opacity={0.7}>
             {val}
           </text>
@@ -128,6 +155,25 @@ function BodyWeightTrendChart({ logs }: { logs: BodyWeightLogRecord[] }) {
       </text>
     </svg>
   );
+}
+
+// Short change-since-first-entry summary shown above the chart. Always uses
+// the full history, not the active time filter, so it reads as "since you
+// joined" rather than "since the start of this window".
+function weightChangeSummary(logs: BodyWeightLogRecord[]): string | null {
+  if (logs.length < 2) return null;
+  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date));
+  const first = sorted[0];
+  const latest = sorted[sorted.length - 1];
+  const delta = Math.round((latest.weightKg - first.weightKg) * 10) / 10;
+  const since = new Date(`${first.date}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (delta === 0) return `No change since your first entry (${since}).`;
+  return `${delta > 0 ? "Up" : "Down"} ${Math.abs(delta)} kg since your first entry (${since}).`;
 }
 
 type ProfileFormValues = {
@@ -520,6 +566,13 @@ export function ProfileForm({
                 </button>
               ))}
             </div>
+
+            {/* Change since first entry — full history, not the filter window */}
+            {weightChangeSummary(bodyWeightLogs) ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                {weightChangeSummary(bodyWeightLogs)}
+              </p>
+            ) : null}
 
             {/* Chart */}
             <div className="mt-3">

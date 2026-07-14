@@ -102,6 +102,21 @@ function formatDuration(secs: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+// Live pace preview for the run input. Both fields must independently parse
+// to positive values — a missing or garbled side shows nothing rather than a
+// misleading number. Metre distances convert to km first.
+function livePace(distanceRaw: string, distanceUnit: "km" | "m", durationRaw: string): string | null {
+  const rawDistance = parseFloat(distanceRaw);
+  if (!Number.isFinite(rawDistance) || rawDistance <= 0) return null;
+  const km = distanceUnit === "m" ? rawDistance / 1000 : rawDistance;
+
+  const secs = parseDuration(durationRaw);
+  if (secs === null || secs <= 0) return null;
+
+  const paceSecs = Math.round(secs / km);
+  return `${Math.floor(paceSecs / 60)}:${String(paceSecs % 60).padStart(2, "0")} /km`;
+}
+
 function formatRun(run: WorkoutRunEntry): string {
   const parts: string[] = [];
   if (run.distance !== null) parts.push(`${run.distance} ${run.distanceUnit}`);
@@ -250,14 +265,14 @@ function TrendChart({ points }: { points: ExerciseTrendPoint[] }) {
       <polyline
         points={polylinePoints}
         fill="none"
-        style={{ stroke: "hsl(var(--primary))" }}
+        style={{ stroke: "var(--primary)" }}
         strokeWidth={2}
         strokeLinejoin="round"
         strokeLinecap="round"
       />
       {plotted.map(({ x, y, label, date }, i) => (
         <g key={i}>
-          <circle cx={x} cy={y} r={3.5} style={{ fill: "hsl(var(--primary))" }} />
+          <circle cx={x} cy={y} r={3.5} style={{ fill: "var(--primary)" }} />
           <text x={x} y={y - 7} textAnchor="middle" fontSize={8} fill="currentColor" opacity={0.65}>
             {label}
           </text>
@@ -816,6 +831,16 @@ export function WorkoutsView({
                         />
                       </div>
                     </div>
+
+                    {/* Live pace — appears only once distance and time both parse */}
+                    {livePace(row.distance, row.distanceUnit, row.duration) ? (
+                      <p aria-live="polite" className="text-xs text-muted-foreground">
+                        Pace:{" "}
+                        <span className="font-semibold text-primary tabular-nums">
+                          {livePace(row.distance, row.distanceUnit, row.duration)}
+                        </span>
+                      </p>
+                    ) : null}
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>

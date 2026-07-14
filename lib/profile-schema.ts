@@ -65,6 +65,11 @@ export interface ProfileRecord {
   // When drinkSettings was last synced — shown to staff so they know how
   // current the member's setup is. Null until the first sync.
   drinkSettingsUpdatedAt?: string | null;
+  // Profile photo as a small data URL (client downsizes before upload; the
+  // API enforces mime and size). Null/undefined = initials avatar.
+  avatarDataUrl?: string | null;
+  // Accent palette preset id (see lib/palettes.ts). Undefined = default teal.
+  palette?: string;
   onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
@@ -114,6 +119,8 @@ export interface SignupProfileValues {
   sportPlayed: string;
   currentWeightKg: string;
   additionalInfo: string;
+  // Accent palette preset id (lib/palettes.ts) — always set; defaults to teal.
+  palette: string;
 }
 
 export interface SignupCycleValues {
@@ -146,6 +153,7 @@ export const DEFAULT_SIGNUP_VALUES: SignupFormValues = {
   sportPlayed: "",
   currentWeightKg: "",
   additionalInfo: "",
+  palette: "teal",
   cycleTrackingEnabled: false,
   menopauseSupportEnabled: false,
   lastPeriodStartDate: "",

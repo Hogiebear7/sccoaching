@@ -14,6 +14,7 @@ import {
   type ProfileRecord,
 } from "@/lib/profile-schema";
 import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
+import { DEFAULT_PALETTE, isPaletteId } from "@/lib/palettes";
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
 const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
     sportPlayed,
     currentWeightKg,
     additionalInfo,
+    palette,
     cycleTrackingEnabled,
     menopauseSupportEnabled,
     lastPeriodStartDate,
@@ -187,6 +189,9 @@ export async function POST(request: Request) {
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
+    // Unknown values fall back to the default rather than erroring — the
+    // palette is cosmetic and must never block account creation.
+    palette: isPaletteId(palette) ? palette : DEFAULT_PALETTE,
     cycleTrackingEligible: cycleEligible,
     cycleTrackingEnabled: cycleEligible ? Boolean(cycleTrackingEnabled) : false,
     menopauseSupportEnabled: Boolean(menopauseSupportEnabled),
