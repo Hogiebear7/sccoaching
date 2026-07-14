@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the secretless template is part of the repo docs
+!.env.local.example
 
 # vercel
 .vercel
