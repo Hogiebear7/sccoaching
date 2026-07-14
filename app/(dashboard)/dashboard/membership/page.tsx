@@ -10,7 +10,7 @@ import {
   findUserById,
 } from "@/lib/db";
 import { isBillingProviderConfigured } from "@/lib/billing";
-import { purchasedPassBalance } from "@/lib/payments";
+import { expiringPassSummary, purchasedPassBalance } from "@/lib/payments";
 import { classPassBalance } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 import { MembershipView } from "./MembershipView";
@@ -62,6 +62,7 @@ export default async function DashboardMembershipPage({
         currentPlan && subscription ? classPassBalance(currentPlan, subscription) : null
       }
       purchasedPasses={purchasedPassBalance(user.id)}
+      expiringPasses={expiringPassSummary(user.id, 30)}
       passProducts={findClassPassProducts().filter((p) => p.isActive)}
       passCheckoutStatus={passCheckoutStatus}
       subscriptionProvider={subscription?.provider ?? null}

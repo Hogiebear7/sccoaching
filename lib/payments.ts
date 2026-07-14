@@ -78,6 +78,29 @@ export function isPurchaseCheckoutReusable(purchase: PurchaseRecord): boolean {
  * no expiring credits this reduces exactly to the old sum-of-deltas.
  */
 export function purchasedPassBalance(userId: string, now: Date = new Date()): number {
+  const pools = purchasedPassPools(userId);
+  const nowIso = now.toISOString();
+
+  const available = pools.reduce((sum, pool) => {
+    if (pool.expiresAt !== null && pool.expiresAt <= nowIso) {
+      return sum + Math.min(pool.remaining, 0);
+    }
+    return sum + pool.remaining;
+  }, 0);
+
+  return available;
+}
+
+export type PurchasedPassPool = { remaining: number; expiresAt: string | null };
+
+/**
+ * The per-purchase pools behind purchasedPassBalance, replayed from the
+ * ledger. Exposed so expiry can be SHOWN (member "expires soon" notices,
+ * staff detail), not just enforced. A running deficit (consumption that no
+ * pool could cover) is folded in as a final negative never-expiring pool so
+ * summing pool remainders always reproduces the balance.
+ */
+export function purchasedPassPools(userId: string): PurchasedPassPool[] {
   const entries = [...findPassLedgerByUserId(userId)].sort((a, b) =>
     a.createdAt.localeCompare(b.createdAt)
   );
@@ -142,15 +165,41 @@ export function purchasedPassBalance(userId: string, now: Date = new Date()): nu
     }
   }
 
-  const nowIso = now.toISOString();
-  const available = pools.reduce((sum, pool) => {
-    if (pool.expiresAt !== null && pool.expiresAt <= nowIso) {
-      return sum + Math.min(pool.remaining, 0);
-    }
-    return sum + pool.remaining;
-  }, 0);
+  if (deficit > 0) pools.push({ remaining: -deficit, expiresAt: null });
 
-  return available - deficit;
+  return pools;
+}
+
+/**
+ * Usable passes that stop being usable within the window: pools that are
+ * positive, not yet expired, and expiring on or before the horizon. Returns
+ * the total at stake plus the soonest expiry, or null when nothing applies.
+ */
+export function expiringPassSummary(
+  userId: string,
+  withinDays: number,
+  now: Date = new Date()
+): { count: number; soonestExpiresAt: string } | null {
+  const nowIso = now.toISOString();
+  const horizonIso = new Date(now.getTime() + withinDays * 86_400_000).toISOString();
+
+  const expiring = purchasedPassPools(userId).filter(
+    (pool) =>
+      pool.remaining > 0 &&
+      pool.expiresAt !== null &&
+      pool.expiresAt > nowIso &&
+      pool.expiresAt <= horizonIso
+  );
+
+  if (expiring.length === 0) return null;
+
+  return {
+    count: expiring.reduce((sum, pool) => sum + pool.remaining, 0),
+    soonestExpiresAt: expiring.reduce(
+      (min, pool) => (pool.expiresAt! < min ? pool.expiresAt! : min),
+      expiring[0].expiresAt!
+    ),
+  };
 }
 
 // Credits the passes for a paid purchase exactly once. Safe to call on

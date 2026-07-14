@@ -94,6 +94,7 @@ export function MembershipView({
   subscriptionProvider,
   passBalance,
   purchasedPasses,
+  expiringPasses,
   passProducts,
   passCheckoutStatus,
   billingConfigured,
@@ -111,6 +112,8 @@ export function MembershipView({
   /** Purchased pass-pack balance from the ledger — separate from the plan's
       monthly allowance and never reset by billing periods. */
   purchasedPasses: number;
+  /** Usable purchased passes nearing their use-by date (next 30 days). */
+  expiringPasses: { count: number; soonestExpiresAt: string } | null;
   passProducts: ClassPassProductRecord[];
   /** Return-from-checkout banner state ("pending" | "cancelled"). */
   passCheckoutStatus: string | null;
@@ -378,6 +381,12 @@ export function MembershipView({
               Purchased passes — used automatically once your monthly passes run out.
               They don&apos;t reset with your billing period.
             </p>
+            {expiringPasses && (
+              <p className="mt-1.5 text-[11px] font-medium text-amber-300">
+                {expiringPasses.count} pass{expiringPasses.count === 1 ? '' : 'es'} must be used by{' '}
+                {formatMembershipDate(expiringPasses.soonestExpiresAt)}.
+              </p>
+            )}
           </div>
         )}
       </div>

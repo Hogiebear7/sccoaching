@@ -352,6 +352,9 @@ export function MembershipStatusPanel({
                   <span className="text-muted-foreground">
                     {formatMembershipDate(entry.createdAt)} · {PASS_LEDGER_LABEL[entry.reason]}
                     {entry.note ? ` — ${entry.note}` : ""}
+                    {entry.reason === "purchase" && entry.expiresAt
+                      ? ` · use by ${formatMembershipDate(entry.expiresAt)}`
+                      : ""}
                   </span>
                   <span
                     className={`font-semibold tabular-nums ${entry.delta > 0 ? "text-primary" : "text-muted-foreground"}`}
