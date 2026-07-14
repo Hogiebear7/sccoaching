@@ -421,6 +421,11 @@ export function MembershipView({
                 <p className="text-display mt-3 text-[22px] tabular-nums">
                   {formatPriceCents(product.priceCents)}
                 </p>
+                {product.validityDays != null && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Use within {product.validityDays} days of purchase.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => handleBuyPasses(product.id)}

@@ -149,13 +149,13 @@ describe("applyRefundedPassPurchase", () => {
 describe("purchasedPassBalance", () => {
   it("sums the ledger, including negative balances after refunds", () => {
     mockFindPassLedgerByUserId.mockReturnValue([
-      { delta: 10 },
-      { delta: -1 },
-      { delta: -1 },
+      { id: "led-1", userId: "user-1", delta: 10, reason: "purchase", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "led-c2", userId: "user-1", delta: -1, reason: "consume", purchaseId: null, bookingId: "bk-2", note: null, createdAt: "2026-01-02T01:00:00.000Z" },
+      { id: "led-c3", userId: "user-1", delta: -1, reason: "consume", purchaseId: null, bookingId: "bk-3", note: null, createdAt: "2026-01-03T01:00:00.000Z" },
     ]);
     expect(purchasedPassBalance("user-1")).toBe(8);
 
-    mockFindPassLedgerByUserId.mockReturnValue([{ delta: 10 }, { delta: -10 }, { delta: -2 }]);
+    mockFindPassLedgerByUserId.mockReturnValue([{ id: "led-1", userId: "user-1", delta: 10, reason: "purchase", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-01T00:00:00.000Z" }, { id: "led-r2", userId: "user-1", delta: -10, reason: "refund_reversal", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-02T02:00:00.000Z" }, { id: "led-c3", userId: "user-1", delta: -1, reason: "consume", purchaseId: null, bookingId: "bk-3", note: null, createdAt: "2026-01-03T01:00:00.000Z" }, { id: "led-c4", userId: "user-1", delta: -1, reason: "consume", purchaseId: null, bookingId: "bk-4", note: null, createdAt: "2026-01-04T01:00:00.000Z" }]);
     expect(purchasedPassBalance("user-1")).toBe(-2);
   });
 });
@@ -205,7 +205,7 @@ describe("consumePurchasedPass / reversePassConsumption", () => {
   }
 
   it("spends one pass keyed to the booking", () => {
-    mockFindPassLedgerByUserId.mockReturnValue([{ delta: 5 }]);
+    mockFindPassLedgerByUserId.mockReturnValue([{ id: "led-1", userId: "user-1", delta: 5, reason: "purchase", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-01T00:00:00.000Z" }]);
     expect(consumePurchasedPass({ userId: "user-1", bookingId: "bk-1" })).toBe(true);
     expect(mockAppendPassLedgerEntry.mock.calls[0][0]).toMatchObject({
       userId: "user-1",
@@ -219,7 +219,7 @@ describe("consumePurchasedPass / reversePassConsumption", () => {
     mockFindPassLedgerByUserId.mockReturnValue([]);
     expect(consumePurchasedPass({ userId: "user-1", bookingId: "bk-1" })).toBe(false);
 
-    mockFindPassLedgerByUserId.mockReturnValue([{ delta: 5 }]);
+    mockFindPassLedgerByUserId.mockReturnValue([{ id: "led-1", userId: "user-1", delta: 5, reason: "purchase", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-01T00:00:00.000Z" }]);
     mockFindPassLedgerByBookingId.mockReturnValue([consumeEntry()]);
     expect(consumePurchasedPass({ userId: "user-1", bookingId: "bk-1" })).toBe(false);
     expect(mockAppendPassLedgerEntry).not.toHaveBeenCalled();

@@ -266,6 +266,10 @@ export interface ClassPassProductRecord {
   /** Number of class passes credited on successful payment. */
   passCount: number;
   priceCents: number;
+  /** How long purchased passes stay usable, in days from purchase.
+      Null/undefined = passes never expire. Applied at credit time, so
+      changing this later never affects already-purchased passes. */
+  validityDays?: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -324,6 +328,10 @@ export interface PassLedgerEntryRecord {
   /** Provenance for booking-driven entries (consume / consume_reversal) —
       what makes double-consumption and double-reversal detectable. */
   bookingId: string | null;
+  /** For purchase credits only: when these passes stop being usable
+      (stamped from the product's validityDays at credit time). Null or
+      absent = the credit never expires. */
+  expiresAt?: string | null;
   note: string | null;
   createdAt: string;
 }
@@ -1315,6 +1323,20 @@ export function saveClassPassProduct(product: ClassPassProductRecord) {
   const index = db.classPassProducts.findIndex((p) => p.id === product.id);
   if (index === -1) db.classPassProducts.push(product);
   else db.classPassProducts[index] = product;
+  writeDb(db);
+}
+
+// How many purchases (any status, incl. pending/failed) reference this
+// product. Any reference means the product's name/pricing is load-bearing
+// for purchase history, so it must be archived rather than deleted.
+export function countPurchasesByProductId(productId: string): number {
+  return readDb().purchases.filter((p) => p.productId === productId).length;
+}
+
+// Physical deletion — only safe when countPurchasesByProductId is 0.
+export function deleteClassPassProduct(id: string) {
+  const db = readDb();
+  db.classPassProducts = db.classPassProducts.filter((p) => p.id !== id);
   writeDb(db);
 }
 

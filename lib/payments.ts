@@ -66,9 +66,91 @@ export function isPurchaseCheckoutReusable(purchase: PurchaseRecord): boolean {
 
 // ── Pass entitlement ledger ────────────────────────────────────────────
 
-/** Current purchased-pass balance for a member (sum over the ledger). */
-export function purchasedPassBalance(userId: string): number {
-  return findPassLedgerByUserId(userId).reduce((sum, e) => sum + e.delta, 0);
+/**
+ * Current purchased-pass balance for a member.
+ *
+ * Replays the ledger chronologically into per-purchase pools so expiry can
+ * apply per purchase: consumption spends the oldest usable pool first
+ * (FIFO), a consume_reversal returns the pass to the pool it came from
+ * (booking id provenance), and a pool past its expiresAt forfeits whatever
+ * positive remainder it has. Negative remainders (refund taken after use)
+ * survive expiry — a refund debt is not forgiven by time. For ledgers with
+ * no expiring credits this reduces exactly to the old sum-of-deltas.
+ */
+export function purchasedPassBalance(userId: string, now: Date = new Date()): number {
+  const entries = [...findPassLedgerByUserId(userId)].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt)
+  );
+
+  type Pool = { remaining: number; expiresAt: string | null };
+  const pools: Pool[] = [];
+  const poolByPurchase = new Map<string, Pool>();
+  const poolByBooking = new Map<string, Pool>();
+  let deficit = 0;
+
+  const usableAt = (pool: Pool, at: string) =>
+    pool.remaining > 0 && (pool.expiresAt === null || pool.expiresAt > at);
+
+  for (const e of entries) {
+    switch (e.reason) {
+      case "purchase": {
+        const pool: Pool = { remaining: e.delta, expiresAt: e.expiresAt ?? null };
+        pools.push(pool);
+        if (e.purchaseId) poolByPurchase.set(e.purchaseId, pool);
+        break;
+      }
+      case "refund_reversal": {
+        const pool = e.purchaseId ? poolByPurchase.get(e.purchaseId) : undefined;
+        if (pool) pool.remaining += e.delta;
+        else deficit -= e.delta;
+        break;
+      }
+      case "staff_adjust": {
+        if (e.delta >= 0) {
+          // Staff grants never expire.
+          pools.push({ remaining: e.delta, expiresAt: null });
+        } else {
+          let toTake = -e.delta;
+          for (const pool of pools) {
+            if (toTake === 0) break;
+            if (!usableAt(pool, e.createdAt)) continue;
+            const take = Math.min(pool.remaining, toTake);
+            pool.remaining -= take;
+            toTake -= take;
+          }
+          deficit += toTake;
+        }
+        break;
+      }
+      case "consume": {
+        const pool = pools.find((p) => usableAt(p, e.createdAt));
+        if (pool) {
+          pool.remaining -= 1;
+          if (e.bookingId) poolByBooking.set(e.bookingId, pool);
+        } else {
+          deficit += 1;
+        }
+        break;
+      }
+      case "consume_reversal": {
+        const pool = e.bookingId ? poolByBooking.get(e.bookingId) : undefined;
+        if (pool) pool.remaining += 1;
+        else if (deficit > 0) deficit -= 1;
+        else pools.push({ remaining: 1, expiresAt: null });
+        break;
+      }
+    }
+  }
+
+  const nowIso = now.toISOString();
+  const available = pools.reduce((sum, pool) => {
+    if (pool.expiresAt !== null && pool.expiresAt <= nowIso) {
+      return sum + Math.min(pool.remaining, 0);
+    }
+    return sum + pool.remaining;
+  }, 0);
+
+  return available - deficit;
 }
 
 // Credits the passes for a paid purchase exactly once. Safe to call on
@@ -76,10 +158,19 @@ export function purchasedPassBalance(userId: string): number {
 // no-op. Returns whether a credit was written on THIS call.
 export function applyPaidPassPurchase(
   purchase: PurchaseRecord,
-  product: Pick<ClassPassProductRecord, "passCount" | "name">
+  product: Pick<ClassPassProductRecord, "passCount" | "name" | "validityDays">
 ): boolean {
   const existing = findPassLedgerByPurchaseId(purchase.id);
   if (existing.some((e) => e.reason === "purchase")) return false;
+
+  // Expiry is stamped at credit time from the product's current rule, so a
+  // later product edit never shortens (or extends) passes already bought.
+  const creditedAt = new Date();
+  const validityDays = product.validityDays ?? null;
+  const expiresAt =
+    validityDays === null
+      ? null
+      : new Date(creditedAt.getTime() + validityDays * 86_400_000).toISOString();
 
   const entry: PassLedgerEntryRecord = {
     id: randomUUID(),
@@ -88,8 +179,9 @@ export function applyPaidPassPurchase(
     reason: "purchase",
     purchaseId: purchase.id,
     bookingId: null,
+    expiresAt,
     note: `${product.name} (${product.passCount} passes)`,
-    createdAt: new Date().toISOString(),
+    createdAt: creditedAt.toISOString(),
   };
   appendPassLedgerEntry(entry);
   return true;

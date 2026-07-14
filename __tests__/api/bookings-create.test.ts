@@ -324,7 +324,10 @@ describe("POST /api/bookings/create", () => {
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
     // Member owns a 10-pack with 5 left
-    mockFindPassLedgerByUserId.mockReturnValue([{ delta: 10 }, { delta: -5 }]);
+    mockFindPassLedgerByUserId.mockReturnValue([
+      { id: "led-1", userId: "member-1", delta: 10, reason: "purchase", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "led-2", userId: "member-1", delta: -5, reason: "staff_adjust", purchaseId: null, bookingId: null, note: null, createdAt: "2026-01-02T00:00:00.000Z" },
+    ]);
     const cookie = signSession({ userId: MEMBER_USER.id });
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
