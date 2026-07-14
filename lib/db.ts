@@ -126,6 +126,36 @@ export interface ClassRecord {
   startTime: string;
   durationMins: number;
   capacity: number;
+  /** Set when this occurrence was generated from a recurring series.
+      Occurrences stay ordinary classes — bookings, waitlists, attendance
+      and deletion all work exactly as for one-off classes. */
+  seriesId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// A recurring weekly schedule that GENERATES ClassRecord occurrences on a
+// rolling horizon (see lib/class-series.ts) rather than materialising an
+// unbounded run of rows. The series itself is never bookable.
+export interface ClassSeriesRecord {
+  id: string;
+  title: string;
+  category: ClassCategory;
+  coachUserId: string;
+  /** JS weekday numbers (0 = Sunday … 6 = Saturday). At least one. */
+  weekdays: number[];
+  startTime: string;
+  durationMins: number;
+  capacity: number;
+  /** First date occurrences may be generated for (ISO date). */
+  startDate: string;
+  /** Last generatable date; null = repeats indefinitely. */
+  endDate: string | null;
+  /** Dates staff removed (occurrence deleted or moved) — generation must
+      never bring these back. */
+  skippedDates: string[];
+  /** false = stopped: existing occurrences stay, nothing new generates. */
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -426,6 +456,7 @@ interface Database {
   aiMessages: AiMessageRecord[];
   bodyWeightLogs: BodyWeightLogRecord[];
   classes: ClassRecord[];
+  classSeries: ClassSeriesRecord[];
   classCategories: ClassCategoryRecord[];
   // slug → display name for categories that have been deleted. Populated by
   // deleteClassCategory so historical class/plan records still render a
@@ -479,6 +510,7 @@ function readDb(): Database {
       aiMessages: [],
       bodyWeightLogs: [],
       classes: [],
+      classSeries: [],
       classCategories: DEFAULT_CLASS_CATEGORIES,
       deletedCategoryLabels: {},
       bookings: [],
@@ -528,6 +560,7 @@ function readDb(): Database {
     aiMessages: parsed.aiMessages ?? [],
     bodyWeightLogs: parsed.bodyWeightLogs ?? [],
     classes: (parsed.classes ?? []).map((c) => ({ ...c, category: c.category ?? "general" })),
+    classSeries: parsed.classSeries ?? [],
     // Seed built-in categories if the DB predates this field.
     // One-way migration: rows with isActive === false (previously archived) are
     // treated as deleted so they no longer appear in selection UIs.
@@ -762,6 +795,34 @@ export function saveClass(classRecord: ClassRecord) {
   writeDb(db);
 }
 
+export function findClassSeries(): ClassSeriesRecord[] {
+  const db = readDb();
+  return db.classSeries.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function findClassSeriesById(id: string): ClassSeriesRecord | undefined {
+  const db = readDb();
+  return db.classSeries.find((series) => series.id === id);
+}
+
+export function saveClassSeries(series: ClassSeriesRecord) {
+  const db = readDb();
+  const index = db.classSeries.findIndex((sr) => sr.id === series.id);
+  if (index === -1) db.classSeries.push(series);
+  else db.classSeries[index] = series;
+  writeDb(db);
+}
+
+// Generation dedupe key: one occurrence per (series, date).
+export function findClassBySeriesAndDate(seriesId: string, date: string): ClassRecord | undefined {
+  const db = readDb();
+  return db.classes.find((c) => c.seriesId === seriesId && c.date === date);
+}
+
+export function findClassesBySeriesId(seriesId: string): ClassRecord[] {
+  const db = readDb();
+  return db.classes.filter((c) => c.seriesId === seriesId);
+}
 // Physical deletion — callers are responsible for unwinding bookings and
 // waitlist entries first (see /api/staff/classes/delete).
 export function deleteClass(id: string) {

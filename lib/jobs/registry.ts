@@ -1,5 +1,6 @@
 import { cleanupPastWaitlistsJob } from "./cleanup-past-waitlists";
 import { expireStaleCheckoutsJob } from "./expire-stale-checkouts";
+import { generateClassSeriesJob } from "./generate-class-series";
 import { notifyExpiringPassesJob } from "./notify-expiring-passes";
 import { notifyLapsedMembershipsJob } from "./notify-lapsed-memberships";
 import { processWaitlistOffersJob } from "./process-waitlist-offers";
@@ -17,6 +18,7 @@ export const ALL_JOBS: JobDefinition[] = [
   expireStaleCheckoutsJob,
   notifyLapsedMembershipsJob,
   notifyExpiringPassesJob,
+  generateClassSeriesJob,
   processWaitlistOffersJob,
   sendClassRemindersJob,
   cleanupPastWaitlistsJob,

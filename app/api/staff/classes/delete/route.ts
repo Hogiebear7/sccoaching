@@ -10,8 +10,10 @@ import {
   findAllWaitlistEntries,
   findBookingsByClassId,
   findClassById,
+  findClassSeriesById,
   findSubscriptionByUserId,
   findUserById,
+  saveClassSeries,
   saveSubscription,
 } from "@/lib/db";
 import { reversePassConsumption } from "@/lib/payments";
@@ -123,6 +125,19 @@ export async function POST(request: NextRequest) {
   for (const entry of findAllWaitlistEntries()) {
     if (entry.classId === classRecord.id) {
       deleteWaitlistEntry(entry.id);
+    }
+  }
+
+  // A deleted series occurrence is a deliberate cancellation of that day —
+  // tombstone the date so rolling generation never re-creates it.
+  if (classRecord.seriesId) {
+    const series = findClassSeriesById(classRecord.seriesId);
+    if (series && !series.skippedDates.includes(classRecord.date)) {
+      saveClassSeries({
+        ...series,
+        skippedDates: [...series.skippedDates, classRecord.date],
+        updatedAt: now,
+      });
     }
   }
 

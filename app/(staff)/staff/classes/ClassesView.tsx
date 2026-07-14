@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
-import type { ClassCategory, ClassCategoryRecord, ClassRecord } from "@/lib/db";
+import type { ClassCategory, ClassCategoryRecord, ClassRecord, ClassSeriesRecord } from "@/lib/db";
+import { WEEKDAY_LABELS, describeSeriesDays } from "@/lib/class-series-shared";
 import { classCategoryLabel, isFutureDateTime } from "@/lib/scheduling-status";
 
 type RosterMember = {
@@ -37,10 +38,17 @@ type ClassFormValues = {
   startTime: string;
   durationMins: string;
   capacity: string;
-  repeatWeeks: string;
+  repeat: "none" | "weekly";
+  weekdays: number[];
+  repeatEndDate: string;
 };
 
 type FormErrors = Partial<Record<keyof ClassFormValues, string>>;
+
+function weekdayOfIso(isoDate: string): number {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
 
 function todayDateString(): string {
   return new Date().toISOString().slice(0, 10);
@@ -54,7 +62,9 @@ function emptyFormValues(defaultCategory = "general"): ClassFormValues {
     startTime: "",
     durationMins: "",
     capacity: "",
-    repeatWeeks: "1",
+    repeat: "none",
+    weekdays: [],
+    repeatEndDate: "",
   };
 }
 
@@ -67,7 +77,9 @@ function toFormValues(classRecord: ClassRecord): ClassFormValues {
     durationMins: String(classRecord.durationMins),
     capacity: String(classRecord.capacity),
     // Editing always targets this single occurrence.
-    repeatWeeks: "1",
+    repeat: "none",
+    weekdays: [],
+    repeatEndDate: "",
   };
 }
 
@@ -75,10 +87,12 @@ export function ClassesView({
   classes,
   categories,
   deletedLabels,
+  series,
 }: {
   classes: ClassWithRoster[];
   categories: ClassCategoryRecord[];
   deletedLabels: Record<string, string>;
+  series: ClassSeriesRecord[];
 }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -96,6 +110,12 @@ export function ClassesView({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
+  const [stoppingSeriesId, setStoppingSeriesId] = useState<string | null>(null);
+  const [confirmStopId, setConfirmStopId] = useState<string | null>(null);
+  const [seriesMessage, setSeriesMessage] = useState<string | null>(null);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+
+  const activeSeries = series.filter((sr) => sr.isActive);
 
   const isEditing = editingId !== null;
 
@@ -133,6 +153,41 @@ export function ClassesView({
     }
   }
 
+  async function handleStopSeries(seriesId: string) {
+    setStoppingSeriesId(seriesId);
+    setSeriesError(null);
+    setSeriesMessage(null);
+    try {
+      const res = await fetch("/api/staff/classes/series/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: seriesId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setSeriesError(data?.message ?? "Could not stop this repeating class.");
+        return;
+      }
+      setSeriesMessage(data?.message ?? "Repeating class stopped.");
+      setConfirmStopId(null);
+      router.refresh();
+    } catch {
+      setSeriesError("Something went wrong. Please try again.");
+    } finally {
+      setStoppingSeriesId(null);
+    }
+  }
+
+  function toggleWeekday(day: number) {
+    setValues((prev) => ({
+      ...prev,
+      weekdays: prev.weekdays.includes(day)
+        ? prev.weekdays.filter((d) => d !== day)
+        : [...prev.weekdays, day],
+    }));
+    setErrors((prev) => ({ ...prev, weekdays: undefined }));
+    setSuccessMessage(null);
+  }
   async function handleToggleAttendance(bookingId: string, nextAttended: boolean) {
     setAttendanceUpdatingId(bookingId);
     try {
@@ -200,6 +255,15 @@ export function ClassesView({
       nextErrors.capacity = "Capacity is required.";
     } else if (!Number.isInteger(Number(values.capacity)) || Number(values.capacity) <= 0) {
       nextErrors.capacity = "Capacity must be a whole number greater than zero.";
+    }
+
+    if (!isEditing && values.repeat === "weekly") {
+      if (values.weekdays.length === 0) {
+        nextErrors.weekdays = "Pick at least one weekday.";
+      }
+      if (values.repeatEndDate && values.date && values.repeatEndDate < values.date) {
+        nextErrors.repeatEndDate = "End date can't be before the start date.";
+      }
     }
 
     setErrors(nextErrors);
@@ -342,29 +406,89 @@ export function ClassesView({
           </FormField>
 
           {!isEditing ? (
-            <FormField label="Repeat" error={errors.repeatWeeks}>
+            <FormField label="Repeat" error={undefined}>
               <select
-                value={values.repeatWeeks}
-                onChange={(e) => handleTextChange("repeatWeeks", e)}
-                className={inputClass(errors.repeatWeeks)}
+                value={values.repeat}
+                onChange={(e) =>
+                  setValues((prev) => ({
+                    ...prev,
+                    repeat: e.target.value === "weekly" ? "weekly" : "none",
+                    // Convenience: pre-select the start date's weekday.
+                    weekdays:
+                      e.target.value === "weekly" && prev.weekdays.length === 0 && prev.date
+                        ? [weekdayOfIso(prev.date)]
+                        : prev.weekdays,
+                  }))
+                }
+                className={inputClass(undefined)}
               >
-                <option value="1">One-off (no repeat)</option>
-                {Array.from({ length: 11 }, (_, i) => i + 2).map((weeks) => (
-                  <option key={weeks} value={String(weeks)}>
-                    Weekly for {weeks} weeks
-                  </option>
-                ))}
+                <option value="none">One-off (no repeat)</option>
+                <option value="weekly">Repeats weekly</option>
               </select>
             </FormField>
           ) : null}
         </div>
 
-        {!isEditing && Number(values.repeatWeeks) > 1 ? (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Creates {values.repeatWeeks} classes — same name, time, duration and capacity, one per
-            week starting on the date above. Each one can be edited or deleted individually
-            afterwards.
-          </p>
+        {!isEditing && values.repeat === "weekly" ? (
+          <div className="mt-4 space-y-4 rounded-2xl border border-border/60 bg-white/[0.02] p-4">
+            <fieldset>
+              <legend className="mb-2 block text-sm font-medium text-foreground">
+                Repeats on
+              </legend>
+              <div className="flex flex-wrap gap-1.5">
+                {WEEKDAY_LABELS.map((day) => {
+                  const selected = values.weekdays.includes(day.value);
+                  return (
+                    <button
+                      key={day.value}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={selected}
+                      aria-label={day.long}
+                      onClick={() => toggleWeekday(day.value)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        selected
+                          ? "border-primary/50 bg-primary/15 text-primary"
+                          : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                      }`}
+                    >
+                      {day.short}
+                    </button>
+                  );
+                })}
+              </div>
+              {errors.weekdays ? (
+                <p className="mt-1.5 text-xs text-destructive">{errors.weekdays}</p>
+              ) : null}
+            </fieldset>
+
+            <FormField
+              label={
+                <>
+                  Ends on{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    optional — leave blank to repeat with no end date
+                  </span>
+                </>
+              }
+              error={errors.repeatEndDate}
+            >
+              <input
+                type="date"
+                value={values.repeatEndDate}
+                min={values.date || todayDateString()}
+                onChange={(e) => handleTextChange("repeatEndDate", e)}
+                className={`${inputClass(errors.repeatEndDate)} sm:max-w-[220px]`}
+              />
+            </FormField>
+
+            <p className="text-xs text-muted-foreground">
+              Sessions are scheduled 4 weeks ahead on a rolling basis, starting from the date
+              above, and new weeks are added automatically. Every session stays an ordinary
+              class — edit or delete any one of them individually. Editing the whole series
+              after creation isn&apos;t supported yet; stop it and create a new one instead.
+            </p>
+          </div>
         ) : null}
 
         <div className="mt-6 flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-end">
@@ -388,6 +512,67 @@ export function ClassesView({
         </div>
       </form>
 
+      {/* Recurring series — the schedules that generate upcoming classes */}
+      {activeSeries.length > 0 ? (
+        <div className="panel p-6">
+          <h3 className="text-lg font-semibold">Repeating classes</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            These schedules add sessions automatically, 4 weeks ahead. Stopping one keeps
+            sessions people have booked; unbooked upcoming sessions are removed.
+          </p>
+          {seriesError ? (
+            <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{seriesError}</p>
+          ) : null}
+          {seriesMessage ? (
+            <p className="mt-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">{seriesMessage}</p>
+          ) : null}
+          <div className="mt-4 space-y-2">
+            {activeSeries.map((sr) => (
+              <div key={sr.id} className="flex flex-wrap items-center justify-between gap-2 well p-3">
+                <div>
+                  <p className="text-sm font-medium">{sr.title}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {describeSeriesDays(sr.weekdays)} · {sr.startTime} ·{" "}
+                    {sr.endDate ? `until ${sr.endDate}` : "no end date"}
+                  </p>
+                </div>
+                {confirmStopId === sr.id ? (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleStopSeries(sr.id)}
+                      disabled={stoppingSeriesId === sr.id}
+                      className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {stoppingSeriesId === sr.id ? "Stopping…" : "Confirm stop"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmStopId(null)}
+                      disabled={stoppingSeriesId === sr.id}
+                      className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Keep repeating
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmStopId(sr.id);
+                      setSeriesError(null);
+                      setSeriesMessage(null);
+                    }}
+                    className="rounded-xl border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60"
+                  >
+                    Stop repeating
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {/* Class list — delete feedback lives above both groups so it stays
           visible whichever section the class was in. */}
       {deleteError ? (
@@ -463,6 +648,11 @@ export function ClassesView({
             <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
               {classCategoryLabel(categories, classRecord.category, deletedLabels)}
             </span>
+            {classRecord.seriesId ? (
+              <span className="rounded-full border border-primary/25 bg-primary/[0.08] px-3 py-1 text-xs font-medium text-primary">
+                Repeats weekly
+              </span>
+            ) : null}
             <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
               {classRecord.durationMins} min · {classRecord.bookedCount}/{classRecord.capacity} booked
               {classRecord.waitlist.length > 0

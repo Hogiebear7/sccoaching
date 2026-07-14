@@ -15,6 +15,8 @@ const {
   mockSaveSubscription,
   mockCreateNotification,
   mockReversePassConsumption,
+  mockFindClassSeriesById,
+  mockSaveClassSeries,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindClassById: vi.fn(),
@@ -27,6 +29,8 @@ const {
   mockSaveSubscription: vi.fn(),
   mockCreateNotification: vi.fn(),
   mockReversePassConsumption: vi.fn(),
+  mockFindClassSeriesById: vi.fn(),
+  mockSaveClassSeries: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -40,6 +44,8 @@ vi.mock("@/lib/db", () => ({
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
   saveSubscription: mockSaveSubscription,
   createNotification: mockCreateNotification,
+  findClassSeriesById: mockFindClassSeriesById,
+  saveClassSeries: mockSaveClassSeries,
 }));
 
 vi.mock("@/lib/payments", () => ({
@@ -182,6 +188,19 @@ describe("POST /api/staff/classes/delete", () => {
     expect(mockSaveSubscription).not.toHaveBeenCalled();
     // The booking is still removed even though there was nothing to refund.
     expect(mockDeleteBooking).toHaveBeenCalledWith("book-b");
+  });
+
+  it("deleting a series occurrence tombstones its date so it never regenerates", async () => {
+    mockFindClassById.mockReturnValue({ ...FUTURE_CLASS, seriesId: "series-1" });
+    mockFindClassSeriesById.mockReturnValue({ id: "series-1", skippedDates: ["2026-01-01"] });
+
+    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+
+    expect(res.status).toBe(200);
+    const saved = mockSaveClassSeries.mock.calls[0][0];
+    expect(saved.skippedDates).toContain(FUTURE_CLASS.date);
+    expect(saved.skippedDates).toContain("2026-01-01");
+    expect(mockDeleteClass).toHaveBeenCalledWith("class-1");
   });
 
   it("notifies each booked member and purges the class waitlist", async () => {

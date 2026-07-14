@@ -1,5 +1,7 @@
+import { ensureSeriesOccurrences } from "@/lib/class-series";
 import {
   findBookingsByClassId,
+  findClassSeries,
   findClassCategories,
   findClasses,
   findDeletedCategoryLabels,
@@ -10,6 +12,10 @@ import {
 import { ClassesView } from "./ClassesView";
 
 export default async function StaffClassesPage() {
+  // Top up the rolling window of recurring occurrences on every staff visit
+  // (idempotent) — the cron job is the backstop, this is the fast path.
+  ensureSeriesOccurrences();
+
   const categories = findClassCategories();
   const deletedLabels = findDeletedCategoryLabels();
   const classes = findClasses().map((classRecord) => {
@@ -48,5 +54,12 @@ export default async function StaffClassesPage() {
     };
   });
 
-  return <ClassesView classes={classes} categories={categories} deletedLabels={deletedLabels} />;
+  return (
+    <ClassesView
+      classes={classes}
+      categories={categories}
+      deletedLabels={deletedLabels}
+      series={findClassSeries()}
+    />
+  );
 }
