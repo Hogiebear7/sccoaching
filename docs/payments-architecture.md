@@ -33,11 +33,22 @@ a configured fallback). Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - Subscription lifecycle: `invoice.payment_failed` → past_due,
   `customer.subscription.deleted` → canceled; period lapse remains computed
   live so access never outlives payment.
+- Renewals: `invoice.paid` (and the legacy `invoice.payment_succeeded`) is
+  the source of truth for billing periods. The covered period end comes
+  from the latest invoice line period (fallback `invoice.period_end`).
+  A period only rolls FORWARD: an invoice extending past the stored
+  currentPeriodEnd rolls the period and resets usage/extra grants; an
+  equal-or-older invoice (current-period retry, duplicate legacy event,
+  out-of-order delivery) still confirms payment — recovering past_due →
+  active — but never resets usage. Canceled subscriptions are never
+  resurrected by a late-settling final invoice. The synthetic interval set
+  at checkout activation is a placeholder until the first invoice arrives
+  seconds later with the real period.
 
 Register these webhook events in the Stripe dashboard:
 `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
 `checkout.session.async_payment_failed`, `checkout.session.expired`,
-`charge.refunded`, `invoice.payment_failed`,
+`charge.refunded`, `invoice.paid`, `invoice.payment_failed`,
 `customer.subscription.deleted`.
 
 ## Pass consumption (implemented)

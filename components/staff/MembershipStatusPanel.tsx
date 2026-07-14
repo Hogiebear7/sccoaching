@@ -177,8 +177,10 @@ export function MembershipStatusPanel({
         ) : null}
         {periodLapsed ? (
           <span className="text-xs text-muted-foreground">
-            Billing period ended {currentPeriodEnd ? formatMembershipDate(currentPeriodEnd) : ""} —
-            recurring renewal isn&apos;t automatic yet. Member can renew themselves, or set status below.
+            Billing period ended {currentPeriodEnd ? formatMembershipDate(currentPeriodEnd) : ""}
+            {currentProvider === "stripe"
+              ? " — renewal is automatic, so the last payment hasn't come through. The member can retry checkout, or set status manually below."
+              : " — this membership doesn't renew automatically. Member can renew themselves, or set status below."}
           </span>
         ) : null}
         {currentProvider === "revolut" || currentProvider === "stripe" ? (

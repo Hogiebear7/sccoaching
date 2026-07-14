@@ -191,6 +191,51 @@ export async function POST(request: NextRequest) {
     return ack("No matching purchase for refund.");
   }
 
+  // ── Renewals ──────────────────────────────────────────────────────────
+  // invoice.paid is the source of truth for billing periods: the covered
+  // service period comes from the invoice lines, not from our own interval
+  // arithmetic. Handles the first invoice (correcting the synthetic period
+  // set at activation), every renewal, and successful past-due retries.
+  // invoice.payment_succeeded is the same consequence under a legacy name;
+  // both are safe to process because a period can only roll forward once.
+  if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
+    const subscriptionId = readInvoiceSubscriptionId(object);
+    const subscription = subscriptionId
+      ? findSubscriptionByProviderOrderId(subscriptionId)
+      : undefined;
+
+    if (!subscription) return ack("No matching subscription for invoice.");
+
+    // A canceled membership stays canceled — a final invoice settling after
+    // customer.subscription.deleted must not resurrect access.
+    if (subscription.status === "canceled") return ack("Subscription is canceled.");
+
+    const paidPeriodEnd = readInvoicePeriodEnd(object);
+    const now = new Date().toISOString();
+
+    // The period only ever rolls forward. An invoice whose covered period
+    // doesn't extend past what we already have (replays under a different
+    // event id, the duplicate legacy event, out-of-order delivery) still
+    // confirms payment — so it can recover past_due — but never resets
+    // usage or shortens the period a member is already inside.
+    const advancesPeriod =
+      paidPeriodEnd !== null &&
+      (subscription.currentPeriodEnd === null || paidPeriodEnd > subscription.currentPeriodEnd);
+
+    saveSubscription({
+      ...subscription,
+      status: "active",
+      currentPeriodEnd: advancesPeriod ? paidPeriodEnd : subscription.currentPeriodEnd,
+      sessionsUsedThisPeriod: advancesPeriod ? 0 : subscription.sessionsUsedThisPeriod,
+      extraSessionGrants: advancesPeriod ? [] : subscription.extraSessionGrants,
+      periodLapsedNotifiedAt: advancesPeriod ? null : subscription.periodLapsedNotifiedAt,
+      lastWebhookEventAt: now,
+      updatedAt: now,
+    });
+
+    return ack(advancesPeriod ? "Billing period rolled." : "Payment confirmed.");
+  }
+
   // ── Subscription lifecycle ────────────────────────────────────────────
   if (event.type === "invoice.payment_failed" || event.type === "customer.subscription.deleted") {
     const subscriptionId =
@@ -250,6 +295,31 @@ function readInvoiceSubscriptionId(object: Record<string, unknown>): string | nu
     }
   }
   return null;
+}
+
+// The service period an invoice covers ends at the latest line period end
+// (epoch seconds). invoice.period_end is the invoicing window, not the
+// covered service period, so it is only a last-resort fallback.
+function readInvoicePeriodEnd(object: Record<string, unknown>): string | null {
+  let latest = 0;
+
+  const lines = object.lines;
+  if (typeof lines === "object" && lines !== null) {
+    const data = (lines as Record<string, unknown>).data;
+    if (Array.isArray(data)) {
+      for (const line of data) {
+        if (typeof line !== "object" || line === null) continue;
+        const period = (line as Record<string, unknown>).period;
+        if (typeof period !== "object" || period === null) continue;
+        const end = (period as Record<string, unknown>).end;
+        if (typeof end === "number" && end > latest) latest = end;
+      }
+    }
+  }
+
+  if (latest === 0 && typeof object.period_end === "number") latest = object.period_end;
+
+  return latest > 0 ? new Date(latest * 1000).toISOString() : null;
 }
 
 function readMetadataPurchaseId(object: Record<string, unknown>): string | null {

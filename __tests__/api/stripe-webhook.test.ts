@@ -277,6 +277,146 @@ describe("stripe webhook", () => {
     expect(mockSaveSubscription.mock.calls[0][0].status).toBe("canceled");
   });
 
+  it("invoice.paid rolls the period from the latest line period end and resets usage", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+    });
+
+    // Two lines with different periods — the latest end wins
+    // (1788220800 = 2026-09-01T00:00:00Z, past the stored 2026-08-01).
+    const res = await postEvent({
+      id: "evt_20",
+      type: "invoice.paid",
+      object: {
+        id: "in_10",
+        subscription: "sub_123",
+        lines: {
+          data: [
+            { period: { end: 1785542400 } }, // 2026-07-31
+            { period: { end: 1788220800 } }, // 2026-09-01
+          ],
+        },
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const saved = mockSaveSubscription.mock.calls[0][0];
+    expect(saved.status).toBe("active");
+    expect(saved.currentPeriodEnd).toBe(new Date(1788220800 * 1000).toISOString());
+    expect(saved.sessionsUsedThisPeriod).toBe(0);
+    expect(saved.extraSessionGrants).toEqual([]);
+    expect(saved.periodLapsedNotifiedAt).toBeNull();
+    expect(mockRecordPaymentEvent).toHaveBeenCalledWith(expect.objectContaining({ key: "evt_20" }));
+  });
+
+  it("invoice.paid recovers past_due without resetting usage when the period doesn't advance", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "past_due",
+      providerSubscriptionId: "sub_123",
+      currentPeriodEnd: "2026-09-01T00:00:00.000Z",
+      sessionsUsedThisPeriod: 4,
+    });
+
+    const res = await postEvent({
+      id: "evt_21",
+      type: "invoice.paid",
+      object: {
+        id: "in_11",
+        subscription: "sub_123",
+        // Same period end as stored — a retry for the current period.
+        lines: { data: [{ period: { end: 1788220800 } }] },
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const saved = mockSaveSubscription.mock.calls[0][0];
+    expect(saved.status).toBe("active");
+    expect(saved.currentPeriodEnd).toBe("2026-09-01T00:00:00.000Z");
+    expect(saved.sessionsUsedThisPeriod).toBe(4);
+    expect(saved.extraSessionGrants).toEqual(SUBSCRIPTION.extraSessionGrants);
+  });
+
+  it("invoice.paid fills a null period end and never resurrects a canceled membership", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      currentPeriodEnd: null,
+    });
+
+    await postEvent({
+      id: "evt_22",
+      type: "invoice.paid",
+      object: { id: "in_12", subscription: "sub_123", lines: { data: [{ period: { end: 1788220800 } }] } },
+    });
+    expect(mockSaveSubscription.mock.calls[0][0].currentPeriodEnd).toBe(
+      new Date(1788220800 * 1000).toISOString()
+    );
+    expect(mockSaveSubscription.mock.calls[0][0].sessionsUsedThisPeriod).toBe(0);
+
+    mockSaveSubscription.mockClear();
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "canceled",
+      providerSubscriptionId: "sub_123",
+    });
+    const res = await postEvent({
+      id: "evt_23",
+      type: "invoice.paid",
+      object: { id: "in_13", subscription: "sub_123", lines: { data: [{ period: { end: 1788220800 } }] } },
+    });
+    expect(res.status).toBe(200);
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("invoice.payment_succeeded and nested 2025+ payloads roll the period too", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+    });
+
+    const res = await postEvent({
+      id: "evt_24",
+      type: "invoice.payment_succeeded",
+      object: {
+        id: "in_14",
+        parent: { subscription_details: { subscription: "sub_123" } },
+        // No line periods — falls back to invoice.period_end.
+        period_end: 1788220800,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockSaveSubscription.mock.calls[0][0].currentPeriodEnd).toBe(
+      new Date(1788220800 * 1000).toISOString()
+    );
+  });
+
+  it("invoice.paid for an unknown subscription is acknowledged without writes", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue(undefined);
+
+    const res = await postEvent({
+      id: "evt_25",
+      type: "invoice.paid",
+      object: { id: "in_15", subscription: "sub_ghost", lines: { data: [{ period: { end: 1788220800 } }] } },
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+    expect(mockRecordPaymentEvent).toHaveBeenCalled();
+  });
+
   it("reads the subscription id from 2025+ nested invoice payloads", async () => {
     mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
     mockFindSubscriptionByProviderOrderId.mockReturnValue({
