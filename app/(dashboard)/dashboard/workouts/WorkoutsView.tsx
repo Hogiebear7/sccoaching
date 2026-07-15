@@ -362,13 +362,15 @@ function ExerciseLibrary({
         aria-label="Search the exercise library"
         className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
       />
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      {/* Uniform grid keeps the chips aligned across wraps on mobile. */}
+      <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-4" role="group" aria-label="Filter by category">
         {sectionChips.map((chip) => (
           <button
             key={chip.value}
             type="button"
+            aria-pressed={section === chip.value}
             onClick={() => setSection(chip.value)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+            className={`truncate rounded-full border px-2 py-1.5 text-center text-xs font-medium transition ${
               section === chip.value
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border text-muted-foreground hover:border-primary hover:text-primary"
@@ -378,7 +380,10 @@ function ExerciseLibrary({
           </button>
         ))}
       </div>
-      <div className="mt-3 max-h-80 space-y-1.5 overflow-y-auto pr-1">
+      <p className="mt-3 text-[11px] text-muted-foreground tabular-nums">
+        {filtered.length} exercise{filtered.length === 1 ? "" : "s"}
+      </p>
+      <div className="mt-1.5 max-h-72 space-y-1.5 overflow-y-auto overscroll-contain rounded-xl border border-border/40 bg-white/[0.02] p-1.5">
         {filtered.length === 0 ? (
           <p className="py-3 text-center text-xs text-muted-foreground">No exercises match.</p>
         ) : (

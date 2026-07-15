@@ -69,6 +69,7 @@ export function RecoveryView({
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   // Post-save state for the submit-button morph (spinner → check → idle).
   const [justSaved, setJustSaved] = useState(false);
 
@@ -439,19 +440,52 @@ export function RecoveryView({
             <p className="mt-1 text-xs text-muted-foreground">Save your first check-in above.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {logs.map((log) => {
+          <div className="space-y-2">
+            {logs.slice(0, 5).map((log) => {
               const load = trainingLoadForLog(log);
+              const open = expandedLogId === log.id;
 
               return (
-                <div
-                  key={log.id}
-                  className="panel p-4"
-                >
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">{log.date}</p>
-                      <p className="mt-1 text-sm text-foreground">
+                <div key={log.id} className="panel p-3.5">
+                  {/* Collapsed: date + the two scores. Tap for full detail. */}
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => setExpandedLogId(open ? null : log.id)}
+                    className="flex w-full items-center justify-between gap-3 text-left"
+                  >
+                    <span className="text-sm font-medium text-foreground">{log.date}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {log.readinessScore !== null && (
+                        <span
+                          className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tabular-nums ${readinessBadgeClass(log.readinessScore)}`}
+                        >
+                          {log.readinessScore}/100
+                        </span>
+                      )}
+                      {load !== null && (
+                        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] text-secondary-foreground tabular-nums">
+                          Load {load}
+                        </span>
+                      )}
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                        className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+                      >
+                        <path d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </button>
+
+                  {open ? (
+                    <div className="mt-3 border-t border-border/60 pt-3">
+                      <p className="text-sm text-foreground">
                         Sleep {log.sleepHours}h · Quality {log.sleepQuality}/10 · Soreness{" "}
                         {log.soreness}/10 · Fatigue {log.fatigue}/5
                       </p>
@@ -467,22 +501,7 @@ export function RecoveryView({
                         </p>
                       )}
                     </div>
-
-                    <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-                      {log.readinessScore !== null && (
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${readinessBadgeClass(log.readinessScore)}`}
-                        >
-                          Readiness {log.readinessScore}/100
-                        </span>
-                      )}
-                      {load !== null && (
-                        <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
-                          Load {load}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  ) : null}
                 </div>
               );
             })}

@@ -38,6 +38,62 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
 
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // Sections holding exercises start open; empty ones start collapsed.
+  const [openSections, setOpenSections] = useState<Set<ExerciseSection>>(
+    () => new Set(exercises.map((e) => e.section))
+  );
+  const [drafting, setDrafting] = useState<"add" | "edit" | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+
+  function toggleSection(section: ExerciseSection) {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
+  }
+
+  // Fills ONLY empty fields with an AI draft — existing text is never
+  // overwritten; staff review and edit before saving.
+  async function handleDraft(
+    which: "add" | "edit",
+    values: FormValues,
+    setValues: (updater: (v: FormValues) => FormValues) => void
+  ) {
+    if (!values.name.trim()) {
+      setDraftError("Type the exercise name first.");
+      return;
+    }
+    if (values.description.trim() && values.cues.trim()) {
+      setDraftError("Both fields already have content — clear one to redraft it.");
+      return;
+    }
+    setDraftError(null);
+    setDrafting(which);
+    try {
+      const res = await fetch("/api/staff/exercises/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: values.name, section: values.section }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setDraftError(data?.message ?? "Could not draft content.");
+        return;
+      }
+      setValues((v) => ({
+        ...v,
+        description: v.description.trim() ? v.description : (data.description ?? ""),
+        cues: v.cues.trim() ? v.cues : (data.cues ?? ""),
+      }));
+    } catch {
+      setDraftError("Something went wrong. Please try again.");
+    } finally {
+      setDrafting(null);
+    }
+  }
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setAddError(null);
@@ -223,7 +279,18 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {draftError ? (
+              <p className="mr-auto text-xs text-destructive">{draftError}</p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => handleDraft("add", addValues, setAddValues)}
+              disabled={drafting !== null}
+              className="rounded-xl border border-blue-400/30 px-4 py-2 text-sm font-medium text-blue-300 transition hover:border-blue-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {drafting === "add" ? "Drafting…" : "Draft with AI"}
+            </button>
             <button
               type="submit"
               disabled={addSubmitting}
@@ -249,9 +316,35 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
 
       {bySection.map(({ value, label, exercises: sectionExercises }) => (
         <div key={value} className="panel p-6">
-          <h3 className="text-lg font-semibold">{label}</h3>
+          <button
+            type="button"
+            aria-expanded={openSections.has(value)}
+            onClick={() => toggleSection(value)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <span className="flex items-baseline gap-2">
+              <span className="text-lg font-semibold">{label}</span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {sectionExercises.length}
+              </span>
+            </span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 ${
+                openSections.has(value) ? "rotate-180" : ""
+              }`}
+            >
+              <path d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
-          {sectionExercises.length === 0 ? (
+          {!openSections.has(value) ? null : sectionExercises.length === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">No exercises in this section yet.</p>
           ) : (
             <div className="mt-4 space-y-2">
@@ -310,6 +403,14 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
                       />
                     </div>
                     <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDraft("edit", editValues, setEditValues)}
+                        disabled={drafting !== null}
+                        className="rounded-xl border border-blue-400/30 px-3 py-1.5 text-xs font-medium text-blue-300 transition hover:border-blue-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {drafting === "edit" ? "Drafting…" : "Draft with AI"}
+                      </button>
                       <button
                         type="submit"
                         disabled={editSubmitting}
