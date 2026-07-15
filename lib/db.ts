@@ -47,6 +47,10 @@ export interface ExerciseRecord {
   id: string;
   name: string;
   section: ExerciseSection;
+  /** What the exercise is / what it trains — shown in the member library. */
+  description?: string | null;
+  /** Coaching cues, one thought per line — shown in the member library. */
+  cues?: string | null;
   createdAt: string;
   updatedAt: string;
 }

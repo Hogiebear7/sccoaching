@@ -398,7 +398,20 @@ function ExerciseLibrary({
                   </span>
                 </button>
                 {open ? (
-                  <div className="border-t border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                  <div className="space-y-2 border-t border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                    {exercise.description ? (
+                      <p className="leading-relaxed">{exercise.description}</p>
+                    ) : null}
+                    {exercise.cues ? (
+                      <div>
+                        <p className="mb-0.5 font-semibold text-foreground/80">Coaching cues</p>
+                        <ul className="space-y-0.5">
+                          {exercise.cues.split("\n").filter(Boolean).map((cue, i) => (
+                            <li key={i}>· {cue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                     {(() => {
                       const stat = statsFor(exercise.name);
                       if (stat.times === 0) return <>You haven&apos;t logged this one yet.</>;

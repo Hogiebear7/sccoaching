@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { id, name, section } = (body ?? {}) as Record<string, unknown>;
+  const { id, name, section, description, cues } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof name !== "string" || !name.trim()) {
     return NextResponse.json(
@@ -56,6 +56,21 @@ export async function POST(request: NextRequest) {
   if (typeof section !== "string" || !VALID_SECTIONS.includes(section as ExerciseSection)) {
     return NextResponse.json(
       { success: false, message: "A valid section is required." },
+      { status: 400 }
+    );
+  }
+
+  // Optional instructional content, length-capped so the library stays a
+  // quick reference rather than hosting essays.
+  if (typeof description === "string" && description.length > 1000) {
+    return NextResponse.json(
+      { success: false, message: "Description must be 1000 characters or fewer." },
+      { status: 400 }
+    );
+  }
+  if (typeof cues === "string" && cues.length > 600) {
+    return NextResponse.json(
+      { success: false, message: "Coaching cues must be 600 characters or fewer." },
       { status: 400 }
     );
   }
@@ -83,6 +98,9 @@ export async function POST(request: NextRequest) {
     id: existing?.id ?? randomUUID(),
     name: cleanName,
     section: section as ExerciseSection,
+    description:
+      typeof description === "string" && description.trim() ? description.trim() : null,
+    cues: typeof cues === "string" && cues.trim() ? cues.trim() : null,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

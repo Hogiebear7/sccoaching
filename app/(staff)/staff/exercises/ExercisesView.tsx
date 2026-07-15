@@ -18,10 +18,10 @@ function sectionLabel(section: ExerciseSection): string {
   return SECTIONS.find((s) => s.value === section)?.label ?? section;
 }
 
-type FormValues = { name: string; section: ExerciseSection };
+type FormValues = { name: string; section: ExerciseSection; description: string; cues: string };
 
 function emptyForm(): FormValues {
-  return { name: "", section: "upper_push" };
+  return { name: "", section: "upper_push", description: "", cues: "" };
 }
 
 export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
@@ -47,7 +47,12 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
       const res = await fetch("/api/staff/exercises", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: addValues.name, section: addValues.section }),
+        body: JSON.stringify({
+          name: addValues.name,
+          section: addValues.section,
+          description: addValues.description,
+          cues: addValues.cues,
+        }),
       });
       const data = await res.json().catch(() => null);
 
@@ -67,7 +72,12 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
 
   function startEdit(exercise: ExerciseRecord) {
     setEditingId(exercise.id);
-    setEditValues({ name: exercise.name, section: exercise.section });
+    setEditValues({
+      name: exercise.name,
+      section: exercise.section,
+      description: exercise.description ?? "",
+      cues: exercise.cues ?? "",
+    });
     setEditError(null);
   }
 
@@ -86,7 +96,13 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
       const res = await fetch("/api/staff/exercises", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editingId, name: editValues.name, section: editValues.section }),
+        body: JSON.stringify({
+          id: editingId,
+          name: editValues.name,
+          section: editValues.section,
+          description: editValues.description,
+          cues: editValues.cues,
+        }),
       });
       const data = await res.json().catch(() => null);
 
@@ -150,7 +166,8 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
       {/* Add form */}
       <div className="panel p-6">
         <h3 className="text-lg font-semibold">Add exercise</h3>
-        <form onSubmit={handleAdd} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <form onSubmit={handleAdd} className="mt-4 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Name</label>
             <input
@@ -177,13 +194,44 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
               ))}
             </select>
           </div>
-          <button
-            type="submit"
-            disabled={addSubmitting}
-            className="btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {addSubmitting ? "Adding…" : "Add"}
-          </button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Description <span className="font-normal">optional — what it is / what it trains</span>
+              </label>
+              <textarea
+                value={addValues.description}
+                onChange={(e) => setAddValues((v) => ({ ...v, description: e.target.value }))}
+                maxLength={1000}
+                placeholder="e.g. A hip-hinge pattern loading the posterior chain…"
+                className="min-h-[72px] w-full resize-y rounded-xl border border-border bg-input px-4 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Coaching cues <span className="font-normal">optional — one per line</span>
+              </label>
+              <textarea
+                value={addValues.cues}
+                onChange={(e) => setAddValues((v) => ({ ...v, cues: e.target.value }))}
+                maxLength={600}
+                placeholder={"Brace before you pull\nPush the floor away"}
+                className="min-h-[72px] w-full resize-y rounded-xl border border-border bg-input px-4 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={addSubmitting}
+              className="btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {addSubmitting ? "Adding…" : "Add"}
+            </button>
+          </div>
         </form>
         {addError ? (
           <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -212,7 +260,7 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
                   <form
                     key={exercise.id}
                     onSubmit={handleEdit}
-                    className="flex flex-col gap-2 rounded-2xl border border-primary/40 bg-background p-3 sm:flex-row sm:items-end"
+                    className="flex flex-col gap-2 rounded-2xl border border-primary/40 bg-background p-3 sm:flex-row sm:flex-wrap sm:items-end"
                   >
                     <div className="flex-1">
                       <input
@@ -243,6 +291,24 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
                         ))}
                       </select>
                     </div>
+                    <div className="w-full space-y-2 sm:order-last sm:basis-full">
+                      <textarea
+                        value={editValues.description}
+                        onChange={(e) => setEditValues((v) => ({ ...v, description: e.target.value }))}
+                        maxLength={1000}
+                        placeholder="Description (optional)"
+                        aria-label="Exercise description"
+                        className="min-h-[56px] w-full resize-y rounded-xl border border-border bg-input px-3 py-1.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                      />
+                      <textarea
+                        value={editValues.cues}
+                        onChange={(e) => setEditValues((v) => ({ ...v, cues: e.target.value }))}
+                        maxLength={600}
+                        placeholder="Coaching cues (optional, one per line)"
+                        aria-label="Coaching cues"
+                        className="min-h-[56px] w-full resize-y rounded-xl border border-border bg-input px-3 py-1.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                      />
+                    </div>
                     <div className="flex gap-2">
                       <button
                         type="submit"
@@ -268,7 +334,16 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
                     key={exercise.id}
                     className="flex items-center justify-between well px-4 py-3"
                   >
-                    <p className="text-sm">{exercise.name}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm">{exercise.name}</p>
+                      {exercise.description || exercise.cues ? (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {exercise.description ?? exercise.cues}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 text-xs text-muted-foreground/50">No guide yet</p>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <button
                         type="button"
