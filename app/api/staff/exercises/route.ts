@@ -12,7 +12,7 @@ import {
 } from "@/lib/db";
 import { verifySession } from "@/lib/session";
 
-const VALID_SECTIONS: ExerciseSection[] = ["upper_push", "upper_pull", "lower_push", "lower_pull"];
+const VALID_SECTIONS: ExerciseSection[] = ["upper_push", "upper_pull", "lower_push", "lower_pull", "core", "cardio"];
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;

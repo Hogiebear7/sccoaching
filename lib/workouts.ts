@@ -74,15 +74,23 @@ export function computePersonalBests(sessions: WorkoutSessionRecord[]): Personal
         highestReps: null,
       };
 
-      if (ex.weight) {
-        const num = parseFloat(ex.weight);
-        if (Number.isFinite(num) && (group.heaviest === null || num > group.heaviest.value)) {
-          group.heaviest = { value: num, weightStr: ex.weight, date: session.date, reps: ex.reps };
-        }
-      }
+      // Per-set details (when present) are the true performed values; the
+      // shared weight/reps fields are the fallback for single-value entries.
+      const candidates: { weight: string | null; reps: number | null }[] =
+        ex.setDetails && ex.setDetails.length > 0
+          ? ex.setDetails
+          : [{ weight: ex.weight, reps: ex.reps }];
 
-      if (ex.reps !== null && (group.highestReps === null || ex.reps > group.highestReps.reps)) {
-        group.highestReps = { reps: ex.reps, date: session.date };
+      for (const set of candidates) {
+        if (set.weight) {
+          const num = parseFloat(set.weight);
+          if (Number.isFinite(num) && (group.heaviest === null || num > group.heaviest.value)) {
+            group.heaviest = { value: num, weightStr: set.weight, date: session.date, reps: set.reps };
+          }
+        }
+        if (set.reps !== null && (group.highestReps === null || set.reps > group.highestReps.reps)) {
+          group.highestReps = { reps: set.reps, date: session.date };
+        }
       }
 
       groups.set(lower, group);
@@ -185,6 +193,15 @@ export function weeklyWorkoutStats(
     if (session.date < mondayISO || session.date > todayISO) continue;
     count += 1;
     for (const ex of session.exercises) {
+      if (ex.setDetails && ex.setDetails.length > 0) {
+        for (const set of ex.setDetails) {
+          if (!set.weight) continue;
+          const w = parseFloat(set.weight);
+          if (!Number.isFinite(w)) continue;
+          totalKg += (set.reps ?? 1) * w;
+        }
+        continue;
+      }
       if (!ex.weight) continue;
       const w = parseFloat(ex.weight);
       if (!Number.isFinite(w)) continue;

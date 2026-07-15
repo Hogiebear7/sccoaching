@@ -35,7 +35,13 @@ export interface ProgrammeRecord {
   updatedAt: string;
 }
 
-export type ExerciseSection = "upper_push" | "upper_pull" | "lower_push" | "lower_pull";
+export type ExerciseSection =
+  | "upper_push"
+  | "upper_pull"
+  | "lower_push"
+  | "lower_pull"
+  | "core"
+  | "cardio";
 
 export interface ExerciseRecord {
   id: string;
@@ -50,9 +56,15 @@ export interface ExerciseRecord {
 export interface WorkoutExerciseEntry {
   exerciseId: string | null;
   name: string;
+  /** Shared/summary weight. When setDetails is present, per-set values win. */
   weight: string | null;
   reps: number | null;
   sets: number | null;
+  /** Rate of perceived exertion 1-10 — used by class workout recording. */
+  rpe?: number | null;
+  /** Per-set weight/reps when they differ between sets. Length matches the
+      performed sets; null/absent = the shared weight/reps applied to all. */
+  setDetails?: { weight: string | null; reps: number | null }[] | null;
   notes: string | null;
 }
 
@@ -74,6 +86,26 @@ export interface WorkoutSessionRecord {
   notes: string | null;
   exercises: WorkoutExerciseEntry[];
   runs: WorkoutRunEntry[];
+  /** Set when this session was synced from a class workout. Member edits
+      are allowed until the end of the class's calendar day; after that
+      only staff re-sync changes it. */
+  classId?: string | null;
+  /** Staff member who recorded/synced the class result. */
+  recordedByStaffId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// The workout content staff record for a class: a template of exercises
+// (with default loading) plus session-level notes. Per-member RESULTS are
+// not stored here — they sync into each member's own WorkoutSessionRecord,
+// keyed by (classId, userId), so member history is the single source of
+// performed work.
+export interface ClassWorkoutRecord {
+  classId: string;
+  notes: string | null;
+  exercises: WorkoutExerciseEntry[];
+  updatedByStaffId: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -463,6 +495,7 @@ interface Database {
   bodyWeightLogs: BodyWeightLogRecord[];
   classes: ClassRecord[];
   classSeries: ClassSeriesRecord[];
+  classWorkouts: ClassWorkoutRecord[];
   classCategories: ClassCategoryRecord[];
   // slug → display name for categories that have been deleted. Populated by
   // deleteClassCategory so historical class/plan records still render a
@@ -517,6 +550,7 @@ function readDb(): Database {
       bodyWeightLogs: [],
       classes: [],
       classSeries: [],
+      classWorkouts: [],
       classCategories: DEFAULT_CLASS_CATEGORIES,
       deletedCategoryLabels: {},
       bookings: [],
@@ -567,6 +601,7 @@ function readDb(): Database {
     bodyWeightLogs: parsed.bodyWeightLogs ?? [],
     classes: (parsed.classes ?? []).map((c) => ({ ...c, category: c.category ?? "general" })),
     classSeries: parsed.classSeries ?? [],
+    classWorkouts: parsed.classWorkouts ?? [],
     // Seed built-in categories if the DB predates this field.
     // One-way migration: rows with isActive === false (previously archived) are
     // treated as deleted so they no longer appear in selection UIs.
@@ -835,6 +870,33 @@ export function deleteClass(id: string) {
   const db = readDb();
   db.classes = db.classes.filter((classRecord) => classRecord.id !== id);
   writeDb(db);
+}
+
+export function findClassWorkoutByClassId(classId: string): ClassWorkoutRecord | undefined {
+  const db = readDb();
+  return db.classWorkouts.find((w) => w.classId === classId);
+}
+
+export function saveClassWorkout(workout: ClassWorkoutRecord) {
+  const db = readDb();
+  const index = db.classWorkouts.findIndex((w) => w.classId === workout.classId);
+  if (index === -1) db.classWorkouts.push(workout);
+  else db.classWorkouts[index] = workout;
+  writeDb(db);
+}
+
+// Sync key for class-recorded results: one session per member per class.
+export function findWorkoutSessionByUserAndClass(
+  userId: string,
+  classId: string
+): WorkoutSessionRecord | undefined {
+  const db = readDb();
+  return db.workoutSessions.find((s) => s.userId === userId && s.classId === classId);
+}
+
+export function findWorkoutSessionById(id: string): WorkoutSessionRecord | undefined {
+  const db = readDb();
+  return db.workoutSessions.find((s) => s.id === id);
 }
 
 export function findClassCategories(): ClassCategoryRecord[] {

@@ -10,6 +10,8 @@ const SECTIONS: { value: ExerciseSection; label: string }[] = [
   { value: "upper_pull", label: "Upper Body — Pull" },
   { value: "lower_push", label: "Lower Body — Push" },
   { value: "lower_pull", label: "Lower Body — Pull" },
+  { value: "core", label: "Core" },
+  { value: "cardio", label: "Cardio" },
 ];
 
 function sectionLabel(section: ExerciseSection): string {

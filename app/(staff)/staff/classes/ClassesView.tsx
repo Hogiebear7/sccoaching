@@ -660,6 +660,12 @@ export function ClassesView({
                 : ""}
             </span>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              <Link
+                href={`/staff/classes/${classRecord.id}/workout`}
+                className="rounded-xl border border-primary/30 px-3 py-1 text-xs font-medium text-primary transition hover:border-primary/60"
+              >
+                Workout
+              </Link>
               <button
                 type="button"
                 onClick={() => startEdit(classRecord)}

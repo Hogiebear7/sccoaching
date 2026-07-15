@@ -5,10 +5,10 @@ import type { NextRequest } from "next/server";
 import {
   findUserById,
   saveWorkoutSession,
-  type WorkoutExerciseEntry,
   type WorkoutRunEntry,
   type WorkoutSessionRecord,
 } from "@/lib/db";
+import { parseExerciseEntries } from "@/lib/workout-entries";
 import { verifySession } from "@/lib/session";
 
 function parseOptionalNonNegativeInt(
@@ -79,28 +79,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Parse exercise rows. Rows with an empty name are dropped. exerciseId is
-  // stored as-is (may be null for free-text entries) so historical snapshots
-  // remain readable even if the library item is later edited or deleted.
-  const parsedExercises: WorkoutExerciseEntry[] = Array.isArray(exercises)
-    ? exercises.flatMap((entry) => {
-        const e = (entry ?? {}) as Record<string, unknown>;
-        const name = typeof e.name === "string" ? e.name.trim() : "";
-        if (!name) return [];
-        const repsRaw = typeof e.reps === "number" ? e.reps : null;
-        const setsRaw = typeof e.sets === "number" ? e.sets : null;
-        return [
-          {
-            exerciseId: typeof e.exerciseId === "string" && e.exerciseId ? e.exerciseId : null,
-            name,
-            weight: typeof e.weight === "string" && e.weight.trim() ? e.weight.trim() : null,
-            reps: repsRaw !== null && Number.isFinite(repsRaw) && repsRaw >= 0 ? Math.floor(repsRaw) : null,
-            sets: setsRaw !== null && Number.isFinite(setsRaw) && setsRaw >= 0 ? Math.floor(setsRaw) : null,
-            notes: typeof e.notes === "string" && e.notes.trim() ? e.notes.trim() : null,
-          } satisfies WorkoutExerciseEntry,
-        ];
-      })
-    : [];
+  // Shared parser (lib/workout-entries.ts) — also handles per-set details
+  // and RPE; rows with an empty name are dropped.
+  const parsedExercises = parseExerciseEntries(exercises);
 
   // Parse run rows. Rows with neither distance nor duration are silently dropped.
   const parsedRuns: WorkoutRunEntry[] = Array.isArray(runs)

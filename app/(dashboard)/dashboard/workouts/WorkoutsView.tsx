@@ -15,12 +15,15 @@ import {
   getExerciseTrend,
   type ExerciseTrendPoint,
 } from "@/lib/workouts";
+import { formatExerciseLoad } from "@/lib/workout-entries";
 
 const SECTION_LABELS: Record<ExerciseSection, string> = {
   upper_push: "Upper — Push",
   upper_pull: "Upper — Pull",
   lower_push: "Lower — Push",
   lower_pull: "Lower — Pull",
+  core: "Core",
+  cardio: "Cardio",
 };
 
 // --- Types ---
@@ -34,6 +37,8 @@ type WorkoutFormValues = {
 
 type FormErrors = Partial<Record<keyof WorkoutFormValues, string>>;
 
+type SetRow = { key: string; weight: string; reps: string };
+
 type ExerciseRow = {
   key: string;
   exerciseId: string | null;
@@ -42,6 +47,8 @@ type ExerciseRow = {
   reps: string;
   sets: string;
   notes: string;
+  /** Per-set weight/reps rows; empty = one shared value for every set. */
+  setRows: SetRow[];
 };
 
 type RunRow = {
@@ -65,7 +72,7 @@ function emptyFormValues(): WorkoutFormValues {
 }
 
 function newRow(): ExerciseRow {
-  return { key: crypto.randomUUID(), exerciseId: null, name: "", weight: "", reps: "", sets: "", notes: "" };
+  return { key: crypto.randomUUID(), exerciseId: null, name: "", weight: "", reps: "", sets: "", notes: "", setRows: [] };
 }
 
 function newRunRow(): RunRow {
@@ -186,6 +193,230 @@ function ExerciseAutocomplete({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// --- ClassSessionEditor ---
+// Same-day correction for a class-synced session: weight/reps/sets/RPE per
+// exercise plus notes. The API enforces the day window; this UI only shows
+// for sessions dated today.
+
+function ClassSessionEditor({
+  session,
+  onDone,
+  onCancel,
+}: {
+  session: WorkoutSessionRecord;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [rows, setRows] = useState(() =>
+    session.exercises.map((ex) => ({
+      key: crypto.randomUUID(),
+      name: ex.name,
+      weight: ex.weight ?? "",
+      reps: ex.reps === null ? "" : String(ex.reps),
+      sets: ex.sets === null ? "" : String(ex.sets),
+      rpe: ex.rpe == null ? "" : String(ex.rpe),
+    }))
+  );
+  const [notes, setNotes] = useState(session.notes ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const inputCls =
+    "w-full rounded-lg border border-border bg-input px-2.5 py-1.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15";
+
+  async function handleSave() {
+    setError(null);
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/workouts/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: session.id,
+          notes,
+          exercises: rows.map((r) => ({
+            name: r.name,
+            weight: r.weight,
+            reps: r.reps.trim() ? Number(r.reps) : null,
+            sets: r.sets.trim() ? Number(r.sets) : null,
+            rpe: r.rpe.trim() ? Number(r.rpe) : null,
+          })),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.message ?? "Could not save your correction.");
+        return;
+      }
+      onDone();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 space-y-3 rounded-lg border border-border/60 bg-white/[0.02] p-3">
+      <p className="text-xs text-muted-foreground">
+        Correct your numbers from this class — editable until the end of today.
+      </p>
+      {error ? (
+        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
+      ) : null}
+      {rows.map((row) => (
+        <div key={row.key}>
+          <p className="mb-1 text-xs font-medium text-foreground">{row.name}</p>
+          <div className="grid grid-cols-4 gap-2">
+            <input type="text" value={row.weight} onChange={(e) => setRows((prev) => prev.map((r) => (r.key === row.key ? { ...r, weight: e.target.value } : r)))} placeholder="Weight" aria-label={`${row.name} weight`} className={inputCls} />
+            <input type="number" min={0} value={row.reps} onChange={(e) => setRows((prev) => prev.map((r) => (r.key === row.key ? { ...r, reps: e.target.value } : r)))} placeholder="Reps" aria-label={`${row.name} reps`} className={inputCls} />
+            <input type="number" min={0} value={row.sets} onChange={(e) => setRows((prev) => prev.map((r) => (r.key === row.key ? { ...r, sets: e.target.value } : r)))} placeholder="Sets" aria-label={`${row.name} sets`} className={inputCls} />
+            <input type="number" min={1} max={10} step={0.5} value={row.rpe} onChange={(e) => setRows((prev) => prev.map((r) => (r.key === row.key ? { ...r, rpe: e.target.value } : r)))} placeholder="RPE" aria-label={`${row.name} RPE`} className={inputCls} />
+          </div>
+        </div>
+      ))}
+      <input
+        type="text"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes (optional)"
+        aria-label="Session notes"
+        className={inputCls}
+      />
+      <div className="flex gap-2">
+        <button type="button" onClick={handleSave} disabled={isSaving} className="btn-primary px-3.5 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60">
+          {isSaving ? "Saving…" : "Save correction"}
+        </button>
+        <button type="button" onClick={onCancel} disabled={isSaving} className="rounded-xl border border-border px-3.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// --- ExerciseLibrary ---
+// Browsable, searchable view of the admin-managed exercise library with the
+// member's own stats per exercise on tap.
+
+function ExerciseLibrary({
+  exercises,
+  sessions,
+}: {
+  exercises: ExerciseRecord[];
+  sessions: WorkoutSessionRecord[];
+}) {
+  const [query, setQuery] = useState("");
+  const [section, setSection] = useState<ExerciseSection | "all">("all");
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const filtered = exercises
+    .filter((e) => section === "all" || e.section === section)
+    .filter((e) => e.name.toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  function statsFor(name: string) {
+    let times = 0;
+    let best: number | null = null;
+    let bestStr: string | null = null;
+    let last: string | null = null;
+    for (const session of sessions) {
+      for (const ex of session.exercises) {
+        if (ex.name.trim().toLowerCase() !== name.trim().toLowerCase()) continue;
+        times += 1;
+        if (last === null || session.date > last) last = session.date;
+        const sets = ex.setDetails && ex.setDetails.length > 0 ? ex.setDetails : [{ weight: ex.weight }];
+        for (const set of sets) {
+          if (!set.weight) continue;
+          const w = parseFloat(set.weight);
+          if (Number.isFinite(w) && (best === null || w > best)) {
+            best = w;
+            bestStr = set.weight;
+          }
+        }
+      }
+    }
+    return { times, bestStr, last };
+  }
+
+  const sectionChips: { value: ExerciseSection | "all"; label: string }[] = [
+    { value: "all", label: "All" },
+    ...(Object.entries(SECTION_LABELS) as [ExerciseSection, string][]).map(([value, label]) => ({ value, label })),
+  ];
+
+  return (
+    <div className="panel p-5">
+      <p className="mb-1 label-caps">Exercise library</p>
+      <p className="mb-3 text-xs text-muted-foreground">
+        The club&apos;s exercise list — tap one to see your own numbers for it.
+      </p>
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search the library…"
+        aria-label="Search the exercise library"
+        className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+      />
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {sectionChips.map((chip) => (
+          <button
+            key={chip.value}
+            type="button"
+            onClick={() => setSection(chip.value)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+              section === chip.value
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+            }`}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 max-h-80 space-y-1.5 overflow-y-auto pr-1">
+        {filtered.length === 0 ? (
+          <p className="py-3 text-center text-xs text-muted-foreground">No exercises match.</p>
+        ) : (
+          filtered.map((exercise) => {
+            const open = openId === exercise.id;
+            return (
+              <div key={exercise.id} className="rounded-lg border border-border/60 bg-white/[0.02]">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setOpenId(open ? null : exercise.id)}
+                  className="flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left"
+                >
+                  <span className="text-sm font-medium text-foreground">{exercise.name}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    {SECTION_LABELS[exercise.section]}
+                  </span>
+                </button>
+                {open ? (
+                  <div className="border-t border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                    {(() => {
+                      const stat = statsFor(exercise.name);
+                      if (stat.times === 0) return <>You haven&apos;t logged this one yet.</>;
+                      return (
+                        <>
+                          Logged {stat.times} time{stat.times === 1 ? "" : "s"}
+                          {stat.bestStr ? <> · best <span className="font-semibold text-foreground">{stat.bestStr}</span></> : null}
+                          {stat.last ? <> · last {stat.last}</> : null}
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
@@ -329,6 +560,7 @@ export function WorkoutsView({
   const [exerciseRows, setExerciseRows] = useState<ExerciseRow[]>([]);
   const [runRows, setRunRows] = useState<RunRow[]>([]);
   const [lookupQuery, setLookupQuery] = useState("");
+  const [editingClassSessionId, setEditingClassSessionId] = useState<string | null>(null);
 
   const lookupResults = useMemo(
     () => findExerciseHistory(sessions, lookupQuery),
@@ -448,6 +680,12 @@ export function WorkoutsView({
         weight: row.weight.trim() || null,
         reps: row.reps.trim() ? parseInt(row.reps, 10) : null,
         sets: row.sets.trim() ? parseInt(row.sets, 10) : null,
+        setDetails: row.setRows
+          .filter((sr) => sr.weight.trim() || sr.reps.trim())
+          .map((sr) => ({
+            weight: sr.weight.trim() || null,
+            reps: sr.reps.trim() ? parseInt(sr.reps, 10) : null,
+          })),
         notes: row.notes.trim() || null,
       }));
 
@@ -572,6 +810,9 @@ export function WorkoutsView({
           </div>
         )}
       </div>
+
+      {/* Exercise library */}
+      <ExerciseLibrary exercises={exercises} sessions={sessions} />
 
       {/* Log form */}
       <form
@@ -752,6 +993,72 @@ export function WorkoutsView({
                       </div>
                     </div>
 
+                    {/* Per-set detail — offered once sets ≥ 2; the shared
+                        weight/reps become each set's prefill. */}
+                    {Number(row.sets) >= 2 && row.setRows.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateRow(row.key, {
+                            setRows: Array.from({ length: Math.min(Number(row.sets), 12) }, () => ({
+                              key: crypto.randomUUID(),
+                              weight: row.weight,
+                              reps: row.reps,
+                            })),
+                          })
+                        }
+                        className="text-xs font-medium text-blue-400 transition hover:text-blue-300"
+                      >
+                        Different weight/reps per set →
+                      </button>
+                    ) : null}
+
+                    {row.setRows.length > 0 ? (
+                      <div className="space-y-2 rounded-lg border border-border/60 bg-white/[0.02] p-3">
+                        {row.setRows.map((set, setIdx) => (
+                          <div key={set.key} className="grid grid-cols-[3rem_1fr_1fr] items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Set {setIdx + 1}</span>
+                            <input
+                              type="text"
+                              value={set.weight}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  setRows: row.setRows.map((sr) =>
+                                    sr.key === set.key ? { ...sr, weight: e.target.value } : sr
+                                  ),
+                                })
+                              }
+                              placeholder="Weight"
+                              aria-label={`Set ${setIdx + 1} weight`}
+                              className="w-full rounded-lg border border-border bg-input px-3 py-1.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                            />
+                            <input
+                              type="number"
+                              min={0}
+                              value={set.reps}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  setRows: row.setRows.map((sr) =>
+                                    sr.key === set.key ? { ...sr, reps: e.target.value } : sr
+                                  ),
+                                })
+                              }
+                              placeholder="Reps"
+                              aria-label={`Set ${setIdx + 1} reps`}
+                              className="w-full rounded-lg border border-border bg-input px-3 py-1.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+                            />
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => updateRow(row.key, { setRows: [] })}
+                          className="text-xs text-muted-foreground transition hover:text-foreground"
+                        >
+                          Use one value for all sets
+                        </button>
+                      </div>
+                    ) : null}
+
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-foreground">
                         Notes{" "}
@@ -924,26 +1231,46 @@ export function WorkoutsView({
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">{session.date}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs text-muted-foreground">{session.date}</p>
+                      {session.classId ? (
+                        <span className="rounded-full border border-primary/25 bg-primary/[0.08] px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          Class
+                        </span>
+                      ) : null}
+                      {session.classId && session.date === todayDateString() && editingClassSessionId !== session.id ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditingClassSessionId(session.id)}
+                          className="text-[11px] font-medium text-blue-400 transition hover:text-blue-300"
+                        >
+                          Edit (today only)
+                        </button>
+                      ) : null}
+                    </div>
                     <h4 className="mt-1 text-base font-semibold">{session.title}</h4>
+                    {editingClassSessionId === session.id ? (
+                      <ClassSessionEditor
+                        session={session}
+                        onDone={() => {
+                          setEditingClassSessionId(null);
+                          router.refresh();
+                        }}
+                        onCancel={() => setEditingClassSessionId(null)}
+                      />
+                    ) : null}
                     {session.notes && (
                       <p className="mt-2 text-sm text-muted-foreground">{session.notes}</p>
                     )}
                     {(session.exercises.length > 0 || session.runs.length > 0) && (
                       <div className="mt-3 space-y-1 border-t border-border pt-3">
                         {session.exercises.map((ex, i) => {
-                          const parts = [
-                            ex.sets ? `${ex.sets} sets` : null,
-                            ex.reps ? `${ex.reps} reps` : null,
-                            ex.weight ?? null,
-                          ].filter(Boolean);
+                          const load = formatExerciseLoad(ex);
                           return (
                             <div key={i} className="flex items-baseline gap-2 text-sm">
                               <span className="font-medium text-foreground">{ex.name}</span>
-                              {parts.length > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                  {parts.join(" · ")}
-                                </span>
+                              {load && (
+                                <span className="text-xs text-muted-foreground">{load}</span>
                               )}
                             </div>
                           );
