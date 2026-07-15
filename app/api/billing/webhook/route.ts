@@ -212,7 +212,9 @@ export async function POST(request: NextRequest) {
   // resets with it.
   const isFreshPeriod = nextStatus === "active" && Boolean(plan);
   const currentPeriodEnd = isFreshPeriod
-    ? addIntervalToNow(plan!.billingInterval === "annual" ? 365 : 30)
+    ? addIntervalToNow(
+        plan!.billingInterval === "annual" ? 365 : plan!.billingInterval === "quarterly" ? 90 : 30
+      )
     : nextStatus === "active"
       ? subscription.currentPeriodEnd
       : null;

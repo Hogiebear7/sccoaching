@@ -200,7 +200,7 @@ export interface CoachNoteRecord {
   updatedAt: string;
 }
 
-export type BillingInterval = "monthly" | "annual";
+export type BillingInterval = "monthly" | "quarterly" | "annual";
 
 export interface MembershipPlanRecord {
   id: string;
@@ -216,6 +216,12 @@ export interface MembershipPlanRecord {
   // staff to explicitly pick at least one to ever persist a restricted
   // plan, so "empty" only ever happens for legacy/unconfigured data.
   allowedCategories: ClassCategory[];
+  /** Introductory plan: bought once per member as a ONE-OFF payment (no
+      Stripe subscription), active for introDurationDays, never renews.
+      The session allowance is the total for the whole intro period. */
+  isIntro?: boolean;
+  /** Length of the intro membership in days (e.g. 42 = 6 weeks). */
+  introDurationDays?: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

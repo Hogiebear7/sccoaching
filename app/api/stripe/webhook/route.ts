@@ -9,6 +9,7 @@ import {
   findPurchaseByProviderPaymentRef,
   findSubscriptionByProviderOrderId,
   findSubscriptionBySetupOrderId,
+  findSubscriptionByUserId,
   hasPaymentEvent,
   recordPaymentEvent,
   savePurchase,
@@ -106,28 +107,58 @@ export async function POST(request: NextRequest) {
       typeof object.payment_status === "string" ? object.payment_status : null;
 
     if (mode === "payment" && sessionId) {
-      const purchase = findPassPurchaseForSession(sessionId, object);
+      const purchase = findOneOffPurchaseForSession(sessionId, object);
       if (!purchase) return ack("No matching purchase.");
       // Delayed payment methods complete the session before the money moves;
-      // credit only once Stripe reports paid.
+      // apply only once Stripe reports paid.
       if (paymentStatus !== "paid") return ack("Awaiting payment settlement.");
 
       const paid = transitionPurchase(purchase, "paid");
-      if (paid) {
-        const withRef: PurchaseRecord = {
-          ...paid,
-          providerPaymentRef:
-            typeof object.payment_intent === "string" ? object.payment_intent : null,
-        };
-        savePurchase(withRef);
+      if (!paid) return ack("No transition applied.");
+
+      const withRef: PurchaseRecord = {
+        ...paid,
+        providerPaymentRef:
+          typeof object.payment_intent === "string" ? object.payment_intent : null,
+      };
+      savePurchase(withRef);
+
+      if (purchase.kind === "pass_pack") {
         const product = findClassPassProductById(purchase.productId);
         if (product) applyPaidPassPurchase(withRef, product);
         else
           console.warn("[stripe webhook] paid pass purchase has no product row", {
             purchaseId: purchase.id,
           });
+        return ack("Passes credited.");
       }
-      return ack(paid ? "Passes credited." : "No transition applied.");
+
+      // Intro membership: activate a bounded, non-renewing period. The
+      // purchase state machine makes this once-only under replays, and the
+      // paid purchase row is the durable once-per-member evidence.
+      const plan = findMembershipPlanById(purchase.productId);
+      const existing = findSubscriptionByUserId(purchase.userId);
+      const introDays = plan?.introDurationDays ?? 42;
+      const nowIso = new Date().toISOString();
+      saveSubscription({
+        userId: purchase.userId,
+        planId: purchase.productId,
+        status: "active",
+        provider: "stripe",
+        providerCustomerId:
+          typeof object.customer === "string" ? object.customer : existing?.providerCustomerId ?? null,
+        // No recurring subscription exists — nothing must ever renew this.
+        providerSubscriptionId: null,
+        providerSetupOrderId: sessionId,
+        currentPeriodEnd: addIntervalToNow(introDays),
+        lastWebhookEventAt: nowIso,
+        sessionsUsedThisPeriod: 0,
+        extraSessionGrants: [],
+        periodLapsedNotifiedAt: null,
+        createdAt: existing?.createdAt ?? nowIso,
+        updatedAt: nowIso,
+      });
+      return ack("Introductory membership activated.");
     }
 
     if (mode === "subscription" && sessionId) {
@@ -147,7 +178,9 @@ export async function POST(request: NextRequest) {
             : subscription.providerSubscriptionId,
         providerCustomerId:
           typeof object.customer === "string" ? object.customer : subscription.providerCustomerId,
-        currentPeriodEnd: addIntervalToNow(plan?.billingInterval === "annual" ? 365 : 30),
+        currentPeriodEnd: addIntervalToNow(
+          plan?.billingInterval === "annual" ? 365 : plan?.billingInterval === "quarterly" ? 90 : 30
+        ),
         sessionsUsedThisPeriod: isFreshPeriod ? 0 : subscription.sessionsUsedThisPeriod,
         extraSessionGrants: isFreshPeriod ? [] : subscription.extraSessionGrants,
         periodLapsedNotifiedAt: isFreshPeriod ? null : subscription.periodLapsedNotifiedAt,
@@ -162,14 +195,14 @@ export async function POST(request: NextRequest) {
 
   if (event.type === "checkout.session.async_payment_failed") {
     const sessionId = typeof object.id === "string" ? object.id : null;
-    const purchase = sessionId ? findPassPurchaseForSession(sessionId, object) : undefined;
+    const purchase = sessionId ? findOneOffPurchaseForSession(sessionId, object) : undefined;
     if (purchase) transitionPurchase(purchase, "failed");
     return ack("Payment failure recorded.");
   }
 
   if (event.type === "checkout.session.expired") {
     const sessionId = typeof object.id === "string" ? object.id : null;
-    const purchase = sessionId ? findPassPurchaseForSession(sessionId, object) : undefined;
+    const purchase = sessionId ? findOneOffPurchaseForSession(sessionId, object) : undefined;
     if (purchase) transitionPurchase(purchase, "cancelled");
     return ack("Expired session recorded.");
   }
@@ -265,19 +298,17 @@ export async function POST(request: NextRequest) {
   return ack("Event ignored.");
 }
 
-// Pass purchases are matched primarily by session id (providerOrderId) with
-// the metadata purchase id as belt-and-braces.
-function findPassPurchaseForSession(
+// One-off purchases (pass packs and intro memberships) are matched
+// primarily by session id (providerOrderId) with the metadata purchase id
+// as belt-and-braces.
+function findOneOffPurchaseForSession(
   sessionId: string,
   object: Record<string, unknown>
 ): PurchaseRecord | undefined {
   const byOrder = findPurchaseByProviderOrderId(sessionId);
-  if (byOrder && byOrder.kind === "pass_pack") return byOrder;
+  if (byOrder) return byOrder;
   const metadataId = readMetadataPurchaseId(object);
-  if (metadataId) {
-    const byId = findPurchaseById(metadataId);
-    if (byId && byId.kind === "pass_pack") return byId;
-  }
+  if (metadataId) return findPurchaseById(metadataId);
   return undefined;
 }
 

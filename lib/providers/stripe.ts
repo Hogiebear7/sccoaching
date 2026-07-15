@@ -108,6 +108,8 @@ export async function createStripeSubscriptionCheckout(input: {
   amountCents: number;
   planName: string;
   interval: "month" | "year";
+  /** Stripe recurring interval_count — 3 with interval "month" = quarterly. */
+  intervalCount?: number;
   internalReference: string;
   customerEmail: string;
 }): Promise<StripeOk | StripeErr> {
@@ -119,6 +121,7 @@ export async function createStripeSubscriptionCheckout(input: {
       "line_items[0][price_data][currency]": getCurrency(),
       "line_items[0][price_data][unit_amount]": String(input.amountCents),
       "line_items[0][price_data][recurring][interval]": input.interval,
+      "line_items[0][price_data][recurring][interval_count]": String(input.intervalCount ?? 1),
       "line_items[0][price_data][product_data][name]": input.planName,
       client_reference_id: input.internalReference,
       "metadata[internal_ref]": input.internalReference,

@@ -19,6 +19,8 @@ type PlanFormValues = {
   isUnlimited: boolean;
   monthlySessionAllowance: string;
   allowedCategories: ClassCategory[];
+  isIntro: boolean;
+  introDurationDays: string;
   isActive: boolean;
 };
 
@@ -33,6 +35,8 @@ function emptyFormValues(): PlanFormValues {
     isUnlimited: false,
     monthlySessionAllowance: "",
     allowedCategories: [],
+    isIntro: false,
+    introDurationDays: "42",
     isActive: true,
   };
 }
@@ -47,6 +51,8 @@ function toFormValues(plan: MembershipPlanRecord): PlanFormValues {
     monthlySessionAllowance:
       plan.monthlySessionAllowance === null ? "" : String(plan.monthlySessionAllowance),
     allowedCategories: plan.allowedCategories,
+    isIntro: plan.isIntro ?? false,
+    introDurationDays: plan.introDurationDays ? String(plan.introDurationDays) : "42",
     isActive: plan.isActive,
   };
 }
@@ -172,6 +178,8 @@ export function PlansView({
         billingInterval: values.billingInterval,
         monthlySessionAllowance: values.isUnlimited ? "unlimited" : values.monthlySessionAllowance,
         allowedCategories: values.allowedCategories,
+        isIntro: values.isIntro,
+        introDurationDays: values.isIntro ? values.introDurationDays : undefined,
         isActive: values.isActive,
       };
       const res = await fetch("/api/staff/plans", {
@@ -398,6 +406,7 @@ export function PlansView({
               className={inputClass(errors.billingInterval)}
             >
               <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly (every 3 months)</option>
               <option value="annual">Annual</option>
             </select>
           </FormField>
@@ -477,6 +486,40 @@ export function PlansView({
                 placeholder="What's included with this plan"
               />
             </FormField>
+          </div>
+
+          <div className="md:col-span-2 space-y-3">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={values.isIntro}
+                onChange={(e) =>
+                  setValues((prev) => ({ ...prev, isIntro: e.target.checked }))
+                }
+                className="h-4 w-4 accent-primary"
+              />
+              Introductory plan — one-time purchase, never renews
+            </label>
+            {values.isIntro ? (
+              <div className="rounded-2xl border border-border/60 bg-white/[0.02] p-4">
+                <FormField label="Intro length (days)" error={errors.introDurationDays}>
+                  <input
+                    type="number"
+                    min={7}
+                    max={365}
+                    value={values.introDurationDays}
+                    onChange={(e) => handleTextChange("introDurationDays", e)}
+                    className={`${inputClass(errors.introDurationDays)} sm:max-w-[160px]`}
+                    placeholder="e.g. 42"
+                  />
+                </FormField>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  A member can buy this exactly once, pays a single one-off price (the
+                  billing interval is ignored), and the session allowance above is the
+                  TOTAL for the whole intro period — e.g. 12 sessions over 42 days.
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-foreground md:col-span-2">
@@ -571,8 +614,15 @@ export function PlansView({
 
                   <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
                     <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                      {formatPriceCents(plan.priceCents)} / {plan.billingInterval}
+                      {plan.isIntro
+                        ? `${formatPriceCents(plan.priceCents)} one-time`
+                        : `${formatPriceCents(plan.priceCents)} / ${plan.billingInterval}`}
                     </span>
+                    {plan.isIntro ? (
+                      <span className="rounded-full border border-gold/30 bg-gold/[0.08] px-3 py-1 text-xs font-semibold text-gold">
+                        Intro · {plan.introDurationDays ?? 42} days · once per member
+                      </span>
+                    ) : null}
                     <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                       {formatSessionAllowance(plan.monthlySessionAllowance)}
                     </span>

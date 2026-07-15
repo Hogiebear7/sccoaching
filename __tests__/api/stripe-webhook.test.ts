@@ -6,6 +6,7 @@ const {
   mockFindPurchaseById,
   mockFindPurchaseByProviderPaymentRef,
   mockFindSubscriptionBySetupOrderId,
+  mockFindSubscriptionByUserIdX,
   mockFindSubscriptionByProviderOrderId,
   mockFindClassPassProductById,
   mockFindMembershipPlanById,
@@ -20,6 +21,7 @@ const {
   mockFindPurchaseById: vi.fn(),
   mockFindPurchaseByProviderPaymentRef: vi.fn(),
   mockFindSubscriptionBySetupOrderId: vi.fn(),
+  mockFindSubscriptionByUserIdX: vi.fn(),
   mockFindSubscriptionByProviderOrderId: vi.fn(),
   mockFindClassPassProductById: vi.fn(),
   mockFindMembershipPlanById: vi.fn(),
@@ -36,6 +38,7 @@ vi.mock("@/lib/db", () => ({
   findPurchaseById: mockFindPurchaseById,
   findPurchaseByProviderPaymentRef: mockFindPurchaseByProviderPaymentRef,
   findSubscriptionBySetupOrderId: mockFindSubscriptionBySetupOrderId,
+  findSubscriptionByUserId: mockFindSubscriptionByUserIdX,
   findSubscriptionByProviderOrderId: mockFindSubscriptionByProviderOrderId,
   findClassPassProductById: mockFindClassPassProductById,
   findMembershipPlanById: mockFindMembershipPlanById,
@@ -123,6 +126,7 @@ describe("stripe webhook", () => {
     mockFindPurchaseByProviderPaymentRef.mockReturnValue(undefined);
     mockFindClassPassProductById.mockReturnValue(PRODUCT);
     mockFindSubscriptionBySetupOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByUserIdX.mockReturnValue(undefined);
     mockFindSubscriptionByProviderOrderId.mockReturnValue(undefined);
     mockFindMembershipPlanById.mockReturnValue({ billingInterval: "monthly" });
     mockHasPaymentEvent.mockReturnValue(false);
@@ -147,6 +151,73 @@ describe("stripe webhook", () => {
       purchaseId: "pur-1",
     });
     expect(mockRecordPaymentEvent).toHaveBeenCalledWith(expect.objectContaining({ key: "evt_1" }));
+  });
+
+  it("a paid intro-membership purchase activates a bounded non-renewing period", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue({
+      ...PURCHASE,
+      id: "pur-intro",
+      kind: "membership" as const,
+      productId: "plan-intro",
+      providerOrderId: "cs_intro_1",
+    });
+    mockFindMembershipPlanById.mockReturnValue({
+      id: "plan-intro",
+      isIntro: true,
+      introDurationDays: 42,
+      billingInterval: "monthly",
+    });
+    mockFindSubscriptionByUserIdX.mockReturnValue(undefined);
+
+    const before = Date.now();
+    const res = await postEvent({
+      id: "evt_intro_1",
+      type: "checkout.session.completed",
+      object: { id: "cs_intro_1", mode: "payment", payment_status: "paid", payment_intent: "pi_9", customer: "cus_9" },
+    });
+
+    expect(res.status).toBe(200);
+    // Purchase marked paid with the payment ref…
+    expect(mockSavePurchase.mock.calls[0][0].status).toBe("paid");
+    expect(mockSavePurchase.mock.calls[1][0].providerPaymentRef).toBe("pi_9");
+    // …no passes credited…
+    expect(mockAppendPassLedgerEntry).not.toHaveBeenCalled();
+    // …and the membership activates for exactly the intro window, with no
+    // recurring subscription id that anything could ever renew.
+    const sub = mockSaveSubscription.mock.calls[0][0];
+    expect(sub).toMatchObject({
+      userId: "user-1",
+      planId: "plan-intro",
+      status: "active",
+      provider: "stripe",
+      providerSubscriptionId: null,
+      providerCustomerId: "cus_9",
+      sessionsUsedThisPeriod: 0,
+    });
+    const days = (new Date(sub.currentPeriodEnd).getTime() - before) / 86_400_000;
+    expect(days).toBeGreaterThan(41.9);
+    expect(days).toBeLessThan(42.1);
+  });
+
+  it("replayed intro completion applies nothing (state machine)", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue({
+      ...PURCHASE,
+      id: "pur-intro",
+      kind: "membership" as const,
+      productId: "plan-intro",
+      providerOrderId: "cs_intro_1",
+      status: "paid" as const,
+    });
+
+    const res = await postEvent({
+      id: "evt_intro_2",
+      type: "checkout.session.completed",
+      object: { id: "cs_intro_1", mode: "payment", payment_status: "paid" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+    expect(mockSavePurchase).not.toHaveBeenCalled();
   });
 
   it("replayed event ids are acknowledged and never re-applied", async () => {

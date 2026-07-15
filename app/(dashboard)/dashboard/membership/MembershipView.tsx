@@ -96,6 +96,7 @@ export function MembershipView({
   purchasedPasses,
   expiringPasses,
   passProducts,
+  hasUsedIntro,
   passCheckoutStatus,
   billingConfigured,
 }: {
@@ -115,6 +116,8 @@ export function MembershipView({
   /** Usable purchased passes nearing their use-by date (next 30 days). */
   expiringPasses: { count: number; soonestExpiresAt: string } | null;
   passProducts: ClassPassProductRecord[];
+  /** True once the member has ever bought an intro membership. */
+  hasUsedIntro: boolean;
   /** Return-from-checkout banner state ("pending" | "cancelled"). */
   passCheckoutStatus: string | null;
   billingConfigured: boolean;
@@ -495,9 +498,13 @@ export function MembershipView({
                 ((subscriptionStatus === "active" && !periodLapsed) ||
                   (subscriptionStatus === "pending" && !pendingIsStale));
 
+              const introUsedUp = Boolean(plan.isIntro) && hasUsedIntro && !isCurrent;
+
               const buttonLabel =
                 selectingId === plan.id
                   ? "Starting checkout…"
+                  : introUsedUp
+                  ? "Already used"
                   : isLockedIn
                   ? subscriptionStatus === "pending"
                     ? "Awaiting payment"
@@ -525,15 +532,28 @@ export function MembershipView({
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-display text-[22px] tabular-nums">{formatPriceCents(plan.priceCents)}</p>
-                      <p className="text-[11px] text-muted-foreground">per {plan.billingInterval}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {plan.isIntro ? "one-time payment" : `per ${plan.billingInterval}`}
+                      </p>
                     </div>
                   </div>
 
                   {/* Pills: sessions + categories */}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="chip border-gold/30 bg-gold/[0.08] text-[11px] font-semibold !text-gold">
-                      {formatSessionAllowance(plan.monthlySessionAllowance)}
+                      {plan.isIntro && plan.monthlySessionAllowance !== null
+                        ? `${plan.monthlySessionAllowance} sessions over ${plan.introDurationDays ?? 42} days`
+                        : formatSessionAllowance(plan.monthlySessionAllowance)}
                     </span>
+                    {plan.isIntro ? (
+                      <span className="rounded-full border border-primary/25 bg-primary/[0.08] px-3 py-1 text-xs font-medium text-primary">
+                        Introduction · one per member
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                        Renews automatically
+                      </span>
+                    )}
                     {plan.allowedCategories.length === 0 ? (
                       <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                         All class types
@@ -555,7 +575,7 @@ export function MembershipView({
                     <button
                       type="button"
                       onClick={() => handleSelect(plan.id)}
-                      disabled={isLockedIn || selectingId === plan.id}
+                      disabled={isLockedIn || introUsedUp || selectingId === plan.id}
                       className={`w-full rounded-lg px-4 py-2 text-sm font-semibold transition ${
                         isLockedIn
                           ? "cursor-not-allowed bg-secondary text-secondary-foreground opacity-70"

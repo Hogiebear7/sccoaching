@@ -5,10 +5,18 @@ import {
   findMembershipPlanById,
   findSubscriptionByUserId,
   findUserById,
+  savePurchase,
   saveSubscription,
   type SubscriptionRecord,
 } from "@/lib/db";
-import { createCheckoutForPlan, isPendingCheckoutStale } from "@/lib/billing";
+import {
+  activeBillingProvider,
+  createCheckoutForPlan,
+  createOneOffCheckout,
+  isPendingCheckoutStale,
+} from "@/lib/billing";
+import { buildIntroMembershipPurchase, introMembershipState } from "@/lib/payments";
+import { isPeriodLapsed } from "@/lib/membership-status";
 import { verifySession } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
@@ -60,6 +68,86 @@ export async function POST(request: NextRequest) {
   }
 
   const existingSubscription = findSubscriptionByUserId(userId);
+
+  // ── Intro membership: a ONE-OFF payment, never a subscription ────────
+  // The purchase record is the durable once-per-member evidence; a paid or
+  // refunded membership-kind purchase permanently uses up eligibility.
+  if (plan.isIntro) {
+    const intro = introMembershipState(user.id);
+
+    if (intro.used) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "The introductory membership can only be bought once per member — you've already used yours.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (
+      existingSubscription?.status === "active" &&
+      !isPeriodLapsed(existingSubscription)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You already have an active membership — the introduction is for new starters.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (intro.pendingPurchase?.checkoutUrl) {
+      return NextResponse.json(
+        {
+          success: true,
+          checkoutUrl: intro.pendingPurchase.checkoutUrl,
+          message: "Resuming your existing checkout.",
+        },
+        { status: 200 }
+      );
+    }
+
+    const purchase = buildIntroMembershipPurchase({
+      userId: user.id,
+      plan,
+      idempotencyKey: `${user.id}:intro:${plan.id}:${Date.now()}`,
+      provider: activeBillingProvider(),
+    });
+    savePurchase(purchase);
+
+    const order = await createOneOffCheckout({
+      member: { id: user.id, email: user.email },
+      productName: `${plan.name} (introductory membership)`,
+      amountCents: plan.priceCents,
+      purchaseId: purchase.id,
+    });
+
+    if (order.error !== null || order.providerOrderId === null) {
+      savePurchase({ ...purchase, status: "failed", updatedAt: new Date().toISOString() });
+      return NextResponse.json(
+        { success: false, message: "Could not start checkout. Please try again." },
+        { status: 502 }
+      );
+    }
+
+    savePurchase({
+      ...purchase,
+      providerOrderId: order.providerOrderId,
+      checkoutUrl: order.checkoutUrl,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        checkoutUrl: order.checkoutUrl,
+        message: "Redirecting you to checkout to complete payment.",
+      },
+      { status: 200 }
+    );
+  }
 
   // Avoid creating a duplicate checkout while one is still recently in
   // progress for this same plan. Once it's stale (likely abandoned), allow

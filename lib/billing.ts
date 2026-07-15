@@ -73,6 +73,18 @@ export function isPendingCheckoutStale(updatedAt: string): boolean {
   return Date.now() - new Date(updatedAt).getTime() > PENDING_CHECKOUT_STALE_AFTER_MS;
 }
 
+// Stripe-native recurring mapping: Stripe owns period arithmetic (month
+// boundaries, leap years); the app never does day-count billing math.
+// Quarterly = a 3-month recurring interval, per Stripe's supported model.
+export function stripeRecurringInterval(billingInterval: MembershipPlanRecord["billingInterval"]): {
+  interval: "month" | "year";
+  intervalCount: number;
+} {
+  if (billingInterval === "annual") return { interval: "year", intervalCount: 1 };
+  if (billingInterval === "quarterly") return { interval: "month", intervalCount: 3 };
+  return { interval: "month", intervalCount: 1 };
+}
+
 export interface CheckoutResult {
   provider: BillingProvider;
   checkoutUrl: string | null;
@@ -110,10 +122,12 @@ export async function createCheckoutForPlan(input: {
     // Stripe: the subscription id only exists after payment; the session id
     // is stored (providerSetupOrderId) so the checkout.session.completed
     // webhook can find this subscription row and attach the real ids.
+    const recurring = stripeRecurringInterval(input.plan.billingInterval);
     const result = await createStripeSubscriptionCheckout({
       amountCents: input.plan.priceCents,
       planName: input.plan.name,
-      interval: input.plan.billingInterval === "annual" ? "year" : "month",
+      interval: recurring.interval,
+      intervalCount: recurring.intervalCount,
       internalReference: `${input.member.id}:${input.plan.id}:${Date.now()}`,
       customerEmail: input.member.email,
     });
@@ -156,7 +170,8 @@ export async function createCheckoutForPlan(input: {
     customerId = customerResult.customerId;
   }
 
-  const billingIntervalMonths = input.plan.billingInterval === "annual" ? 12 : 1;
+  const billingIntervalMonths =
+    input.plan.billingInterval === "annual" ? 12 : input.plan.billingInterval === "quarterly" ? 3 : 1;
 
   const result = await createRevolutSubscription({
     customerId,
@@ -201,12 +216,28 @@ export async function createPassPackCheckout(input: {
   product: ClassPassProductRecord;
   purchaseId: string;
 }): Promise<PassCheckoutResult> {
+  return createOneOffCheckout({
+    member: input.member,
+    productName: `${input.product.name} (${input.product.passCount} class passes)`,
+    amountCents: input.product.priceCents,
+    purchaseId: input.purchaseId,
+  });
+}
+
+// Generic one-off (payment-mode) checkout used by pass packs and the
+// intro membership — anything webhook-confirmed through a PurchaseRecord.
+export async function createOneOffCheckout(input: {
+  member: { id: string; email: string };
+  productName: string;
+  amountCents: number;
+  purchaseId: string;
+}): Promise<PassCheckoutResult> {
   const provider = activeBillingProvider();
 
   if (provider === "stripe") {
     const result = await createStripePassCheckout({
-      amountCents: input.product.priceCents,
-      productName: `${input.product.name} (${input.product.passCount} class passes)`,
+      amountCents: input.amountCents,
+      productName: input.productName,
       purchaseId: input.purchaseId,
       customerEmail: input.member.email,
     });
@@ -223,7 +254,7 @@ export async function createPassPackCheckout(input: {
 
   if (provider === "revolut") {
     const result = await createRevolutOrder({
-      amountCents: input.product.priceCents,
+      amountCents: input.amountCents,
       internalReference: input.purchaseId,
       customerEmail: input.member.email,
     });

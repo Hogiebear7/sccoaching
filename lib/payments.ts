@@ -18,6 +18,7 @@ import {
   findPassLedgerByBookingId,
   findPassLedgerByPurchaseId,
   findPassLedgerByUserId,
+  findPurchasesByUserId,
   savePurchase,
   type BillingProvider,
   type ClassPassProductRecord,
@@ -337,6 +338,52 @@ export function buildPassPackPurchase(input: {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+// Intro memberships are ONE-OFF purchases recorded as kind "membership"
+// (recurring memberships live on the subscription record, not in purchases,
+// so any membership-kind purchase here is an intro one).
+export function buildIntroMembershipPurchase(input: {
+  userId: string;
+  plan: { id: string; name: string; priceCents: number };
+  idempotencyKey: string;
+  provider: BillingProvider;
+}): PurchaseRecord {
+  const now = new Date().toISOString();
+  return {
+    id: randomUUID(),
+    userId: input.userId,
+    kind: "membership",
+    productId: input.plan.id,
+    description: `${input.plan.name} — introductory membership`,
+    amountCents: input.plan.priceCents,
+    status: "pending",
+    provider: input.provider,
+    providerOrderId: null,
+    providerPaymentRef: null,
+    checkoutUrl: null,
+    idempotencyKey: input.idempotencyKey,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/**
+ * The once-per-member rule: a paid (or refunded — a refund is a staff
+ * decision, not a fresh eligibility) membership-kind purchase means the
+ * member has used their introduction. Failed/cancelled checkouts don't
+ * count. Returns the in-progress pending purchase separately so a fresh
+ * checkout can be resumed instead of duplicated.
+ */
+export function introMembershipState(userId: string): {
+  used: boolean;
+  pendingPurchase: PurchaseRecord | null;
+} {
+  const purchases = findPurchasesByUserId(userId).filter((p) => p.kind === "membership");
+  const used = purchases.some((p) => p.status === "paid" || p.status === "refunded");
+  const pendingPurchase =
+    purchases.find((p) => isPurchaseCheckoutReusable(p)) ?? null;
+  return { used, pendingPurchase };
 }
 
 export function findActivePassProduct(productId: string): ClassPassProductRecord | undefined {

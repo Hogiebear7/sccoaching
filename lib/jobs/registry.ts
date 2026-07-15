@@ -2,6 +2,7 @@ import { cleanupPastWaitlistsJob } from "./cleanup-past-waitlists";
 import { expireStaleCheckoutsJob } from "./expire-stale-checkouts";
 import { generateClassSeriesJob } from "./generate-class-series";
 import { notifyExpiringPassesJob } from "./notify-expiring-passes";
+import { notifyLowPassBalanceJob } from "./notify-low-pass-balance";
 import { notifyLapsedMembershipsJob } from "./notify-lapsed-memberships";
 import { processWaitlistOffersJob } from "./process-waitlist-offers";
 import { purgeExpiredResetTokensJob } from "./purge-expired-reset-tokens";
@@ -18,6 +19,7 @@ export const ALL_JOBS: JobDefinition[] = [
   expireStaleCheckoutsJob,
   notifyLapsedMembershipsJob,
   notifyExpiringPassesJob,
+  notifyLowPassBalanceJob,
   generateClassSeriesJob,
   processWaitlistOffersJob,
   sendClassRemindersJob,

@@ -13,7 +13,7 @@ import {
 } from "@/lib/db";
 import { verifySession } from "@/lib/session";
 
-const BILLING_INTERVALS: BillingInterval[] = ["monthly", "annual"];
+const BILLING_INTERVALS: BillingInterval[] = ["monthly", "quarterly", "annual"];
 
 function parseSessionAllowance(
   value: unknown
@@ -82,6 +82,8 @@ export async function POST(request: NextRequest) {
     monthlySessionAllowance,
     allowedCategories,
     isActive,
+    isIntro,
+    introDurationDays,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof name !== "string" || !name.trim()) {
@@ -131,6 +133,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Intro plans: one-off, bounded memberships. Duration is required and
+  // bounded; the allowance field is the TOTAL for the intro period.
+  const introFlag = isIntro === true;
+  let introDays: number | null = null;
+  if (introFlag) {
+    const parsed = Number(introDurationDays);
+    if (
+      typeof introDurationDays !== "string" ||
+      !introDurationDays.trim() ||
+      !Number.isInteger(parsed) ||
+      parsed < 7 ||
+      parsed > 365
+    ) {
+      return NextResponse.json(
+        { success: false, message: "Intro length must be a whole number of days between 7 and 365." },
+        { status: 400 }
+      );
+    }
+    if (allowanceResult.value === null) {
+      return NextResponse.json(
+        { success: false, message: "An intro plan needs a fixed session count, not unlimited." },
+        { status: 400 }
+      );
+    }
+    introDays = parsed;
+  }
+
   const existingPlan = typeof id === "string" && id.trim() ? findMembershipPlanById(id) : undefined;
   const now = new Date().toISOString();
 
@@ -142,6 +171,8 @@ export async function POST(request: NextRequest) {
     billingInterval: billingInterval as BillingInterval,
     monthlySessionAllowance: allowanceResult.value,
     allowedCategories: categoriesResult.value,
+    isIntro: introFlag,
+    introDurationDays: introDays,
     isActive: typeof isActive === "boolean" ? isActive : true,
     createdAt: existingPlan?.createdAt ?? now,
     updatedAt: now,

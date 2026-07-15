@@ -272,3 +272,42 @@ export function lapsedMembershipEmail(opts: LapsedMembershipEmailOpts): {
 
   return { subject, html, text };
 }
+
+export interface LowPassBalanceEmailOpts {
+  memberName: string;
+  remaining: number;
+}
+
+export function lowPassBalanceEmail(opts: LowPassBalanceEmailOpts): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { memberName, remaining } = opts;
+  const eName = escapeHtml(memberName);
+  const actionUrl = `${APP_URL}/dashboard/membership`;
+  const noun = remaining === 1 ? "class pass" : "class passes";
+  const subject = `You have ${remaining} ${noun} remaining`;
+
+  const html = emailWrapper(subject, `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Class passes</p>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">${remaining} ${noun} remaining</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#a1a1aa;">Hi ${eName},</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
+      You have <strong style="color:#fafafa;">${remaining} ${noun}</strong> remaining. Top up on the Membership page so you never miss a session.
+    </p>
+    ${ctaButton("Top up passes →", actionUrl)}
+  `);
+
+  const text = [
+    `Hi ${memberName},`,
+    ``,
+    `You have ${remaining} ${noun} remaining.`,
+    ``,
+    `Top up on the Membership page: ${actionUrl}`,
+    ``,
+    `— S&C Performance Coaching`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
