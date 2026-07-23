@@ -111,6 +111,22 @@ describe("POST /api/membership/checkout", () => {
     expect(second.providerSetupOrderId).toBe("cs_1");
   });
 
+  it("blocks re-buying the exact active recurring option, but allows switching", async () => {
+    mockFindOption.mockReturnValue(RECURRING);
+    const future = new Date(Date.now() + 20 * 86_400_000).toISOString();
+
+    // Already active on this exact option → 409, no new subscription.
+    mockFindSubByUser.mockReturnValue({ status: "active", billingOptionId: "opt_rec", currentPeriodEnd: future });
+    const same = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(same.status).toBe(409);
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+
+    // Active on a DIFFERENT option → switching is allowed.
+    mockFindSubByUser.mockReturnValue({ status: "active", billingOptionId: "opt_other", currentPeriodEnd: future });
+    const switched = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(switched.status).toBe(200);
+  });
+
   it("one-time → pass_pack purchase keyed to the package", async () => {
     mockFindOption.mockReturnValue(ONE_TIME);
     mockCreateCatalogCheckout.mockResolvedValue({

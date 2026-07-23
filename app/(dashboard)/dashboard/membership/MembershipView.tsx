@@ -41,6 +41,8 @@ export function MembershipView({
   categories,
   packages,
   billingOptions,
+  currentPackageId,
+  currentBillingOptionId,
   currentPlanId,
   currentPlanName,
   subscriptionStatus,
@@ -55,6 +57,10 @@ export function MembershipView({
   categories: MembershipCategoryRecord[];
   packages: MembershipPackageRecord[];
   billingOptions: MembershipBillingOptionRecord[];
+  /** Catalog package/option the member is actively on (active + unlapsed);
+      null for legacy, lapsed, or non-catalog subscriptions. */
+  currentPackageId: string | null;
+  currentBillingOptionId: string | null;
   currentPlanId: string | null;
   currentPlanName: string | null;
   subscriptionStatus: SubscriptionStatus | null;
@@ -217,7 +223,13 @@ export function MembershipView({
       </div>
 
       {/* Catalog: browse categories → packages → billing options */}
-      <CatalogBrowser categories={categories} packages={packages} billingOptions={billingOptions} />
+      <CatalogBrowser
+        categories={categories}
+        packages={packages}
+        billingOptions={billingOptions}
+        currentPackageId={currentPackageId}
+        currentBillingOptionId={currentBillingOptionId}
+      />
     </div>
   );
 }

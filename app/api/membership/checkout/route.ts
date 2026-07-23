@@ -14,6 +14,7 @@ import {
   type SubscriptionRecord,
 } from "@/lib/db";
 import { activeBillingProvider, createCatalogCheckout, isPendingCheckoutStale } from "@/lib/billing";
+import { isPeriodLapsed } from "@/lib/membership-status";
 import { isPurchaseCheckoutReusable } from "@/lib/payments";
 import { verifySession } from "@/lib/session";
 
@@ -130,6 +131,20 @@ export async function POST(request: NextRequest) {
 
   // ── Recurring: a membership subscription ─────────────────────────────
   const existingSubscription = findSubscriptionByUserId(user.id);
+
+  // Prevent re-buying the exact option the member is already actively on
+  // (the UI hides its button; this is the server-side guard). Switching to a
+  // DIFFERENT option is still allowed — that's a plan change, not a re-buy.
+  if (
+    existingSubscription?.status === "active" &&
+    existingSubscription.billingOptionId === option.id &&
+    !isPeriodLapsed({ status: existingSubscription.status, currentPeriodEnd: existingSubscription.currentPeriodEnd })
+  ) {
+    return NextResponse.json(
+      { success: false, message: "You're already on this membership — nothing to do." },
+      { status: 409 }
+    );
+  }
 
   // Don't stack a duplicate checkout while a fresh one for this exact option
   // is still in progress.

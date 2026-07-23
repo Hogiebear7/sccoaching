@@ -23,10 +23,17 @@ export function CatalogBrowser({
   categories,
   packages,
   billingOptions,
+  currentPackageId,
+  currentBillingOptionId,
 }: {
   categories: MembershipCategoryRecord[];
   packages: MembershipPackageRecord[];
   billingOptions: MembershipBillingOptionRecord[];
+  /** The package/option the member is actively subscribed to (recurring,
+      active + unlapsed). Null for legacy/lapsed/non-catalog subscriptions —
+      in which case nothing is marked "Your plan". */
+  currentPackageId: string | null;
+  currentBillingOptionId: string | null;
 }) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [packageId, setPackageId] = useState<string | null>(null);
@@ -158,7 +165,7 @@ export function CatalogBrowser({
                   className="panel flex w-full items-center justify-between gap-3 p-5 text-left transition hover:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold">{p.name}</p>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -167,6 +174,11 @@ export function CatalogBrowser({
                       >
                         {isPass ? "Pass" : "Membership"}
                       </span>
+                      {p.id === currentPackageId ? (
+                        <span className="rounded-full border border-primary/30 bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          Your plan
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">{describePackageAllowance(p)}</p>
                   </div>
@@ -196,38 +208,60 @@ export function CatalogBrowser({
             .filter((o) => o.packageId === pkg.id)
             .map((o) => {
               const recurring = o.billingType === "recurring";
+              const isCurrent = o.id === currentBillingOptionId;
+              // A recurring sibling of the option you're already on is a plan
+              // change (e.g. monthly → annual), not a re-buy — allowed.
+              const isSwitch = !isCurrent && recurring && pkg.id === currentPackageId;
               return (
                 <div
                   key={o.id}
                   className={`panel flex items-center justify-between gap-3 p-5 ${
-                    recurring ? "border-primary/25 bg-primary/[0.03]" : "border-gold/25 bg-gold/[0.03]"
+                    isCurrent
+                      ? "border-primary/50 bg-primary/[0.06]"
+                      : recurring
+                        ? "border-primary/25 bg-primary/[0.03]"
+                        : "border-gold/25 bg-gold/[0.03]"
                   }`}
                 >
                   <div className="min-w-0">
-                    <p className="flex items-center gap-2 font-semibold">
+                    <p className="flex flex-wrap items-center gap-2 font-semibold">
                       {memberBillingLabel(o)}
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          recurring ? "bg-primary/10 text-primary" : "bg-gold/[0.12] text-gold"
-                        }`}
-                      >
-                        {recurring ? "Recurring" : "One-off"}
-                      </span>
+                      {isCurrent ? (
+                        <span className="rounded-full border border-primary/40 bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          Your plan
+                        </span>
+                      ) : (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            recurring ? "bg-primary/10 text-primary" : "bg-gold/[0.12] text-gold"
+                          }`}
+                        >
+                          {recurring ? "Recurring" : "One-off"}
+                        </span>
+                      )}
                     </p>
                     <p className="mt-0.5 text-sm tabular-nums">
                       {formatPriceCents(o.amountCents)}{" "}
                       <span className="text-xs text-muted-foreground">{formatBillingOptionCadence(o)}</span>
                     </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">{memberBillingHint(o)}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {isCurrent ? "This is your active membership." : memberBillingHint(o)}
+                    </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => checkout(o.id)}
-                    disabled={checkingOut !== null}
-                    className="btn-primary shrink-0 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {checkingOut === o.id ? "Starting…" : recurring ? "Join now" : "Buy pass"}
-                  </button>
+                  {isCurrent ? (
+                    <span className="shrink-0 rounded-full border border-primary/30 px-4 py-2 text-sm font-medium text-primary">
+                      Current
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => checkout(o.id)}
+                      disabled={checkingOut !== null}
+                      className="btn-primary shrink-0 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {checkingOut === o.id ? "Starting…" : isSwitch ? "Switch" : recurring ? "Join now" : "Buy pass"}
+                    </button>
+                  )}
                 </div>
               );
             })}
