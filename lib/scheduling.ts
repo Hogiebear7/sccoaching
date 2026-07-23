@@ -1,3 +1,4 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { randomUUID } from "crypto";
 
 import {
@@ -5,7 +6,6 @@ import {
   findBookingsByClassId,
   findBookingsByUserId,
   findClassById,
-  findMembershipPlanById,
   findProfileByUserId,
   findSubscriptionByUserId,
   findUserById,
@@ -108,7 +108,7 @@ export function issueWaitlistOffer(classId: string): void {
     if (!hasActiveMembership(member.id)) continue;
 
     const subscription = findSubscriptionByUserId(member.id);
-    const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+    const plan = resolveSubscriptionEntitlement(subscription);
     if (!subscription || !plan) continue;
 
     if (!isClassEligibleForPlan(classRecord.category, plan)) continue;

@@ -1,3 +1,4 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -7,7 +8,6 @@ import {
   findBookingsByClassId,
   findBookingsByUserId,
   findClassById,
-  findMembershipPlanById,
   findSubscriptionByUserId,
   findUserById,
   findWaitlistEntriesByClassId,
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     const subscription = findSubscriptionByUserId(user.id);
-    const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+    const plan = resolveSubscriptionEntitlement(subscription);
 
     if (plan && !isClassEligibleForPlan(classRecord.category, plan)) {
       return NextResponse.json(

@@ -1,10 +1,10 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import Link from "next/link";
 import { cookies } from "next/headers";
 
 import {
   findBookingsByUserId,
   findClassById,
-  findMembershipPlanById,
   findProfileByUserId,
   findProgrammeByUserId,
   findRecoveryLogsByUserId,
@@ -106,7 +106,7 @@ export default async function DashboardPage() {
   const programme = user ? findProgrammeByUserId(user.id) : undefined;
   const sessions = user ? findWorkoutSessionsByUserId(user.id) : [];
   const subscription = user ? findSubscriptionByUserId(user.id) : undefined;
-  const subscriptionPlan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+  const subscriptionPlan = resolveSubscriptionEntitlement(subscription);
   const recoveryLogs = user ? findRecoveryLogsByUserId(user.id) : [];
   const latestRecoveryLog = recoveryLogs[0];
 

@@ -133,3 +133,42 @@ export async function createStripeSubscriptionCheckout(input: {
     `sub:${input.internalReference}`
   );
 }
+
+// Catalog checkout (Category → Package → Billing Option). The line-item is
+// resolved upstream by lib/billing.ts `resolveCheckoutLineItem` — either a
+// stored Stripe price id or inline price_data — so this function stays a thin
+// mode/metadata shell and the price-vs-inline decision lives in ONE place.
+export async function createStripeCatalogCheckout(input: {
+  mode: "subscription" | "payment";
+  /** Pre-resolved `line_items[0][...]` params (price id OR price_data). */
+  lineItemParams: Record<string, string>;
+  /** Our internal id — pending subscription setup-order id, or purchase id. */
+  reference: string;
+  customerEmail: string;
+}): Promise<StripeOk | StripeErr> {
+  const base = getAppBaseUrl();
+  const isSubscription = input.mode === "subscription";
+
+  const metadata: Record<string, string> = isSubscription
+    ? {
+        "metadata[internal_ref]": input.reference,
+        "subscription_data[metadata][internal_ref]": input.reference,
+      }
+    : {
+        "metadata[purchase_id]": input.reference,
+        "payment_intent_data[metadata][purchase_id]": input.reference,
+      };
+
+  return createCheckoutSession(
+    {
+      mode: input.mode,
+      ...input.lineItemParams,
+      client_reference_id: input.reference,
+      ...metadata,
+      customer_email: input.customerEmail,
+      success_url: `${base}/dashboard/membership?membership=pending`,
+      cancel_url: `${base}/dashboard/membership?membership=cancelled`,
+    },
+    `${isSubscription ? "catsub" : "catbuy"}:${input.reference}`
+  );
+}

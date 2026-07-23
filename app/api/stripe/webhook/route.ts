@@ -1,8 +1,10 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
   findClassPassProductById,
+  findMembershipPackageById,
   findMembershipPlanById,
   findPurchaseById,
   findPurchaseByProviderOrderId,
@@ -124,12 +126,25 @@ export async function POST(request: NextRequest) {
       savePurchase(withRef);
 
       if (purchase.kind === "pass_pack") {
+        // productId is a legacy ClassPassProductRecord OR a catalog package
+        // (one-time class-pass / top-up). Either credits the pass ledger.
         const product = findClassPassProductById(purchase.productId);
-        if (product) applyPaidPassPurchase(withRef, product);
-        else
-          console.warn("[stripe webhook] paid pass purchase has no product row", {
-            purchaseId: purchase.id,
+        if (product) {
+          applyPaidPassPurchase(withRef, product);
+          return ack("Passes credited.");
+        }
+        const pkg = findMembershipPackageById(purchase.productId);
+        if (pkg) {
+          applyPaidPassPurchase(withRef, {
+            passCount: pkg.sessionAllowanceCount ?? 1,
+            name: pkg.name,
+            validityDays: null,
           });
+          return ack("Passes credited.");
+        }
+        console.warn("[stripe webhook] paid pass purchase has no product/package row", {
+          purchaseId: purchase.id,
+        });
         return ack("Passes credited.");
       }
 
@@ -167,7 +182,7 @@ export async function POST(request: NextRequest) {
         console.warn("[stripe webhook] no subscription matches session", { sessionId });
         return ack("No matching subscription.");
       }
-      const plan = subscription.planId ? findMembershipPlanById(subscription.planId) : undefined;
+      const plan = resolveSubscriptionEntitlement(subscription);
       const isFreshPeriod = subscription.status !== "active";
       saveSubscription({
         ...subscription,

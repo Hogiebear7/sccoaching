@@ -1,9 +1,9 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
-  findMembershipPlanById,
   findSubscriptionByUserId,
   findUserById,
   saveSubscription,
@@ -93,7 +93,7 @@ export async function POST(
   }
 
   const subscription = findSubscriptionByUserId(member.id);
-  const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+  const plan = resolveSubscriptionEntitlement(subscription);
 
   if (!subscription || !plan) {
     return NextResponse.json(

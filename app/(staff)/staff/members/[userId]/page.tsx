@@ -1,3 +1,4 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import Link from "next/link";
 
 import {
@@ -8,7 +9,6 @@ import {
   findCoachNoteByUserId,
   findCyclePrivacyByUserId,
   findCycleSettingsByUserId,
-  findMembershipPlanById,
   findMembershipPlans,
   findMessagesByMemberId,
   findProfileByUserId,
@@ -103,9 +103,7 @@ export default async function StaffMemberDetailPage({
     : null;
   const drinkMix = drinkInput ? buildDrinkMix(drinkInput) : null;
   const drinkPlan = drinkInput ? buildDrinkPlan(drinkInput) : null;
-  const subscriptionPlan = subscription?.planId
-    ? findMembershipPlanById(subscription.planId)
-    : undefined;
+  const subscriptionPlan = resolveSubscriptionEntitlement(subscription);
 
   const now = Date.now();
   const upcomingBookings = findBookingsByUserId(user.id)

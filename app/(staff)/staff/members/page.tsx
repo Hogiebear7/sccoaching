@@ -1,6 +1,6 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import {
   findMembers,
-  findMembershipPlanById,
   findMembershipPlans,
   findProfileByUserId,
   findSubscriptionByUserId,
@@ -15,7 +15,7 @@ export default async function StaffMembersPage() {
   const rows = members.map((member) => {
     const profile = findProfileByUserId(member.id);
     const sub = findSubscriptionByUserId(member.id);
-    const plan = sub?.planId ? findMembershipPlanById(sub.planId) : undefined;
+    const plan = resolveSubscriptionEntitlement(sub);
 
     return {
       userId: member.id,

@@ -1,6 +1,7 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { cookies } from "next/headers";
 
-import { findMembershipPlanById, findProfileByUserId, findSubscriptionByUserId, findUserById } from "@/lib/db";
+import { findProfileByUserId, findSubscriptionByUserId, findUserById } from "@/lib/db";
 import { SUBSCRIPTION_STATUS_LABEL } from "@/lib/membership-status";
 import { verifySession } from "@/lib/session";
 import { SettingsView } from "./SettingsView";
@@ -28,7 +29,7 @@ export default async function SettingsPage() {
   }
 
   const subscription = findSubscriptionByUserId(user.id);
-  const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+  const plan = resolveSubscriptionEntitlement(subscription);
 
   return (
     <SettingsView

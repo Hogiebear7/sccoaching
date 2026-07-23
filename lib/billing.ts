@@ -10,7 +10,12 @@
 // faking a successful checkout. See docs/billing-revolut.md for what's
 // needed to make it live.
 
-import type { BillingProvider, ClassPassProductRecord, MembershipPlanRecord } from "./db";
+import type {
+  BillingProvider,
+  ClassPassProductRecord,
+  MembershipBillingOptionRecord,
+  MembershipPlanRecord,
+} from "./db";
 import {
   createRevolutCustomer,
   createRevolutOrder,
@@ -19,6 +24,7 @@ import {
 } from "./providers/revolut";
 import { isRevolutWebhookConfigured } from "./providers/revolut-webhook";
 import {
+  createStripeCatalogCheckout,
   createStripePassCheckout,
   createStripeSubscriptionCheckout,
   isStripeConfigured,
@@ -270,4 +276,107 @@ export async function createOneOffCheckout(input: {
   }
 
   return { provider: "none", providerOrderId: null, checkoutUrl: null, error: "No payment provider is configured." };
+}
+
+// ── Catalog checkout: the ONE place the price-vs-inline decision lives ──
+//
+// A billing option is turned into Stripe line-item params here so no route
+// duplicates this logic. Stored stripePriceId wins (the Product+Price model
+// we want in production); otherwise we build inline price_data straight from
+// the option record so local/sandbox works with zero Stripe dashboard setup.
+// To later REQUIRE price ids everywhere, delete the inline branch and reject
+// options without an id — callers don't change.
+function getCurrencyFor(option: MembershipBillingOptionRecord): string {
+  return (option.currency || process.env.STRIPE_CURRENCY || "eur").trim().toLowerCase();
+}
+
+export function resolveCheckoutLineItem(input: {
+  option: MembershipBillingOptionRecord;
+  productName: string;
+}): { mode: "subscription" | "payment"; lineItemParams: Record<string, string>; usedPriceId: boolean } {
+  const { option } = input;
+  const mode = option.billingType === "recurring" ? "subscription" : "payment";
+
+  // Preferred path: a real Stripe Price id.
+  if (option.stripePriceId && option.stripePriceId.trim()) {
+    return {
+      mode,
+      usedPriceId: true,
+      lineItemParams: {
+        "line_items[0][price]": option.stripePriceId.trim(),
+        "line_items[0][quantity]": "1",
+      },
+    };
+  }
+
+  // Fallback path: inline price_data derived from the option record.
+  const params: Record<string, string> = {
+    "line_items[0][quantity]": "1",
+    "line_items[0][price_data][currency]": getCurrencyFor(option),
+    "line_items[0][price_data][unit_amount]": String(option.amountCents),
+    "line_items[0][price_data][product_data][name]": input.productName,
+  };
+  if (option.billingType === "recurring") {
+    params["line_items[0][price_data][recurring][interval]"] =
+      option.intervalUnit === "year" ? "year" : "month";
+    params["line_items[0][price_data][recurring][interval_count]"] = String(
+      option.intervalCount ?? 1
+    );
+  }
+  return { mode, usedPriceId: false, lineItemParams: params };
+}
+
+export interface CatalogCheckoutResult {
+  provider: BillingProvider;
+  mode: "subscription" | "payment";
+  /** Stripe checkout session id (stored as setup-order id / provider order id). */
+  sessionId: string | null;
+  checkoutUrl: string | null;
+  error: string | null;
+}
+
+// Creates the hosted checkout for a catalog billing option. Recurring →
+// subscription mode; one-time → payment mode. Stripe only (the catalog is a
+// Stripe-first surface); returns a "not configured" error otherwise.
+export async function createCatalogCheckout(input: {
+  member: { id: string; email: string };
+  option: MembershipBillingOptionRecord;
+  productName: string;
+  /** Pending subscription setup-order id (recurring) or purchase id (one-time). */
+  reference: string;
+}): Promise<CatalogCheckoutResult> {
+  const provider = activeBillingProvider();
+
+  if (provider !== "stripe") {
+    return {
+      provider,
+      mode: input.option.billingType === "recurring" ? "subscription" : "payment",
+      sessionId: null,
+      checkoutUrl: null,
+      error: "Online checkout isn't configured.",
+    };
+  }
+
+  const { mode, lineItemParams, usedPriceId } = resolveCheckoutLineItem({
+    option: input.option,
+    productName: input.productName,
+  });
+
+  if (!usedPriceId) {
+    console.info("[catalog checkout] no stripePriceId on option, using inline price_data", {
+      optionId: input.option.id,
+    });
+  }
+
+  const result = await createStripeCatalogCheckout({
+    mode,
+    lineItemParams,
+    reference: input.reference,
+    customerEmail: input.member.email,
+  });
+
+  if (!result.ok) {
+    return { provider: "stripe", mode, sessionId: null, checkoutUrl: null, error: result.message };
+  }
+  return { provider: "stripe", mode, sessionId: result.sessionId, checkoutUrl: result.checkoutUrl, error: null };
 }

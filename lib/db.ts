@@ -286,7 +286,13 @@ export interface ExtraSessionGrant {
 
 export interface SubscriptionRecord {
   userId: string;
+  /** Legacy MembershipPlanRecord link — still resolved for existing rows. */
   planId: string | null;
+  /** Catalog package this subscription entitles (new storefront). When set,
+      entitlement is derived from the package (see membership-entitlement.ts). */
+  packageId?: string | null;
+  /** Catalog billing option that was purchased (recurring). */
+  billingOptionId?: string | null;
   status: SubscriptionStatus;
   provider: BillingProvider;
   providerCustomerId: string | null;
@@ -343,6 +349,71 @@ export interface ClassPassProductRecord {
       changing this later never affects already-purchased passes. */
   validityDays?: number | null;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Membership catalog (Category → Package → Billing Option) ──────────
+// A three-level storefront that sits ON TOP of the entitlement engine:
+//  - Category groups packages for browsing (app-only concept).
+//  - Package is the sellable unit and the ENTITLEMENT (allowance + class
+//    access). Maps to a Stripe Product.
+//  - BillingOption is a price/cadence for that package. Maps to a Stripe
+//    Price. One package has many options; we never duplicate packages per
+//    interval. Entitlement lives on the package, never on the option.
+export interface MembershipCategoryRecord {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  sortOrder: number;
+  visible: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PackageType = "membership" | "pass" | "top_up";
+export type SessionAllowanceType = "unlimited" | "fixed_count" | "single_use";
+
+export interface MembershipPackageRecord {
+  id: string;
+  categoryId: string;
+  name: string;
+  slug: string;
+  shortDescription: string | null;
+  fullDescription: string | null;
+  packageType: PackageType;
+  sessionAllowanceType: SessionAllowanceType;
+  /** Total sessions for fixed_count; null for unlimited; typically 1 for
+      single_use. */
+  sessionAllowanceCount: number | null;
+  /** Class categories this package can book. Empty = all (unrestricted). */
+  eligibleClassTypes: ClassCategory[];
+  visible: boolean;
+  sortOrder: number;
+  stripeProductId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BillingType = "recurring" | "one_time";
+
+export interface MembershipBillingOptionRecord {
+  id: string;
+  packageId: string;
+  name: string;
+  billingType: BillingType;
+  /** Recurring cadence; null for one_time. */
+  intervalUnit: "month" | "year" | null;
+  /** e.g. 1 monthly, 3 quarterly, 1 annual; null for one_time. */
+  intervalCount: number | null;
+  amountCents: number;
+  currency: string;
+  visible: boolean;
+  sortOrder: number;
+  /** Stripe Price id. When set, checkout uses it; else it falls back to
+      inline price_data derived from this record (see lib/billing.ts). */
+  stripePriceId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -508,6 +579,9 @@ interface Database {
   bookings: BookingRecord[];
   coachNotes: CoachNoteRecord[];
   membershipPlans: MembershipPlanRecord[];
+  membershipCategories: MembershipCategoryRecord[];
+  membershipPackages: MembershipPackageRecord[];
+  membershipBillingOptions: MembershipBillingOptionRecord[];
   subscriptions: SubscriptionRecord[];
   classPassProducts: ClassPassProductRecord[];
   purchases: PurchaseRecord[];
@@ -560,6 +634,9 @@ function readDb(): Database {
       bookings: [],
       coachNotes: [],
       membershipPlans: [],
+      membershipCategories: [],
+      membershipPackages: [],
+      membershipBillingOptions: [],
       subscriptions: [],
       classPassProducts: [],
       purchases: [],
@@ -619,6 +696,15 @@ function readDb(): Database {
       ...plan,
       monthlySessionAllowance: plan.monthlySessionAllowance ?? null,
       allowedCategories: plan.allowedCategories ?? [],
+    })),
+    membershipCategories: parsed.membershipCategories ?? [],
+    membershipPackages: (parsed.membershipPackages ?? []).map((pkg) => ({
+      ...pkg,
+      eligibleClassTypes: pkg.eligibleClassTypes ?? [],
+    })),
+    membershipBillingOptions: (parsed.membershipBillingOptions ?? []).map((o) => ({
+      ...o,
+      currency: o.currency ?? "eur",
     })),
     subscriptions: (parsed.subscriptions ?? []).map((s) => ({
       ...s,
@@ -1469,6 +1555,98 @@ export function findClassPassProducts(): ClassPassProductRecord[] {
 
 export function findClassPassProductById(id: string): ClassPassProductRecord | undefined {
   return readDb().classPassProducts.find((p) => p.id === id);
+}
+
+// ── Catalog helpers ───────────────────────────────────────────────────
+export function findMembershipCategories(): MembershipCategoryRecord[] {
+  return readDb().membershipCategories.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export function findMembershipCategoryById(id: string): MembershipCategoryRecord | undefined {
+  return readDb().membershipCategories.find((c) => c.id === id);
+}
+
+export function saveMembershipCategory(category: MembershipCategoryRecord) {
+  const db = readDb();
+  const i = db.membershipCategories.findIndex((c) => c.id === category.id);
+  if (i === -1) db.membershipCategories.push(category);
+  else db.membershipCategories[i] = category;
+  writeDb(db);
+}
+
+export function deleteMembershipCategory(id: string) {
+  const db = readDb();
+  db.membershipCategories = db.membershipCategories.filter((c) => c.id !== id);
+  writeDb(db);
+}
+
+export function findMembershipPackages(): MembershipPackageRecord[] {
+  return readDb().membershipPackages.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export function findMembershipPackagesByCategoryId(categoryId: string): MembershipPackageRecord[] {
+  return findMembershipPackages().filter((p) => p.categoryId === categoryId);
+}
+
+export function findMembershipPackageById(id: string): MembershipPackageRecord | undefined {
+  return readDb().membershipPackages.find((p) => p.id === id);
+}
+
+export function saveMembershipPackage(pkg: MembershipPackageRecord) {
+  const db = readDb();
+  const i = db.membershipPackages.findIndex((p) => p.id === pkg.id);
+  if (i === -1) db.membershipPackages.push(pkg);
+  else db.membershipPackages[i] = pkg;
+  writeDb(db);
+}
+
+export function deleteMembershipPackage(id: string) {
+  const db = readDb();
+  db.membershipPackages = db.membershipPackages.filter((p) => p.id !== id);
+  writeDb(db);
+}
+
+export function findMembershipBillingOptions(): MembershipBillingOptionRecord[] {
+  return readDb().membershipBillingOptions.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export function findMembershipBillingOptionsByPackageId(
+  packageId: string
+): MembershipBillingOptionRecord[] {
+  return findMembershipBillingOptions().filter((o) => o.packageId === packageId);
+}
+
+export function findMembershipBillingOptionById(
+  id: string
+): MembershipBillingOptionRecord | undefined {
+  return readDb().membershipBillingOptions.find((o) => o.id === id);
+}
+
+export function saveMembershipBillingOption(option: MembershipBillingOptionRecord) {
+  const db = readDb();
+  const i = db.membershipBillingOptions.findIndex((o) => o.id === option.id);
+  if (i === -1) db.membershipBillingOptions.push(option);
+  else db.membershipBillingOptions[i] = option;
+  writeDb(db);
+}
+
+export function deleteMembershipBillingOption(id: string) {
+  const db = readDb();
+  db.membershipBillingOptions = db.membershipBillingOptions.filter((o) => o.id !== id);
+  writeDb(db);
+}
+
+// Reference guards for safe deletes.
+export function countPackagesByCategoryId(categoryId: string): number {
+  return readDb().membershipPackages.filter((p) => p.categoryId === categoryId).length;
+}
+
+export function countBillingOptionsByPackageId(packageId: string): number {
+  return readDb().membershipBillingOptions.filter((o) => o.packageId === packageId).length;
+}
+
+export function countSubscriptionsByPackageId(packageId: string): number {
+  return readDb().subscriptions.filter((s) => s.packageId === packageId).length;
 }
 
 export function saveClassPassProduct(product: ClassPassProductRecord) {

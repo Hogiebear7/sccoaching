@@ -1,0 +1,415 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import type { ReactNode } from "react";
+
+import { formatPriceCents } from "@/lib/billing";
+import { describePackageAllowance, formatBillingOptionCadence } from "@/lib/catalog";
+import type {
+  ClassCategoryRecord,
+  MembershipBillingOptionRecord,
+  MembershipCategoryRecord,
+  MembershipPackageRecord,
+} from "@/lib/db";
+
+const input =
+  "w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15";
+const label = "mb-1 block text-xs font-medium text-muted-foreground";
+
+async function post(url: string, body: unknown): Promise<{ ok: boolean; message: string }> {
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    return { ok: res.ok, message: data?.message ?? (res.ok ? "Saved." : "Something went wrong.") };
+  } catch {
+    return { ok: false, message: "Something went wrong. Please try again." };
+  }
+}
+
+export function CatalogView({
+  categories,
+  packages,
+  billingOptions,
+  classCategories,
+}: {
+  categories: MembershipCategoryRecord[];
+  packages: MembershipPackageRecord[];
+  billingOptions: MembershipBillingOptionRecord[];
+  classCategories: ClassCategoryRecord[];
+}) {
+  const router = useRouter();
+  const [openCat, setOpenCat] = useState<string | null>(categories[0]?.id ?? null);
+  const [openPkg, setOpenPkg] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function run(fn: () => Promise<{ ok: boolean; message: string }>) {
+    const r = await fn();
+    setBanner(r);
+    if (r.ok) router.refresh();
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="label-caps">Staff</p>
+        <h2 className="text-display mt-1 text-[28px] leading-tight">Membership catalog</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          Categories group packages; a package is the entitlement (what a member gets); each
+          package has one or more billing options (how they pay). One-off passes are one-time
+          options; memberships are recurring. Checkout uses a billing option&apos;s Stripe price
+          ID when set, otherwise its amount directly.
+        </p>
+      </div>
+
+      {banner ? (
+        <p
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            banner.ok
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-destructive/30 bg-destructive/10 text-destructive"
+          }`}
+        >
+          {banner.message}
+        </p>
+      ) : null}
+
+      {/* New category */}
+      <CategoryForm onSave={(payload) => run(() => post("/api/staff/catalog/categories", payload))} />
+
+      {categories.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No categories yet — create the first one above.</p>
+      ) : (
+        categories.map((cat) => {
+          const catPackages = packages.filter((p) => p.categoryId === cat.id);
+          const open = openCat === cat.id;
+          return (
+            <div key={cat.id} className="panel p-5">
+              <div className="flex items-start justify-between gap-3">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setOpenCat(open ? null : cat.id)}
+                  className="flex flex-1 items-center gap-2 text-left"
+                >
+                  <span className="text-lg font-semibold">{cat.name}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{catPackages.length}</span>
+                  {!cat.visible ? (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">Hidden</span>
+                  ) : null}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}><path d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <RowActions
+                  visible={cat.visible}
+                  onToggleVisible={() => run(() => post("/api/staff/catalog/categories", { id: cat.id, name: cat.name, description: cat.description, sortOrder: cat.sortOrder, visible: !cat.visible }))}
+                  onDelete={() => run(() => post("/api/staff/catalog/categories/delete", { id: cat.id }))}
+                  editForm={
+                    <CategoryForm
+                      category={cat}
+                      onSave={(payload) => run(() => post("/api/staff/catalog/categories", { id: cat.id, ...payload }))}
+                    />
+                  }
+                />
+              </div>
+
+              {open ? (
+                <div className="mt-4 space-y-3 border-t border-border/60 pt-4">
+                  {catPackages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No packages in this category yet.</p>
+                  ) : (
+                    catPackages.map((pkg) => {
+                      const pkgOptions = billingOptions.filter((o) => o.packageId === pkg.id);
+                      const pOpen = openPkg === pkg.id;
+                      return (
+                        <div key={pkg.id} className="well p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <button type="button" aria-expanded={pOpen} onClick={() => setOpenPkg(pOpen ? null : pkg.id)} className="flex flex-1 flex-col text-left">
+                              <span className="flex items-center gap-2">
+                                <span className="text-sm font-semibold">{pkg.name}</span>
+                                {!pkg.visible ? <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">Hidden</span> : null}
+                              </span>
+                              <span className="mt-0.5 text-xs text-muted-foreground">
+                                {describePackageAllowance(pkg)} · {pkg.packageType} · {pkgOptions.length} option{pkgOptions.length === 1 ? "" : "s"}
+                              </span>
+                            </button>
+                            <RowActions
+                              visible={pkg.visible}
+                              onToggleVisible={() => run(() => post("/api/staff/catalog/packages", packagePayload(pkg, { visible: !pkg.visible })))}
+                              onDelete={() => run(() => post("/api/staff/catalog/packages/delete", { id: pkg.id }))}
+                              editForm={<PackageForm categoryId={cat.id} pkg={pkg} classCategories={classCategories} onSave={(payload) => run(() => post("/api/staff/catalog/packages", { id: pkg.id, ...payload }))} />}
+                            />
+                          </div>
+
+                          {pOpen ? (
+                            <div className="mt-3 space-y-2 border-t border-border/60 pt-3">
+                              {pkgOptions.map((opt) => (
+                                <div key={opt.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-white/[0.02] px-3 py-2">
+                                  <div>
+                                    <p className="text-sm font-medium">
+                                      {opt.name} — {formatPriceCents(opt.amountCents)} {formatBillingOptionCadence(opt)}
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                      {opt.billingType === "recurring" ? "Recurring" : "One-time"}
+                                      {opt.stripePriceId ? " · price id set" : " · inline price"}
+                                      {!opt.visible ? " · hidden" : ""}
+                                    </p>
+                                  </div>
+                                  <RowActions
+                                    visible={opt.visible}
+                                    onToggleVisible={() => run(() => post("/api/staff/catalog/billing-options", optionPayload(opt, { visible: !opt.visible })))}
+                                    onDelete={() => run(() => post("/api/staff/catalog/billing-options/delete", { id: opt.id }))}
+                                    editForm={<BillingOptionForm packageId={pkg.id} option={opt} onSave={(payload) => run(() => post("/api/staff/catalog/billing-options", { id: opt.id, ...payload }))} />}
+                                  />
+                                </div>
+                              ))}
+                              <BillingOptionForm packageId={pkg.id} onSave={(payload) => run(() => post("/api/staff/catalog/billing-options", payload))} />
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  )}
+                  <PackageForm categoryId={cat.id} classCategories={classCategories} onSave={(payload) => run(() => post("/api/staff/catalog/packages", payload))} />
+                </div>
+              ) : null}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function packagePayload(pkg: MembershipPackageRecord, overrides: Record<string, unknown>) {
+  return {
+    id: pkg.id,
+    categoryId: pkg.categoryId,
+    name: pkg.name,
+    shortDescription: pkg.shortDescription,
+    fullDescription: pkg.fullDescription,
+    packageType: pkg.packageType,
+    sessionAllowanceType: pkg.sessionAllowanceType,
+    sessionAllowanceCount: pkg.sessionAllowanceCount,
+    eligibleClassTypes: pkg.eligibleClassTypes,
+    visible: pkg.visible,
+    sortOrder: pkg.sortOrder,
+    stripeProductId: pkg.stripeProductId,
+    ...overrides,
+  };
+}
+
+function optionPayload(opt: MembershipBillingOptionRecord, overrides: Record<string, unknown>) {
+  return {
+    id: opt.id,
+    packageId: opt.packageId,
+    name: opt.name,
+    billingType: opt.billingType,
+    intervalUnit: opt.intervalUnit,
+    intervalCount: opt.intervalCount,
+    priceEur: (opt.amountCents / 100).toFixed(2),
+    currency: opt.currency,
+    visible: opt.visible,
+    sortOrder: opt.sortOrder,
+    stripePriceId: opt.stripePriceId,
+    ...overrides,
+  };
+}
+
+// ── Expandable action cluster: Edit form + hide + delete ──
+function RowActions({
+  visible,
+  onToggleVisible,
+  onDelete,
+  editForm,
+}: {
+  visible: boolean;
+  onToggleVisible: () => void;
+  onDelete: () => void;
+  editForm: ReactNode;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div className="flex shrink-0 flex-col items-end gap-2">
+      <div className="flex flex-wrap justify-end gap-1.5">
+        <button type="button" onClick={() => setEditing((e) => !e)} className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-accent">
+          {editing ? "Close" : "Edit"}
+        </button>
+        <button type="button" onClick={onToggleVisible} className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-accent">
+          {visible ? "Hide" : "Show"}
+        </button>
+        {confirming ? (
+          <>
+            <button type="button" onClick={onDelete} className="rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/20">Confirm</button>
+            <button type="button" onClick={() => setConfirming(false)} className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground transition hover:bg-accent">Cancel</button>
+          </>
+        ) : (
+          <button type="button" onClick={() => setConfirming(true)} className="rounded-lg border border-destructive/30 px-2.5 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60">Delete</button>
+        )}
+      </div>
+      {editing ? <div className="w-full min-w-[280px]">{editForm}</div> : null}
+    </div>
+  );
+}
+
+// ── Forms ──
+function Field({ label: l, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className={label}>{l}</span>
+      {children}
+    </label>
+  );
+}
+
+function CategoryForm({
+  category,
+  onSave,
+}: {
+  category?: MembershipCategoryRecord;
+  onSave: (payload: Record<string, unknown>) => void;
+}) {
+  const [name, setName] = useState(category?.name ?? "");
+  const [description, setDescription] = useState(category?.description ?? "");
+  const [sortOrder, setSortOrder] = useState(String(category?.sortOrder ?? 0));
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave({ name, description, sortOrder: Number(sortOrder), visible: category?.visible ?? true });
+        if (!category) setName("");
+      }}
+      className={category ? "space-y-2" : "panel space-y-2 p-4"}
+    >
+      {!category ? <h3 className="text-sm font-semibold">New category</h3> : null}
+      <Field label="Name"><input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Semi-Private PT" /></Field>
+      <Field label="Description (optional)"><input className={input} value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
+      <div className="flex items-end gap-2">
+        <div className="w-24"><Field label="Sort"><input type="number" className={input} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></Field></div>
+        <button type="submit" className="btn-primary px-4 py-2 text-xs">{category ? "Save category" : "Add category"}</button>
+      </div>
+    </form>
+  );
+}
+
+function PackageForm({
+  categoryId,
+  pkg,
+  classCategories,
+  onSave,
+}: {
+  categoryId: string;
+  pkg?: MembershipPackageRecord;
+  classCategories: ClassCategoryRecord[];
+  onSave: (payload: Record<string, unknown>) => void;
+}) {
+  const [name, setName] = useState(pkg?.name ?? "");
+  const [shortDescription, setShort] = useState(pkg?.shortDescription ?? "");
+  const [packageType, setType] = useState(pkg?.packageType ?? "membership");
+  const [allowanceType, setAllowanceType] = useState(pkg?.sessionAllowanceType ?? "fixed_count");
+  const [count, setCount] = useState(pkg?.sessionAllowanceCount != null ? String(pkg.sessionAllowanceCount) : "");
+  const [eligible, setEligible] = useState<string[]>(pkg?.eligibleClassTypes ?? []);
+  const [sortOrder, setSortOrder] = useState(String(pkg?.sortOrder ?? 0));
+  const [stripeProductId, setStripeProductId] = useState(pkg?.stripeProductId ?? "");
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave({
+          categoryId, name, shortDescription, fullDescription: null, packageType,
+          sessionAllowanceType: allowanceType,
+          sessionAllowanceCount: allowanceType === "fixed_count" ? Number(count) : null,
+          eligibleClassTypes: eligible, visible: pkg?.visible ?? true, sortOrder: Number(sortOrder), stripeProductId,
+        });
+        if (!pkg) { setName(""); setCount(""); }
+      }}
+      className={pkg ? "space-y-2" : "rounded-2xl border border-border/60 bg-white/[0.02] p-4 space-y-2"}
+    >
+      <h4 className="text-xs font-semibold text-muted-foreground">{pkg ? "Edit package" : "New package"}</h4>
+      <Field label="Name"><input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Unlimited Sessions" /></Field>
+      <Field label="Short description (optional)"><input className={input} value={shortDescription} onChange={(e) => setShort(e.target.value)} /></Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Type"><select className={input} value={packageType} onChange={(e) => setType(e.target.value as typeof packageType)}><option value="membership">Membership</option><option value="pass">Pass</option><option value="top_up">Top-up</option></select></Field>
+        <Field label="Allowance"><select className={input} value={allowanceType} onChange={(e) => setAllowanceType(e.target.value as typeof allowanceType)}><option value="unlimited">Unlimited</option><option value="fixed_count">Fixed count</option><option value="single_use">Single use</option></select></Field>
+      </div>
+      {allowanceType === "fixed_count" ? (
+        <Field label="Sessions"><input type="number" min={1} className={input} value={count} onChange={(e) => setCount(e.target.value)} placeholder="e.g. 12" /></Field>
+      ) : null}
+      <fieldset>
+        <span className={label}>Class types this package can book (none = all)</span>
+        <div className="flex flex-wrap gap-1.5">
+          {classCategories.map((c) => {
+            const on = eligible.includes(c.slug);
+            return (
+              <button key={c.slug} type="button" aria-pressed={on} onClick={() => setEligible((prev) => on ? prev.filter((s) => s !== c.slug) : [...prev, c.slug])} className={`rounded-full border px-2.5 py-1 text-xs transition ${on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary"}`}>{c.name}</button>
+            );
+          })}
+        </div>
+      </fieldset>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Sort"><input type="number" className={input} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></Field>
+        <Field label="Stripe product id (optional)"><input className={input} value={stripeProductId} onChange={(e) => setStripeProductId(e.target.value)} placeholder="prod_…" /></Field>
+      </div>
+      <button type="submit" className="btn-primary px-4 py-2 text-xs">{pkg ? "Save package" : "Add package"}</button>
+    </form>
+  );
+}
+
+function BillingOptionForm({
+  packageId,
+  option,
+  onSave,
+}: {
+  packageId: string;
+  option?: MembershipBillingOptionRecord;
+  onSave: (payload: Record<string, unknown>) => void;
+}) {
+  const [name, setName] = useState(option?.name ?? "");
+  const [billingType, setBillingType] = useState(option?.billingType ?? "recurring");
+  const [interval, setInterval] = useState<string>(
+    option?.intervalUnit === "year" ? "annual" : option?.intervalUnit === "month" && option?.intervalCount === 3 ? "quarterly" : "monthly"
+  );
+  const [priceEur, setPriceEur] = useState(option ? (option.amountCents / 100).toFixed(2) : "");
+  const [sortOrder, setSortOrder] = useState(String(option?.sortOrder ?? 0));
+  const [stripePriceId, setStripePriceId] = useState(option?.stripePriceId ?? "");
+
+  function cadence() {
+    if (interval === "annual") return { intervalUnit: "year", intervalCount: 1 };
+    if (interval === "quarterly") return { intervalUnit: "month", intervalCount: 3 };
+    return { intervalUnit: "month", intervalCount: 1 };
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const c = billingType === "recurring" ? cadence() : { intervalUnit: null, intervalCount: null };
+        onSave({ packageId, name, billingType, ...c, priceEur, currency: "eur", visible: option?.visible ?? true, sortOrder: Number(sortOrder), stripePriceId });
+        if (!option) { setName(""); setPriceEur(""); }
+      }}
+      className={option ? "space-y-2" : "rounded-2xl border border-border/60 bg-white/[0.02] p-3 space-y-2"}
+    >
+      <h4 className="text-xs font-semibold text-muted-foreground">{option ? "Edit option" : "New billing option"}</h4>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Label"><input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Monthly" /></Field>
+        <Field label="Billing"><select className={input} value={billingType} onChange={(e) => setBillingType(e.target.value as typeof billingType)}><option value="recurring">Recurring</option><option value="one_time">One-time</option></select></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {billingType === "recurring" ? (
+          <Field label="Interval"><select className={input} value={interval} onChange={(e) => setInterval(e.target.value)}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></Field>
+        ) : <div />}
+        <Field label="Price (EUR)"><input type="number" min={0} step="0.01" className={input} value={priceEur} onChange={(e) => setPriceEur(e.target.value)} placeholder="e.g. 250.00" /></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Sort"><input type="number" className={input} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></Field>
+        <Field label="Stripe price id (optional)"><input className={input} value={stripePriceId} onChange={(e) => setStripePriceId(e.target.value)} placeholder="price_…" /></Field>
+      </div>
+      <button type="submit" className="btn-primary px-4 py-2 text-xs">{option ? "Save option" : "Add option"}</button>
+    </form>
+  );
+}

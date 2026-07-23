@@ -5,11 +5,11 @@ import {
   createNotification,
   findAllSubscriptions,
   findAnyStaffUser,
-  findMembershipPlanById,
   findProfileByUserId,
   saveSubscription,
   type NotificationRecord,
 } from "@/lib/db";
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { sendEmail } from "@/lib/email";
 import { lapsedMembershipEmail } from "@/lib/email-templates";
 import { formatMembershipDate, isPeriodLapsed } from "@/lib/membership-status";
@@ -37,7 +37,7 @@ export const notifyLapsedMembershipsJob: JobDefinition = {
       if (subscription.periodLapsedNotifiedAt !== null) continue;
       if (!isPeriodLapsed(subscription)) continue;
 
-      const plan = subscription.planId ? findMembershipPlanById(subscription.planId) : undefined;
+      const plan = resolveSubscriptionEntitlement(subscription);
       const now = new Date().toISOString();
 
       createMessage({

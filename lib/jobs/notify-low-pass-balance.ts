@@ -3,12 +3,12 @@ import { randomUUID } from "crypto";
 import {
   createNotification,
   findMembers,
-  findMembershipPlanById,
   findNotificationByDedupeKey,
   findPassLedgerByUserId,
   findProfileByUserId,
   findSubscriptionByUserId,
 } from "@/lib/db";
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { sendEmail } from "@/lib/email";
 import { lowPassBalanceEmail } from "@/lib/email-templates";
 import { isPeriodLapsed } from "@/lib/membership-status";
@@ -39,7 +39,7 @@ export const notifyLowPassBalanceJob: JobDefinition = {
       if (member.archivedAt) continue;
 
       const subscription = findSubscriptionByUserId(member.id);
-      const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+      const plan = resolveSubscriptionEntitlement(subscription);
       const planIsLive =
         !!subscription &&
         !!plan &&

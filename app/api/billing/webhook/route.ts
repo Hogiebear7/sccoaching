@@ -1,9 +1,9 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
   findClassPassProductById,
-  findMembershipPlanById,
   findPurchaseByProviderOrderId,
   findSubscriptionByProviderOrderId,
   hasPaymentEvent,
@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const plan = subscription.planId ? findMembershipPlanById(subscription.planId) : undefined;
+  const plan = resolveSubscriptionEntitlement(subscription);
 
   // Revolut's webhook payload doesn't include a period-end date, so when a
   // subscription becomes active this is computed locally from the plan's

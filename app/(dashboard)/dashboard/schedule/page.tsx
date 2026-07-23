@@ -1,3 +1,4 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { cookies } from "next/headers";
 
 import {
@@ -7,7 +8,6 @@ import {
   findClassCategories,
   findClasses,
   findDeletedCategoryLabels,
-  findMembershipPlanById,
   findProfileByUserId,
   findSubscriptionByUserId,
   findUserById,
@@ -44,7 +44,7 @@ export default async function DashboardSchedulePage() {
   const myBookedClassIds = new Set(allBookings.map((b) => b.classId));
 
   const subscription = user.role === "member" ? findSubscriptionByUserId(user.id) : undefined;
-  const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+  const plan = resolveSubscriptionEntitlement(subscription);
   const remaining = plan && subscription ? remainingSessions(plan, subscription) : null;
   const noActiveMembership =
     user.role === "member" && membershipIsRequired() && !hasActiveMembership(user.id);

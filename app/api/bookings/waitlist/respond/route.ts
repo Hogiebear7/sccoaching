@@ -1,3 +1,4 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -5,7 +6,6 @@ import type { NextRequest } from "next/server";
 import {
   createBooking,
   findClassById,
-  findMembershipPlanById,
   findSubscriptionByUserId,
   findUserById,
   findWaitlistEntryById,
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
 
   const subscription = findSubscriptionByUserId(user.id);
   let coverWithPurchasedPass = false;
-  const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+  const plan = resolveSubscriptionEntitlement(subscription);
 
   if (subscription && plan && !isClassEligibleForPlan(classRecord.category, plan)) {
     return NextResponse.json(

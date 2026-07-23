@@ -186,3 +186,39 @@ Add `ORDER_REFUNDED` to the events listed in `docs/billing-revolut.md`.
    lives on the subscription row only).
 5. **Sandbox run-through** + register `ORDER_REFUNDED` webhook; then key
    rotation and spend caps from the pre-launch checklist.
+
+## Membership catalog (Category → Package → Billing Option)
+
+Added on top of the entitlement engine — additive, not a rewrite.
+
+- **MembershipCategory** groups packages for browsing (app-only).
+- **MembershipPackage** is the sellable unit AND the entitlement (allowance
+  type/count, eligible class types). Maps to a Stripe Product. Entitlement
+  lives here, never on a price.
+- **MembershipBillingOption** is a price/cadence (recurring monthly/quarterly/
+  annual, or one_time). Maps to a Stripe Price. One package, many options —
+  packages are never duplicated per interval.
+
+Entitlement resolution goes through `resolveSubscriptionEntitlement(sub)`
+(`lib/membership-entitlement.ts`): a package-backed subscription derives its
+plan-shaped entitlement from the package; otherwise it falls back to the
+legacy `MembershipPlanRecord`. Every downstream reader (booking consumption,
+allowance math, waitlist, webhook renewal, member/staff views) is unchanged —
+it still receives a plan shape.
+
+Checkout (`/api/membership/checkout`) resolves the selected option's price via
+`resolveCheckoutLineItem` (`lib/billing.ts`) — the ONE place the price-vs-inline
+decision lives: a stored `stripePriceId` is used when present, otherwise inline
+`price_data` is built from the option (zero Stripe setup for local/sandbox).
+Recurring → subscription mode (a pending package-backed SubscriptionRecord the
+webhook activates); one_time → payment mode (a pass_pack PurchaseRecord the
+webhook credits by the package's session count). "From €X" on a category card
+is the cheapest visible billing option across its visible packages.
+
+Staff manage the catalog at `/staff/catalog`. Legacy `/staff/plans` and
+`/staff/passes` remain for existing subscriptions and are deprecated. Seed the
+catalog for local/sandbox with `node scripts/seed-catalog.mjs`.
+
+Register no new Stripe webhook events. For production, staff paste Stripe
+Product ids (package) and Price ids (billing option); until then checkout uses
+inline price_data.

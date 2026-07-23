@@ -1,8 +1,8 @@
+import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import {
   findBookingsByClassId,
   findClasses,
   findMembers,
-  findMembershipPlanById,
   findMessagesByMemberId,
   findProfileByUserId,
   findRecoveryLogsByUserId,
@@ -35,7 +35,7 @@ export function buildMemberOperationalSummaries(): MemberOperationalSummary[] {
   return findMembers().map((user) => {
     const profile = findProfileByUserId(user.id);
     const subscription = findSubscriptionByUserId(user.id);
-    const plan = subscription?.planId ? findMembershipPlanById(subscription.planId) : undefined;
+    const plan = resolveSubscriptionEntitlement(subscription);
     const lapsed = subscription ? isPeriodLapsed(subscription) : false;
     const remaining = plan && subscription ? remainingSessions(plan, subscription) : null;
 
