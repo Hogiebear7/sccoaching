@@ -59,10 +59,25 @@ export function CatalogView({
         <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Membership catalog</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Categories group packages; a package is the entitlement (what a member gets); each
-          package has one or more billing options (how they pay). One-off passes are one-time
-          options; memberships are recurring. Checkout uses a billing option&apos;s Stripe price
-          ID when set, otherwise its amount directly.
+          This is what members see when they join. It has three levels:
+        </p>
+        <ul className="mt-2 max-w-2xl space-y-1 text-sm text-muted-foreground">
+          <li>
+            <span className="font-medium text-foreground">Category</span> — a top-level heading
+            members browse first (e.g. Semi-Private PT).
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Package</span> — the actual membership or
+            pass, and what it includes (its session allowance and class access).
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Billing option</span> — how a member pays
+            for that package (monthly/quarterly/annual, or a one-off). One package can have several.
+          </li>
+        </ul>
+        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+          Only <span className="font-medium">visible</span> items appear to members. Deletes are
+          blocked while something is still in use — hide it instead.
         </p>
       </div>
 
@@ -257,11 +272,12 @@ function RowActions({
 }
 
 // ── Forms ──
-function Field({ label: l, children }: { label: ReactNode; children: ReactNode }) {
+function Field({ label: l, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
   return (
     <label className="block">
       <span className={label}>{l}</span>
       {children}
+      {hint ? <span className="mt-1 block text-[11px] leading-snug text-muted-foreground/80">{hint}</span> : null}
     </label>
   );
 }
@@ -334,14 +350,20 @@ function PackageForm({
       <Field label="Name"><input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Unlimited Sessions" /></Field>
       <Field label="Short description (optional)"><input className={input} value={shortDescription} onChange={(e) => setShort(e.target.value)} /></Field>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Type"><select className={input} value={packageType} onChange={(e) => setType(e.target.value as typeof packageType)}><option value="membership">Membership</option><option value="pass">Pass</option><option value="top_up">Top-up</option></select></Field>
-        <Field label="Allowance"><select className={input} value={allowanceType} onChange={(e) => setAllowanceType(e.target.value as typeof allowanceType)}><option value="unlimited">Unlimited</option><option value="fixed_count">Fixed count</option><option value="single_use">Single use</option></select></Field>
+        <Field label="Type" hint="Membership = recurring; Pass/Top-up = one-off.">
+          <select className={input} value={packageType} onChange={(e) => setType(e.target.value as typeof packageType)}><option value="membership">Membership</option><option value="pass">Pass</option><option value="top_up">Top-up</option></select>
+        </Field>
+        <Field label="Session allowance" hint="Unlimited = no cap · Fixed count = a set number each period · Single use = one class.">
+          <select className={input} value={allowanceType} onChange={(e) => setAllowanceType(e.target.value as typeof allowanceType)}><option value="unlimited">Unlimited</option><option value="fixed_count">Fixed count</option><option value="single_use">Single use</option></select>
+        </Field>
       </div>
       {allowanceType === "fixed_count" ? (
-        <Field label="Sessions"><input type="number" min={1} className={input} value={count} onChange={(e) => setCount(e.target.value)} placeholder="e.g. 12" /></Field>
+        <Field label="Number of sessions" hint="How many classes this package includes.">
+          <input type="number" min={1} className={input} value={count} onChange={(e) => setCount(e.target.value)} placeholder="e.g. 12" />
+        </Field>
       ) : null}
       <fieldset>
-        <span className={label}>Class types this package can book (none = all)</span>
+        <span className={label}>Class types this package can book</span>
         <div className="flex flex-wrap gap-1.5">
           {classCategories.map((c) => {
             const on = eligible.includes(c.slug);
@@ -350,10 +372,13 @@ function PackageForm({
             );
           })}
         </div>
+        <span className="mt-1 block text-[11px] leading-snug text-muted-foreground/80">Leave none selected to allow all class types.</span>
       </fieldset>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Sort"><input type="number" className={input} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></Field>
-        <Field label="Stripe product id (optional)"><input className={input} value={stripeProductId} onChange={(e) => setStripeProductId(e.target.value)} placeholder="prod_…" /></Field>
+        <Field label="Stripe product ID" hint="Optional. Paste from your Stripe dashboard to link this package to a Stripe Product.">
+          <input className={input} value={stripeProductId} onChange={(e) => setStripeProductId(e.target.value)} placeholder="prod_…" />
+        </Field>
       </div>
       <button type="submit" className="btn-primary px-4 py-2 text-xs">{pkg ? "Save package" : "Add package"}</button>
     </form>
@@ -394,20 +419,26 @@ function BillingOptionForm({
       }}
       className={option ? "space-y-2" : "rounded-2xl border border-border/60 bg-white/[0.02] p-3 space-y-2"}
     >
-      <h4 className="text-xs font-semibold text-muted-foreground">{option ? "Edit option" : "New billing option"}</h4>
+      <h4 className="text-xs font-semibold text-muted-foreground">{option ? "Edit billing option" : "New billing option — a way to pay for this package"}</h4>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Label"><input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Monthly" /></Field>
-        <Field label="Billing"><select className={input} value={billingType} onChange={(e) => setBillingType(e.target.value as typeof billingType)}><option value="recurring">Recurring</option><option value="one_time">One-time</option></select></Field>
+        <Field label="Label" hint="What members see, e.g. Monthly.">
+          <input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Monthly" />
+        </Field>
+        <Field label="Billing" hint="Recurring auto-renews; one-off is a single payment.">
+          <select className={input} value={billingType} onChange={(e) => setBillingType(e.target.value as typeof billingType)}><option value="recurring">Recurring</option><option value="one_time">One-time</option></select>
+        </Field>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {billingType === "recurring" ? (
-          <Field label="Interval"><select className={input} value={interval} onChange={(e) => setInterval(e.target.value)}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></Field>
+          <Field label="Renews every"><select className={input} value={interval} onChange={(e) => setInterval(e.target.value)}><option value="monthly">Month</option><option value="quarterly">3 months</option><option value="annual">Year</option></select></Field>
         ) : <div />}
         <Field label="Price (EUR)"><input type="number" min={0} step="0.01" className={input} value={priceEur} onChange={(e) => setPriceEur(e.target.value)} placeholder="e.g. 250.00" /></Field>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Sort"><input type="number" className={input} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></Field>
-        <Field label="Stripe price id (optional)"><input className={input} value={stripePriceId} onChange={(e) => setStripePriceId(e.target.value)} placeholder="price_…" /></Field>
+        <Field label="Stripe price ID" hint="Optional. Paste a Stripe Price ID to charge that exact price; leave blank to charge the amount above.">
+          <input className={input} value={stripePriceId} onChange={(e) => setStripePriceId(e.target.value)} placeholder="price_…" />
+        </Field>
       </div>
       <button type="submit" className="btn-primary px-4 py-2 text-xs">{option ? "Save option" : "Add option"}</button>
     </form>

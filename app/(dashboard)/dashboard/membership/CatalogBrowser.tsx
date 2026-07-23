@@ -7,6 +7,8 @@ import {
   categoryFromPrice,
   describePackageAllowance,
   formatBillingOptionCadence,
+  memberBillingHint,
+  memberBillingLabel,
 } from "@/lib/catalog";
 import type {
   MembershipBillingOptionRecord,
@@ -71,7 +73,7 @@ export function CatalogBrowser({
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2 px-1">
+      <div className="mb-3 flex items-center justify-between gap-2 px-1">
         <p className="label-caps">
           {!category ? "Join the club" : !pkg ? category.name : pkg.name}
         </p>
@@ -81,7 +83,7 @@ export function CatalogBrowser({
             onClick={() => (pkg ? setPackageId(null) : setCategoryId(null))}
             className="text-[11px] font-medium text-blue-400 transition hover:text-blue-300"
           >
-            ← Back
+            ← {pkg ? "All packages" : "All categories"}
           </button>
         ) : null}
       </div>
@@ -92,55 +94,61 @@ export function CatalogBrowser({
         </p>
       ) : null}
 
-      {/* Level 1: categories */}
+      {/* Level 1: categories — high-level offerings */}
       {!category ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {categories.map((cat) => {
             const from = categoryFromPrice(cat, packages, billingOptions);
-            const count = packages.filter((p) => p.categoryId === cat.id).length;
             return (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => setCategoryId(cat.id)}
-                className="panel flex flex-col items-start p-5 text-left transition hover:border-primary/40"
+                className="panel group flex min-h-[150px] flex-col p-5 text-left transition hover:border-primary/40"
               >
-                <p className="font-semibold">{cat.name}</p>
+                <p className="text-base font-semibold tracking-tight">{cat.name}</p>
                 {cat.description ? (
-                  <p className="mt-1 text-xs text-muted-foreground">{cat.description}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{cat.description}</p>
                 ) : null}
-                <p className="mt-3 text-sm">
-                  {from !== null ? (
-                    <>
-                      <span className="text-muted-foreground">from </span>
-                      <span className="text-display text-[18px] tabular-nums">{formatPriceCents(from.amountCents)}</span>
-                      {from.billingType === "one_time" ? (
-                        <span className="ml-1 text-xs text-muted-foreground">one-off</span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Coming soon</span>
-                  )}
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    · {count} option{count === 1 ? "" : "s"}
+                <div className="mt-auto flex items-end justify-between gap-2 pt-4">
+                  <div>
+                    {from !== null ? (
+                      <>
+                        <span className="block text-[11px] text-muted-foreground">From</span>
+                        <span className="text-display text-[22px] leading-none tabular-nums">
+                          {formatPriceCents(from.amountCents)}
+                        </span>
+                        {from.billingType === "one_time" ? (
+                          <span className="ml-1 text-xs text-muted-foreground">one-off</span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Coming soon</span>
+                    )}
+                  </div>
+                  <span className="text-xs font-medium text-primary transition group-hover:translate-x-0.5">
+                    View options →
                   </span>
-                </p>
+                </div>
               </button>
             );
           })}
         </div>
       ) : null}
 
-      {/* Level 2: packages in a category */}
+      {/* Level 2: packages in a category — the actual choices */}
       {category && !pkg ? (
         <div className="space-y-3">
+          {category.description ? (
+            <p className="px-1 text-sm text-muted-foreground">{category.description}</p>
+          ) : null}
           {packages
             .filter((p) => p.categoryId === category.id)
             .map((p) => {
-              const from = Math.min(
-                ...billingOptions.filter((o) => o.packageId === p.id).map((o) => o.amountCents)
-              );
-              const hasOptions = billingOptions.some((o) => o.packageId === p.id);
+              const opts = billingOptions.filter((o) => o.packageId === p.id);
+              const hasOptions = opts.length > 0;
+              const from = hasOptions ? Math.min(...opts.map((o) => o.amountCents)) : 0;
+              const isPass = p.packageType !== "membership";
               return (
                 <button
                   key={p.id}
@@ -150,11 +158,17 @@ export function CatalogBrowser({
                   className="panel flex w-full items-center justify-between gap-3 p-5 text-left transition hover:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <div className="min-w-0">
-                    <p className="font-semibold">{p.name}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {describePackageAllowance(p)}
-                      {p.packageType !== "membership" ? " · pass" : ""}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold">{p.name}</p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          isPass ? "bg-gold/[0.1] text-gold" : "bg-primary/10 text-primary"
+                        }`}
+                      >
+                        {isPass ? "Pass" : "Membership"}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{describePackageAllowance(p)}</p>
                   </div>
                   {hasOptions ? (
                     <span className="shrink-0 text-right text-sm">
@@ -162,7 +176,7 @@ export function CatalogBrowser({
                       <span className="text-display text-[18px] tabular-nums">{formatPriceCents(from)}</span>
                     </span>
                   ) : (
-                    <span className="shrink-0 text-xs text-muted-foreground">No options</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">Unavailable</span>
                   )}
                 </button>
               );
@@ -170,44 +184,53 @@ export function CatalogBrowser({
         </div>
       ) : null}
 
-      {/* Level 3: billing options for a package */}
+      {/* Level 3: ways to pay for this package — recurring vs one-off,
+          clearly distinguished. */}
       {category && pkg ? (
         <div className="space-y-3">
-          {pkg.shortDescription ? (
-            <p className="px-1 text-sm text-muted-foreground">{pkg.shortDescription}</p>
-          ) : null}
+          <p className="px-1 text-sm text-muted-foreground">
+            {pkg.shortDescription ?? describePackageAllowance(pkg)}
+            {" — choose how you'd like to pay."}
+          </p>
           {billingOptions
             .filter((o) => o.packageId === pkg.id)
-            .map((o) => (
-              <div key={o.id} className="panel flex items-center justify-between gap-3 p-5">
-                <div className="min-w-0">
-                  <p className="font-semibold">
-                    {o.name}
-                    <span className="ml-2 rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle text-muted-foreground">
-                      {o.billingType === "recurring" ? "Recurring" : "One-off"}
-                    </span>
-                  </p>
-                  <p className="mt-0.5 text-sm tabular-nums">
-                    {formatPriceCents(o.amountCents)}{" "}
-                    <span className="text-xs text-muted-foreground">
-                      {formatBillingOptionCadence(o)}
-                    </span>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => checkout(o.id)}
-                  disabled={checkingOut !== null}
-                  className="btn-primary shrink-0 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            .map((o) => {
+              const recurring = o.billingType === "recurring";
+              return (
+                <div
+                  key={o.id}
+                  className={`panel flex items-center justify-between gap-3 p-5 ${
+                    recurring ? "border-primary/25 bg-primary/[0.03]" : "border-gold/25 bg-gold/[0.03]"
+                  }`}
                 >
-                  {checkingOut === o.id
-                    ? "Starting…"
-                    : o.billingType === "recurring"
-                      ? "Subscribe"
-                      : "Buy"}
-                </button>
-              </div>
-            ))}
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 font-semibold">
+                      {memberBillingLabel(o)}
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          recurring ? "bg-primary/10 text-primary" : "bg-gold/[0.12] text-gold"
+                        }`}
+                      >
+                        {recurring ? "Recurring" : "One-off"}
+                      </span>
+                    </p>
+                    <p className="mt-0.5 text-sm tabular-nums">
+                      {formatPriceCents(o.amountCents)}{" "}
+                      <span className="text-xs text-muted-foreground">{formatBillingOptionCadence(o)}</span>
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{memberBillingHint(o)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => checkout(o.id)}
+                    disabled={checkingOut !== null}
+                    className="btn-primary shrink-0 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {checkingOut === o.id ? "Starting…" : recurring ? "Join now" : "Buy pass"}
+                  </button>
+                </div>
+              );
+            })}
         </div>
       ) : null}
     </div>

@@ -37,15 +37,38 @@ export function categoryFromPrice(
   return { amountCents: cheapest.amountCents, billingType: cheapest.billingType };
 }
 
-// "€250.00 / month", "€720.00 / 3 months", "€2,750.00 / year", "€30.00 one-time".
+// The per-price suffix on the member option row: "/ month", "/ quarter",
+// "/ year", or "" for a one-off (which reads as a single price, no cadence).
 export function formatBillingOptionCadence(option: MembershipBillingOptionRecord): string {
-  if (option.billingType === "one_time") return "one-time";
+  if (option.billingType === "one_time") return "";
   const unit = option.intervalUnit === "year" ? "year" : "month";
   const count = option.intervalCount ?? 1;
   if (unit === "month" && count === 1) return "/ month";
   if (unit === "month" && count === 3) return "/ quarter";
   if (unit === "year" && count === 1) return "/ year";
   return `/ ${count} ${unit}${count === 1 ? "" : "s"}`;
+}
+
+// Member-facing name for a billing option — plain English, no "billing" or
+// Stripe jargon. Recurring reads as a membership; one-time reads as a one-off.
+export function memberBillingLabel(option: MembershipBillingOptionRecord): string {
+  if (option.billingType === "one_time") return "One-off purchase";
+  if (option.intervalUnit === "year") return "Annual membership";
+  if (option.intervalUnit === "month" && option.intervalCount === 3) return "Quarterly membership";
+  return "Monthly membership";
+}
+
+// One-line "how it renews" reassurance under a recurring option; empty for
+// one-off purchases (nothing renews).
+export function memberBillingHint(option: MembershipBillingOptionRecord): string {
+  if (option.billingType === "one_time") return "One-time payment — nothing renews.";
+  const every =
+    option.intervalUnit === "year"
+      ? "year"
+      : option.intervalCount === 3
+        ? "3 months"
+        : "month";
+  return `Renews automatically every ${every}. Cancel anytime.`;
 }
 
 export function describePackageAllowance(pkg: MembershipPackageRecord): string {

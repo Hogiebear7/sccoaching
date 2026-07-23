@@ -4,6 +4,8 @@ import {
   categoryFromPrice,
   describePackageAllowance,
   formatBillingOptionCadence,
+  memberBillingHint,
+  memberBillingLabel,
   slugifyCatalog,
 } from "@/lib/catalog";
 import type {
@@ -60,13 +62,30 @@ describe("categoryFromPrice", () => {
 });
 
 describe("formatBillingOptionCadence", () => {
-  it("labels each cadence", () => {
+  it("labels each recurring cadence and drops the suffix for one-off", () => {
     expect(formatBillingOptionCadence(opt("a", "p", 100))).toBe("/ month");
     expect(formatBillingOptionCadence({ ...opt("a", "p", 100), intervalCount: 3 })).toBe("/ quarter");
     expect(formatBillingOptionCadence({ ...opt("a", "p", 100), intervalUnit: "year", intervalCount: 1 })).toBe("/ year");
     expect(
       formatBillingOptionCadence({ ...opt("a", "p", 100), billingType: "one_time", intervalUnit: null, intervalCount: null })
-    ).toBe("one-time");
+    ).toBe("");
+  });
+});
+
+describe("memberBillingLabel", () => {
+  it("reads as a membership for recurring and a one-off otherwise — no jargon", () => {
+    expect(memberBillingLabel(opt("a", "p", 100))).toBe("Monthly membership");
+    expect(memberBillingLabel({ ...opt("a", "p", 100), intervalCount: 3 })).toBe("Quarterly membership");
+    expect(memberBillingLabel({ ...opt("a", "p", 100), intervalUnit: "year", intervalCount: 1 })).toBe("Annual membership");
+    expect(memberBillingLabel({ ...opt("a", "p", 100), billingType: "one_time", intervalUnit: null, intervalCount: null })).toBe("One-off purchase");
+  });
+});
+
+describe("memberBillingHint", () => {
+  it("reassures on renewal for recurring and says nothing renews for one-off", () => {
+    expect(memberBillingHint(opt("a", "p", 100))).toContain("Renews automatically every month");
+    expect(memberBillingHint({ ...opt("a", "p", 100), intervalCount: 3 })).toContain("every 3 months");
+    expect(memberBillingHint({ ...opt("a", "p", 100), billingType: "one_time", intervalUnit: null, intervalCount: null })).toContain("nothing renews");
   });
 });
 
