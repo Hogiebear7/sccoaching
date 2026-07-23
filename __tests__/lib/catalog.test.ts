@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  categoryFromPriceCents,
+  categoryFromPrice,
   describePackageAllowance,
   formatBillingOptionCadence,
   slugifyCatalog,
@@ -29,23 +29,33 @@ function opt(id: string, packageId: string, amountCents: number, visible = true)
   };
 }
 
-describe("categoryFromPriceCents", () => {
+function oneTime(id: string, packageId: string, amountCents: number, visible = true): MembershipBillingOptionRecord {
+  return { ...opt(id, packageId, amountCents, visible), billingType: "one_time", intervalUnit: null, intervalCount: null };
+}
+
+describe("categoryFromPrice", () => {
   const category = cat("c1");
   const packages = [pkg("p1", "c1"), pkg("p2", "c1"), pkg("hidden", "c1", false), pkg("other", "c2")];
 
-  it("returns the cheapest VISIBLE option across VISIBLE packages", () => {
+  it("prefers the cheapest VISIBLE RECURRING option and never lets a one-off undercut it", () => {
     const options = [
-      opt("o1", "p1", 25000),
-      opt("o2", "p2", 12000),
-      opt("cheapHidden", "p1", 5000, false), // hidden option — ignored
-      opt("onHiddenPkg", "hidden", 1000), // on a hidden package — ignored
+      opt("o1", "p1", 25000), // recurring
+      opt("o2", "p2", 12000), // recurring (cheapest recurring)
+      oneTime("cheapPass", "p1", 3500), // one-off, cheaper — must NOT win
+      opt("cheapHidden", "p1", 5000, false), // hidden — ignored
+      opt("onHiddenPkg", "hidden", 1000), // hidden package — ignored
       opt("otherCat", "other", 500), // different category — ignored
     ];
-    expect(categoryFromPriceCents(category, packages, options)).toBe(12000);
+    expect(categoryFromPrice(category, packages, options)).toEqual({ amountCents: 12000, billingType: "recurring" });
+  });
+
+  it("falls back to the cheapest one-time option only when there are no recurring options", () => {
+    const options = [oneTime("t1", "p1", 6000), oneTime("t2", "p2", 4000)];
+    expect(categoryFromPrice(category, packages, options)).toEqual({ amountCents: 4000, billingType: "one_time" });
   });
 
   it("returns null when the category has nothing sellable", () => {
-    expect(categoryFromPriceCents(category, packages, [])).toBeNull();
+    expect(categoryFromPrice(category, packages, [])).toBeNull();
   });
 });
 

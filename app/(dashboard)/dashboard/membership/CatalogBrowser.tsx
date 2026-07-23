@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { formatPriceCents } from "@/lib/billing";
 import {
-  categoryFromPriceCents,
+  categoryFromPrice,
   describePackageAllowance,
   formatBillingOptionCadence,
 } from "@/lib/catalog";
@@ -96,7 +96,7 @@ export function CatalogBrowser({
       {!category ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {categories.map((cat) => {
-            const from = categoryFromPriceCents(cat, packages, billingOptions);
+            const from = categoryFromPrice(cat, packages, billingOptions);
             const count = packages.filter((p) => p.categoryId === cat.id).length;
             return (
               <button
@@ -113,7 +113,10 @@ export function CatalogBrowser({
                   {from !== null ? (
                     <>
                       <span className="text-muted-foreground">from </span>
-                      <span className="text-display text-[18px] tabular-nums">{formatPriceCents(from)}</span>
+                      <span className="text-display text-[18px] tabular-nums">{formatPriceCents(from.amountCents)}</span>
+                      {from.billingType === "one_time" ? (
+                        <span className="ml-1 text-xs text-muted-foreground">one-off</span>
+                      ) : null}
                     </>
                   ) : (
                     <span className="text-xs text-muted-foreground">Coming soon</span>

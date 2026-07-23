@@ -15,20 +15,26 @@ export function slugifyCatalog(name: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-// A category's "from €X" is the cheapest VISIBLE billing option across all
-// its visible packages. Returns null when the category has nothing sellable.
-export function categoryFromPriceCents(
+// A category's "from €X" headline. Prefers the cheapest VISIBLE RECURRING
+// option (a membership price) across its visible packages, so a cheap one-off
+// pass never undercuts the headline. Falls back to the cheapest visible
+// one-time option only when the category has no recurring options at all.
+// Returns the billing type too so the card can label a one-off price.
+export function categoryFromPrice(
   category: MembershipCategoryRecord,
   packages: MembershipPackageRecord[],
   options: MembershipBillingOptionRecord[]
-): number | null {
+): { amountCents: number; billingType: MembershipBillingOptionRecord["billingType"] } | null {
   const visiblePackageIds = new Set(
     packages.filter((p) => p.categoryId === category.id && p.visible).map((p) => p.id)
   );
-  const prices = options
-    .filter((o) => o.visible && visiblePackageIds.has(o.packageId))
-    .map((o) => o.amountCents);
-  return prices.length > 0 ? Math.min(...prices) : null;
+  const visibleOptions = options.filter((o) => o.visible && visiblePackageIds.has(o.packageId));
+  if (visibleOptions.length === 0) return null;
+
+  const recurring = visibleOptions.filter((o) => o.billingType === "recurring");
+  const pool = recurring.length > 0 ? recurring : visibleOptions;
+  const cheapest = pool.reduce((min, o) => (o.amountCents < min.amountCents ? o : min), pool[0]);
+  return { amountCents: cheapest.amountCents, billingType: cheapest.billingType };
 }
 
 // "€250.00 / month", "€720.00 / 3 months", "€2,750.00 / year", "€30.00 one-time".
