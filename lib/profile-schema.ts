@@ -14,9 +14,18 @@ export type PrimaryGoal =
 
 export type CycleRegularity = "Regular" | "Irregular" | "Unsure";
 
+// Structured dietary requirements. Preference is a single choice that ranks
+// food suggestions; allergies + intolerances/medical are HARD exclusions the
+// nutrition engine must never violate (see lib/nutrition-recommendations.ts).
+export type DietaryPreference = "standard" | "vegetarian" | "pescetarian" | "vegan";
+
 export type CycleEventType = "period_start" | "period_end" | "symptom" | "note";
 
-export type UserRole = "member" | "staff";
+// Staff roles are hierarchical (coach < admin < admin_manager); see
+// lib/permissions.ts for what each can do. "staff" is a legacy alias for a
+// full admin that older data may still carry — readDb migrates it to
+// "admin_manager" on read (see lib/db.ts).
+export type UserRole = "member" | "coach" | "admin" | "admin_manager" | "staff";
 
 export type MeasurementUnits = "metric" | "imperial";
 
@@ -65,6 +74,15 @@ export interface ProfileRecord {
   // When drinkSettings was last synced — shown to staff so they know how
   // current the member's setup is. Null until the first sync.
   drinkSettingsUpdatedAt?: string | null;
+  // Dietary requirements. All optional for backward compatibility — readers
+  // treat undefined as: preference "standard", empty allergen/intolerance
+  // lists, no notes (see db.ts normalization).
+  dietaryPreference?: DietaryPreference;
+  /** Allergen keys (see ALLERGEN_OPTIONS). Hard exclusions. */
+  allergies?: string[];
+  /** Intolerance/medical keys (see INTOLERANCE_OPTIONS). Hard exclusions. */
+  intolerancesOrMedical?: string[];
+  dietaryNotes?: string | null;
   // Profile photo as a small data URL (client downsizes before upload; the
   // API enforces mime and size). Null/undefined = initials avatar.
   avatarDataUrl?: string | null;
@@ -122,6 +140,11 @@ export interface SignupProfileValues {
   sportPlayed: string;
   currentWeightKg: string;
   additionalInfo: string;
+  // Dietary requirements — all optional at signup.
+  dietaryPreference: DietaryPreference | "";
+  allergies: string[];
+  intolerancesOrMedical: string[];
+  dietaryNotes: string;
   // Accent palette preset id (lib/palettes.ts) — always set; defaults to teal.
   palette: string;
   // Whole-app theme preset id — always set; defaults to midnight.
@@ -158,6 +181,10 @@ export const DEFAULT_SIGNUP_VALUES: SignupFormValues = {
   sportPlayed: "",
   currentWeightKg: "",
   additionalInfo: "",
+  dietaryPreference: "",
+  allergies: [],
+  intolerancesOrMedical: [],
+  dietaryNotes: "",
   palette: "teal",
   theme: "midnight",
   cycleTrackingEnabled: false,

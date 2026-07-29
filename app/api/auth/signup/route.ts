@@ -13,7 +13,7 @@ import {
   type PrimaryGoal,
   type ProfileRecord,
 } from "@/lib/profile-schema";
-import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
+import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS, sanitizeDietaryFields } from "@/lib/profile-options";
 import { DEFAULT_PALETTE, DEFAULT_THEME, isPaletteId, isThemeId } from "@/lib/palettes";
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
@@ -66,6 +66,10 @@ export async function POST(request: Request) {
     sportPlayed,
     currentWeightKg,
     additionalInfo,
+    dietaryPreference,
+    allergies,
+    intolerancesOrMedical,
+    dietaryNotes,
     palette,
     theme,
     cycleTrackingEnabled,
@@ -179,6 +183,13 @@ export async function POST(request: Request) {
   const cycleEligible = isFemaleGender(genderValue);
   const now = new Date().toISOString();
 
+  const dietary = sanitizeDietaryFields({
+    dietaryPreference,
+    allergies,
+    intolerancesOrMedical,
+    dietaryNotes,
+  });
+
   const profile: ProfileRecord = {
     userId: user.id,
     fullName: fullName.trim(),
@@ -190,6 +201,10 @@ export async function POST(request: Request) {
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
+    dietaryPreference: dietary.dietaryPreference,
+    allergies: dietary.allergies,
+    intolerancesOrMedical: dietary.intolerancesOrMedical,
+    dietaryNotes: dietary.dietaryNotes,
     // Unknown values fall back to the defaults rather than erroring —
     // appearance is cosmetic and must never block account creation.
     palette: isPaletteId(palette) ? palette : DEFAULT_PALETTE,

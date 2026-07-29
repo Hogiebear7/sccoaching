@@ -9,6 +9,12 @@ import {
   sodiumTargetPerLitre,
   SPORT_DATA,
 } from "./nutrition";
+import { excludedAllergensFor, recommendFoods } from "./nutrition-recommendations";
+import {
+  ALLERGEN_OPTIONS,
+  DIETARY_PREFERENCE_OPTIONS,
+  INTOLERANCE_OPTIONS,
+} from "./profile-options";
 import { readinessDelta } from "./progress";
 import { computeRollingTrainingLoad, readinessGuidance } from "./recovery";
 import { classifyLoad, decideTier, LOAD_BAND_LABEL, type LoadBand } from "./workout-helper";
@@ -96,6 +102,54 @@ export function summarizeFamiliarLifts(
     .slice(0, limit);
 }
 
+const DIETARY_LABEL = new Map<string, string>(
+  [...ALLERGEN_OPTIONS, ...INTOLERANCE_OPTIONS].map((o) => [o.value, o.label])
+);
+
+// Compact, model-facing dietary grounding block. REUSES the nutrition engine's
+// recommendFoods + excludedAllergensFor (no rework) so the AI is handed the
+// same already-filtered safe foods and hard exclusions the Nutrition tab uses.
+// Backward-compatible: undefined dietary fields read as no preference / no
+// restrictions. Exported so any AI helper (coach chat now; coach-summary /
+// draft-reply when built out) grounds identically.
+export function buildDietaryContextBlock(profile: ProfileRecord): string {
+  const preference = profile.dietaryPreference ?? "standard";
+  const preferenceLabel =
+    DIETARY_PREFERENCE_OPTIONS.find((o) => o.value === preference)?.label ?? "No preference";
+  const allergyLabels = (profile.allergies ?? []).map((k) => DIETARY_LABEL.get(k) ?? k);
+  const intoleranceLabels = (profile.intolerancesOrMedical ?? []).map((k) => DIETARY_LABEL.get(k) ?? k);
+  const notes = profile.dietaryNotes ?? null;
+
+  const excludedIngredients = [...excludedAllergensFor(profile)].map((k) => DIETARY_LABEL.get(k) ?? k);
+  const safe = recommendFoods(profile);
+
+  const lines: string[] = [];
+  lines.push("## Dietary requirements");
+  lines.push(
+    `- Preference: ${preference === "standard" ? "No specific preference" : preferenceLabel} (use only as a suggestion filter — it never permits overriding an exclusion below)`
+  );
+  lines.push(`- Allergies (HARD exclusions): ${allergyLabels.length ? allergyLabels.join(", ") : "none recorded"}`);
+  lines.push(
+    `- Intolerances / medical (HARD exclusions): ${intoleranceLabels.length ? intoleranceLabels.join(", ") : "none recorded"}`
+  );
+  if (notes) lines.push(`- Member's dietary notes: ${notes}`);
+  lines.push(
+    `- Ingredients that must NEVER appear in any food suggestion: ${excludedIngredients.length ? excludedIngredients.join(", ") : "none"}`
+  );
+  if (excludedIngredients.length === 0 && preference === "standard") {
+    lines.push("- Safe foods to suggest from: no restrictions — standard options are all fine.");
+  } else {
+    lines.push("- Safe foods to suggest from (already filtered to their requirements — prefer drawing from these):");
+    lines.push(`  - Protein: ${safe.protein.map((f) => f.name).join(", ") || "(none fit — suggest they speak to their coach)"}`);
+    lines.push(`  - Carbs: ${safe.carb.map((f) => f.name).join(", ") || "(none fit — suggest they speak to their coach)"}`);
+    lines.push(`  - Snacks: ${safe.snack.map((f) => f.name).join(", ") || "(none fit — suggest they speak to their coach)"}`);
+  }
+  lines.push(
+    "- Rule: never recommend a food that contains an excluded ingredient or violates an allergy/intolerance above, even when the dietary preference would otherwise allow it. For medically sensitive dietary questions (e.g. coeliac, allergies, medication), keep advice general and recommend a qualified professional."
+  );
+  return lines.join("\n");
+}
+
 export function buildCoachingContext(input: CoachingContextInput): CoachingContext {
   const { profile, recoveryLogs, sessions, todayISO } = input;
 
@@ -118,6 +172,10 @@ export function buildCoachingContext(input: CoachingContextInput): CoachingConte
   if (profile.sportPlayed) lines.push(`- Sport: ${profile.sportPlayed}`);
   if (profile.currentWeightKg !== null) lines.push(`- Current body weight: ${profile.currentWeightKg} kg`);
   lines.push(`- Preferred units: ${profile.preferredUnits ?? "metric"}`);
+
+  // ── Dietary requirements (grounds any food/nutrition advice) ──
+  lines.push("");
+  lines.push(buildDietaryContextBlock(profile));
 
   // ── Recovery / readiness ──
   lines.push("");

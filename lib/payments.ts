@@ -14,14 +14,10 @@ import { randomUUID } from "crypto";
 
 import {
   appendPassLedgerEntry,
-  findClassPassProductById,
   findPassLedgerByBookingId,
   findPassLedgerByPurchaseId,
   findPassLedgerByUserId,
-  findPurchasesByUserId,
   savePurchase,
-  type BillingProvider,
-  type ClassPassProductRecord,
   type PassLedgerEntryRecord,
   type PurchaseRecord,
   type PurchaseStatus,
@@ -208,7 +204,7 @@ export function expiringPassSummary(
 // no-op. Returns whether a credit was written on THIS call.
 export function applyPaidPassPurchase(
   purchase: PurchaseRecord,
-  product: Pick<ClassPassProductRecord, "passCount" | "name" | "validityDays">
+  product: { passCount: number; name: string; validityDays?: number | null }
 ): boolean {
   const existing = findPassLedgerByPurchaseId(purchase.id);
   if (existing.some((e) => e.reason === "purchase")) return false;
@@ -313,80 +309,3 @@ export function reversePassConsumption(bookingId: string, note?: string): boolea
   return true;
 }
 
-// ── Purchase construction ──────────────────────────────────────────────
-
-export function buildPassPackPurchase(input: {
-  userId: string;
-  product: ClassPassProductRecord;
-  idempotencyKey: string;
-  provider: BillingProvider;
-}): PurchaseRecord {
-  const now = new Date().toISOString();
-  return {
-    id: randomUUID(),
-    userId: input.userId,
-    kind: "pass_pack",
-    productId: input.product.id,
-    description: `${input.product.name} — ${input.product.passCount} class passes`,
-    amountCents: input.product.priceCents,
-    status: "pending",
-    provider: input.provider,
-    providerOrderId: null,
-    providerPaymentRef: null,
-    checkoutUrl: null,
-    idempotencyKey: input.idempotencyKey,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-// Intro memberships are ONE-OFF purchases recorded as kind "membership"
-// (recurring memberships live on the subscription record, not in purchases,
-// so any membership-kind purchase here is an intro one).
-export function buildIntroMembershipPurchase(input: {
-  userId: string;
-  plan: { id: string; name: string; priceCents: number };
-  idempotencyKey: string;
-  provider: BillingProvider;
-}): PurchaseRecord {
-  const now = new Date().toISOString();
-  return {
-    id: randomUUID(),
-    userId: input.userId,
-    kind: "membership",
-    productId: input.plan.id,
-    description: `${input.plan.name} — introductory membership`,
-    amountCents: input.plan.priceCents,
-    status: "pending",
-    provider: input.provider,
-    providerOrderId: null,
-    providerPaymentRef: null,
-    checkoutUrl: null,
-    idempotencyKey: input.idempotencyKey,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-/**
- * The once-per-member rule: a paid (or refunded — a refund is a staff
- * decision, not a fresh eligibility) membership-kind purchase means the
- * member has used their introduction. Failed/cancelled checkouts don't
- * count. Returns the in-progress pending purchase separately so a fresh
- * checkout can be resumed instead of duplicated.
- */
-export function introMembershipState(userId: string): {
-  used: boolean;
-  pendingPurchase: PurchaseRecord | null;
-} {
-  const purchases = findPurchasesByUserId(userId).filter((p) => p.kind === "membership");
-  const used = purchases.some((p) => p.status === "paid" || p.status === "refunded");
-  const pendingPurchase =
-    purchases.find((p) => isPurchaseCheckoutReusable(p)) ?? null;
-  return { used, pendingPurchase };
-}
-
-export function findActivePassProduct(productId: string): ClassPassProductRecord | undefined {
-  const product = findClassPassProductById(productId);
-  return product && product.isActive ? product : undefined;
-}

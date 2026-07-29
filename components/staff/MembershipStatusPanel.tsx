@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import { formatPriceCents, isPendingCheckoutStale } from "@/lib/billing";
-import type { BillingProvider, MembershipPlanRecord, PassLedgerEntryRecord, SubscriptionStatus } from "@/lib/db";
+import { isPendingCheckoutStale } from "@/lib/billing";
+import { describePackageAllowance } from "@/lib/catalog";
+import type { BillingProvider, MembershipPackageRecord, PassLedgerEntryRecord, SubscriptionStatus } from "@/lib/db";
 import {
   formatMembershipDate,
   isPeriodLapsed,
@@ -24,8 +25,8 @@ const STATUS_OPTIONS: SubscriptionStatus[] = [
 
 export function MembershipStatusPanel({
   memberId,
-  plans,
-  currentPlanId,
+  packages,
+  currentPackageId,
   currentPlanName,
   currentStatus,
   currentProvider,
@@ -36,8 +37,8 @@ export function MembershipStatusPanel({
   passLedger,
 }: {
   memberId: string;
-  plans: MembershipPlanRecord[];
-  currentPlanId: string | null;
+  packages: MembershipPackageRecord[];
+  currentPackageId: string | null;
   currentPlanName: string | null;
   currentStatus: SubscriptionStatus | null;
   currentProvider: BillingProvider | null;
@@ -53,13 +54,13 @@ export function MembershipStatusPanel({
   const periodLapsed =
     currentStatus !== null && isPeriodLapsed({ status: currentStatus, currentPeriodEnd });
   const router = useRouter();
-  // Only seed from the member's current plan when it's actually in the
-  // selectable list (an archived plan isn't) — otherwise the select would
-  // display one plan while submitting another.
-  const [planId, setPlanId] = useState(
-    currentPlanId && plans.some((p) => p.id === currentPlanId)
-      ? currentPlanId
-      : plans[0]?.id ?? ""
+  // Only seed from the member's current package when it's actually in the
+  // selectable list (a hidden package isn't) — otherwise the select would
+  // display one while submitting another.
+  const [packageId, setPackageId] = useState(
+    currentPackageId && packages.some((p) => p.id === currentPackageId)
+      ? currentPackageId
+      : packages[0]?.id ?? ""
   );
   const [status, setStatus] = useState<SubscriptionStatus>(currentStatus ?? "inactive");
   const [error, setError] = useState<string | null>(null);
@@ -112,8 +113,8 @@ export function MembershipStatusPanel({
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (!planId) {
-      setError("Select a plan first.");
+    if (!packageId) {
+      setError("Select a package first.");
       return;
     }
 
@@ -125,7 +126,7 @@ export function MembershipStatusPanel({
       const res = await fetch(`/api/staff/members/${memberId}/subscription`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, status }),
+        body: JSON.stringify({ packageId, status }),
       });
 
       const data = await res.json().catch(() => null);
@@ -150,7 +151,7 @@ export function MembershipStatusPanel({
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <span className="text-sm text-foreground">
-          {currentPlanName ?? "No plan selected"}
+          {currentPlanName ?? "No package selected"}
         </span>
         {currentStatus ? (
           <span
@@ -190,9 +191,9 @@ export function MembershipStatusPanel({
         ) : null}
       </div>
 
-      {plans.length === 0 ? (
+      {packages.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          No plans exist yet — create one on the Plans page first.
+          No packages exist yet — create one in the Catalog first.
         </p>
       ) : (
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
@@ -214,14 +215,16 @@ export function MembershipStatusPanel({
           ) : null}
 
           <div className="flex flex-col gap-3 sm:flex-row">
+            {/* Package select takes the main width; the status control stays
+                compact so the package name is easy to read. */}
             <select
-              value={planId}
-              onChange={(e) => setPlanId(e.target.value)}
-              className="flex-1 input-field px-3 py-2"
+              value={packageId}
+              onChange={(e) => setPackageId(e.target.value)}
+              className="w-full flex-1 input-field px-3 py-2"
             >
-              {plans.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.name} ({formatPriceCents(plan.priceCents)} / {plan.billingInterval})
+              {packages.map((pkg) => (
+                <option key={pkg.id} value={pkg.id}>
+                  {pkg.name} — {describePackageAllowance(pkg)}
                 </option>
               ))}
             </select>
@@ -229,7 +232,8 @@ export function MembershipStatusPanel({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as SubscriptionStatus)}
-              className="input-field px-3 py-2"
+              aria-label="Membership status"
+              className="w-full input-field px-2 py-2 sm:w-32 sm:shrink-0"
             >
               {STATUS_OPTIONS.map((value) => (
                 <option key={value} value={value}>

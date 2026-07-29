@@ -150,63 +150,74 @@ const cyclePrivacyPreferences = [
   },
 ];
 
-// --- Membership plans ----------------------------------------------------
-// General-purpose categories every "normal" plan can book.
+// --- Membership catalog (Category → Package → Billing Option) -------------
+// General-purpose categories every "normal" package can book.
 const GENERAL_CATEGORIES = ["general", "strength", "cardio"];
 
-const basicPlan = {
+const gymCategory = {
   id: randomUUID(),
-  name: "Basic",
-  description: "Gym floor access and open classes, with a monthly session cap.",
-  priceCents: 2999,
-  billingInterval: "monthly",
-  monthlySessionAllowance: 8,
-  allowedCategories: GENERAL_CATEGORIES,
-  isActive: true,
+  name: "Gym Memberships",
+  slug: "gym-memberships",
+  description: "Recurring memberships for classes and gym-floor access.",
+  sortOrder: 0,
+  visible: true,
   createdAt: now,
   updatedAt: now,
 };
 
-const premiumPlan = {
-  id: randomUUID(),
-  name: "Premium",
-  description: "Full access to all general classes, coaching, and recovery tracking.",
-  priceCents: 4999,
-  billingInterval: "monthly",
-  monthlySessionAllowance: null,
-  allowedCategories: GENERAL_CATEGORIES,
-  isActive: true,
-  createdAt: now,
-  updatedAt: now,
-};
+function pkg(name, shortDescription, allowanceType, count, eligible, sortOrder) {
+  return {
+    id: randomUUID(),
+    categoryId: gymCategory.id,
+    name,
+    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+    shortDescription,
+    fullDescription: null,
+    packageType: "membership",
+    sessionAllowanceType: allowanceType,
+    sessionAllowanceCount: count,
+    eligibleClassTypes: eligible,
+    visible: true,
+    sortOrder,
+    stripeProductId: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
-const annualPlan = {
-  id: randomUUID(),
-  name: "Annual Premium",
-  description: "Everything in Premium, billed yearly at a discount.",
-  priceCents: 49900,
-  billingInterval: "annual",
-  monthlySessionAllowance: null,
-  allowedCategories: GENERAL_CATEGORIES,
-  isActive: true,
-  createdAt: now,
-  updatedAt: now,
-};
+function recurringOption(packageId, name, interval, priceCents, sortOrder) {
+  const [unit, count] =
+    interval === "annual" ? ["year", 1] : interval === "quarterly" ? ["month", 3] : ["month", 1];
+  return {
+    id: randomUUID(),
+    packageId,
+    name,
+    billingType: "recurring",
+    intervalUnit: unit,
+    intervalCount: count,
+    amountCents: priceCents,
+    currency: "eur",
+    visible: true,
+    sortOrder,
+    stripePriceId: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
-const motherAndBabyPlan = {
-  id: randomUUID(),
-  name: "Mother & Baby",
-  description: "Access to Mother & Baby classes only.",
-  priceCents: 3499,
-  billingInterval: "monthly",
-  monthlySessionAllowance: 8,
-  allowedCategories: ["mother_and_baby"],
-  isActive: true,
-  createdAt: now,
-  updatedAt: now,
-};
+const basicPackage = pkg("Basic", "Open classes with a monthly session cap.", "fixed_count", 8, GENERAL_CATEGORIES, 0);
+const premiumPackage = pkg("Premium", "Full access to all general classes and coaching.", "unlimited", null, GENERAL_CATEGORIES, 1);
+const motherAndBabyPackage = pkg("Mother & Baby", "Access to Mother & Baby classes only.", "fixed_count", 8, ["mother_and_baby"], 2);
 
-const membershipPlans = [basicPlan, premiumPlan, annualPlan, motherAndBabyPlan];
+const membershipCategories = [gymCategory];
+const membershipPackages = [basicPackage, premiumPackage, motherAndBabyPackage];
+
+const basicMonthly = recurringOption(basicPackage.id, "Monthly", "monthly", 2999, 0);
+const premiumMonthly = recurringOption(premiumPackage.id, "Monthly", "monthly", 4999, 0);
+const premiumAnnual = recurringOption(premiumPackage.id, "Annual", "annual", 49900, 1);
+const motherAndBabyMonthly = recurringOption(motherAndBabyPackage.id, "Monthly", "monthly", 3499, 0);
+
+const membershipBillingOptions = [basicMonthly, premiumMonthly, premiumAnnual, motherAndBabyMonthly];
 
 // --- Subscriptions: one of each demo-relevant state ----------------------
 const subscriptions = [
@@ -215,7 +226,8 @@ const subscriptions = [
   // messaging shows correctly.
   {
     userId: alex.id,
-    planId: premiumPlan.id,
+    packageId: premiumPackage.id,
+    billingOptionId: premiumMonthly.id,
     status: "active",
     provider: "none",
     providerCustomerId: null,
@@ -235,7 +247,8 @@ const subscriptions = [
   // this sits for 30+ minutes without a reseed.
   {
     userId: jordan.id,
-    planId: basicPlan.id,
+    packageId: basicPackage.id,
+    billingOptionId: basicMonthly.id,
     status: "pending",
     provider: "none",
     providerCustomerId: null,
@@ -250,7 +263,8 @@ const subscriptions = [
   // Taylor: past_due — payment failed / lapsed
   {
     userId: taylor.id,
-    planId: premiumPlan.id,
+    packageId: premiumPackage.id,
+    billingOptionId: premiumMonthly.id,
     status: "past_due",
     provider: "none",
     providerCustomerId: null,
@@ -266,7 +280,8 @@ const subscriptions = [
   // classes, with most of her monthly allowance still remaining.
   {
     userId: morgan.id,
-    planId: motherAndBabyPlan.id,
+    packageId: motherAndBabyPackage.id,
+    billingOptionId: motherAndBabyMonthly.id,
     status: "active",
     provider: "none",
     providerCustomerId: null,
@@ -284,7 +299,8 @@ const subscriptions = [
   // (or POST /api/cron/run) to watch it message Riley and flip the badge.
   {
     userId: riley.id,
-    planId: premiumPlan.id,
+    packageId: premiumPackage.id,
+    billingOptionId: premiumMonthly.id,
     status: "active",
     provider: "none",
     providerCustomerId: null,
@@ -436,7 +452,9 @@ const db = {
   classes,
   bookings,
   coachNotes,
-  membershipPlans,
+  membershipCategories,
+  membershipPackages,
+  membershipBillingOptions,
   subscriptions,
   recoveryLogs,
   messages,

@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import type { ClassCategoryRecord, JobRunRecord, SubscriptionStatus } from "@/lib/db";
+import type {
+  ClassCategoryRecord,
+  JobRunRecord,
+  SubscriptionStatus,
+  TransactionalEmailSettings,
+  TransactionalEmailType,
+} from "@/lib/db";
 import { SUBSCRIPTION_STATUS_LABEL, SUBSCRIPTION_STATUS_STYLE } from "@/lib/membership-status";
 import { classCategoryLabel, formatRemainingSessions } from "@/lib/scheduling-status";
 import type { ClassPressureSummary, MemberOperationalSummary } from "@/lib/staff-operations";
@@ -51,18 +57,30 @@ function matchesFilter(member: MemberOperationalSummary, filter: FilterKey): boo
   }
 }
 
+export type ClassTypeRow = {
+  id: string;
+  name: string;
+  slug: string;
+  classCount: number;
+  packageCount: number;
+};
+
 export function OperationsView({
   members,
   classes,
   jobRuns,
   categories,
   deletedLabels,
+  classTypes,
+  emailSettings,
 }: {
   members: MemberOperationalSummary[];
   classes: ClassPressureSummary[];
   jobRuns: JobRunRecord[];
   categories: ClassCategoryRecord[];
   deletedLabels: Record<string, string>;
+  classTypes: ClassTypeRow[];
+  emailSettings: TransactionalEmailSettings;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -211,6 +229,12 @@ export function OperationsView({
         )}
       </div>
 
+      {/* Class types */}
+      <ClassTypesManager classTypes={classTypes} />
+
+      {/* Transactional email toggles */}
+      <EmailSettingsManager settings={emailSettings} />
+
       {/* Upcoming classes */}
       <div className="panel p-6">
         <h3 className="text-lg font-semibold">Upcoming classes</h3>
@@ -358,6 +382,290 @@ function SummaryStat({ label, value, detail }: { label: string; value: string; d
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-3 text-display text-[28px] tabular-nums">{value}</p>
       <p className="mt-2 text-sm text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+// Class-type (class category) management: create, rename, and guarded delete.
+// The list shows live usage so it's clear what's safe to remove; the delete
+// route blocks removal while any class or package still references the slug.
+function ClassTypesManager({ classTypes }: { classTypes: ClassTypeRow[] }) {
+  const router = useRouter();
+  const [banner, setBanner] = useState<{ ok: boolean; message: string } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  async function post(url: string, body: unknown, key: string) {
+    setBusyId(key);
+    setBanner(null);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => null);
+      setBanner({ ok: res.ok, message: data?.message ?? (res.ok ? "Saved." : "Something went wrong.") });
+      if (res.ok) {
+        setEditingId(null);
+        setConfirmId(null);
+        setNewName("");
+        router.refresh();
+      }
+    } catch {
+      setBanner({ ok: false, message: "Something went wrong. Please try again." });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="panel p-6">
+      <h3 className="text-lg font-semibold">Class types</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Categories used when scheduling classes and setting package eligibility. A type can&apos;t be
+        deleted while classes or packages still use it.
+      </p>
+
+      {banner ? (
+        <p
+          className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
+            banner.ok
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-destructive/30 bg-destructive/10 text-destructive"
+          }`}
+        >
+          {banner.message}
+        </p>
+      ) : null}
+
+      {/* Create */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (newName.trim()) post("/api/staff/categories", { name: newName.trim() }, "new");
+        }}
+        className="mt-4 flex flex-col gap-2 sm:flex-row"
+      >
+        <input
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="New class type name"
+          aria-label="New class type name"
+          className="flex-1 input-field px-3 py-2 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={busyId === "new" || !newName.trim()}
+          className="btn-primary px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busyId === "new" ? "Adding…" : "Add class type"}
+        </button>
+      </form>
+
+      {/* List */}
+      <div className="mt-4 space-y-2">
+        {classTypes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No class types yet — add one above.</p>
+        ) : (
+          classTypes.map((ct) => {
+            const inUse = ct.classCount > 0 || ct.packageCount > 0;
+            const usage =
+              inUse
+                ? [
+                    ct.classCount > 0 ? `${ct.classCount} class${ct.classCount === 1 ? "" : "es"}` : null,
+                    ct.packageCount > 0 ? `${ct.packageCount} package${ct.packageCount === 1 ? "" : "s"}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : "Not in use";
+            return (
+              <div key={ct.id} className="well flex flex-wrap items-center justify-between gap-3 p-3">
+                {editingId === ct.id ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (editName.trim()) post("/api/staff/categories", { id: ct.id, name: editName.trim() }, ct.id);
+                    }}
+                    className="flex flex-1 flex-wrap items-center gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      aria-label={`Rename ${ct.name}`}
+                      className="flex-1 input-field px-3 py-1.5 text-sm"
+                    />
+                    <button type="submit" disabled={busyId === ct.id || !editName.trim()} className="btn-primary px-3 py-1.5 text-xs disabled:opacity-60">
+                      Save
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground transition hover:bg-accent">
+                      Cancel
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        {ct.name}
+                        <span className="font-mono text-[11px] text-muted-foreground">{ct.slug}</span>
+                      </p>
+                      <p className={`text-[11px] ${inUse ? "text-muted-foreground" : "text-muted-foreground/60"}`}>{usage}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(ct.id);
+                          setEditName(ct.name);
+                          setConfirmId(null);
+                        }}
+                        className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
+                      >
+                        Rename
+                      </button>
+                      {confirmId === ct.id ? (
+                        <>
+                          <button type="button" disabled={busyId === ct.id} onClick={() => post("/api/staff/categories/delete", { id: ct.id }, ct.id)} className="rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/20 disabled:opacity-60">
+                            Confirm
+                          </button>
+                          <button type="button" onClick={() => setConfirmId(null)} className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground transition hover:bg-accent">
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={inUse}
+                          title={inUse ? "In use — reassign or remove references first." : undefined}
+                          onClick={() => setConfirmId(ct.id)}
+                          className="rounded-lg border border-destructive/30 px-2.5 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60 disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground/50"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+const EMAIL_TOGGLES: { type: TransactionalEmailType; label: string; description: string }[] = [
+  {
+    type: "bookingConfirmation",
+    label: "Booking confirmation",
+    description: "Sent when a member books a class or accepts a waitlist offer.",
+  },
+  {
+    type: "bookingCancellation",
+    label: "Booking cancellation",
+    description: "Sent when a member cancels their own booking.",
+  },
+  {
+    type: "classCancelled",
+    label: "Class cancelled by staff",
+    description: "Sent to booked members when you delete a class.",
+  },
+  {
+    type: "classReminder",
+    label: "Class reminder",
+    description: "Sent ahead of a booked class. In-app reminders are unaffected.",
+  },
+];
+
+function EmailSettingsManager({ settings }: { settings: TransactionalEmailSettings }) {
+  const router = useRouter();
+  const [values, setValues] = useState<TransactionalEmailSettings>(settings);
+  const [busy, setBusy] = useState<TransactionalEmailType | null>(null);
+  const [banner, setBanner] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function toggle(type: TransactionalEmailType, enabled: boolean) {
+    setBusy(type);
+    setBanner(null);
+    setValues((prev) => ({ ...prev, [type]: enabled })); // optimistic
+    try {
+      const res = await fetch("/api/staff/settings/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, enabled }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setValues((prev) => ({ ...prev, [type]: !enabled })); // revert
+        setBanner({ ok: false, message: data?.message ?? "Something went wrong." });
+        return;
+      }
+      if (data?.settings) setValues(data.settings);
+      setBanner({ ok: true, message: data?.message ?? "Saved." });
+      router.refresh();
+    } catch {
+      setValues((prev) => ({ ...prev, [type]: !enabled })); // revert
+      setBanner({ ok: false, message: "Something went wrong. Please try again." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="panel p-6">
+      <h3 className="text-lg font-semibold">Transactional emails</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Turn optional member emails on or off. In-app notifications are unaffected, and
+        essential account and billing emails always send.
+      </p>
+
+      {banner ? (
+        <p
+          className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
+            banner.ok
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-destructive/30 bg-destructive/10 text-destructive"
+          }`}
+        >
+          {banner.message}
+        </p>
+      ) : null}
+
+      <div className="mt-4 divide-y divide-border/60">
+        {EMAIL_TOGGLES.map(({ type, label, description }) => {
+          const on = values[type];
+          return (
+            <div key={type} className="flex items-start justify-between gap-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{label}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                aria-label={`${label} email`}
+                disabled={busy === type}
+                onClick={() => toggle(type, !on)}
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${
+                  on ? "bg-primary" : "bg-muted"
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                    on ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

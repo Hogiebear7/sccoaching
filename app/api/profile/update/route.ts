@@ -14,7 +14,7 @@ import {
   type Gender,
   type PrimaryGoal,
 } from "@/lib/profile-schema";
-import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
+import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS, sanitizeDietaryFields } from "@/lib/profile-options";
 import { verifySession } from "@/lib/session";
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
@@ -67,6 +67,10 @@ export async function POST(request: NextRequest) {
     primaryGoal,
     sportPlayed,
     additionalInfo,
+    dietaryPreference,
+    allergies,
+    intolerancesOrMedical,
+    dietaryNotes,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof fullName !== "string" || !fullName.trim()) {
@@ -141,6 +145,13 @@ export async function POST(request: NextRequest) {
 
   const cycleEligible = isFemaleGender(genderValue);
 
+  const dietary = sanitizeDietaryFields({
+    dietaryPreference,
+    allergies,
+    intolerancesOrMedical,
+    dietaryNotes,
+  });
+
   saveProfile({
     ...existingProfile,
     fullName: fullName.trim(),
@@ -151,6 +162,10 @@ export async function POST(request: NextRequest) {
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: syncedWeight,
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
+    dietaryPreference: dietary.dietaryPreference,
+    allergies: dietary.allergies,
+    intolerancesOrMedical: dietary.intolerancesOrMedical,
+    dietaryNotes: dietary.dietaryNotes,
     cycleTrackingEligible: cycleEligible,
     cycleTrackingEnabled: cycleEligible ? existingProfile.cycleTrackingEnabled : false,
     updatedAt: new Date().toISOString(),

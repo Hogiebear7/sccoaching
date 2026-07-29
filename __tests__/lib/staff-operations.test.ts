@@ -4,7 +4,8 @@ const {
   mockFindBookingsByClassId,
   mockFindClasses,
   mockFindMembers,
-  mockFindMembershipPlanById,
+  mockFindMembershipPackageById,
+  mockFindMembershipBillingOptionById,
   mockFindMessagesByMemberId,
   mockFindProfileByUserId,
   mockFindRecoveryLogsByUserId,
@@ -14,7 +15,8 @@ const {
   mockFindBookingsByClassId: vi.fn(),
   mockFindClasses: vi.fn(),
   mockFindMembers: vi.fn(),
-  mockFindMembershipPlanById: vi.fn(),
+  mockFindMembershipPackageById: vi.fn(),
+  mockFindMembershipBillingOptionById: vi.fn(),
   mockFindMessagesByMemberId: vi.fn(),
   mockFindProfileByUserId: vi.fn(),
   mockFindRecoveryLogsByUserId: vi.fn(),
@@ -26,7 +28,8 @@ vi.mock("@/lib/db", () => ({
   findBookingsByClassId: mockFindBookingsByClassId,
   findClasses: mockFindClasses,
   findMembers: mockFindMembers,
-  findMembershipPlanById: mockFindMembershipPlanById,
+  findMembershipPackageById: mockFindMembershipPackageById,
+  findMembershipBillingOptionById: mockFindMembershipBillingOptionById,
   findMessagesByMemberId: mockFindMessagesByMemberId,
   findProfileByUserId: mockFindProfileByUserId,
   findRecoveryLogsByUserId: mockFindRecoveryLogsByUserId,
@@ -36,15 +39,21 @@ vi.mock("@/lib/db", () => ({
 
 const MEMBER = { id: "user-1", email: "athlete@example.com", role: "member" as const };
 
-const PLAN = {
-  id: "plan-1",
+// A package whose derived entitlement is 8 sessions on any category.
+const PACKAGE = {
+  id: "pkg-1",
+  categoryId: "c1",
   name: "Premium",
-  description: null,
-  priceCents: 4999,
-  billingInterval: "monthly" as const,
-  monthlySessionAllowance: 8,
-  allowedCategories: [],
-  isActive: true,
+  slug: "premium",
+  shortDescription: null,
+  fullDescription: null,
+  packageType: "membership" as const,
+  sessionAllowanceType: "fixed_count" as const,
+  sessionAllowanceCount: 8,
+  eligibleClassTypes: [],
+  visible: true,
+  sortOrder: 0,
+  stripeProductId: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -52,7 +61,7 @@ const PLAN = {
 function activeSubscription(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     userId: MEMBER.id,
-    planId: PLAN.id,
+    packageId: PACKAGE.id,
     status: "active" as const,
     provider: "none" as const,
     providerCustomerId: null,
@@ -71,7 +80,8 @@ function activeSubscription(overrides: Partial<Record<string, unknown>> = {}) {
 describe("buildMemberOperationalSummaries", () => {
   beforeEach(() => {
     mockFindMembers.mockReset();
-    mockFindMembershipPlanById.mockReset();
+    mockFindMembershipPackageById.mockReset();
+    mockFindMembershipBillingOptionById.mockReset();
     mockFindMessagesByMemberId.mockReset();
     mockFindProfileByUserId.mockReset();
     mockFindRecoveryLogsByUserId.mockReset();
@@ -79,7 +89,8 @@ describe("buildMemberOperationalSummaries", () => {
 
     mockFindMembers.mockReturnValue([MEMBER]);
     mockFindProfileByUserId.mockReturnValue({ fullName: "Alex Athlete" });
-    mockFindMembershipPlanById.mockReturnValue(PLAN);
+    mockFindMembershipPackageById.mockReturnValue(PACKAGE);
+    mockFindMembershipBillingOptionById.mockReturnValue(undefined);
     mockFindRecoveryLogsByUserId.mockReturnValue([]);
     mockFindMessagesByMemberId.mockReturnValue([]);
   });
@@ -136,7 +147,7 @@ describe("buildMemberOperationalSummaries", () => {
 
   it("does not flag no-sessions for an unlimited plan", async () => {
     mockFindSubscriptionByUserId.mockReturnValue(activeSubscription({ sessionsUsedThisPeriod: 500 }));
-    mockFindMembershipPlanById.mockReturnValue({ ...PLAN, monthlySessionAllowance: null });
+    mockFindMembershipPackageById.mockReturnValue({ ...PACKAGE, sessionAllowanceType: "unlimited", sessionAllowanceCount: null });
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
     const [summary] = buildMemberOperationalSummaries();

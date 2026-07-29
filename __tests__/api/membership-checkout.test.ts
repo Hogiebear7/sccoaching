@@ -106,7 +106,7 @@ describe("POST /api/membership/checkout", () => {
     expect(data.checkoutUrl).toBe("https://x/1");
     // First save = pending (no order id yet); second = with the session id.
     const first = mockSaveSubscription.mock.calls[0][0];
-    expect(first).toMatchObject({ packageId: "pkg1", billingOptionId: "opt_rec", status: "pending", planId: null });
+    expect(first).toMatchObject({ packageId: "pkg1", billingOptionId: "opt_rec", status: "pending" });
     const second = mockSaveSubscription.mock.calls[1][0];
     expect(second.providerSetupOrderId).toBe("cs_1");
   });
@@ -125,6 +125,73 @@ describe("POST /api/membership/checkout", () => {
     mockFindSubByUser.mockReturnValue({ status: "active", billingOptionId: "opt_other", currentPeriodEnd: future });
     const switched = await call({ billingOptionId: "opt_rec" }, cookie());
     expect(switched.status).toBe(200);
+  });
+
+  it("switch stages the change in pending* fields WITHOUT clobbering the active membership", async () => {
+    mockFindOption.mockReturnValue(RECURRING);
+    const future = new Date(Date.now() + 20 * 86_400_000).toISOString();
+    const active = {
+      userId: MEMBER.id, packageId: "pkg_old", billingOptionId: "opt_other",
+      status: "active", provider: "stripe", providerSubscriptionId: "sub_old",
+      providerSetupOrderId: "cs_old", currentPeriodEnd: future,
+      sessionsUsedThisPeriod: 4, extraSessionGrants: [{ id: "g" }],
+    };
+    mockFindSubByUser.mockReturnValue(active);
+
+    const res = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(res.status).toBe(200);
+
+    // Both saves keep the ACTIVE fields exactly as they were — access preserved.
+    for (const [saved] of mockSaveSubscription.mock.calls) {
+      expect(saved.status).toBe("active");
+      expect(saved.billingOptionId).toBe("opt_other");
+      expect(saved.packageId).toBe("pkg_old");
+      expect(saved.providerSubscriptionId).toBe("sub_old");
+      expect(saved.currentPeriodEnd).toBe(future);
+      expect(saved.sessionsUsedThisPeriod).toBe(4);
+      // The change lives ONLY in the pending fields.
+      expect(saved.pendingPackageId).toBe("pkg1");
+      expect(saved.pendingBillingOptionId).toBe("opt_rec");
+    }
+    // Second save attaches the switch session id for the webhook to find.
+    expect(mockSaveSubscription.mock.calls[1][0].pendingSetupOrderId).toBe("cs_1");
+  });
+
+  it("duplicate switch to the same option already in flight → 409, no second checkout", async () => {
+    mockFindOption.mockReturnValue(RECURRING);
+    const future = new Date(Date.now() + 20 * 86_400_000).toISOString();
+    mockFindSubByUser.mockReturnValue({
+      status: "active", billingOptionId: "opt_other", currentPeriodEnd: future,
+      pendingBillingOptionId: "opt_rec", pendingSetupOrderId: "cs_inflight",
+      pendingStartedAt: new Date().toISOString(),
+    });
+
+    const res = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(res.status).toBe(409);
+    expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("rolls the staged switch back to clean if checkout creation fails", async () => {
+    mockFindOption.mockReturnValue(RECURRING);
+    const future = new Date(Date.now() + 20 * 86_400_000).toISOString();
+    mockFindSubByUser.mockReturnValue({
+      userId: MEMBER.id, status: "active", packageId: "pkg_old", billingOptionId: "opt_other",
+      providerSubscriptionId: "sub_old", currentPeriodEnd: future,
+    });
+    mockCreateCatalogCheckout.mockResolvedValue({ provider: "stripe", mode: "subscription", sessionId: null, checkoutUrl: null, error: "boom" });
+
+    const res = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(res.status).toBe(502);
+    // Last save clears the pending fields — member left cleanly on their old plan.
+    const last = mockSaveSubscription.mock.calls.at(-1)![0];
+    expect(last.pendingPackageId).toBeNull();
+    expect(last.pendingBillingOptionId).toBeNull();
+    expect(last.pendingSetupOrderId).toBeNull();
+    expect(last.pendingStartedAt).toBeNull();
+    // Active fields intact.
+    expect(last.status).toBe("active");
+    expect(last.billingOptionId).toBe("opt_other");
   });
 
   it("one-time → pass_pack purchase keyed to the package", async () => {

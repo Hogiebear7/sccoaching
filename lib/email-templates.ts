@@ -222,6 +222,178 @@ export function classReminderEmail(opts: ClassReminderEmailOpts): {
   return { subject, html, text };
 }
 
+// ─── Booking confirmation ──────────────────────────────────────────────────────
+
+export interface BookingConfirmationEmailOpts {
+  memberName: string;
+  className: string;
+  classDate: string;
+  startTime: string;
+  durationLabel: string;
+  coachName?: string | null;
+}
+
+export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { memberName, className, classDate, startTime, durationLabel, coachName } = opts;
+  const eName = escapeHtml(memberName);
+  const eClass = escapeHtml(className);
+  const eDate = escapeHtml(classDate);
+  const eTime = escapeHtml(startTime);
+  const eDur = escapeHtml(durationLabel);
+  const eCoach = coachName ? escapeHtml(coachName) : null;
+  const actionUrl = `${APP_URL}/dashboard/bookings`;
+  const subject = `Booking confirmed: ${className}`;
+
+  const html = emailWrapper(`Booking confirmed: ${eClass}`, `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Booking confirmed</p>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">You&#39;re booked in</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#a1a1aa;">Hi ${eName},</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
+      You&#39;re confirmed for <strong style="color:#fafafa;">${eClass}</strong>.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#09090b;border:1px solid #27272a;border-radius:10px;padding:14px 16px;margin-bottom:4px;">
+      <tr>
+        <td style="font-size:12px;color:#71717a;padding-bottom:8px;">When</td>
+      </tr>
+      <tr>
+        <td style="font-size:15px;font-weight:600;color:#fafafa;">${eDate}</td>
+      </tr>
+      <tr>
+        <td style="font-size:14px;color:#a1a1aa;padding-top:2px;">${eTime} · ${eDur}</td>
+      </tr>
+      ${eCoach ? `<tr><td style="font-size:13px;color:#71717a;padding-top:10px;">Coach: ${eCoach}</td></tr>` : ""}
+    </table>
+    ${ctaButton("View booking →", actionUrl)}
+  `);
+
+  const text = [
+    `Hi ${memberName},`,
+    ``,
+    `You're booked in for ${className}.`,
+    ``,
+    `When: ${classDate} at ${startTime} (${durationLabel})`,
+    ...(coachName ? [`Coach: ${coachName}`] : []),
+    ``,
+    `View your booking: ${actionUrl}`,
+    ``,
+    `— S&C Performance Coaching`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
+
+// ─── Booking cancellation ──────────────────────────────────────────────────────
+
+export interface BookingCancellationEmailOpts {
+  memberName: string;
+  className: string;
+  classDate: string;
+  startTime: string;
+  // Only true when a session credit was actually returned — the email mentions
+  // restored credit ONLY in that case, and stays neutral otherwise.
+  creditRestored: boolean;
+}
+
+export function bookingCancellationEmail(opts: BookingCancellationEmailOpts): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { memberName, className, classDate, startTime, creditRestored } = opts;
+  const eName = escapeHtml(memberName);
+  const eClass = escapeHtml(className);
+  const eDate = escapeHtml(classDate);
+  const eTime = escapeHtml(startTime);
+  const actionUrl = `${APP_URL}/dashboard/schedule`;
+  const subject = `Booking cancelled: ${className}`;
+
+  const creditLineHtml = creditRestored
+    ? `<p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">Your session credit has been restored.</p>`
+    : "";
+
+  const html = emailWrapper(`Booking cancelled: ${eClass}`, `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Booking cancelled</p>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">Your booking is cancelled</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#a1a1aa;">Hi ${eName},</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
+      Your booking for <strong style="color:#fafafa;">${eClass}</strong> on <strong style="color:#fafafa;">${eDate}</strong> at <strong style="color:#fafafa;">${eTime}</strong> has been cancelled.
+    </p>
+    ${creditLineHtml}
+    ${ctaButton("Browse schedule →", actionUrl)}
+  `);
+
+  const text = [
+    `Hi ${memberName},`,
+    ``,
+    `Your booking for ${className} on ${classDate} at ${startTime} has been cancelled.`,
+    ...(creditRestored ? [``, `Your session credit has been restored.`] : []),
+    ``,
+    `Browse the schedule: ${actionUrl}`,
+    ``,
+    `— S&C Performance Coaching`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
+
+// ─── Class cancelled by the club (staff/gym-initiated) ─────────────────────────
+
+export interface ClassCancelledEmailOpts {
+  memberName: string;
+  className: string;
+  classDate: string;
+  startTime: string;
+  // Only true when the member's session credit was actually returned.
+  creditRestored: boolean;
+}
+
+export function classCancelledEmail(opts: ClassCancelledEmailOpts): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { memberName, className, classDate, startTime, creditRestored } = opts;
+  const eName = escapeHtml(memberName);
+  const eClass = escapeHtml(className);
+  const eDate = escapeHtml(classDate);
+  const eTime = escapeHtml(startTime);
+  const actionUrl = `${APP_URL}/dashboard/schedule`;
+  const subject = `Class cancelled: ${className}`;
+
+  const creditLineHtml = creditRestored
+    ? `<p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">Your session credit has been returned to your account.</p>`
+    : "";
+
+  const html = emailWrapper(`Class cancelled: ${eClass}`, `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Class cancelled</p>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">A class you booked was cancelled</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#a1a1aa;">Hi ${eName},</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
+      <strong style="color:#fafafa;">${eClass}</strong> on <strong style="color:#fafafa;">${eDate}</strong> at <strong style="color:#fafafa;">${eTime}</strong> has been cancelled by S&amp;C Performance Coaching. Apologies for the disruption.
+    </p>
+    ${creditLineHtml}
+    <p style="margin:0 0 4px;font-size:14px;color:#a1a1aa;">You can book another session any time.</p>
+    ${ctaButton("Browse schedule →", actionUrl)}
+  `);
+
+  const text = [
+    `Hi ${memberName},`,
+    ``,
+    `${className} on ${classDate} at ${startTime} has been cancelled by S&C Performance Coaching. Apologies for the disruption.`,
+    ...(creditRestored ? [``, `Your session credit has been returned to your account.`] : []),
+    ``,
+    `Browse the schedule to book another session: ${actionUrl}`,
+    ``,
+    `— S&C Performance Coaching`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
+
 // ─── Lapsed membership ─────────────────────────────────────────────────────────
 
 export interface LapsedMembershipEmailOpts {

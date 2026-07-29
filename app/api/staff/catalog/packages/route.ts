@@ -14,7 +14,9 @@ import {
   type SessionAllowanceType,
 } from "@/lib/db";
 import { slugifyCatalog } from "@/lib/catalog";
+import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 const PACKAGE_TYPES: PackageType[] = ["membership", "pass", "top_up"];
 const ALLOWANCE_TYPES: SessionAllowanceType[] = ["unlimited", "fixed_count", "single_use"];
@@ -22,7 +24,7 @@ const ALLOWANCE_TYPES: SessionAllowanceType[] = ["unlimited", "fixed_count", "si
 export async function POST(request: NextRequest) {
   const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
-  if (!user || user.role !== "staff") {
+  if (!user || !can(user.role, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Only staff can manage the catalog." }, { status: user ? 403 : 401 });
   }
 
@@ -46,6 +48,8 @@ export async function POST(request: NextRequest) {
     visible,
     sortOrder,
     stripeProductId,
+    imageUrl,
+    imageAlt,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof categoryId !== "string" || !findMembershipCategoryById(categoryId)) {
@@ -84,6 +88,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "This package no longer exists." }, { status: 404 });
   }
 
+  const cover = resolveCoverImageInput(imageUrl);
+  if (!cover.ok) {
+    return NextResponse.json({ success: false, message: "That cover image is invalid or too large." }, { status: 400 });
+  }
+
+  const coverAlt = resolveCoverAltInput(imageAlt);
+  if (!coverAlt.ok) {
+    return NextResponse.json({ success: false, message: "That image description is too long." }, { status: 400 });
+  }
+
   const now = new Date().toISOString();
   const pkg: MembershipPackageRecord = {
     id: existing?.id ?? randomUUID(),
@@ -99,6 +113,8 @@ export async function POST(request: NextRequest) {
     visible: typeof visible === "boolean" ? visible : existing?.visible ?? true,
     sortOrder: Number.isFinite(Number(sortOrder)) ? Math.trunc(Number(sortOrder)) : existing?.sortOrder ?? 0,
     stripeProductId: typeof stripeProductId === "string" && stripeProductId.trim() ? stripeProductId.trim() : null,
+    imageUrl: cover.value === undefined ? existing?.imageUrl ?? null : cover.value,
+    imageAlt: coverAlt.value === undefined ? existing?.imageAlt ?? null : coverAlt.value,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

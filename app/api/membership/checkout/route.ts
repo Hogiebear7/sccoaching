@@ -131,21 +131,94 @@ export async function POST(request: NextRequest) {
 
   // ── Recurring: a membership subscription ─────────────────────────────
   const existingSubscription = findSubscriptionByUserId(user.id);
-
-  // Prevent re-buying the exact option the member is already actively on
-  // (the UI hides its button; this is the server-side guard). Switching to a
-  // DIFFERENT option is still allowed — that's a plan change, not a re-buy.
-  if (
+  const hasActiveMembership =
     existingSubscription?.status === "active" &&
-    existingSubscription.billingOptionId === option.id &&
-    !isPeriodLapsed({ status: existingSubscription.status, currentPeriodEnd: existingSubscription.currentPeriodEnd })
-  ) {
+    !isPeriodLapsed({ status: existingSubscription.status, currentPeriodEnd: existingSubscription.currentPeriodEnd });
+
+  // Re-buying the exact option you're actively on → nothing to do.
+  if (hasActiveMembership && existingSubscription!.billingOptionId === option.id) {
     return NextResponse.json(
       { success: false, message: "You're already on this membership — nothing to do." },
       { status: 409 }
     );
   }
 
+  // ── SWITCH: the member is actively subscribed and picked a DIFFERENT
+  // option. Stage it as a pending change WITHOUT touching the active fields,
+  // so their current membership and access stay intact until (and unless) the
+  // new payment confirms. On confirmation the webhook promotes the pending
+  // change and cancels the previous subscription — no duplicate active
+  // subscription, no double billing, no proration for the current period.
+  if (hasActiveMembership) {
+    const sub = existingSubscription!;
+
+    // Duplicate-click / retry: a fresh switch to this same option is already
+    // in flight — don't start a second Stripe checkout for it.
+    if (
+      sub.pendingBillingOptionId === option.id &&
+      sub.pendingSetupOrderId &&
+      sub.pendingStartedAt &&
+      !isPendingCheckoutStale(sub.pendingStartedAt)
+    ) {
+      return NextResponse.json(
+        { success: false, message: "A switch to this option is already in progress. Complete or wait a few minutes." },
+        { status: 409 }
+      );
+    }
+
+    const startedAt = new Date().toISOString();
+    // Stage the switch — active fields (packageId/billingOptionId/status/
+    // providerSubscriptionId/currentPeriodEnd) are untouched.
+    saveSubscription({
+      ...sub,
+      pendingPackageId: pkg.id,
+      pendingBillingOptionId: option.id,
+      pendingSetupOrderId: null,
+      pendingStartedAt: startedAt,
+      updatedAt: startedAt,
+    });
+
+    const switchCheckout = await createCatalogCheckout({
+      member: { id: user.id, email: user.email },
+      option,
+      productName: `${pkg.name} — ${option.name}`,
+      reference: `${user.id}:switch:${option.id}:${Date.now()}`,
+    });
+
+    if (switchCheckout.error || !switchCheckout.sessionId) {
+      // Roll the staged switch back so the member is left cleanly on their
+      // current membership, exactly as before they clicked.
+      saveSubscription({
+        ...sub,
+        pendingPackageId: null,
+        pendingBillingOptionId: null,
+        pendingSetupOrderId: null,
+        pendingStartedAt: null,
+        updatedAt: new Date().toISOString(),
+      });
+      return NextResponse.json(
+        { success: false, message: `Could not start checkout: ${switchCheckout.error ?? "unknown error"}` },
+        { status: 502 }
+      );
+    }
+
+    // Attach the session id so the webhook can find and promote this switch.
+    saveSubscription({
+      ...sub,
+      pendingPackageId: pkg.id,
+      pendingBillingOptionId: option.id,
+      pendingSetupOrderId: switchCheckout.sessionId,
+      pendingStartedAt: startedAt,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return NextResponse.json(
+      { success: true, checkoutUrl: switchCheckout.checkoutUrl, message: "Redirecting you to checkout to switch." },
+      { status: 200 }
+    );
+  }
+
+  // ── FRESH JOIN / RENEW: no active membership to protect. Existing flow. ──
   // Don't stack a duplicate checkout while a fresh one for this exact option
   // is still in progress.
   if (
@@ -164,7 +237,6 @@ export async function POST(request: NextRequest) {
 
   const pendingBase: SubscriptionRecord = {
     userId: user.id,
-    planId: null,
     packageId: pkg.id,
     billingOptionId: option.id,
     status: "pending",

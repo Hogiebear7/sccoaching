@@ -6,20 +6,24 @@ import { signSession } from "@/lib/session";
 const {
   mockFindUserById,
   mockFindSubscriptionByUserId,
-  mockFindMembershipPlanById,
+  mockResolveEntitlement,
   mockSaveSubscription,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindSubscriptionByUserId: vi.fn(),
-  mockFindMembershipPlanById: vi.fn(),
+  mockResolveEntitlement: vi.fn(),
   mockSaveSubscription: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
-  findMembershipPlanById: mockFindMembershipPlanById,
   saveSubscription: mockSaveSubscription,
+}));
+
+vi.mock("@/lib/membership-entitlement", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/membership-entitlement")>()),
+  resolveSubscriptionEntitlement: mockResolveEntitlement,
 }));
 
 const STAFF_USER = { id: "staff-1", email: "coach@example.com", role: "staff" as const };
@@ -69,14 +73,14 @@ describe("POST /api/staff/members/[userId]/extra-sessions", () => {
   beforeEach(() => {
     mockFindUserById.mockReset();
     mockFindSubscriptionByUserId.mockReset();
-    mockFindMembershipPlanById.mockReset();
+    mockResolveEntitlement.mockReset();
     mockSaveSubscription.mockReset();
 
     mockFindUserById.mockImplementation((id: string) =>
       id === STAFF_USER.id ? STAFF_USER : id === MEMBER_USER.id ? MEMBER_USER : undefined
     );
     mockFindSubscriptionByUserId.mockReturnValue(SUBSCRIPTION);
-    mockFindMembershipPlanById.mockReturnValue(CAPPED_PLAN);
+    mockResolveEntitlement.mockReturnValue(CAPPED_PLAN);
   });
 
   it("rejects requests with no session cookie", async () => {
@@ -117,7 +121,7 @@ describe("POST /api/staff/members/[userId]/extra-sessions", () => {
   });
 
   it("rejects when the plan is unlimited", async () => {
-    mockFindMembershipPlanById.mockReturnValue({
+    mockResolveEntitlement.mockReturnValue({
       ...CAPPED_PLAN,
       monthlySessionAllowance: null,
     });

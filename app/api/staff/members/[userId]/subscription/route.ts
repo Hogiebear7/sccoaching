@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
-  findMembershipPlanById,
+  findMembershipPackageById,
   findSubscriptionByUserId,
   findUserById,
   saveSubscription,
@@ -10,6 +10,7 @@ import {
   type SubscriptionStatus,
 } from "@/lib/db";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 const STATUS_VALUES: SubscriptionStatus[] = [
   "inactive",
@@ -41,7 +42,7 @@ export async function POST(
     );
   }
 
-  if (staffUser.role !== "staff") {
+  if (!can(staffUser.role, "members.billing")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage memberships." },
       { status: 403 }
@@ -69,7 +70,7 @@ export async function POST(
     );
   }
 
-  const { status, planId } = (body ?? {}) as Record<string, unknown>;
+  const { status, packageId } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof status !== "string" || !STATUS_VALUES.includes(status as SubscriptionStatus)) {
     return NextResponse.json(
@@ -79,39 +80,42 @@ export async function POST(
   }
 
   const existingSubscription = findSubscriptionByUserId(member.id);
-  const resolvedPlanId =
-    typeof planId === "string" && planId.trim() ? planId.trim() : existingSubscription?.planId ?? null;
+  const resolvedPackageId =
+    typeof packageId === "string" && packageId.trim()
+      ? packageId.trim()
+      : existingSubscription?.packageId ?? null;
 
-  if (resolvedPlanId && !findMembershipPlanById(resolvedPlanId)) {
+  if (resolvedPackageId && !findMembershipPackageById(resolvedPackageId)) {
     return NextResponse.json(
-      { success: false, message: "This plan does not exist." },
+      { success: false, message: "This package does not exist." },
       { status: 404 }
     );
   }
 
-  if (!resolvedPlanId) {
+  if (!resolvedPackageId) {
     return NextResponse.json(
-      { success: false, message: "A plan is required to set a membership status." },
+      { success: false, message: "A package is required to set a membership status." },
       { status: 400 }
     );
   }
 
   const now = new Date().toISOString();
 
-  // Switching into "active" (or onto a different plan) starts a fresh
+  // Switching into "active" (or onto a different package) starts a fresh
   // billing period as far as this app is concerned, so the session count
-  // resets. Re-saving an already-active subscription on the same plan
+  // resets. Re-saving an already-active subscription on the same package
   // doesn't touch usage.
   const isEnteringFreshActivePeriod =
     status === "active" &&
-    (existingSubscription?.status !== "active" || existingSubscription?.planId !== resolvedPlanId);
+    (existingSubscription?.status !== "active" || existingSubscription?.packageId !== resolvedPackageId);
 
   // A manual staff override always records provider: "none" — it's separate
   // from the Revolut-backed flow (cash payment, comp membership, correcting
   // a stuck state, etc). It does not touch any in-flight Revolut order.
   const subscription: SubscriptionRecord = {
     userId: member.id,
-    planId: resolvedPlanId,
+    packageId: resolvedPackageId,
+    billingOptionId: existingSubscription?.billingOptionId ?? null,
     status: status as SubscriptionStatus,
     provider: "none",
     providerCustomerId: existingSubscription?.providerCustomerId ?? null,

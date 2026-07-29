@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findBookingById, findUserById, updateBookingAttendance } from "@/lib/db";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (staffUser.role !== "staff") {
+  if (!can(staffUser.role, "classes.manage")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage attendance." },
       { status: 403 }

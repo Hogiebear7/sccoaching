@@ -1,17 +1,20 @@
-import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
+import {
+  billingIntervalFromOption,
+  resolveSubscriptionEntitlement,
+} from "@/lib/membership-entitlement";
+import { cancelProviderSubscription } from "@/lib/billing";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
-  findClassPassProductById,
+  findMembershipBillingOptionById,
   findMembershipPackageById,
-  findMembershipPlanById,
   findPurchaseById,
   findPurchaseByProviderOrderId,
   findPurchaseByProviderPaymentRef,
+  findSubscriptionByPendingSetupOrderId,
   findSubscriptionByProviderOrderId,
   findSubscriptionBySetupOrderId,
-  findSubscriptionByUserId,
   hasPaymentEvent,
   recordPaymentEvent,
   savePurchase,
@@ -126,13 +129,8 @@ export async function POST(request: NextRequest) {
       savePurchase(withRef);
 
       if (purchase.kind === "pass_pack") {
-        // productId is a legacy ClassPassProductRecord OR a catalog package
-        // (one-time class-pass / top-up). Either credits the pass ledger.
-        const product = findClassPassProductById(purchase.productId);
-        if (product) {
-          applyPaidPassPurchase(withRef, product);
-          return ack("Passes credited.");
-        }
+        // productId is a catalog package (one-time class-pass / top-up),
+        // which credits the pass ledger.
         const pkg = findMembershipPackageById(purchase.productId);
         if (pkg) {
           applyPaidPassPurchase(withRef, {
@@ -142,55 +140,86 @@ export async function POST(request: NextRequest) {
           });
           return ack("Passes credited.");
         }
-        console.warn("[stripe webhook] paid pass purchase has no product/package row", {
+        console.warn("[stripe webhook] paid pass purchase has no package row", {
           purchaseId: purchase.id,
         });
         return ack("Passes credited.");
       }
 
-      // Intro membership: activate a bounded, non-renewing period. The
-      // purchase state machine makes this once-only under replays, and the
-      // paid purchase row is the durable once-per-member evidence.
-      const plan = findMembershipPlanById(purchase.productId);
-      const existing = findSubscriptionByUserId(purchase.userId);
-      const introDays = plan?.introDurationDays ?? 42;
-      const nowIso = new Date().toISOString();
-      saveSubscription({
-        userId: purchase.userId,
-        planId: purchase.productId,
-        status: "active",
-        provider: "stripe",
-        providerCustomerId:
-          typeof object.customer === "string" ? object.customer : existing?.providerCustomerId ?? null,
-        // No recurring subscription exists — nothing must ever renew this.
-        providerSubscriptionId: null,
-        providerSetupOrderId: sessionId,
-        currentPeriodEnd: addIntervalToNow(introDays),
-        lastWebhookEventAt: nowIso,
-        sessionsUsedThisPeriod: 0,
-        extraSessionGrants: [],
-        periodLapsedNotifiedAt: null,
-        createdAt: existing?.createdAt ?? nowIso,
-        updatedAt: nowIso,
+      // A membership-kind one-off purchase has no catalog path anymore.
+      console.warn("[stripe webhook] unexpected membership-kind purchase", {
+        purchaseId: purchase.id,
       });
-      return ack("Introductory membership activated.");
+      return ack("No membership activation applied.");
     }
 
     if (mode === "subscription" && sessionId) {
+      const nowIso = new Date().toISOString();
+
+      // ── Confirmed SWITCH ── The member staged a change to a different option
+      // while staying active on their current one. Promote the staged change
+      // onto the active fields (fresh period on the new option) and cancel the
+      // PREVIOUS provider subscription so it can't keep billing. The active
+      // membership was untouched until this moment — so an abandoned switch
+      // simply never reaches here and leaves the member on their old plan.
+      const switching = findSubscriptionByPendingSetupOrderId(sessionId);
+      if (switching) {
+        const newSubId =
+          typeof object.subscription === "string" ? object.subscription : switching.providerSubscriptionId;
+        const previousSubId = switching.provider === "stripe" ? switching.providerSubscriptionId : null;
+        const newOption = switching.pendingBillingOptionId
+          ? findMembershipBillingOptionById(switching.pendingBillingOptionId)
+          : undefined;
+        const interval = billingIntervalFromOption(newOption);
+
+        saveSubscription({
+          ...switching,
+          packageId: switching.pendingPackageId ?? switching.packageId,
+          billingOptionId: switching.pendingBillingOptionId ?? switching.billingOptionId,
+          status: "active",
+          providerSubscriptionId: newSubId,
+          providerCustomerId:
+            typeof object.customer === "string" ? object.customer : switching.providerCustomerId,
+          providerSetupOrderId: sessionId,
+          currentPeriodEnd: addIntervalToNow(interval === "annual" ? 365 : interval === "quarterly" ? 90 : 30),
+          // A switch starts a fresh period on the new option (no proration).
+          sessionsUsedThisPeriod: 0,
+          extraSessionGrants: [],
+          periodLapsedNotifiedAt: null,
+          pendingPackageId: null,
+          pendingBillingOptionId: null,
+          pendingSetupOrderId: null,
+          pendingStartedAt: null,
+          lastWebhookEventAt: nowIso,
+          updatedAt: nowIso,
+        });
+
+        if (previousSubId && previousSubId !== newSubId) {
+          void cancelProviderSubscription({ provider: "stripe", providerSubscriptionId: previousSubId }).then((r) => {
+            if (!r.ok)
+              console.warn("[stripe webhook] switch: could not cancel previous subscription — staff should reconcile", {
+                previousSubId,
+                message: r.message,
+              });
+          });
+        }
+        return ack("Switch confirmed — new membership active, previous subscription cancelled.");
+      }
+
       const subscription = findSubscriptionBySetupOrderId(sessionId);
       if (!subscription) {
         console.warn("[stripe webhook] no subscription matches session", { sessionId });
         return ack("No matching subscription.");
       }
+      const previousSubId = subscription.provider === "stripe" ? subscription.providerSubscriptionId : null;
+      const newSubId =
+        typeof object.subscription === "string" ? object.subscription : subscription.providerSubscriptionId;
       const plan = resolveSubscriptionEntitlement(subscription);
       const isFreshPeriod = subscription.status !== "active";
       saveSubscription({
         ...subscription,
         status: "active",
-        providerSubscriptionId:
-          typeof object.subscription === "string"
-            ? object.subscription
-            : subscription.providerSubscriptionId,
+        providerSubscriptionId: newSubId,
         providerCustomerId:
           typeof object.customer === "string" ? object.customer : subscription.providerCustomerId,
         currentPeriodEnd: addIntervalToNow(
@@ -199,9 +228,21 @@ export async function POST(request: NextRequest) {
         sessionsUsedThisPeriod: isFreshPeriod ? 0 : subscription.sessionsUsedThisPeriod,
         extraSessionGrants: isFreshPeriod ? [] : subscription.extraSessionGrants,
         periodLapsedNotifiedAt: isFreshPeriod ? null : subscription.periodLapsedNotifiedAt,
-        lastWebhookEventAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        lastWebhookEventAt: nowIso,
+        updatedAt: nowIso,
       });
+      // Re-subscribe safety: if this activation replaced a DIFFERENT live
+      // provider subscription (e.g. a past-due member starting a new one),
+      // cancel the old one so it can't double-bill.
+      if (previousSubId && newSubId && previousSubId !== newSubId) {
+        void cancelProviderSubscription({ provider: "stripe", providerSubscriptionId: previousSubId }).then((r) => {
+          if (!r.ok)
+            console.warn("[stripe webhook] re-subscribe: could not cancel previous subscription", {
+              previousSubId,
+              message: r.message,
+            });
+        });
+      }
       return ack("Membership activated.");
     }
 

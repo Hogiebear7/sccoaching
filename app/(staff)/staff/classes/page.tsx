@@ -1,4 +1,5 @@
 import { ensureSeriesOccurrences } from "@/lib/class-series";
+import { requireStaffPage } from "@/lib/staff-auth";
 import {
   findBookingsByClassId,
   findClassSeries,
@@ -12,6 +13,7 @@ import {
 import { ClassesView } from "./ClassesView";
 
 export default async function StaffClassesPage() {
+  await requireStaffPage("classes.manage");
   // Top up the rolling window of recurring occurrences on every staff visit
   // (idempotent) — the cron job is the backstop, this is the fast path.
   ensureSeriesOccurrences();

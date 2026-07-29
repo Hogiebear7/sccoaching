@@ -29,6 +29,7 @@ import {
   type WeightGoalBias,
 } from "@/lib/nutrition";
 import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
+import type { FoodRecommendations } from "@/lib/nutrition-recommendations";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 const EXERTION_OPTIONS: Exertion[] = ["low", "medium", "high", "match"];
@@ -179,6 +180,8 @@ export function NutritionView({
   lastSessionTitle,
   lastSessionDate,
   initialDrinkSettings = null,
+  foodRecommendations,
+  dietarySummary,
 }: {
   bodyWeightKg: number | null;
   goalBias: WeightGoalBias;
@@ -191,6 +194,8 @@ export function NutritionView({
   lastSessionTitle: string | null;
   lastSessionDate: string | null;
   initialDrinkSettings?: DrinkSettings | null;
+  foodRecommendations: FoodRecommendations;
+  dietarySummary: { preferenceLabel: string; exclusions: string[] };
 }) {
   const [tomorrow, setTomorrow] = useState<Exertion>("medium");
   const [bottleMl, setBottleMl] = useState<(typeof BOTTLE_OPTIONS)[number]>(1000);
@@ -377,6 +382,9 @@ export function NutritionView({
         title="Nutrition"
         subtitle="Daily targets and sports performance hydration, tuned to your training."
       />
+
+      {/* Food suggestions — filtered by the member's dietary requirements */}
+      <FoodSuggestions recommendations={foodRecommendations} summary={dietarySummary} />
 
       {/* Fuel day hero */}
       <div className="panel relative overflow-hidden p-5">
@@ -809,5 +817,72 @@ export function NutritionView({
         </p>
       </div>
     </section>
+  );
+}
+
+// Food suggestions filtered by the member's dietary requirements. Hard
+// exclusions (allergies + intolerances) are enforced server-side by
+// recommendFoods; this only renders the already-safe result.
+function FoodSuggestions({
+  recommendations,
+  summary,
+}: {
+  recommendations: FoodRecommendations;
+  summary: { preferenceLabel: string; exclusions: string[] };
+}) {
+  const groups: { key: keyof FoodRecommendations; label: string }[] = [
+    { key: "protein", label: "Protein" },
+    { key: "carb", label: "Carbs" },
+    { key: "snack", label: "Snacks" },
+  ];
+
+  return (
+    <div className="panel p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-lg font-semibold">Food ideas for you</h3>
+        <Link
+          href="/dashboard/profile"
+          className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+        >
+          Edit dietary requirements
+        </Link>
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {summary.preferenceLabel} picks that fit your macro targets.
+        {summary.exclusions.length > 0 ? (
+          <>
+            {" "}Excluding{" "}
+            <span className="text-foreground">{summary.exclusions.join(", ")}</span>.
+          </>
+        ) : null}
+      </p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {groups.map(({ key, label }) => {
+          const items = recommendations[key];
+          return (
+            <div key={key} className="well p-3">
+              <p className="label-caps text-[11px]">{label}</p>
+              {items.length === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Nothing fits your exclusions here — tell your coach and we&apos;ll tailor options.
+                </p>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {items.map((item) => (
+                    <span
+                      key={item.name}
+                      className="rounded-full border border-border bg-white/[0.02] px-2.5 py-1 text-xs text-foreground"
+                    >
+                      {item.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

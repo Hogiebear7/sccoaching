@@ -8,6 +8,9 @@ import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import type { ClassCategory, ClassCategoryRecord, ClassRecord, ClassSeriesRecord } from "@/lib/db";
 import { WEEKDAY_LABELS, describeSeriesDays } from "@/lib/class-series-shared";
 import { classCategoryLabel, isFutureDateTime } from "@/lib/scheduling-status";
+import { CoverImageField } from "@/components/ui/CoverImageField";
+import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
+import { suggestAltForCover, suggestCoverForCategory } from "@/lib/class-covers";
 
 type RosterMember = {
   bookingId: string;
@@ -41,6 +44,8 @@ type ClassFormValues = {
   repeat: "none" | "weekly";
   weekdays: number[];
   repeatEndDate: string;
+  imageUrl: string | null;
+  imageAlt: string;
 };
 
 type FormErrors = Partial<Record<keyof ClassFormValues, string>>;
@@ -65,6 +70,8 @@ function emptyFormValues(defaultCategory = "general"): ClassFormValues {
     repeat: "none",
     weekdays: [],
     repeatEndDate: "",
+    imageUrl: null,
+    imageAlt: "",
   };
 }
 
@@ -80,6 +87,8 @@ function toFormValues(classRecord: ClassRecord): ClassFormValues {
     repeat: "none",
     weekdays: [],
     repeatEndDate: "",
+    imageUrl: classRecord.imageUrl ?? null,
+    imageAlt: classRecord.imageAlt ?? "",
   };
 }
 
@@ -99,6 +108,15 @@ export function ClassesView({
   const [values, setValues] = useState<ClassFormValues>(() =>
     emptyFormValues(categories[0]?.slug ?? "")
   );
+  // True when the current cover was accepted from a category suggestion (so a
+  // later category change's hint may offer to replace it). Any manual cover
+  // action clears this.
+  const [coverSuggested, setCoverSuggested] = useState(false);
+  // Staff dismissed the category suggestion hint for the current category.
+  const [hintDismissed, setHintDismissed] = useState(false);
+  // Single polite live-region message shared by the cover picker AND the
+  // "Use this" banner, so the whole cover workflow has one region (no duplicates).
+  const [coverAnnouncement, setCoverAnnouncement] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -211,9 +229,43 @@ export function ClassesView({
     setSuccessMessage(null);
   }
 
+  function categoryNameFor(slug: string): string {
+    return categories.find((c) => c.slug === slug)?.name ?? "";
+  }
+
+  // Changing category never mutates the cover/alt on its own — it just re-arms
+  // the suggestion hint so staff can explicitly accept the new best-fit cover.
+  function handleCategoryChange(e: ChangeEvent<HTMLSelectElement>) {
+    setValues((prev) => ({ ...prev, category: e.target.value as ClassCategory }));
+    setHintDismissed(false);
+    setErrors((prev) => ({ ...prev, category: undefined }));
+    setSuccessMessage(null);
+  }
+
+  // Explicit accept: apply the suggested cover + its default alt (custom alt is
+  // preserved by suggestAltForCover), and mark the cover as a suggestion.
+  function acceptCoverSuggestion() {
+    const cover = suggestCoverForCategory(values.category, categoryNameFor(values.category));
+    setValues((prev) => ({
+      ...prev,
+      imageUrl: cover.src,
+      imageAlt: suggestAltForCover(prev.imageAlt, cover),
+    }));
+    setCoverSuggested(true);
+    setCoverAnnouncement(`${cover.label} cover applied`);
+    setSuccessMessage(null);
+  }
+
+  function dismissCoverSuggestion() {
+    setHintDismissed(true);
+  }
+
   function startEdit(classRecord: ClassRecord) {
     setEditingId(classRecord.id);
     setValues(toFormValues(classRecord));
+    // The loaded cover is the class's own — treat as manual, not a suggestion.
+    setCoverSuggested(false);
+    setHintDismissed(false);
     setErrors({});
     setFormError(null);
     setSuccessMessage(null);
@@ -222,6 +274,8 @@ export function ClassesView({
   function cancelEdit() {
     setEditingId(null);
     setValues(emptyFormValues(categories[0]?.slug ?? ""));
+    setCoverSuggested(false);
+    setHintDismissed(false);
     setErrors({});
     setFormError(null);
     setSuccessMessage(null);
@@ -295,6 +349,8 @@ export function ClassesView({
       setSuccessMessage(data?.message ?? "Class saved.");
       setEditingId(null);
       setValues(emptyFormValues());
+      setCoverSuggested(false);
+      setHintDismissed(false);
       router.refresh();
     } catch {
       setFormError("Something went wrong. Please try again.");
@@ -303,8 +359,26 @@ export function ClassesView({
     }
   }
 
+  // Category-aware cover suggestion (shown as a dismissible hint, never applied
+  // silently). Eligible only when the cover is empty or still an accepted
+  // suggestion — a manual cover is left alone — and only when it would actually
+  // change something.
+  const hintCategoryName = categoryNameFor(values.category);
+  const suggestedCover = suggestCoverForCategory(values.category, hintCategoryName);
+  const coverEligibleForHint = values.imageUrl === null || coverSuggested;
+  const showCoverHint =
+    categories.length > 0 &&
+    !hintDismissed &&
+    coverEligibleForHint &&
+    suggestedCover.src !== values.imageUrl;
+
   return (
     <div className="space-y-6">
+      {/* Single polite live region for the whole cover workflow (picker + banner). */}
+      <p aria-live="polite" role="status" className="sr-only">
+        {coverAnnouncement}
+      </p>
+
       {/* Header card */}
       <div>
         <p className="label-caps">Staff</p>
@@ -346,14 +420,68 @@ export function ClassesView({
             </FormField>
           </div>
 
+          <div className="md:col-span-2">
+            <CoverImageField
+              seed={editingId ?? values.category ?? "class"}
+              label={values.title || undefined}
+              value={values.imageUrl}
+              onChange={(dataUrl) => {
+                // Any explicit cover action (upload / built-in pick / remove) is
+                // a manual choice — later category changes must not overwrite it.
+                setValues((prev) => ({ ...prev, imageUrl: dataUrl }));
+                setCoverSuggested(false);
+              }}
+              alt={values.imageAlt}
+              onAltChange={(next) => setValues((prev) => ({ ...prev, imageAlt: next }))}
+              recommendedSrc={suggestedCover.src}
+              onAnnounce={setCoverAnnouncement}
+            />
+
+            {/* Category-aware suggestion — explicit, dismissible, one-tap accept. */}
+            {showCoverHint ? (
+              <div className="mt-2 flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.06] px-3 py-2">
+                <ClassImageSlot
+                  seed={suggestedCover.id}
+                  imageUrl={suggestedCover.src}
+                  className="h-9 w-16 shrink-0 rounded-md ring-1 ring-white/10"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-foreground">
+                    Suggested for {hintCategoryName || "this category"}
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {suggestedCover.label} cover · &ldquo;{suggestedCover.defaultAlt}&rdquo;
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={acceptCoverSuggestion}
+                  className="shrink-0 rounded-lg bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary transition hover:bg-primary/25"
+                >
+                  Use this
+                </button>
+                <button
+                  type="button"
+                  onClick={dismissCoverSuggestion}
+                  aria-label="Dismiss suggestion"
+                  className="shrink-0 rounded-lg p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden className="h-4 w-4">
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
+              </div>
+            ) : null}
+          </div>
+
           <FormField label="Category" error={errors.category}>
             <select
               value={values.category}
-              onChange={(e) => handleTextChange("category", e)}
+              onChange={handleCategoryChange}
               className={inputClass(errors.category)}
             >
               {categories.length === 0 ? (
-                <option value="">No categories — manage in Plans</option>
+                <option value="">No class types — add one in Operations</option>
               ) : (
                 categories.map((cat) => (
                   <option key={cat.slug} value={cat.slug}>

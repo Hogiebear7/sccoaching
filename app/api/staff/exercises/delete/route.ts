@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { deleteExercise, findExerciseById, findUserById } from "@/lib/db";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
 
   const staffUser = findUserById(sessionUserId);
 
-  if (!staffUser || staffUser.role !== "staff") {
+  if (!staffUser || !can(staffUser.role, "exercises.manage")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage exercises." },
       { status: 403 }

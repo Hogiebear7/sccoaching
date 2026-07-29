@@ -1,4 +1,6 @@
 import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
+import { can } from "@/lib/permissions";
+import { requireStaffPage } from "@/lib/staff-auth";
 import Link from "next/link";
 
 import {
@@ -9,7 +11,7 @@ import {
   findCoachNoteByUserId,
   findCyclePrivacyByUserId,
   findCycleSettingsByUserId,
-  findMembershipPlans,
+  findMembershipPackages,
   findMessagesByMemberId,
   findProfileByUserId,
   findProgrammeByUserId,
@@ -29,6 +31,7 @@ import { MessagesThread } from "@/components/messages/MessagesThread";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
 import { MemberAccountPanel } from "@/components/staff/MemberAccountPanel";
 import { MembershipStatusPanel } from "@/components/staff/MembershipStatusPanel";
+import { DietaryRequirementsSummary } from "@/components/profile/DietaryRequirementsSummary";
 import { StaffMemberEditor } from "./StaffMemberEditor";
 
 function approximateCycleDay(lastPeriodStartDate: string, averageCycleLengthDays: number): number {
@@ -53,14 +56,18 @@ export default async function StaffMemberDetailPage({
 }: {
   params: Promise<{ userId: string }>;
 }) {
+  const staffUser = await requireStaffPage("members.view");
+  const canEditBilling = can(staffUser.role, "members.billing");
+  const canManageAccount = can(staffUser.role, "members.account");
+  const canHardDelete = can(staffUser.role, "members.hardDelete");
   const { userId } = await params;
   const user = findUserById(userId);
 
   if (!user) {
     return (
       <section className="space-y-6">
-        <Link href="/staff/classes" className="text-sm text-gold transition hover:text-gold/80">
-          ← Back to classes
+        <Link href="/staff/members" className="text-sm text-gold transition hover:text-gold/80">
+          ← Back to members
         </Link>
         <div>
           <p className="label-caps">Member</p>
@@ -85,7 +92,7 @@ export default async function StaffMemberDetailPage({
   const coachNote = findCoachNoteByUserId(user.id);
   const recoveryLogs = findRecoveryLogsByUserId(user.id).slice(0, 7);
   const messages = findMessagesByMemberId(user.id);
-  const activePlans = findMembershipPlans().filter((plan) => plan.isActive);
+  const packages = findMembershipPackages().filter((pkg) => pkg.visible);
   const subscription = findSubscriptionByUserId(user.id);
 
   // Drink calculator summary — computed with the member's synced weight so
@@ -124,8 +131,8 @@ export default async function StaffMemberDetailPage({
 
   return (
     <section className="space-y-6">
-      <Link href="/staff/classes" className="text-sm text-gold transition hover:text-gold/80">
-        ← Back to classes
+      <Link href="/staff/members" className="text-sm text-gold transition hover:text-gold/80">
+        ← Back to members
       </Link>
 
       {/* Header */}
@@ -144,33 +151,43 @@ export default async function StaffMemberDetailPage({
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{user.email}</p>
       </div>
 
-      <MemberAccountPanel
-        memberId={user.id}
-        email={user.email}
-        archivedAt={user.archivedAt ?? null}
-      />
+      {/* Account deactivation is an account-security action — admin+ only.
+          The archive route enforces the same members.account capability. */}
+      {canManageAccount ? (
+        <MemberAccountPanel
+          memberId={user.id}
+          email={user.email}
+          archivedAt={user.archivedAt ?? null}
+          canHardDelete={canHardDelete}
+        />
+      ) : null}
 
       <CoachSummaryPanel memberId={user.id} />
 
-      <MembershipStatusPanel
-        memberId={user.id}
-        plans={activePlans}
-        currentPlanId={subscription?.planId ?? null}
-        currentPlanName={subscriptionPlan?.name ?? null}
-        currentStatus={subscription?.status ?? null}
-        currentProvider={subscription?.provider ?? null}
-        currentUpdatedAt={subscription?.updatedAt ?? null}
-        currentPeriodEnd={subscription?.currentPeriodEnd ?? null}
-        passBalance={
-          subscriptionPlan && subscription
-            ? classPassBalance(subscriptionPlan, subscription)
-            : null
-        }
-        purchasedPasses={purchasedPassBalance(user.id)}
-        passLedger={findPassLedgerByUserId(user.id)
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-          .slice(0, 6)}
-      />
+      {/* Membership + billing is admin-only. A coach never sees this panel,
+          and its API routes (subscription / extra-sessions) enforce the same
+          members.billing capability server-side. */}
+      {canEditBilling ? (
+        <MembershipStatusPanel
+          memberId={user.id}
+          packages={packages}
+          currentPackageId={subscription?.packageId ?? null}
+          currentPlanName={subscriptionPlan?.name ?? null}
+          currentStatus={subscription?.status ?? null}
+          currentProvider={subscription?.provider ?? null}
+          currentUpdatedAt={subscription?.updatedAt ?? null}
+          currentPeriodEnd={subscription?.currentPeriodEnd ?? null}
+          passBalance={
+            subscriptionPlan && subscription
+              ? classPassBalance(subscriptionPlan, subscription)
+              : null
+          }
+          purchasedPasses={purchasedPassBalance(user.id)}
+          passLedger={findPassLedgerByUserId(user.id)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .slice(0, 6)}
+        />
+      ) : null}
 
       {/* Drink calculator */}
       {drinkSettings && drinkMix && drinkPlan ? (
@@ -218,8 +235,12 @@ export default async function StaffMemberDetailPage({
           email={user.email}
           profile={profile}
           initialNotes={coachNote?.notes ?? ""}
+          canManageAccount={canManageAccount}
         />
       )}
+
+      {/* Dietary requirements (read-only for staff) */}
+      {profile ? <DietaryRequirementsSummary profile={profile} /> : null}
 
       {/* Cycle tracking */}
       {profile?.cycleTrackingEligible ? (

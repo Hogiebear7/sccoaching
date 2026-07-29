@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import type { ClassCategoryRecord, ClassRecord } from "@/lib/db";
 import { classCategoryLabel } from "@/lib/scheduling-status";
+import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
 
 type ScheduleClass = ClassRecord & {
   coachEmail: string;
@@ -29,6 +30,8 @@ type UpcomingBooking = {
   startTime: string;
   durationMins: number;
   coachEmail: string;
+  imageUrl: string | null;
+  imageAlt: string | null;
   willRestoreSession: boolean;
 };
 
@@ -293,29 +296,53 @@ export function ScheduleView({
                     const isSubmitting = submittingClassId === classRecord.id;
                     const cardError = errorByClassId[classRecord.id];
 
+                    const categoryText = classCategoryLabel(categories, classRecord.category, deletedLabels);
+                    const spotsLeft = Math.max(0, classRecord.capacity - classRecord.bookedCount);
+
                     return (
-                      <div
+                      <article
                         key={classRecord.id}
-                        className="panel p-4"
+                        className="group relative overflow-hidden rounded-2xl border border-border/70 bg-white/[0.015] transition-colors duration-200 hover:border-primary/40"
                       >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              {classRecord.startTime}
-                            </p>
-                            <h4 className="mt-1 text-base font-semibold">
+                        <div className="flex items-stretch gap-0">
+                          {/* Image-forward accent rail with the time overlaid */}
+                          <div className="relative w-[84px] shrink-0 sm:w-[104px]">
+                            <ClassImageSlot
+                              seed={classRecord.category || classRecord.id}
+                              label={categoryText}
+                              imageUrl={classRecord.imageUrl}
+                              alt={classRecord.imageAlt}
+                              className="absolute inset-0"
+                            />
+                            <div className="relative flex h-full flex-col justify-between p-2.5">
+                              <span className="text-condensed text-[22px] leading-none text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)] tabular-nums">
+                                {classRecord.startTime}
+                              </span>
+                              <span className="text-[10px] font-medium uppercase tracking-wide text-white/75">
+                                {classRecord.durationMins} min
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Details + actions */}
+                          <div className="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                              {categoryText}
+                            </span>
+                            <h4 className="text-condensed mt-1.5 truncate text-lg uppercase leading-tight text-foreground">
                               {classRecord.title}
                             </h4>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              Coach: {classRecord.coachEmail}
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              Coach · {classRecord.coachEmail}
                             </p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
-                                {classCategoryLabel(categories, classRecord.category, deletedLabels)}
+                            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                              <span className="tabular-nums">
+                                {classRecord.bookedCount}/{classRecord.capacity} booked
                               </span>
-                                <span className="rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
-                                {classRecord.durationMins} min · {classRecord.bookedCount}/{classRecord.capacity}
-                              </span>
+                              {!classRecord.isFull && spotsLeft <= 3 ? (
+                                <span className="font-medium text-amber-400">{spotsLeft} spot{spotsLeft === 1 ? "" : "s"} left</span>
+                              ) : null}
                             </div>
                           </div>
 
@@ -382,37 +409,45 @@ export function ScheduleView({
                               </button>
                             )}
                           </div>
+                          </div>
                         </div>
 
-                        {classRecord.waitlistOfferState === "offered" && (
-                          <div className="mt-3 flex items-start gap-2 rounded-lg border border-gold/25 bg-gold/8 px-3 py-2.5">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="mt-px h-4 w-4 shrink-0 text-gold">
-                              <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                            </svg>
-                            <p className="text-xs text-gold">
-                              You&apos;ve been offered a spot — accept or decline above before the offer expires.
-                            </p>
+                        {(classRecord.waitlistOfferState === "offered" ||
+                          classRecord.blockReason ||
+                          cardError ||
+                          (classRecord.waitlistEntryId && respondError[classRecord.waitlistEntryId])) && (
+                          <div className="space-y-2 px-4 pb-4">
+                            {classRecord.waitlistOfferState === "offered" && (
+                              <div className="flex items-start gap-2 rounded-lg border border-gold/25 bg-gold/8 px-3 py-2.5">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="mt-px h-4 w-4 shrink-0 text-gold">
+                                  <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                </svg>
+                                <p className="text-xs text-gold">
+                                  You&apos;ve been offered a spot — accept or decline above before the offer expires.
+                                </p>
+                              </div>
+                            )}
+
+                            {classRecord.blockReason && (
+                              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                                Not bookable: {classRecord.blockReason}
+                              </p>
+                            )}
+
+                            {cardError && (
+                              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                                {cardError}
+                              </p>
+                            )}
+
+                            {classRecord.waitlistEntryId && respondError[classRecord.waitlistEntryId] && (
+                              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                                {respondError[classRecord.waitlistEntryId]}
+                              </p>
+                            )}
                           </div>
                         )}
-
-                        {classRecord.blockReason && (
-                          <p className="mt-3 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                            Not bookable: {classRecord.blockReason}
-                          </p>
-                        )}
-
-                        {cardError && (
-                          <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                            {cardError}
-                          </p>
-                        )}
-
-                        {classRecord.waitlistEntryId && respondError[classRecord.waitlistEntryId] && (
-                          <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                            {respondError[classRecord.waitlistEntryId]}
-                          </p>
-                        )}
-                      </div>
+                      </article>
                     );
                   })}
                 </div>
@@ -432,42 +467,57 @@ export function ScheduleView({
         ) : (
           <div className="space-y-3">
             {upcomingBookings.map((booking) => (
-              <div key={booking.bookingId} className="panel p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      {formatFriendlyClassDate(booking.date)} · {booking.startTime}
-                    </p>
-                    <h4 className="mt-1 text-sm font-semibold">{booking.title}</h4>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {booking.durationMins} min · {booking.coachEmail}
-                    </p>
+              <article key={booking.bookingId} className="overflow-hidden rounded-2xl border border-primary/25 bg-white/[0.015]">
+                <div className="flex items-stretch">
+                  {/* Image accent rail with the time */}
+                  <div className="relative w-[84px] shrink-0 sm:w-[104px]">
+                    <ClassImageSlot seed={booking.classId} label={booking.title} imageUrl={booking.imageUrl} alt={booking.imageAlt} className="absolute inset-0" />
+                    <div className="relative flex h-full flex-col justify-between p-2.5">
+                      <span className="text-condensed text-[22px] leading-none text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)] tabular-nums">
+                        {booking.startTime}
+                      </span>
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-white/75">
+                        {booking.durationMins} min
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <span className="rounded-full border border-primary/20 bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">
-                      Booked
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleCancelBooking(booking.bookingId)}
-                      disabled={cancellingBookingId === booking.bookingId}
-                      className="rounded-lg border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {cancellingBookingId === booking.bookingId ? "Cancelling…" : "Cancel"}
-                    </button>
+
+                  <div className="flex min-w-0 flex-1 items-start justify-between gap-3 p-4">
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        {formatFriendlyClassDate(booking.date)}
+                      </p>
+                      <h4 className="text-condensed mt-1 truncate text-lg uppercase leading-tight text-foreground">{booking.title}</h4>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        Coach · {booking.coachEmail}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <span className="rounded-full border border-primary/25 bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                        Booked
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCancelBooking(booking.bookingId)}
+                        disabled={cancellingBookingId === booking.bookingId}
+                        className="rounded-lg border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {cancellingBookingId === booking.bookingId ? "Cancelling…" : "Cancel"}
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <p className={`mt-2 text-xs ${booking.willRestoreSession ? "text-muted-foreground" : "text-amber-400"}`}>
+                <p className={`px-4 pb-3 text-xs ${booking.willRestoreSession ? "text-muted-foreground" : "text-amber-400"}`}>
                   {booking.willRestoreSession
                     ? "Cancelling now will restore your session credit."
                     : "Cancelling now will not restore your session credit — too close to the class start."}
                 </p>
                 {cancelBookingError[booking.bookingId] && (
-                  <p className="mt-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <p className="mx-4 mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                     {cancelBookingError[booking.bookingId]}
                   </p>
                 )}
-              </div>
+              </article>
             ))}
             {cancellationCutoffHours > 0 && (
               <p className="px-1 text-[11px] text-muted-foreground">

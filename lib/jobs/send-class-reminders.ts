@@ -6,6 +6,7 @@ import {
   findProfileByUserId,
   findNotificationByDedupeKey,
   createNotification,
+  isTransactionalEmailEnabled,
   type NotificationRecord,
 } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
@@ -33,6 +34,9 @@ export const sendClassRemindersJob: JobDefinition = {
     "Sends in-app notifications ahead of booked classes based on each member's reminder timing preferences.",
   async run() {
     const now = Date.now();
+    // Read the optional-email toggle once; it gates ONLY the reminder email —
+    // in-app notifications and push are unaffected.
+    const reminderEmailEnabled = isTransactionalEmailEnabled("classReminder");
     const bookings = findAllBookings();
 
     // Only process upcoming bookings (class hasn't started yet)
@@ -93,7 +97,7 @@ export const sendClassRemindersJob: JobDefinition = {
 
         createNotification(notification);
 
-        if (profile?.emailNotificationsEnabled !== false && profile?.email) {
+        if (reminderEmailEnabled && profile?.emailNotificationsEnabled !== false && profile?.email) {
           const tmpl = classReminderEmail({
             memberName: profile.fullName || profile.email,
             className: cls.title,

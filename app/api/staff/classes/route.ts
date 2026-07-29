@@ -14,9 +14,11 @@ import {
   type ClassSeriesRecord,
 } from "@/lib/db";
 import { generateOccurrencesForSeries } from "@/lib/class-series";
+import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isFutureDateTime } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 function parseRequiredPositiveInt(
   value: unknown
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (user.role !== "staff") {
+  if (!can(user.role, "classes.manage")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage classes." },
       { status: 403 }
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { id, title, category, date, startTime, durationMins, capacity, repeat, weekdays, repeatEndDate } =
+  const { id, title, category, date, startTime, durationMins, capacity, repeat, weekdays, repeatEndDate, imageUrl, imageAlt } =
     (body ?? {}) as Record<string, unknown>;
 
   if (typeof title !== "string" || !title.trim()) {
@@ -123,6 +125,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const cover = resolveCoverImageInput(imageUrl);
+  if (!cover.ok) {
+    return NextResponse.json(
+      { success: false, message: "That cover image is invalid or too large." },
+      { status: 400 }
+    );
+  }
+
+  const coverAlt = resolveCoverAltInput(imageAlt);
+  if (!coverAlt.ok) {
+    return NextResponse.json(
+      { success: false, message: "That image description is too long." },
+      { status: 400 }
+    );
+  }
+
   const existingClass = typeof id === "string" && id.trim() ? findClassById(id) : undefined;
   const now = new Date().toISOString();
 
@@ -149,6 +167,9 @@ export async function POST(request: NextRequest) {
       startTime: startTime.trim(),
       durationMins: durationResult.value,
       capacity: capacityResult.value,
+      // undefined = keep existing; null = remove; string = set.
+      imageUrl: cover.value === undefined ? existingClass.imageUrl ?? null : cover.value,
+      imageAlt: coverAlt.value === undefined ? existingClass.imageAlt ?? null : coverAlt.value,
       updatedAt: now,
     };
     saveClass(classRecord);
@@ -181,6 +202,8 @@ export async function POST(request: NextRequest) {
       startTime: startTime.trim(),
       durationMins: durationResult.value,
       capacity: capacityResult.value,
+      imageUrl: cover.value ?? null,
+      imageAlt: coverAlt.value ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -229,6 +252,8 @@ export async function POST(request: NextRequest) {
     endDate: endDateValue,
     skippedDates: [],
     isActive: true,
+    imageUrl: cover.value ?? null,
+    imageAlt: coverAlt.value ?? null,
     createdAt: now,
     updatedAt: now,
   };

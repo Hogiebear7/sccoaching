@@ -14,6 +14,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 const STAFF_USER = { id: "staff-1", email: "coach@example.com", role: "staff" as const };
+const COACH_USER = { id: "coach-1", email: "realcoach@example.com", role: "coach" as const };
 const MEMBER_USER = { id: "member-1", email: "member@example.com", role: "member" as const };
 
 async function callArchive(targetUserId: string, body: unknown, cookie?: string) {
@@ -33,7 +34,13 @@ describe("POST /api/staff/members/[userId]/archive", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindUserById.mockImplementation((id: string) =>
-      id === STAFF_USER.id ? STAFF_USER : id === MEMBER_USER.id ? MEMBER_USER : undefined
+      id === STAFF_USER.id
+        ? STAFF_USER
+        : id === COACH_USER.id
+          ? COACH_USER
+          : id === MEMBER_USER.id
+            ? MEMBER_USER
+            : undefined
     );
     mockSetUserArchived.mockReturnValue(true);
   });
@@ -43,6 +50,17 @@ describe("POST /api/staff/members/[userId]/archive", () => {
       MEMBER_USER.id,
       { archived: true },
       signSession({ userId: MEMBER_USER.id })
+    );
+
+    expect(res.status).toBe(403);
+    expect(mockSetUserArchived).not.toHaveBeenCalled();
+  });
+
+  it("forbids a COACH from archiving (account-security is admin+)", async () => {
+    const res = await callArchive(
+      MEMBER_USER.id,
+      { archived: true },
+      signSession({ userId: COACH_USER.id })
     );
 
     expect(res.status).toBe(403);

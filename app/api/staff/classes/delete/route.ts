@@ -17,7 +17,9 @@ import {
   saveSubscription,
 } from "@/lib/db";
 import { reversePassConsumption } from "@/lib/payments";
+import { sendClassCancelledEmail } from "@/lib/booking-emails";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 // Deletes an upcoming class and unwinds every reservation against it.
 // Each booked member gets their pass back in whichever pool paid for it:
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (user.role !== "staff") {
+  if (!can(user.role, "classes.manage")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage classes." },
       { status: 403 }
@@ -90,8 +92,10 @@ export async function POST(request: NextRequest) {
   for (const booking of bookings) {
     // The club cancelled, so the member always gets their credit back —
     // no cancellation-window rule applies. Reverse whichever pool paid.
+    let creditRestored = false;
     if (reversePassConsumption(booking.id, "Class cancelled by the club — pass returned")) {
       passesRestored += 1;
+      creditRestored = true;
     } else {
       const subscription = findSubscriptionByUserId(booking.userId);
 
@@ -102,17 +106,26 @@ export async function POST(request: NextRequest) {
           updatedAt: now,
         });
         passesRestored += 1;
+        creditRestored = true;
       }
     }
 
     deleteBooking(booking.id);
 
+    // Gym-initiated class-cancellation email to this affected member — non-
+    // blocking, gated on the member's email prefs, credit claim only if true.
+    sendClassCancelledEmail(booking.userId, classRecord, creditRestored);
+
     createNotification({
       id: randomUUID(),
       userId: booking.userId,
       type: "cancellation",
+      // Match the email's conditional credit accuracy: only claim a returned
+      // pass when this member's credit was actually restored, otherwise neutral.
+      body:
+        `${classRecord.title} on ${classRecord.date} at ${classRecord.startTime} has been cancelled by the club.` +
+        (creditRestored ? " Your class pass has been returned." : ""),
       title: "Class cancelled",
-      body: `${classRecord.title} on ${classRecord.date} at ${classRecord.startTime} has been cancelled by the club. Your class pass has been returned.`,
       readAt: null,
       linkHref: "/dashboard/schedule",
       dedupeKey: `class-deleted:${classRecord.id}:${booking.userId}`,

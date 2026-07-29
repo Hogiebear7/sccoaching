@@ -14,6 +14,7 @@ import {
   type BookingRecord,
 } from "@/lib/db";
 import { hasActiveMembership } from "@/lib/membership";
+import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
@@ -209,6 +210,10 @@ export async function POST(request: NextRequest) {
   }
 
   saveWaitlistEntry({ ...entry, offerState: "accepted", resolvedAt: now });
+
+  // Accepting the offer created a confirmed booking → same confirmation email
+  // as a direct booking (fire-and-forget, gated inside the helper).
+  sendBookingConfirmationEmail(user.id, classRecord);
 
   return NextResponse.json({
     success: true,

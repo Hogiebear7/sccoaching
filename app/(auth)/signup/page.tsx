@@ -21,6 +21,7 @@ import {
 } from "@/lib/profile-options";
 import { BRAND_NAME } from "@/lib/content";
 import { PALETTE_OPTIONS, THEME_OPTIONS } from "@/lib/palettes";
+import { DietaryRequirementsFields } from "@/components/profile/DietaryRequirementsFields";
 
 type FormErrors = Partial<Record<keyof SignupFormValues, string>>;
 
@@ -568,6 +569,23 @@ export default function SignupPage() {
                       placeholder={ADDITIONAL_INFO_PLACEHOLDER}
                     />
                   </FormField>
+
+                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                    <p className="text-sm font-semibold text-zinc-100">Dietary requirements</p>
+                    <p className="mb-3 mt-1 text-xs text-zinc-500">
+                      Optional — powers your nutrition suggestions. You can change these any time.
+                    </p>
+                    <DietaryRequirementsFields
+                      idPrefix="signup-diet"
+                      values={{
+                        dietaryPreference: values.dietaryPreference,
+                        allergies: values.allergies,
+                        intolerancesOrMedical: values.intolerancesOrMedical,
+                        dietaryNotes: values.dietaryNotes,
+                      }}
+                      onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
+                    />
+                  </div>
 
                   <div>
                     <p className="mb-1 text-sm font-medium text-zinc-200">App theme</p>

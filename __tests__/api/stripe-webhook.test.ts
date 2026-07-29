@@ -6,10 +6,11 @@ const {
   mockFindPurchaseById,
   mockFindPurchaseByProviderPaymentRef,
   mockFindSubscriptionBySetupOrderId,
+  mockFindSubscriptionByPendingSetupOrderId,
   mockFindSubscriptionByUserIdX,
   mockFindSubscriptionByProviderOrderId,
-  mockFindClassPassProductById,
-  mockFindMembershipPlanById,
+  mockFindMembershipPackageById,
+  mockFindMembershipBillingOptionById,
   mockHasPaymentEvent,
   mockRecordPaymentEvent,
   mockSavePurchase,
@@ -21,10 +22,11 @@ const {
   mockFindPurchaseById: vi.fn(),
   mockFindPurchaseByProviderPaymentRef: vi.fn(),
   mockFindSubscriptionBySetupOrderId: vi.fn(),
+  mockFindSubscriptionByPendingSetupOrderId: vi.fn(),
   mockFindSubscriptionByUserIdX: vi.fn(),
   mockFindSubscriptionByProviderOrderId: vi.fn(),
-  mockFindClassPassProductById: vi.fn(),
-  mockFindMembershipPlanById: vi.fn(),
+  mockFindMembershipPackageById: vi.fn(),
+  mockFindMembershipBillingOptionById: vi.fn(),
   mockHasPaymentEvent: vi.fn(),
   mockRecordPaymentEvent: vi.fn(),
   mockSavePurchase: vi.fn(),
@@ -38,10 +40,11 @@ vi.mock("@/lib/db", () => ({
   findPurchaseById: mockFindPurchaseById,
   findPurchaseByProviderPaymentRef: mockFindPurchaseByProviderPaymentRef,
   findSubscriptionBySetupOrderId: mockFindSubscriptionBySetupOrderId,
+  findSubscriptionByPendingSetupOrderId: mockFindSubscriptionByPendingSetupOrderId,
   findSubscriptionByUserId: mockFindSubscriptionByUserIdX,
   findSubscriptionByProviderOrderId: mockFindSubscriptionByProviderOrderId,
-  findClassPassProductById: mockFindClassPassProductById,
-  findMembershipPlanById: mockFindMembershipPlanById,
+  findMembershipPackageById: mockFindMembershipPackageById,
+  findMembershipBillingOptionById: mockFindMembershipBillingOptionById,
   hasPaymentEvent: mockHasPaymentEvent,
   recordPaymentEvent: mockRecordPaymentEvent,
   savePurchase: mockSavePurchase,
@@ -79,17 +82,16 @@ const PURCHASE = {
 const PRODUCT = {
   id: "pack-10",
   name: "10 Pass Pack",
-  description: null,
-  passCount: 10,
-  priceCents: 12000,
-  isActive: true,
+  packageType: "pass" as const,
+  sessionAllowanceType: "fixed_count" as const,
+  sessionAllowanceCount: 10,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
 const SUBSCRIPTION = {
   userId: "user-2",
-  planId: "plan-1",
+  packageId: "pkg-1",
   status: "pending" as const,
   provider: "stripe" as const,
   providerCustomerId: null,
@@ -124,11 +126,12 @@ describe("stripe webhook", () => {
     mockFindPurchaseByProviderOrderId.mockReturnValue(PURCHASE);
     mockFindPurchaseById.mockReturnValue(undefined);
     mockFindPurchaseByProviderPaymentRef.mockReturnValue(undefined);
-    mockFindClassPassProductById.mockReturnValue(PRODUCT);
+    mockFindMembershipPackageById.mockReturnValue(PRODUCT);
     mockFindSubscriptionBySetupOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByPendingSetupOrderId.mockReturnValue(undefined);
+    mockFindMembershipBillingOptionById.mockReturnValue(undefined);
     mockFindSubscriptionByUserIdX.mockReturnValue(undefined);
     mockFindSubscriptionByProviderOrderId.mockReturnValue(undefined);
-    mockFindMembershipPlanById.mockReturnValue({ billingInterval: "monthly" });
     mockHasPaymentEvent.mockReturnValue(false);
     mockFindPassLedgerByPurchaseId.mockReturnValue([]);
   });
@@ -153,66 +156,42 @@ describe("stripe webhook", () => {
     expect(mockRecordPaymentEvent).toHaveBeenCalledWith(expect.objectContaining({ key: "evt_1" }));
   });
 
-  it("a paid intro-membership purchase activates a bounded non-renewing period", async () => {
+  it("a membership-kind purchase no longer activates anything (intro removed)", async () => {
     mockFindPurchaseByProviderOrderId.mockReturnValue({
       ...PURCHASE,
-      id: "pur-intro",
+      id: "pur-mem",
       kind: "membership" as const,
-      productId: "plan-intro",
-      providerOrderId: "cs_intro_1",
+      productId: "some-id",
+      providerOrderId: "cs_mem_1",
     });
-    mockFindMembershipPlanById.mockReturnValue({
-      id: "plan-intro",
-      isIntro: true,
-      introDurationDays: 42,
-      billingInterval: "monthly",
-    });
-    mockFindSubscriptionByUserIdX.mockReturnValue(undefined);
 
-    const before = Date.now();
     const res = await postEvent({
-      id: "evt_intro_1",
+      id: "evt_mem_1",
       type: "checkout.session.completed",
-      object: { id: "cs_intro_1", mode: "payment", payment_status: "paid", payment_intent: "pi_9", customer: "cus_9" },
+      object: { id: "cs_mem_1", mode: "payment", payment_status: "paid", payment_intent: "pi_9" },
     });
 
     expect(res.status).toBe(200);
-    // Purchase marked paid with the payment ref…
+    // The purchase still transitions to paid, but no subscription is activated.
     expect(mockSavePurchase.mock.calls[0][0].status).toBe("paid");
-    expect(mockSavePurchase.mock.calls[1][0].providerPaymentRef).toBe("pi_9");
-    // …no passes credited…
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
     expect(mockAppendPassLedgerEntry).not.toHaveBeenCalled();
-    // …and the membership activates for exactly the intro window, with no
-    // recurring subscription id that anything could ever renew.
-    const sub = mockSaveSubscription.mock.calls[0][0];
-    expect(sub).toMatchObject({
-      userId: "user-1",
-      planId: "plan-intro",
-      status: "active",
-      provider: "stripe",
-      providerSubscriptionId: null,
-      providerCustomerId: "cus_9",
-      sessionsUsedThisPeriod: 0,
-    });
-    const days = (new Date(sub.currentPeriodEnd).getTime() - before) / 86_400_000;
-    expect(days).toBeGreaterThan(41.9);
-    expect(days).toBeLessThan(42.1);
   });
 
-  it("replayed intro completion applies nothing (state machine)", async () => {
+  it("replayed membership-kind completion applies nothing (state machine)", async () => {
     mockFindPurchaseByProviderOrderId.mockReturnValue({
       ...PURCHASE,
-      id: "pur-intro",
+      id: "pur-mem",
       kind: "membership" as const,
-      productId: "plan-intro",
-      providerOrderId: "cs_intro_1",
+      productId: "some-id",
+      providerOrderId: "cs_mem_1",
       status: "paid" as const,
     });
 
     const res = await postEvent({
-      id: "evt_intro_2",
+      id: "evt_mem_2",
       type: "checkout.session.completed",
-      object: { id: "cs_intro_1", mode: "payment", payment_status: "paid" },
+      object: { id: "cs_mem_1", mode: "payment", payment_status: "paid" },
     });
 
     expect(res.status).toBe(200);
@@ -321,6 +300,96 @@ describe("stripe webhook", () => {
       sessionsUsedThisPeriod: 0,
       extraSessionGrants: [],
     });
+    expect(saved.currentPeriodEnd).toBeTruthy();
+  });
+
+  it("confirmed switch promotes the pending option, starts a fresh period, and cancels the old sub", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    // The switch is found FIRST by its pending setup-order id — the active
+    // membership was never clobbered, only the pending* fields were staged.
+    mockFindSubscriptionByPendingSetupOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      planId: null,
+      packageId: "pkg-old",
+      billingOptionId: "opt-old",
+      status: "active" as const,
+      providerSubscriptionId: "sub_old",
+      providerSetupOrderId: "cs_old",
+      pendingPackageId: "pkg-new",
+      pendingBillingOptionId: "opt-new",
+      pendingSetupOrderId: "cs_switch_1",
+      pendingStartedAt: "2026-07-20T00:00:00.000Z",
+    });
+    mockFindMembershipBillingOptionById.mockReturnValue({
+      id: "opt-new",
+      packageId: "pkg-new",
+      billingType: "recurring",
+      intervalUnit: "month",
+      intervalCount: 1,
+    });
+
+    const res = await postEvent({
+      id: "evt_switch_1",
+      type: "checkout.session.completed",
+      object: {
+        id: "cs_switch_1",
+        mode: "subscription",
+        payment_status: "paid",
+        subscription: "sub_new",
+        customer: "cus_456",
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const saved = mockSaveSubscription.mock.calls[0][0];
+    expect(saved).toMatchObject({
+      status: "active",
+      packageId: "pkg-new",
+      billingOptionId: "opt-new",
+      providerSubscriptionId: "sub_new",
+      // fresh period on the new option — no proration
+      sessionsUsedThisPeriod: 0,
+      extraSessionGrants: [],
+      // all pending fields cleared on promotion
+      pendingPackageId: null,
+      pendingBillingOptionId: null,
+      pendingSetupOrderId: null,
+      pendingStartedAt: null,
+    });
+    // The fresh-activation path must NOT also run for a switch.
+    expect(mockFindSubscriptionBySetupOrderId).not.toHaveBeenCalled();
+  });
+
+  it("a switch to a NEW stripe sub leaves the old sub id behind to be cancelled", async () => {
+    // Guards the double-billing fix: promotion points at the new sub, and the
+    // previous (different) sub id is captured so cancel can fire.
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByPendingSetupOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active" as const,
+      providerSubscriptionId: "sub_old",
+      pendingBillingOptionId: "opt-new",
+      pendingPackageId: "pkg-new",
+      pendingSetupOrderId: "cs_switch_2",
+      pendingStartedAt: "2026-07-20T00:00:00.000Z",
+    });
+    mockFindMembershipBillingOptionById.mockReturnValue({
+      id: "opt-new",
+      packageId: "pkg-new",
+      billingType: "recurring",
+      intervalUnit: "year",
+      intervalCount: 1,
+    });
+
+    const res = await postEvent({
+      id: "evt_switch_2",
+      type: "checkout.session.completed",
+      object: { id: "cs_switch_2", mode: "subscription", payment_status: "paid", subscription: "sub_new" },
+    });
+
+    expect(res.status).toBe(200);
+    const saved = mockSaveSubscription.mock.calls[0][0];
+    expect(saved.providerSubscriptionId).toBe("sub_new");
     expect(saved.currentPeriodEnd).toBeTruthy();
   });
 

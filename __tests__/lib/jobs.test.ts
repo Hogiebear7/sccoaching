@@ -97,6 +97,53 @@ describe("expireStaleCheckoutsJob", () => {
 
     expect(mockSaveSubscription).not.toHaveBeenCalled();
   });
+
+  it("clears an abandoned stale switch without touching the active membership", async () => {
+    mockFindAllSubscriptions.mockReturnValue([
+      pendingSubscription({
+        status: "active",
+        packageId: "pkg_old",
+        billingOptionId: "opt_old",
+        updatedAt: FRESH_UPDATED_AT,
+        pendingPackageId: "pkg_new",
+        pendingBillingOptionId: "opt_new",
+        pendingSetupOrderId: "cs_abandoned",
+        pendingStartedAt: STALE_UPDATED_AT,
+      }),
+    ]);
+    const { expireStaleCheckoutsJob } = await import("@/lib/jobs/expire-stale-checkouts");
+
+    const summary = await expireStaleCheckoutsJob.run();
+
+    expect(mockSaveSubscription).toHaveBeenCalledTimes(1);
+    const saved = mockSaveSubscription.mock.calls[0][0];
+    // Active membership untouched.
+    expect(saved.status).toBe("active");
+    expect(saved.billingOptionId).toBe("opt_old");
+    // Pending switch cleared.
+    expect(saved.pendingPackageId).toBeNull();
+    expect(saved.pendingBillingOptionId).toBeNull();
+    expect(saved.pendingSetupOrderId).toBeNull();
+    expect(saved.pendingStartedAt).toBeNull();
+    expect(summary).toMatch(/cleared 1 abandoned switch/i);
+  });
+
+  it("leaves a fresh in-flight switch alone", async () => {
+    mockFindAllSubscriptions.mockReturnValue([
+      pendingSubscription({
+        status: "active",
+        updatedAt: FRESH_UPDATED_AT,
+        pendingBillingOptionId: "opt_new",
+        pendingSetupOrderId: "cs_inflight",
+        pendingStartedAt: FRESH_UPDATED_AT,
+      }),
+    ]);
+    const { expireStaleCheckoutsJob } = await import("@/lib/jobs/expire-stale-checkouts");
+
+    await expireStaleCheckoutsJob.run();
+
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
 });
 
 function activeLapsedSubscription(overrides: Partial<Record<string, unknown>> = {}) {

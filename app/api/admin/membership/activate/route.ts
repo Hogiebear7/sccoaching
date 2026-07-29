@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
-  findMembershipPlanById,
+  findMembershipPackageById,
   findSubscriptionByUserId,
   findUserById,
   saveSubscription,
   type SubscriptionRecord,
 } from "@/lib/db";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   const staffUser = findUserById(sessionUserId);
 
-  if (!staffUser || staffUser.role !== "staff") {
+  if (!staffUser || !can(staffUser.role, "members.billing")) {
     return NextResponse.json(
       { success: false, message: "Only staff can activate memberships." },
       { status: 403 }
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { userId, planId, periodEndIso } = (body ?? {}) as Record<string, unknown>;
+  const { userId, packageId, periodEndIso } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof userId !== "string" || !userId.trim()) {
     return NextResponse.json(
@@ -48,9 +49,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (typeof planId !== "string" || !planId.trim()) {
+  if (typeof packageId !== "string" || !packageId.trim()) {
     return NextResponse.json(
-      { success: false, message: "planId is required." },
+      { success: false, message: "packageId is required." },
       { status: 400 }
     );
   }
@@ -71,11 +72,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const plan = findMembershipPlanById(planId.trim());
+  const pkg = findMembershipPackageById(packageId.trim());
 
-  if (!plan || !plan.isActive) {
+  if (!pkg || !pkg.visible) {
     return NextResponse.json(
-      { success: false, message: "This plan does not exist or is not active." },
+      { success: false, message: "This package does not exist or is not available." },
       { status: 404 }
     );
   }
@@ -98,7 +99,8 @@ export async function POST(request: NextRequest) {
 
   const subscription: SubscriptionRecord = {
     userId: member.id,
-    planId: plan.id,
+    packageId: pkg.id,
+    billingOptionId: null,
     status: "active",
     provider: "none",
     providerCustomerId: existing?.providerCustomerId ?? null,
@@ -122,7 +124,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(
     {
       success: true,
-      message: `${member.email} activated on ${plan.name}${periodNote}. Session count reset to 0.`,
+      message: `${member.email} activated on ${pkg.name}${periodNote}. Session count reset to 0.`,
     },
     { status: 200 }
   );

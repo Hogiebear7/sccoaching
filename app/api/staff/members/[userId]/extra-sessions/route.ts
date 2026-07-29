@@ -10,6 +10,7 @@ import {
 } from "@/lib/db";
 import { remainingSessions } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 // Deliberate cap — extra passes are goodwill/correction credits, not a way
 // to hand out a second allowance. Larger entitlements belong on the plan.
@@ -38,7 +39,7 @@ export async function POST(
     );
   }
 
-  if (staffUser.role !== "staff") {
+  if (!can(staffUser.role, "members.billing")) {
     return NextResponse.json(
       { success: false, message: "Only staff can add extra classes." },
       { status: 403 }

@@ -45,11 +45,14 @@ export function StaffMemberEditor({
   email,
   profile,
   initialNotes,
+  canManageAccount,
 }: {
   userId: string;
   email: string;
   profile: ProfileRecord;
   initialNotes: string;
+  /** Admin+ only: change the login email + reset the member's password. */
+  canManageAccount: boolean;
 }) {
   const router = useRouter();
 
@@ -213,7 +216,9 @@ export function StaffMemberEditor({
               type="email"
               value={values.email}
               onChange={(e) => handleTextChange("email", e)}
-              className={inputClass(errors.email)}
+              disabled={!canManageAccount}
+              title={canManageAccount ? undefined : "Only an admin can change a member's login email."}
+              className={`${inputClass(errors.email)} ${canManageAccount ? "" : "cursor-not-allowed opacity-60"}`}
               placeholder="member@example.com"
             />
           </FormField>
@@ -355,37 +360,41 @@ export function StaffMemberEditor({
         </div>
       </form>
 
-      {/* Account access */}
-      <div className="panel p-6">
-        <h3 className="text-lg font-semibold">Account access</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Create a password reset link for this member.
-        </p>
-
-        {resetError ? (
-          <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {resetError}
+      {/* Account access — password reset is an account-security action, so
+          it's admin+ only. The reset-password route enforces the same
+          members.account capability server-side. */}
+      {canManageAccount ? (
+        <div className="panel p-6">
+          <h3 className="text-lg font-semibold">Account access</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Create a password reset link for this member.
           </p>
-        ) : null}
 
-        {resetMessage ? (
-          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
-            <p>{resetMessage}</p>
-            {resetUrl ? (
-              <p className="mt-2 break-all font-mono text-xs text-primary/80">{resetUrl}</p>
-            ) : null}
-          </div>
-        ) : null}
+          {resetError ? (
+            <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {resetError}
+            </p>
+          ) : null}
 
-        <button
-          type="button"
-          onClick={handleResetPassword}
-          disabled={isResetting}
-          className="mt-4 rounded-xl border border-border px-5 py-2 text-sm font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isResetting ? "Creating link…" : "Send password reset"}
-        </button>
-      </div>
+          {resetMessage ? (
+            <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+              <p>{resetMessage}</p>
+              {resetUrl ? (
+                <p className="mt-2 break-all font-mono text-xs text-primary/80">{resetUrl}</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={handleResetPassword}
+            disabled={isResetting}
+            className="mt-4 rounded-xl border border-border px-5 py-2 text-sm font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isResetting ? "Creating link…" : "Send password reset"}
+          </button>
+        </div>
+      ) : null}
 
       {/* Coach notes */}
       <div className="panel p-6">

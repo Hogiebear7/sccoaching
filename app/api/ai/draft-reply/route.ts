@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findMessagesByMemberId, findUserById } from "@/lib/db";
 import { draftReply, isAiConfigured } from "@/lib/ai";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (staffUser.role !== "staff") {
+  if (!can(staffUser.role, "members.coaching")) {
     return NextResponse.json(
       { success: false, message: "Only staff can draft replies." },
       { status: 403 }

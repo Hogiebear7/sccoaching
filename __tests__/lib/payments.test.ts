@@ -2,14 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockAppendPassLedgerEntry,
-  mockFindClassPassProductById,
   mockFindPassLedgerByBookingId,
   mockFindPassLedgerByPurchaseId,
   mockFindPassLedgerByUserId,
   mockSavePurchase,
 } = vi.hoisted(() => ({
   mockAppendPassLedgerEntry: vi.fn(),
-  mockFindClassPassProductById: vi.fn(),
   mockFindPassLedgerByBookingId: vi.fn(),
   mockFindPassLedgerByPurchaseId: vi.fn(),
   mockFindPassLedgerByUserId: vi.fn(),
@@ -18,7 +16,6 @@ const {
 
 vi.mock("@/lib/db", () => ({
   appendPassLedgerEntry: mockAppendPassLedgerEntry,
-  findClassPassProductById: mockFindClassPassProductById,
   findPassLedgerByBookingId: mockFindPassLedgerByBookingId,
   findPassLedgerByPurchaseId: mockFindPassLedgerByPurchaseId,
   findPassLedgerByUserId: mockFindPassLedgerByUserId,
@@ -28,7 +25,6 @@ vi.mock("@/lib/db", () => ({
 import {
   applyPaidPassPurchase,
   applyRefundedPassPurchase,
-  buildPassPackPurchase,
   canTransitionPurchase,
   consumePurchasedPass,
   purchasedPassBalance,
@@ -157,36 +153,6 @@ describe("purchasedPassBalance", () => {
 
     mockFindPassLedgerByUserId.mockReturnValue([{ id: "led-1", userId: "user-1", delta: 10, reason: "purchase", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-01T00:00:00.000Z" }, { id: "led-r2", userId: "user-1", delta: -10, reason: "refund_reversal", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-02T02:00:00.000Z" }, { id: "led-c3", userId: "user-1", delta: -1, reason: "consume", purchaseId: null, bookingId: "bk-3", note: null, createdAt: "2026-01-03T01:00:00.000Z" }, { id: "led-c4", userId: "user-1", delta: -1, reason: "consume", purchaseId: null, bookingId: "bk-4", note: null, createdAt: "2026-01-04T01:00:00.000Z" }]);
     expect(purchasedPassBalance("user-1")).toBe(-2);
-  });
-});
-
-describe("buildPassPackPurchase", () => {
-  it("creates a pending purchase bound to member, product, and key", () => {
-    const purchase = buildPassPackPurchase({
-      userId: "user-9",
-      product: {
-        id: "pack-5",
-        name: "5 Pass Pack",
-        description: null,
-        passCount: 5,
-        priceCents: 6500,
-        isActive: true,
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      },
-      idempotencyKey: "user-9:pack-5",
-      provider: "stripe",
-    });
-    expect(purchase).toMatchObject({
-      userId: "user-9",
-      kind: "pass_pack",
-      productId: "pack-5",
-      amountCents: 6500,
-      status: "pending",
-      providerOrderId: null,
-      idempotencyKey: "user-9:pack-5",
-      provider: "stripe",
-    });
   });
 });
 

@@ -35,6 +35,10 @@ const {
 
 vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
+  // Class-cancelled email helper reads the member profile; undefined here makes
+  // the fire-and-forget email a no-op (these tests assert deletion/pass logic).
+  findProfileByUserId: vi.fn(),
+  isTransactionalEmailEnabled: vi.fn(() => true),
   findClassById: mockFindClassById,
   findBookingsByClassId: mockFindBookingsByClassId,
   deleteBooking: mockDeleteBooking,
@@ -223,5 +227,29 @@ describe("POST /api/staff/classes/delete", () => {
     // Only this class's waitlist entries are purged.
     expect(mockDeleteWaitlistEntry).toHaveBeenCalledTimes(1);
     expect(mockDeleteWaitlistEntry).toHaveBeenCalledWith("wl-1");
+  });
+
+  it("claims the pass was returned only when the credit was actually restored", async () => {
+    mockFindBookingsByClassId.mockReturnValue([BOOKING_A]);
+    mockReversePassConsumption.mockReturnValue(true); // credit genuinely restored
+
+    await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+
+    const body = mockCreateNotification.mock.calls[0][0].body;
+    expect(body).toContain("has been cancelled by the club.");
+    expect(body).toContain("Your class pass has been returned.");
+  });
+
+  it("stays neutral in-app when no credit was restored (no false credit claim)", async () => {
+    mockFindBookingsByClassId.mockReturnValue([BOOKING_A]);
+    mockReversePassConsumption.mockReturnValue(false);
+    mockFindSubscriptionByUserId.mockReturnValue(undefined); // nothing to refund
+
+    await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+
+    const body = mockCreateNotification.mock.calls[0][0].body;
+    expect(body).toContain("has been cancelled by the club.");
+    expect(body).not.toContain("returned");
+    expect(body).not.toContain("class pass");
   });
 });

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { findProfileByUserId, findUnreadNotificationCount, findUserById } from "@/lib/db";
+import { isStaffRole } from "@/lib/permissions";
 import { verifySession } from "@/lib/session";
 import { PushServiceWorkerRegister } from "@/components/PushServiceWorkerRegister";
 import { NavLink } from "./nav-link";
@@ -63,10 +64,15 @@ export default async function DashboardLayout({
     .toUpperCase();
 
   const avatarUrl = profile?.avatarDataUrl ?? null;
-  // Accent palette + whole-app theme presets — omitted entirely for the
-  // defaults so the base :root tokens apply untouched.
-  const palette = profile?.palette && profile.palette !== "teal" ? profile.palette : undefined;
-  const theme = profile?.theme && profile.theme !== "midnight" ? profile.theme : undefined;
+  // Member-facing default is the athletic electric-lime / onyx look. The old
+  // auto-assigned defaults ("teal"/"midnight") weren't deliberate member
+  // choices, so they resolve to the new default too; any explicit non-default
+  // pick (ocean, violet, forest, …) is honoured. Staff surfaces don't set
+  // these attributes at all, so they keep the :root teal.
+  const palette =
+    profile?.palette && profile.palette !== "teal" ? profile.palette : "electric";
+  const theme =
+    profile?.theme && profile.theme !== "midnight" ? profile.theme : "onyx";
 
   return (
     <div className="min-h-screen text-foreground" data-palette={palette} data-theme={theme}>
@@ -181,7 +187,7 @@ export default async function DashboardLayout({
                   </svg>
                 </Link>
 
-                {user?.role === "staff" ? (
+                {isStaffRole(user?.role) ? (
                   <Link
                     href="/staff/classes"
                     className="hidden rounded-lg border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100 sm:block"

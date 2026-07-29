@@ -11,6 +11,7 @@ import {
   type ExerciseSection,
 } from "@/lib/db";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 const VALID_SECTIONS: ExerciseSection[] = ["upper_push", "upper_pull", "lower_push", "lower_pull", "core", "cardio"];
 
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   const staffUser = findUserById(sessionUserId);
 
-  if (!staffUser || staffUser.role !== "staff") {
+  if (!staffUser || !can(staffUser.role, "exercises.manage")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage exercises." },
       { status: 403 }

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockFindPurchaseByProviderOrderId,
-  mockFindClassPassProductById,
+  mockFindMembershipPackageById,
   mockFindSubscriptionByProviderOrderId,
   mockHasPaymentEvent,
   mockRecordPaymentEvent,
@@ -12,7 +12,7 @@ const {
   mockFindPassLedgerByPurchaseId,
 } = vi.hoisted(() => ({
   mockFindPurchaseByProviderOrderId: vi.fn(),
-  mockFindClassPassProductById: vi.fn(),
+  mockFindMembershipPackageById: vi.fn(),
   mockFindSubscriptionByProviderOrderId: vi.fn(),
   mockHasPaymentEvent: vi.fn(),
   mockRecordPaymentEvent: vi.fn(),
@@ -23,9 +23,8 @@ const {
 
 vi.mock("@/lib/db", () => ({
   findPurchaseByProviderOrderId: mockFindPurchaseByProviderOrderId,
-  findClassPassProductById: mockFindClassPassProductById,
+  findMembershipPackageById: mockFindMembershipPackageById,
   findSubscriptionByProviderOrderId: mockFindSubscriptionByProviderOrderId,
-  findMembershipPlanById: vi.fn(),
   hasPaymentEvent: mockHasPaymentEvent,
   recordPaymentEvent: mockRecordPaymentEvent,
   savePurchase: mockSavePurchase,
@@ -64,10 +63,9 @@ const PURCHASE = {
 const PRODUCT = {
   id: "pack-10",
   name: "10 Pass Pack",
-  description: null,
-  passCount: 10,
-  priceCents: 12000,
-  isActive: true,
+  packageType: "pass" as const,
+  sessionAllowanceType: "fixed_count" as const,
+  sessionAllowanceCount: 10,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -90,7 +88,7 @@ describe("billing webhook — class pass purchases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindPurchaseByProviderOrderId.mockReturnValue(PURCHASE);
-    mockFindClassPassProductById.mockReturnValue(PRODUCT);
+    mockFindMembershipPackageById.mockReturnValue(PRODUCT);
     mockFindSubscriptionByProviderOrderId.mockReturnValue(undefined);
     mockHasPaymentEvent.mockReturnValue(false);
     mockFindPassLedgerByPurchaseId.mockReturnValue([]);

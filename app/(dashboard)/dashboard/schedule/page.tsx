@@ -66,6 +66,8 @@ export default async function DashboardSchedulePage() {
           startTime: classRecord.startTime,
           durationMins: classRecord.durationMins,
           coachEmail: findUserById(classRecord.coachUserId)?.email ?? "Unknown coach",
+          imageUrl: classRecord.imageUrl ?? null,
+          imageAlt: classRecord.imageAlt ?? null,
           willRestoreSession: isCancellationEarly(classDateTime),
         },
       ];

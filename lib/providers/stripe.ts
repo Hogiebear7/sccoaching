@@ -172,3 +172,33 @@ export async function createStripeCatalogCheckout(input: {
     `${isSubscription ? "catsub" : "catbuy"}:${input.reference}`
   );
 }
+
+// Cancels a Stripe subscription immediately (DELETE /v1/subscriptions/{id}).
+// Used when a switch is confirmed, so the member's PREVIOUS subscription can't
+// keep billing alongside the new one. Best-effort by design: the caller has
+// already promoted the new membership, so a cancel failure must not undo that —
+// it's logged for staff to reconcile. Treats "already cancelled / not found"
+// as success (idempotent under webhook retries).
+export async function cancelStripeSubscription(
+  subscriptionId: string
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const secretKey = getSecretKey();
+  if (!secretKey) return { ok: false, message: "Stripe is not configured." };
+
+  try {
+    const res = await fetch(`${STRIPE_API_BASE}/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${secretKey}` },
+    });
+    if (res.ok) return { ok: true };
+    // Already gone (404) or already cancelled — nothing left to bill.
+    if (res.status === 404) return { ok: true };
+    const body = await res.text().catch(() => "");
+    if (body.includes("No such subscription") || body.includes("already been canceled")) {
+      return { ok: true };
+    }
+    return { ok: false, message: `Stripe cancel failed (${res.status}): ${body.slice(0, 200)}` };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Stripe cancel request failed." };
+  }
+}

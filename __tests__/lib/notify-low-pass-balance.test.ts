@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockFindMembers,
   mockFindSubscriptionByUserId,
-  mockFindMembershipPlanById,
+  mockResolveEntitlement,
   mockFindNotificationByDedupeKey,
   mockCreateNotification,
   mockFindPassLedgerByUserId,
@@ -12,7 +12,7 @@ const {
 } = vi.hoisted(() => ({
   mockFindMembers: vi.fn(),
   mockFindSubscriptionByUserId: vi.fn(),
-  mockFindMembershipPlanById: vi.fn(),
+  mockResolveEntitlement: vi.fn(),
   mockFindNotificationByDedupeKey: vi.fn(),
   mockCreateNotification: vi.fn(),
   mockFindPassLedgerByUserId: vi.fn(),
@@ -23,7 +23,6 @@ const {
 vi.mock("@/lib/db", () => ({
   findMembers: mockFindMembers,
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
-  findMembershipPlanById: mockFindMembershipPlanById,
   findNotificationByDedupeKey: mockFindNotificationByDedupeKey,
   createNotification: mockCreateNotification,
   findPassLedgerByUserId: mockFindPassLedgerByUserId,
@@ -31,9 +30,13 @@ vi.mock("@/lib/db", () => ({
   findPurchasesByUserId: vi.fn(() => []),
   findPassLedgerByPurchaseId: vi.fn(() => []),
   findPassLedgerByBookingId: vi.fn(() => []),
-  findClassPassProductById: vi.fn(),
   appendPassLedgerEntry: vi.fn(),
   savePurchase: vi.fn(),
+}));
+
+vi.mock("@/lib/membership-entitlement", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/membership-entitlement")>()),
+  resolveSubscriptionEntitlement: mockResolveEntitlement,
 }));
 
 vi.mock("@/lib/email", () => ({ sendEmail: mockSendEmail }));
@@ -76,7 +79,7 @@ describe("notify-low-pass-balance job", () => {
     vi.clearAllMocks();
     mockFindMembers.mockReturnValue([MEMBER]);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
-    mockFindMembershipPlanById.mockReturnValue(undefined);
+    mockResolveEntitlement.mockReturnValue(undefined);
     mockFindNotificationByDedupeKey.mockReturnValue(undefined);
     mockFindPassLedgerByUserId.mockReturnValue([]);
     mockFindProfileByUserId.mockReturnValue({
@@ -91,7 +94,7 @@ describe("notify-low-pass-balance job", () => {
       vi.clearAllMocks();
       mockFindMembers.mockReturnValue([MEMBER]);
       mockFindSubscriptionByUserId.mockReturnValue(activeSub(used));
-      mockFindMembershipPlanById.mockReturnValue(PLAN);
+      mockResolveEntitlement.mockReturnValue(PLAN);
       mockFindNotificationByDedupeKey.mockReturnValue(undefined);
       mockFindPassLedgerByUserId.mockReturnValue([]);
       mockFindProfileByUserId.mockReturnValue({
@@ -121,7 +124,7 @@ describe("notify-low-pass-balance job", () => {
   it("stays silent at 4+ remaining and at zero", async () => {
     for (const used of [4, 8]) {
       mockFindSubscriptionByUserId.mockReturnValue(activeSub(used));
-      mockFindMembershipPlanById.mockReturnValue(PLAN);
+      mockResolveEntitlement.mockReturnValue(PLAN);
       const summary = await notifyLowPassBalanceJob.run();
       expect(summary).toBe("No members with a low pass balance to warn.");
     }
@@ -130,7 +133,7 @@ describe("notify-low-pass-balance job", () => {
 
   it("never repeats a threshold within the same balance episode", async () => {
     mockFindSubscriptionByUserId.mockReturnValue(activeSub(6));
-    mockFindMembershipPlanById.mockReturnValue(PLAN);
+    mockResolveEntitlement.mockReturnValue(PLAN);
     mockFindNotificationByDedupeKey.mockReturnValue({ id: "already" });
 
     const summary = await notifyLowPassBalanceJob.run();
@@ -143,7 +146,7 @@ describe("notify-low-pass-balance job", () => {
   it("a new credit re-arms the thresholds (episode marker changes)", async () => {
     // First run-down: plan has 2 left, no pack history.
     mockFindSubscriptionByUserId.mockReturnValue(activeSub(6));
-    mockFindMembershipPlanById.mockReturnValue(PLAN);
+    mockResolveEntitlement.mockReturnValue(PLAN);
     mockFindPassLedgerByUserId.mockReturnValue([]);
 
     await notifyLowPassBalanceJob.run();
@@ -155,7 +158,7 @@ describe("notify-low-pass-balance job", () => {
     vi.clearAllMocks();
     mockFindMembers.mockReturnValue([MEMBER]);
     mockFindSubscriptionByUserId.mockReturnValue(activeSub(8)); // plan exhausted
-    mockFindMembershipPlanById.mockReturnValue(PLAN);
+    mockResolveEntitlement.mockReturnValue(PLAN);
     mockFindNotificationByDedupeKey.mockReturnValue(undefined);
     mockFindProfileByUserId.mockReturnValue({ email: "a@b.c", fullName: "Alex" });
     mockFindPassLedgerByUserId.mockReturnValue([
@@ -199,18 +202,18 @@ describe("notify-low-pass-balance job", () => {
   it("skips archived members and unlimited plans", async () => {
     mockFindMembers.mockReturnValue([{ ...MEMBER, archivedAt: "2026-07-01T00:00:00.000Z" }]);
     mockFindSubscriptionByUserId.mockReturnValue(activeSub(7));
-    mockFindMembershipPlanById.mockReturnValue(PLAN);
+    mockResolveEntitlement.mockReturnValue(PLAN);
     expect(await notifyLowPassBalanceJob.run()).toBe("No members with a low pass balance to warn.");
 
     mockFindMembers.mockReturnValue([MEMBER]);
-    mockFindMembershipPlanById.mockReturnValue({ monthlySessionAllowance: null });
+    mockResolveEntitlement.mockReturnValue({ monthlySessionAllowance: null });
     expect(await notifyLowPassBalanceJob.run()).toBe("No members with a low pass balance to warn.");
     expect(mockCreateNotification).not.toHaveBeenCalled();
   });
 
   it("respects the member's email opt-out but still notifies in-app", async () => {
     mockFindSubscriptionByUserId.mockReturnValue(activeSub(6));
-    mockFindMembershipPlanById.mockReturnValue(PLAN);
+    mockResolveEntitlement.mockReturnValue(PLAN);
     mockFindProfileByUserId.mockReturnValue({
       email: "alex@example.com",
       fullName: "Alex",

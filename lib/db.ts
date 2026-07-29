@@ -7,7 +7,9 @@ import type {
   CycleSettingsRecord,
   ProfileRecord,
   UserRecord,
+  UserRole,
 } from "@/lib/profile-schema";
+import { isStaffRole } from "@/lib/permissions";
 
 export type StoredUser = UserRecord & { passwordHash: string };
 
@@ -166,6 +168,13 @@ export interface ClassRecord {
       Occurrences stay ordinary classes — bookings, waitlists, attendance
       and deletion all work exactly as for one-off classes. */
   seriesId?: string | null;
+  /** Optional cover image — a small JPEG/PNG/WebP data URL (staff-uploaded) or
+      a built-in cover path (see lib/class-covers). Null/undefined → the
+      ClassImageSlot placeholder is used. */
+  imageUrl?: string | null;
+  /** Optional alt text for the cover. Null/blank = decorative (image ignored
+      by screen readers); a value = meaningful (used as the img alt). */
+  imageAlt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -192,6 +201,11 @@ export interface ClassSeriesRecord {
   skippedDates: string[];
   /** false = stopped: existing occurrences stay, nothing new generates. */
   isActive: boolean;
+  /** Optional cover image (data URL or built-in path) propagated to generated
+      occurrences. */
+  imageUrl?: string | null;
+  /** Optional cover alt text propagated to generated occurrences. */
+  imageAlt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -238,6 +252,11 @@ export interface CoachNoteRecord {
 
 export type BillingInterval = "monthly" | "quarterly" | "annual";
 
+// The internal, plan-shaped ENTITLEMENT view a subscription resolves to.
+// No longer a stored record — it is produced by membership-entitlement.ts
+// from a catalog package (+ billing option). The name is retained so the
+// deep entitlement engine (allowance math, booking consumption, waitlist,
+// renewal, member/staff views) reads one stable shape.
 export interface MembershipPlanRecord {
   id: string;
   name: string;
@@ -247,17 +266,9 @@ export interface MembershipPlanRecord {
   billingInterval: BillingInterval;
   // Sessions a member can book per billing period. null = unlimited.
   monthlySessionAllowance: number | null;
-  // Class categories a member on this plan is allowed to book. Empty means
-  // unrestricted (can book any category) — the create/edit form requires
-  // staff to explicitly pick at least one to ever persist a restricted
-  // plan, so "empty" only ever happens for legacy/unconfigured data.
+  // Class categories this entitlement is allowed to book. Empty means
+  // unrestricted (can book any category).
   allowedCategories: ClassCategory[];
-  /** Introductory plan: bought once per member as a ONE-OFF payment (no
-      Stripe subscription), active for introDurationDays, never renews.
-      The session allowance is the total for the whole intro period. */
-  isIntro?: boolean;
-  /** Length of the intro membership in days (e.g. 42 = 6 weeks). */
-  introDurationDays?: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -286,13 +297,24 @@ export interface ExtraSessionGrant {
 
 export interface SubscriptionRecord {
   userId: string;
-  /** Legacy MembershipPlanRecord link — still resolved for existing rows. */
-  planId: string | null;
-  /** Catalog package this subscription entitles (new storefront). When set,
-      entitlement is derived from the package (see membership-entitlement.ts). */
+  /** Catalog package this subscription entitles. Entitlement is derived from
+      the package (see membership-entitlement.ts). */
   packageId?: string | null;
   /** Catalog billing option that was purchased (recurring). */
   billingOptionId?: string | null;
+  /** In-flight switch to a different recurring option/package. Held here so
+      the member stays ACTIVE on their current membership (the fields above)
+      until the new payment is confirmed. On confirmation these promote to the
+      active fields and the previous provider subscription is cancelled — no
+      duplicate active subscription, no double billing, no proration. Cleared
+      when the switch completes or its checkout goes stale. */
+  pendingPackageId?: string | null;
+  pendingBillingOptionId?: string | null;
+  /** Stripe Checkout session id of the in-flight switch — the webhook finds
+      the switch by this. */
+  pendingSetupOrderId?: string | null;
+  /** When the switch checkout was started, for staleness/abandon cleanup. */
+  pendingStartedAt?: string | null;
   status: SubscriptionStatus;
   provider: BillingProvider;
   providerCustomerId: string | null;
@@ -337,22 +359,6 @@ export interface SubscriptionRecord {
 //  - PassLedgerEntryRecord is append-only. Balances are sums over entries;
 //    corrections are compensating entries, never mutations.
 
-export interface ClassPassProductRecord {
-  id: string;
-  name: string;
-  description: string | null;
-  /** Number of class passes credited on successful payment. */
-  passCount: number;
-  priceCents: number;
-  /** How long purchased passes stay usable, in days from purchase.
-      Null/undefined = passes never expire. Applied at credit time, so
-      changing this later never affects already-purchased passes. */
-  validityDays?: number | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // ── Membership catalog (Category → Package → Billing Option) ──────────
 // A three-level storefront that sits ON TOP of the entitlement engine:
 //  - Category groups packages for browsing (app-only concept).
@@ -392,6 +398,11 @@ export interface MembershipPackageRecord {
   visible: boolean;
   sortOrder: number;
   stripeProductId: string | null;
+  /** Optional cover image — a small data URL or a built-in cover path — shown
+      on the landing featured cards. Null/undefined → placeholder. */
+  imageUrl?: string | null;
+  /** Optional cover alt text. Null/blank = decorative; a value = meaningful. */
+  imageAlt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -425,7 +436,8 @@ export interface PurchaseRecord {
   id: string;
   userId: string;
   kind: PurchaseKind;
-  /** MembershipPlanRecord.id or ClassPassProductRecord.id. */
+  /** Catalog MembershipPackageRecord.id for one-time (pass/top-up) buys.
+      Historical trial rows may reference a now-removed legacy product id. */
   productId: string;
   /** Denormalized human label so audit rows survive product renames. */
   description: string;
@@ -559,6 +571,33 @@ export interface JobRunRecord {
   trigger: "cron" | "manual";
 }
 
+// Staff-controlled on/off switches for the OPTIONAL operational transactional
+// emails only. Billing-/account-critical emails (membership lapse, low pass
+// balance) and time-sensitive waitlist emails are deliberately NOT modelled
+// here — they must always send and are never gated by these toggles.
+export type TransactionalEmailType =
+  | "bookingConfirmation"
+  | "bookingCancellation"
+  | "classCancelled"
+  | "classReminder";
+
+export const TRANSACTIONAL_EMAIL_TYPES: TransactionalEmailType[] = [
+  "bookingConfirmation",
+  "bookingCancellation",
+  "classCancelled",
+  "classReminder",
+];
+
+export type TransactionalEmailSettings = Record<TransactionalEmailType, boolean>;
+
+// Defaults mirror current behaviour: every optional email is ON.
+export const DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS: TransactionalEmailSettings = {
+  bookingConfirmation: true,
+  bookingCancellation: true,
+  classCancelled: true,
+  classReminder: true,
+};
+
 interface Database {
   users: StoredUser[];
   profiles: ProfileRecord[];
@@ -578,12 +617,10 @@ interface Database {
   deletedCategoryLabels: Record<string, string>;
   bookings: BookingRecord[];
   coachNotes: CoachNoteRecord[];
-  membershipPlans: MembershipPlanRecord[];
   membershipCategories: MembershipCategoryRecord[];
   membershipPackages: MembershipPackageRecord[];
   membershipBillingOptions: MembershipBillingOptionRecord[];
   subscriptions: SubscriptionRecord[];
-  classPassProducts: ClassPassProductRecord[];
   purchases: PurchaseRecord[];
   paymentEvents: PaymentEventRecord[];
   passLedger: PassLedgerEntryRecord[];
@@ -595,6 +632,8 @@ interface Database {
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
   pushSubscriptions: PushSubscriptionRecord[];
+  // Optional-email toggles (singleton). Missing keys default to ON via readDb.
+  emailSettings: TransactionalEmailSettings;
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -633,12 +672,10 @@ function readDb(): Database {
       deletedCategoryLabels: {},
       bookings: [],
       coachNotes: [],
-      membershipPlans: [],
       membershipCategories: [],
       membershipPackages: [],
       membershipBillingOptions: [],
       subscriptions: [],
-      classPassProducts: [],
       purchases: [],
       paymentEvents: [],
       passLedger: [],
@@ -650,6 +687,7 @@ function readDb(): Database {
       cycleSettings: [],
       cyclePrivacyPreferences: [],
       pushSubscriptions: [],
+      emailSettings: { ...DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS },
     };
   }
 
@@ -657,7 +695,12 @@ function readDb(): Database {
   const parsed = JSON.parse(raw) as Partial<Database>;
 
   return {
-    users: (parsed.users ?? []).map((user) => ({ ...user, role: user.role ?? "member" })),
+    users: (parsed.users ?? []).map((user) => ({
+      ...user,
+      // Migrate the legacy single elevated role to the top of the new
+      // hierarchy so the existing account can manage staff. Members unchanged.
+      role: user.role === "staff" ? "admin_manager" : user.role ?? "member",
+    })),
     profiles: (parsed.profiles ?? []).map((p) => ({
       ...p,
       dateOfBirth: p.dateOfBirth ?? null,
@@ -669,6 +712,12 @@ function readDb(): Database {
       programmeEnabled: p.programmeEnabled ?? false,
       drinkSettings: p.drinkSettings ?? null,
       drinkSettingsUpdatedAt: p.drinkSettingsUpdatedAt ?? null,
+      // Dietary requirements — default to a safe, unrestricted baseline for
+      // members created before these fields existed.
+      dietaryPreference: p.dietaryPreference ?? "standard",
+      allergies: p.allergies ?? [],
+      intolerancesOrMedical: p.intolerancesOrMedical ?? [],
+      dietaryNotes: p.dietaryNotes ?? null,
     })),
     resetTokens: parsed.resetTokens ?? [],
     programmes: parsed.programmes ?? [],
@@ -680,7 +729,7 @@ function readDb(): Database {
     exercises: parsed.exercises ?? [],
     aiMessages: parsed.aiMessages ?? [],
     bodyWeightLogs: parsed.bodyWeightLogs ?? [],
-    classes: (parsed.classes ?? []).map((c) => ({ ...c, category: c.category ?? "general" })),
+    classes: (parsed.classes ?? []).map((c) => ({ ...c, category: c.category ?? "general", imageUrl: c.imageUrl ?? null, imageAlt: c.imageAlt ?? null })),
     classSeries: parsed.classSeries ?? [],
     classWorkouts: parsed.classWorkouts ?? [],
     // Seed built-in categories if the DB predates this field.
@@ -692,15 +741,12 @@ function readDb(): Database {
     deletedCategoryLabels: parsed.deletedCategoryLabels ?? {},
     bookings: parsed.bookings ?? [],
     coachNotes: parsed.coachNotes ?? [],
-    membershipPlans: (parsed.membershipPlans ?? []).map((plan) => ({
-      ...plan,
-      monthlySessionAllowance: plan.monthlySessionAllowance ?? null,
-      allowedCategories: plan.allowedCategories ?? [],
-    })),
     membershipCategories: parsed.membershipCategories ?? [],
     membershipPackages: (parsed.membershipPackages ?? []).map((pkg) => ({
       ...pkg,
       eligibleClassTypes: pkg.eligibleClassTypes ?? [],
+      imageUrl: pkg.imageUrl ?? null,
+      imageAlt: pkg.imageAlt ?? null,
     })),
     membershipBillingOptions: (parsed.membershipBillingOptions ?? []).map((o) => ({
       ...o,
@@ -713,7 +759,6 @@ function readDb(): Database {
       extraSessionGrants: s.extraSessionGrants ?? [],
       periodLapsedNotifiedAt: s.periodLapsedNotifiedAt ?? null,
     })),
-    classPassProducts: parsed.classPassProducts ?? [],
     purchases: (parsed.purchases ?? []).map((p) => ({
       ...p,
       providerPaymentRef: p.providerPaymentRef ?? null,
@@ -745,6 +790,8 @@ function readDb(): Database {
       ...s,
       userAgent: s.userAgent ?? null,
     })),
+    // Merge over defaults so any missing (or future) key stays ON.
+    emailSettings: { ...DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS, ...(parsed.emailSettings ?? {}) },
   };
 }
 
@@ -754,6 +801,23 @@ function writeDb(db: Database) {
   }
 
   writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
+}
+
+// ─── Transactional email toggles (staff-controlled, optional emails only) ──────
+
+export function getTransactionalEmailSettings(): TransactionalEmailSettings {
+  return readDb().emailSettings;
+}
+
+export function saveTransactionalEmailSettings(settings: TransactionalEmailSettings): void {
+  const db = readDb();
+  db.emailSettings = settings;
+  writeDb(db);
+}
+
+// True unless a staff member has explicitly switched this optional email off.
+export function isTransactionalEmailEnabled(type: TransactionalEmailType): boolean {
+  return readDb().emailSettings[type] !== false;
 }
 
 function hashToken(token: string): string {
@@ -770,16 +834,17 @@ export function findUserById(id: string): StoredUser | undefined {
   return db.users.find((user) => user.id === id);
 }
 
+// Any elevated (staff) user — coach, admin, or admin_manager.
 export function findStaffUsers(): StoredUser[] {
   const db = readDb();
-  return db.users.filter((user) => user.role === "staff");
+  return db.users.filter((user) => isStaffRole(user.role));
 }
 
 // Used as the attributed sender for system-generated messages that aren't
 // tied to a specific coach (e.g. a lapsed-membership notice from a job).
 export function findAnyStaffUser(): StoredUser | undefined {
   const db = readDb();
-  return db.users.find((user) => user.role === "staff");
+  return db.users.find((user) => isStaffRole(user.role));
 }
 
 export function findMembers(): StoredUser[] {
@@ -787,7 +852,29 @@ export function findMembers(): StoredUser[] {
   return db.users.filter((user) => user.role === "member");
 }
 
+// How many users currently hold a given role.
+export function countUsersByRole(role: UserRole): number {
+  return readDb().users.filter((user) => user.role === role).length;
+}
+
+// How many NON-archived users hold a given role — the guard behind "can't
+// remove/demote the last admin_manager" (an archived one can't sign in, so it
+// doesn't count as coverage).
+export function countActiveUsersByRole(role: UserRole): number {
+  return readDb().users.filter((user) => user.role === role && !user.archivedAt).length;
+}
+
 export function createUser(email: string, passwordHash: string): StoredUser {
+  return createUserWithRole(email, passwordHash, "member");
+}
+
+// Creates a user with an explicit role (elevated staff or member). Callers are
+// responsible for authorization + validation.
+export function createUserWithRole(
+  email: string,
+  passwordHash: string,
+  role: UserRole
+): StoredUser {
   const db = readDb();
   const now = new Date().toISOString();
 
@@ -795,7 +882,8 @@ export function createUser(email: string, passwordHash: string): StoredUser {
     id: randomUUID(),
     email,
     passwordHash,
-    role: "member",
+    role,
+    archivedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -804,6 +892,18 @@ export function createUser(email: string, passwordHash: string): StoredUser {
   writeDb(db);
 
   return user;
+}
+
+// Changes a user's role. Returns false if the user doesn't exist. Authorization
+// and last-admin_manager safety live in the route, not here.
+export function updateUserRole(userId: string, role: UserRole): boolean {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return false;
+  user.role = role;
+  user.updatedAt = new Date().toISOString();
+  writeDb(db);
+  return true;
 }
 
 // Soft-deactivation toggle. Archived accounts can't sign in; nothing else is
@@ -817,6 +917,51 @@ export function setUserArchived(userId: string, archived: boolean): boolean {
   user.updatedAt = new Date().toISOString();
   writeDb(db);
   return true;
+}
+
+// Member-owned collections keyed by the member's user id. Kept as one list so
+// hard-delete (below) and the delete-non-staff script stay in sync about what
+// "owned by a member" means.
+const MEMBER_OWNED_COLLECTIONS = [
+  "profiles", "resetTokens", "programmes", "workoutSessions", "aiMessages",
+  "bodyWeightLogs", "bookings", "subscriptions", "recoveryLogs", "waitlistEntries",
+  "cycleSettings", "cyclePrivacyPreferences", "pushSubscriptions", "notifications",
+  "purchases", "passLedger", "coachNotes",
+] as const;
+
+// PERMANENT, irreversible deletion of a user and every record they own. This is
+// the hard delete behind archived-member cleanup — it removes the member's
+// subscription row (and pass ledger, purchases, etc.), which is what frees a
+// membership package/billing option to be deleted. Authorization + the
+// "archived member only" rule live in the route, not here. Returns per-table
+// counts of what was removed. Staff-owned/global data (classes, exercises,
+// catalog, categories, payment events) is untouched.
+export function deleteUserAndOwnedRecords(userId: string): Record<string, number> {
+  const db = readDb();
+  const summary: Record<string, number> = {};
+
+  const before = db.users.length;
+  db.users = db.users.filter((u) => u.id !== userId);
+  summary.users = before - db.users.length;
+
+  for (const key of MEMBER_OWNED_COLLECTIONS) {
+    const arr = db[key] as { userId: string }[];
+    const n = arr.filter((r) => r.userId === userId).length;
+    if (n > 0) {
+      (db[key] as { userId: string }[]) = arr.filter((r) => r.userId !== userId);
+      summary[key] = n;
+    }
+  }
+
+  // Message threads are keyed by the member (memberId); this removes the whole
+  // conversation, including any staff replies within it.
+  const msgBefore = db.messages.length;
+  db.messages = db.messages.filter((m) => m.memberId !== userId);
+  const msgRemoved = msgBefore - db.messages.length;
+  if (msgRemoved > 0) summary.messages = msgRemoved;
+
+  writeDb(db);
+  return summary;
 }
 
 export function updateUserPassword(userId: string, passwordHash: string) {
@@ -1030,6 +1175,18 @@ export function findDeletedCategoryLabels(): Record<string, string> {
   return db.deletedCategoryLabels;
 }
 
+// Reference counts behind a safe class-type delete. A class type is referenced
+// by its SLUG on classes (ClassRecord.category) and on packages
+// (MembershipPackageRecord.eligibleClassTypes) — deleting one that's still in
+// use would orphan those references, so the route blocks it.
+export function countClassesByCategorySlug(slug: string): number {
+  return readDb().classes.filter((c) => c.category === slug).length;
+}
+
+export function countPackagesByEligibleClassType(slug: string): number {
+  return readDb().membershipPackages.filter((p) => p.eligibleClassTypes.includes(slug)).length;
+}
+
 export function findBookingsByClassId(classId: string): BookingRecord[] {
   const db = readDb();
   return db.bookings.filter((booking) => booking.classId === classId);
@@ -1082,44 +1239,6 @@ export function saveCoachNote(note: CoachNoteRecord) {
     db.coachNotes[index] = note;
   }
 
-  writeDb(db);
-}
-
-export function findMembershipPlans(): MembershipPlanRecord[] {
-  const db = readDb();
-  return db.membershipPlans.sort((a, b) => a.priceCents - b.priceCents);
-}
-
-export function findMembershipPlanById(id: string): MembershipPlanRecord | undefined {
-  const db = readDb();
-  return db.membershipPlans.find((plan) => plan.id === id);
-}
-
-export function saveMembershipPlan(plan: MembershipPlanRecord) {
-  const db = readDb();
-  const index = db.membershipPlans.findIndex((p) => p.id === plan.id);
-
-  if (index === -1) {
-    db.membershipPlans.push(plan);
-  } else {
-    db.membershipPlans[index] = plan;
-  }
-
-  writeDb(db);
-}
-
-// How many member subscriptions (any status) reference this plan. Any
-// reference means the plan record is still load-bearing for display and
-// history, so it must be archived rather than deleted.
-export function countSubscriptionsByPlanId(planId: string): number {
-  const db = readDb();
-  return db.subscriptions.filter((subscription) => subscription.planId === planId).length;
-}
-
-// Physical deletion — only safe when countSubscriptionsByPlanId is 0.
-export function deleteMembershipPlan(id: string) {
-  const db = readDb();
-  db.membershipPlans = db.membershipPlans.filter((plan) => plan.id !== id);
   writeDb(db);
 }
 
@@ -1547,16 +1666,6 @@ export function deletePushSubscriptionByEndpoint(userId: string, endpoint: strin
   writeDb(db);
 }
 
-// ── Commerce helpers ───────────────────────────────────────────────────
-
-export function findClassPassProducts(): ClassPassProductRecord[] {
-  return readDb().classPassProducts;
-}
-
-export function findClassPassProductById(id: string): ClassPassProductRecord | undefined {
-  return readDb().classPassProducts.find((p) => p.id === id);
-}
-
 // ── Catalog helpers ───────────────────────────────────────────────────
 export function findMembershipCategories(): MembershipCategoryRecord[] {
   return readDb().membershipCategories.slice().sort((a, b) => a.sortOrder - b.sortOrder);
@@ -1649,26 +1758,11 @@ export function countSubscriptionsByPackageId(packageId: string): number {
   return readDb().subscriptions.filter((s) => s.packageId === packageId).length;
 }
 
-export function saveClassPassProduct(product: ClassPassProductRecord) {
-  const db = readDb();
-  const index = db.classPassProducts.findIndex((p) => p.id === product.id);
-  if (index === -1) db.classPassProducts.push(product);
-  else db.classPassProducts[index] = product;
-  writeDb(db);
-}
-
 // How many purchases (any status, incl. pending/failed) reference this
-// product. Any reference means the product's name/pricing is load-bearing
-// for purchase history, so it must be archived rather than deleted.
+// catalog package. Any reference means the package's name/pricing is
+// load-bearing for purchase history, so it must be hidden rather than deleted.
 export function countPurchasesByProductId(productId: string): number {
   return readDb().purchases.filter((p) => p.productId === productId).length;
-}
-
-// Physical deletion — only safe when countPurchasesByProductId is 0.
-export function deleteClassPassProduct(id: string) {
-  const db = readDb();
-  db.classPassProducts = db.classPassProducts.filter((p) => p.id !== id);
-  writeDb(db);
 }
 
 export function findPurchaseById(id: string): PurchaseRecord | undefined {
@@ -1737,4 +1831,12 @@ export function findSubscriptionBySetupOrderId(
   return readDb().subscriptions.find(
     (subscription) => subscription.providerSetupOrderId === setupOrderId
   );
+}
+
+// A subscription with an in-flight switch whose checkout session matches —
+// how the webhook promotes a confirmed switch onto the active membership.
+export function findSubscriptionByPendingSetupOrderId(
+  sessionId: string
+): SubscriptionRecord | undefined {
+  return readDb().subscriptions.find((subscription) => subscription.pendingSetupOrderId === sessionId);
 }

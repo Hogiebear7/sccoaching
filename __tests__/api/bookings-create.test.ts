@@ -9,8 +9,8 @@ const {
   mockFindBookingsByUserId,
   mockFindBookingsByClassId,
   mockCreateBooking,
-  mockFindMembershipPlans,
-  mockFindMembershipPlanById,
+  mockFindMembershipPackages,
+  mockResolveEntitlement,
   mockFindSubscriptionByUserId,
   mockSaveSubscription,
   mockFindWaitlistEntryByClassAndUser,
@@ -26,8 +26,8 @@ const {
   mockFindBookingsByUserId: vi.fn(),
   mockFindBookingsByClassId: vi.fn(),
   mockCreateBooking: vi.fn(),
-  mockFindMembershipPlans: vi.fn(),
-  mockFindMembershipPlanById: vi.fn(),
+  mockFindMembershipPackages: vi.fn(),
+  mockResolveEntitlement: vi.fn(),
   mockFindSubscriptionByUserId: vi.fn(),
   mockSaveSubscription: vi.fn(),
   mockFindWaitlistEntryByClassAndUser: vi.fn(),
@@ -41,12 +41,15 @@ const {
 
 vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
+  // Booking-confirmation email helper reads the member profile; undefined here
+  // makes the fire-and-forget email a no-op (these tests assert booking logic).
+  findProfileByUserId: vi.fn(),
+  isTransactionalEmailEnabled: vi.fn(() => true),
   findClassById: mockFindClassById,
   findBookingsByUserId: mockFindBookingsByUserId,
   findBookingsByClassId: mockFindBookingsByClassId,
   createBooking: mockCreateBooking,
-  findMembershipPlans: mockFindMembershipPlans,
-  findMembershipPlanById: mockFindMembershipPlanById,
+  findMembershipPackages: mockFindMembershipPackages,
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
   saveSubscription: mockSaveSubscription,
   findWaitlistEntryByClassAndUser: mockFindWaitlistEntryByClassAndUser,
@@ -57,8 +60,12 @@ vi.mock("@/lib/db", () => ({
   findPassLedgerByUserId: mockFindPassLedgerByUserId,
   findPassLedgerByBookingId: mockFindPassLedgerByBookingId,
   findPassLedgerByPurchaseId: vi.fn(() => []),
-  findClassPassProductById: vi.fn(),
   savePurchase: vi.fn(),
+}));
+
+vi.mock("@/lib/membership-entitlement", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/membership-entitlement")>()),
+  resolveSubscriptionEntitlement: mockResolveEntitlement,
 }));
 
 const MEMBER_USER = { id: "user-1", email: "athlete@example.com", role: "member" as const };
@@ -124,8 +131,8 @@ describe("POST /api/bookings/create", () => {
     mockFindBookingsByUserId.mockReset();
     mockFindBookingsByClassId.mockReset();
     mockCreateBooking.mockReset();
-    mockFindMembershipPlans.mockReset();
-    mockFindMembershipPlanById.mockReset();
+    mockFindMembershipPackages.mockReset();
+    mockResolveEntitlement.mockReset();
     mockFindSubscriptionByUserId.mockReset();
     mockSaveSubscription.mockReset();
     mockFindWaitlistEntryByClassAndUser.mockReset();
@@ -139,9 +146,9 @@ describe("POST /api/bookings/create", () => {
     mockFindPassLedgerByUserId.mockReturnValue([]);
     mockFindPassLedgerByBookingId.mockReturnValue([]);
     mockFindUserById.mockReturnValue(MEMBER_USER);
-    // No plans configured by default, so membership gating doesn't apply —
+    // No packages configured by default, so membership gating doesn't apply —
     // matches the pre-Block-B behavior for all the existing tests below.
-    mockFindMembershipPlans.mockReturnValue([]);
+    mockFindMembershipPackages.mockReturnValue([]);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
     mockFindWaitlistEntryByClassAndUser.mockReturnValue(undefined);
   });
@@ -245,8 +252,8 @@ describe("POST /api/bookings/create", () => {
   });
 
   it("blocks a member without an active subscription once plans exist", async () => {
-    mockFindMembershipPlans.mockReturnValue([
-      { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
+    mockFindMembershipPackages.mockReturnValue([
+      { id: "pkg-1", visible: true, packageType: "membership" },
     ]);
     mockFindSubscriptionByUserId.mockReturnValue({ status: "inactive" });
     const cookie = signSession({ userId: MEMBER_USER.id });
@@ -260,8 +267,8 @@ describe("POST /api/bookings/create", () => {
   });
 
   it("allows a member with an active subscription once plans exist", async () => {
-    mockFindMembershipPlans.mockReturnValue([
-      { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
+    mockFindMembershipPackages.mockReturnValue([
+      { id: "pkg-1", visible: true, packageType: "membership" },
     ]);
     mockFindSubscriptionByUserId.mockReturnValue({ status: "active" });
     mockFindClassById.mockReturnValue(SOME_CLASS);
@@ -277,8 +284,8 @@ describe("POST /api/bookings/create", () => {
 
   it("exempts staff from membership gating", async () => {
     mockFindUserById.mockReturnValue({ id: "staff-1", email: "coach@example.com", role: "staff" });
-    mockFindMembershipPlans.mockReturnValue([
-      { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
+    mockFindMembershipPackages.mockReturnValue([
+      { id: "pkg-1", visible: true, packageType: "membership" },
     ]);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
     mockFindClassById.mockReturnValue(SOME_CLASS);
@@ -293,11 +300,11 @@ describe("POST /api/bookings/create", () => {
   });
 
   it("blocks booking a class type the member's plan doesn't allow", async () => {
-    mockFindMembershipPlans.mockReturnValue([
-      { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
+    mockFindMembershipPackages.mockReturnValue([
+      { id: "pkg-1", visible: true, packageType: "membership" },
     ]);
     mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
-    mockFindMembershipPlanById.mockReturnValue({
+    mockResolveEntitlement.mockReturnValue({
       ...UNLIMITED_PLAN,
       allowedCategories: ["mother_and_baby"],
     });
@@ -315,11 +322,11 @@ describe("POST /api/bookings/create", () => {
   });
 
   it("covers an exhausted allowance with a purchased pass — ledger debit, counter untouched", async () => {
-    mockFindMembershipPlans.mockReturnValue([
-      { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
+    mockFindMembershipPackages.mockReturnValue([
+      { id: "pkg-1", visible: true, packageType: "membership" },
     ]);
     mockFindSubscriptionByUserId.mockReturnValue({ ...ACTIVE_SUBSCRIPTION, sessionsUsedThisPeriod: 8 });
-    mockFindMembershipPlanById.mockReturnValue({ ...UNLIMITED_PLAN, monthlySessionAllowance: 8 });
+    mockResolveEntitlement.mockReturnValue({ ...UNLIMITED_PLAN, monthlySessionAllowance: 8 });
     mockFindClassById.mockReturnValue(SOME_CLASS);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
@@ -348,11 +355,11 @@ describe("POST /api/bookings/create", () => {
   });
 
   it("blocks booking once the member has used their full session allowance", async () => {
-    mockFindMembershipPlans.mockReturnValue([
-      { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
+    mockFindMembershipPackages.mockReturnValue([
+      { id: "pkg-1", visible: true, packageType: "membership" },
     ]);
     mockFindSubscriptionByUserId.mockReturnValue({ ...ACTIVE_SUBSCRIPTION, sessionsUsedThisPeriod: 8 });
-    mockFindMembershipPlanById.mockReturnValue({ ...UNLIMITED_PLAN, monthlySessionAllowance: 8 });
+    mockResolveEntitlement.mockReturnValue({ ...UNLIMITED_PLAN, monthlySessionAllowance: 8 });
     mockFindClassById.mockReturnValue(SOME_CLASS);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
@@ -369,11 +376,11 @@ describe("POST /api/bookings/create", () => {
   });
 
   it("allows booking on an unlimited plan regardless of sessions used", async () => {
-    mockFindMembershipPlans.mockReturnValue([
-      { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
+    mockFindMembershipPackages.mockReturnValue([
+      { id: "pkg-1", visible: true, packageType: "membership" },
     ]);
     mockFindSubscriptionByUserId.mockReturnValue({ ...ACTIVE_SUBSCRIPTION, sessionsUsedThisPeriod: 999 });
-    mockFindMembershipPlanById.mockReturnValue(UNLIMITED_PLAN);
+    mockResolveEntitlement.mockReturnValue(UNLIMITED_PLAN);
     mockFindClassById.mockReturnValue(SOME_CLASS);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
@@ -386,11 +393,11 @@ describe("POST /api/bookings/create", () => {
   });
 
   it("consumes a session and clears a stale waitlist entry on successful booking", async () => {
-    mockFindMembershipPlans.mockReturnValue([
-      { id: "plan-1", isActive: true, priceCents: 4999, billingInterval: "monthly" },
+    mockFindMembershipPackages.mockReturnValue([
+      { id: "pkg-1", visible: true, packageType: "membership" },
     ]);
     mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
-    mockFindMembershipPlanById.mockReturnValue(UNLIMITED_PLAN);
+    mockResolveEntitlement.mockReturnValue(UNLIMITED_PLAN);
     mockFindClassById.mockReturnValue(SOME_CLASS);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);

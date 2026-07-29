@@ -247,6 +247,13 @@ export function CatalogBrowser({
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       {isCurrent ? "This is your active membership." : memberBillingHint(o)}
                     </p>
+                    {isSwitch ? (
+                      <p className="mt-1 text-[11px] text-primary/80">
+                        When your payment goes through, this becomes your membership and a new billing
+                        period starts. Your current membership stays active until then — and any time
+                        left on it isn&apos;t refunded or credited.
+                      </p>
+                    ) : null}
                   </div>
                   {isCurrent ? (
                     <span className="shrink-0 rounded-full border border-primary/30 px-4 py-2 text-sm font-medium text-primary">

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" preserveAspectRatio="xMidYMid slice" role="presentation" aria-hidden="true">
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1a17"/>
+      <stop offset="0.55" stop-color="#0b1210"/>
+      <stop offset="1" stop-color="#080d0b"/>
+    </linearGradient>
+    <radialGradient id="teal" cx="0.78" cy="0.05" r="0.75">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.20"/>
+      <stop offset="0.5" stop-color="#14b8a6" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#14b8a6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="400" fill="url(#base)"/>
+  <rect width="1600" height="400" fill="url(#teal)"/>
+
+  <!-- faint grid texture, right-biased so the left (greeting) stays clean -->
+  <g opacity="0.05" stroke="#ffffff" stroke-width="1">
+    <path d="M900 0V400 M1000 0V400 M1100 0V400 M1200 0V400 M1300 0V400 M1400 0V400 M1500 0V400"/>
+    <path d="M900 100H1600 M900 200H1600 M900 300H1600"/>
+  </g>
+
+  <!-- angular lime streaks on the right, echoing the class-image rails -->
+  <g transform="skewX(-18)">
+    <rect x="1250" y="-80" width="46" height="620" fill="#a3e635" opacity="0.16"/>
+    <rect x="1320" y="-80" width="14" height="620" fill="#a3e635" opacity="0.4"/>
+    <rect x="1360" y="-80" width="8" height="620" fill="#2dd4bf" opacity="0.22"/>
+  </g>
+
+  <!-- faint athletic line motif, far right, tolerant to vertical cropping -->
+  <g fill="none" stroke="#a3e635" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.10">
+    <path d="M1120 120 L1210 200 L1120 280"/>
+    <path d="M1250 120 L1340 200 L1250 280"/>
+  </g>
+</svg>

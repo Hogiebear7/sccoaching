@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 
 import { createMessage, createNotification, findProfileByUserId, findUserById, type MessageRecord, type NotificationRecord } from "@/lib/db";
 import { sendPush } from "@/lib/push";
+import { isStaffRole } from "@/lib/permissions";
 import { verifySession } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
   // request body. Staff must specify which member's thread they're replying to.
   let resolvedMemberId: string;
 
-  if (sender.role === "staff") {
+  if (isStaffRole(sender.role)) {
     if (typeof memberId !== "string" || !memberId.trim()) {
       return NextResponse.json(
         { success: false, message: "A member is required." },
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
     id: randomUUID(),
     memberId: resolvedMemberId,
     senderId: sender.id,
-    senderRole: sender.role === "staff" ? "staff" : "member",
+    senderRole: isStaffRole(sender.role) ? "staff" : "member",
     body: messageBody.trim(),
     readAt: null,
     createdAt: now,
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
 
   // Notify the recipient. Staff messages go to the member; member messages go
   // to staff inboxes (currently no per-staff notification — skip for now).
-  if (sender.role === "staff") {
+  if (isStaffRole(sender.role)) {
     const senderProfile = findProfileByUserId(sender.id);
     const senderName = senderProfile?.fullName?.trim() || null;
 

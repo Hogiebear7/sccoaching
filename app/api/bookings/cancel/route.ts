@@ -9,6 +9,7 @@ import {
   findUserById,
   saveSubscription,
 } from "@/lib/db";
+import { sendBookingCancellationEmail } from "@/lib/booking-emails";
 import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer, isCancellationEarly } from "@/lib/scheduling";
 import { verifySession } from "@/lib/session";
@@ -110,6 +111,10 @@ export async function POST(request: NextRequest) {
     } catch {
       // Offer failure must never block the cancellation response.
     }
+
+    // Successful cancellation of an existing class → cancellation email. Only
+    // claims restored credit when it actually applied (fire-and-forget, gated).
+    sendBookingCancellationEmail(user.id, classRecord, sessionRestored);
   }
 
   const message = sessionRestored

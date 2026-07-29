@@ -14,6 +14,7 @@ import {
 } from "@/lib/db";
 import { parseExerciseEntries } from "@/lib/workout-entries";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 // Staff record the workout for a class: a shared template (what the class
 // did) plus per-member performed results for CHECKED-IN members only —
@@ -35,7 +36,7 @@ export async function POST(
     );
   }
 
-  if (user.role !== "staff") {
+  if (!can(user.role, "classes.manage")) {
     return NextResponse.json(
       { success: false, message: "Only staff can record class workouts." },
       { status: 403 }

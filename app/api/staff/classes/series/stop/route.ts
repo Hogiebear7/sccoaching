@@ -12,6 +12,7 @@ import {
   saveClassSeries,
 } from "@/lib/db";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 // Stops a recurring series: nothing new is generated, and upcoming
 // occurrences nobody has booked are removed (their waitlists cleared).
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (user.role !== "staff") {
+  if (!can(user.role, "classes.manage")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage classes." },
       { status: 403 }

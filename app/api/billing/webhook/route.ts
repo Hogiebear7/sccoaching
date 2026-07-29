@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
-  findClassPassProductById,
+  findMembershipPackageById,
   findPurchaseByProviderOrderId,
   findSubscriptionByProviderOrderId,
   hasPaymentEvent,
@@ -116,14 +116,16 @@ export async function POST(request: NextRequest) {
     if (event === "ORDER_COMPLETED") {
       const paid = transitionPurchase(purchase, "paid");
       if (paid) {
-        const product = findClassPassProductById(purchase.productId);
-        // Product deleted since purchase? Credit from the denormalized
-        // record is impossible without a count — refuse silently never;
-        // fall back to the product row, which staff manage as append-only.
-        if (product) {
-          applyPaidPassPurchase(paid, product);
+        // productId is a catalog package (one-time class-pass / top-up).
+        const pkg = findMembershipPackageById(purchase.productId);
+        if (pkg) {
+          applyPaidPassPurchase(paid, {
+            passCount: pkg.sessionAllowanceCount ?? 1,
+            name: pkg.name,
+            validityDays: null,
+          });
         } else {
-          console.warn("[billing webhook] paid pass purchase has no product row", {
+          console.warn("[billing webhook] paid pass purchase has no package row", {
             purchaseId: purchase.id,
             productId: purchase.productId,
           });

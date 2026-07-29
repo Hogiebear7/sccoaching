@@ -72,7 +72,7 @@ export default async function DashboardMembershipPage({
       billingOptions={billingOptions}
       currentPackageId={currentPackageId}
       currentBillingOptionId={currentBillingOptionId}
-      currentPlanId={subscription?.packageId ?? subscription?.planId ?? null}
+      currentPlanId={subscription?.packageId ?? null}
       currentPlanName={currentPlan?.name ?? null}
       subscriptionStatus={subscription?.status ?? null}
       subscriptionUpdatedAt={subscription?.updatedAt ?? null}

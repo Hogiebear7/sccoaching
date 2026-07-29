@@ -29,6 +29,7 @@ import { verifySession } from "@/lib/session";
 import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
 import { CountUp } from "@/components/ui/CountUp";
 import { ReadinessRing } from "@/components/ui/ReadinessRing";
+import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
 
 function readinessStatus(score: number): string {
   if (score >= 80) return "Primed";
@@ -207,15 +208,24 @@ export default async function DashboardPage() {
   return (
     <section className="anim-rise space-y-8">
 
-      {/* Immersive header. The empty absolute layer below is the slot for
-          future gym imagery: drop a bg-cover image element (or bg-[url(…)])
-          into it and the scrim gradient keeps the greeting readable — no
-          layout change needed, content already sits on its own layer. */}
+      {/* Immersive header. The decorative image sits on its own aria-hidden
+          layer; the greeting sits above on a `relative` layer. The scrim stack
+          (bottom-up + left) keeps the greeting readable across desktop/mobile
+          crops and works for any drop-in image — swap the src for a real photo
+          and the safe-area still holds. Image is decorative only. */}
       <div className="relative -mx-4 -mt-8 overflow-hidden border-b border-white/[0.06] px-4 pb-7 pt-9 sm:-mx-6 sm:px-6">
         <div aria-hidden="true" className="absolute inset-0">
-          {/* Future header image goes here (absolute inset-0, bg-cover), plus
-              a bottom-up scrim (e.g. bg-gradient-to-t from-[--bg-0]) so the
-              greeting stays readable over photography. Empty for now. */}
+          {/* Decorative, on-brand banner — carries no information. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/dashboard-header.svg"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-right"
+          />
+          {/* Bottom-up scrim → blends the image into the page and protects the
+              greeting; left scrim → extra safe-area for the bottom-left text. */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/55 to-black/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-transparent" />
         </div>
         <div className="relative">
           <p className="chip label-caps w-fit border-teal-400/20 bg-teal-400/[0.07] !text-teal-300/90">{today}</p>
@@ -242,9 +252,22 @@ export default async function DashboardPage() {
         <div className="panel overflow-hidden">
           {nextBooking ? (
             <div className="flex items-stretch">
-              <div className="flex w-[88px] flex-shrink-0 flex-col items-center justify-center gap-0.5 border-r border-white/[0.08] bg-white/[0.03] py-6">
-                <span className="text-display text-[24px] leading-none tabular-nums">{nextBooking.startTime.split(":")[0]}</span>
-                <span className="text-[13px] leading-none text-zinc-500 tabular-nums">:{nextBooking.startTime.split(":")[1]}</span>
+              <div className="relative w-[88px] flex-shrink-0 overflow-hidden">
+                {/* Image rail — real class cover or on-brand placeholder */}
+                <ClassImageSlot
+                  seed={nextBooking.category || nextBooking.id}
+                  label={nextBooking.title}
+                  imageUrl={nextBooking.imageUrl}
+                  alt={nextBooking.imageAlt}
+                  className="absolute inset-0"
+                />
+                {/* Dedicated dark scrim so the time stays legible over any cover
+                    or placeholder, strongest at the bottom where the time sits */}
+                <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
+                <div className="relative flex h-full flex-col items-center justify-end gap-0.5 px-2 pb-3 pt-6">
+                  <span className="text-display text-[24px] leading-none tabular-nums text-white">{nextBooking.startTime.split(":")[0]}</span>
+                  <span className="text-[13px] leading-none tabular-nums text-white/75">:{nextBooking.startTime.split(":")[1]}</span>
+                </div>
               </div>
               <div className="min-w-0 flex-1 p-4">
                 <p className="text-display text-[17px] leading-tight">{nextBooking.title}</p>

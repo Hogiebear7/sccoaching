@@ -10,6 +10,7 @@ import {
   type ClassCategoryRecord,
 } from "@/lib/db";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 function slugify(name: string): string {
   return name
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   const staffUser = findUserById(sessionUserId);
 
-  if (!staffUser || staffUser.role !== "staff") {
+  if (!staffUser || !can(staffUser.role, "operations.view")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage categories." },
       { status: 403 }

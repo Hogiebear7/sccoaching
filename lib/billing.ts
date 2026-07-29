@@ -12,7 +12,6 @@
 
 import type {
   BillingProvider,
-  ClassPassProductRecord,
   MembershipBillingOptionRecord,
   MembershipPlanRecord,
 } from "./db";
@@ -24,6 +23,7 @@ import {
 } from "./providers/revolut";
 import { isRevolutWebhookConfigured } from "./providers/revolut-webhook";
 import {
+  cancelStripeSubscription,
   createStripeCatalogCheckout,
   createStripePassCheckout,
   createStripeSubscriptionCheckout,
@@ -215,23 +215,8 @@ export interface PassCheckoutResult {
   error: string | null;
 }
 
-// One-off checkout for a class pass pack. The internal purchase id doubles
-// as the provider idempotency key and the reconciliation reference.
-export async function createPassPackCheckout(input: {
-  member: { id: string; email: string };
-  product: ClassPassProductRecord;
-  purchaseId: string;
-}): Promise<PassCheckoutResult> {
-  return createOneOffCheckout({
-    member: input.member,
-    productName: `${input.product.name} (${input.product.passCount} class passes)`,
-    amountCents: input.product.priceCents,
-    purchaseId: input.purchaseId,
-  });
-}
-
-// Generic one-off (payment-mode) checkout used by pass packs and the
-// intro membership — anything webhook-confirmed through a PurchaseRecord.
+// Generic one-off (payment-mode) checkout — anything webhook-confirmed
+// through a PurchaseRecord.
 export async function createOneOffCheckout(input: {
   member: { id: string; email: string };
   productName: string;
@@ -324,6 +309,20 @@ export function resolveCheckoutLineItem(input: {
     );
   }
   return { mode, usedPriceId: false, lineItemParams: params };
+}
+
+// Cancels a member's previous provider subscription after a switch confirms.
+// Provider-neutral surface; only Stripe is implemented (the only provider with
+// live recurring subscriptions here). Manual ("none") subs have no external
+// subscription to cancel — the app record is simply replaced. Best-effort;
+// returns the error for logging without throwing.
+export async function cancelProviderSubscription(input: {
+  provider: BillingProvider;
+  providerSubscriptionId: string;
+}): Promise<{ ok: boolean; message: string | null }> {
+  if (input.provider !== "stripe") return { ok: true, message: null };
+  const result = await cancelStripeSubscription(input.providerSubscriptionId);
+  return result.ok ? { ok: true, message: null } : { ok: false, message: result.message };
 }
 
 export interface CatalogCheckoutResult {

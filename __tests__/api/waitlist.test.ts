@@ -8,8 +8,8 @@ const {
   mockFindClassById,
   mockFindBookingsByUserId,
   mockFindBookingsByClassId,
-  mockFindMembershipPlans,
-  mockFindMembershipPlanById,
+  mockFindMembershipPackages,
+  mockResolveEntitlement,
   mockFindSubscriptionByUserId,
   mockFindWaitlistEntryByClassAndUser,
   mockCreateWaitlistEntry,
@@ -22,8 +22,8 @@ const {
   mockFindClassById: vi.fn(),
   mockFindBookingsByUserId: vi.fn(),
   mockFindBookingsByClassId: vi.fn(),
-  mockFindMembershipPlans: vi.fn(),
-  mockFindMembershipPlanById: vi.fn(),
+  mockFindMembershipPackages: vi.fn(),
+  mockResolveEntitlement: vi.fn(),
   mockFindSubscriptionByUserId: vi.fn(),
   mockFindWaitlistEntryByClassAndUser: vi.fn(),
   mockCreateWaitlistEntry: vi.fn(),
@@ -38,14 +38,18 @@ vi.mock("@/lib/db", () => ({
   findClassById: mockFindClassById,
   findBookingsByUserId: mockFindBookingsByUserId,
   findBookingsByClassId: mockFindBookingsByClassId,
-  findMembershipPlans: mockFindMembershipPlans,
-  findMembershipPlanById: mockFindMembershipPlanById,
+  findMembershipPackages: mockFindMembershipPackages,
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
   findWaitlistEntryByClassAndUser: mockFindWaitlistEntryByClassAndUser,
   createWaitlistEntry: mockCreateWaitlistEntry,
   deleteWaitlistEntry: mockDeleteWaitlistEntry,
   findWaitlistEntriesByClassId: mockFindWaitlistEntriesByClassId,
   saveWaitlistEntry: mockSaveWaitlistEntry,
+}));
+
+vi.mock("@/lib/membership-entitlement", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/membership-entitlement")>()),
+  resolveSubscriptionEntitlement: mockResolveEntitlement,
 }));
 
 vi.mock("@/lib/scheduling", () => ({
@@ -93,15 +97,15 @@ describe("POST /api/bookings/waitlist/join", () => {
     mockFindClassById.mockReset();
     mockFindBookingsByUserId.mockReset();
     mockFindBookingsByClassId.mockReset();
-    mockFindMembershipPlans.mockReset();
-    mockFindMembershipPlanById.mockReset();
+    mockFindMembershipPackages.mockReset();
+    mockResolveEntitlement.mockReset();
     mockFindSubscriptionByUserId.mockReset();
     mockFindWaitlistEntryByClassAndUser.mockReset();
     mockCreateWaitlistEntry.mockReset();
     mockDeleteWaitlistEntry.mockReset();
 
     mockFindUserById.mockReturnValue(MEMBER_USER);
-    mockFindMembershipPlans.mockReturnValue([]);
+    mockFindMembershipPackages.mockReturnValue([]);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindWaitlistEntryByClassAndUser.mockReturnValue(undefined);
@@ -163,8 +167,8 @@ describe("POST /api/bookings/waitlist/join", () => {
   it("rejects joining when the member's plan doesn't cover the class category", async () => {
     mockFindClassById.mockReturnValue(FULL_CLASS);
     mockFindBookingsByClassId.mockReturnValue([{ id: "b1", classId: "class-1", userId: "other", attendedAt: null, createdAt: "now" }]);
-    mockFindSubscriptionByUserId.mockReturnValue({ planId: "plan-mb", status: "active" });
-    mockFindMembershipPlanById.mockReturnValue({ id: "plan-mb", name: "Mother & Baby", allowedCategories: ["mother_and_baby"] });
+    mockFindSubscriptionByUserId.mockReturnValue({ packageId: "pkg-mb", status: "active" });
+    mockResolveEntitlement.mockReturnValue({ id: "pkg-mb", name: "Mother & Baby", allowedCategories: ["mother_and_baby"] });
     const cookie = signSession({ userId: MEMBER_USER.id });
 
     const res = await callJoin({ classId: "class-1" }, cookie);

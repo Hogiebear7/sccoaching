@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, setUserArchived } from "@/lib/db";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 // Archive / restore a member account. Archiving blocks sign-in and hides the
 // account from the default staff list; every record (bookings, purchases,
@@ -22,7 +23,7 @@ export async function POST(
     );
   }
 
-  if (staffUser.role !== "staff") {
+  if (!can(staffUser.role, "members.account")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage members." },
       { status: 403 }

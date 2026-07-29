@@ -117,6 +117,23 @@
   --primary-hover:       oklch(0.79 0.16 54);
 }
 
+/* Electric — high-chroma athletic lime (the member-facing default). Because
+   lime is very light, this preset is the one palette that also re-points
+   --primary-foreground to a near-black so filled action buttons keep AA
+   contrast; every other preset keeps the shared white foreground. */
+[data-palette="electric"] {
+  --accent-primary:      oklch(0.86 0.2 128);
+  --accent-primary-weak: oklch(0.86 0.2 128 / 0.14);
+  --accent-grad-top:     oklch(0.9 0.2 126);
+  --accent-grad-bottom:  oklch(0.81 0.19 130);
+  --accent-border:       oklch(0.9 0.2 128 / 0.5);
+  --accent-glow:         oklch(0.86 0.22 128 / 0.6);
+  --primary:             oklch(0.86 0.2 128);
+  --primary-hover:       oklch(0.9 0.21 127);
+  --primary-foreground:  oklch(0.2 0.03 140);
+  --ring:                oklch(0.86 0.2 128);
+}
+
 /* ── Whole-app theme presets (lib/palettes.ts THEME_OPTIONS) ──────────
    A second, independent axis from the accent palette: re-tints the dark
    base — backgrounds, surfaces, atmosphere — at the SAME lightness steps
@@ -124,6 +141,7 @@
    block also paints its own atmosphere gradient because the body aurora
    sits outside the themed shell; the shell is min-h-screen so it covers.
    Alias vars resolve at declaration point, so both levels are set. */
+[data-theme="onyx"],
 [data-theme="graphite"],
 [data-theme="forest"],
 [data-theme="plum"] {
@@ -135,6 +153,24 @@
   --accent:     var(--surface-3);
   --gold-foreground: var(--bg-0);
   background-color: var(--bg-0);
+}
+
+/* Onyx — near-black athletic base with a faint lime aurora, pairing with the
+   electric accent for the reference "black + lime" look. Darker than the other
+   themes on purpose; the light-glass panels read as subtle graphite cards. */
+[data-theme="onyx"] {
+  --bg-0:      oklch(0.17 0.008 150);
+  --bg-1:      oklch(0.2 0.009 150);
+  --surface-1: oklch(0.26 0.01 150);
+  --surface-2: oklch(0.3 0.01 150);
+  --surface-3: oklch(0.35 0.01 150);
+  --input:     oklch(0.16 0.008 150 / 0.85);
+  --sidebar:   oklch(0.14 0.008 150);
+  background:
+    radial-gradient(55% 55% at 10% 6%, oklch(0.86 0.2 128 / 0.14), oklch(0 0 0 / 0) 60%) fixed,
+    radial-gradient(60% 65% at 96% 92%, oklch(0.86 0.2 128 / 0.1), oklch(0 0 0 / 0) 64%) fixed,
+    radial-gradient(40% 40% at 82% 10%, oklch(0.3 0.02 150 / 0.5), oklch(0 0 0 / 0) 66%) fixed,
+    linear-gradient(150deg, oklch(0.19 0.01 150) 0%, oklch(0.15 0.008 150) 55%, oklch(0.12 0.006 150) 100%) fixed;
 }
 
 [data-theme="graphite"] {
@@ -435,6 +471,15 @@ html {
   letter-spacing: -0.025em;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+/* Athletic condensed headline face (Oswald) for hero/marketing titles.
+   Tight, uppercase-friendly tracking — pair with tracking/leading utilities. */
+@utility text-condensed {
+  font-family: var(--font-oswald), var(--font-space-grotesk), system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
 }
 
 /* ─── Forms ─────────────────────────────────────────────────────────── */

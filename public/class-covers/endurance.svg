@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Endurance cover">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22331a"/>
+      <stop offset="0.6" stop-color="#151f10"/>
+      <stop offset="1" stop-color="#0e160a"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#g)"/>
+  <g transform="skewX(-18)">
+    <rect x="700" y="-60" width="30" height="580" fill="#a3e635" opacity="0.45"/>
+    <rect x="742" y="-60" width="10" height="580" fill="#a3e635" opacity="0.12"/>
+  </g>
+  <g fill="none" stroke="#a3e635" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" opacity="0.16">
+    <path d="M90 160 L170 225 L90 290"/>
+    <path d="M200 160 L280 225 L200 290"/>
+    <path d="M310 160 L390 225 L310 290"/>
+  </g>
+</svg>

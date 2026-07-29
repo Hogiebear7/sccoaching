@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById } from "@/lib/db";
 import { runAllJobs } from "@/lib/jobs/runner";
+import { can } from "@/lib/permissions";
 import { verifySession } from "@/lib/session";
 
 // Two ways to trigger a run:
@@ -30,7 +31,8 @@ function isAuthorizedStaffRequest(request: NextRequest): boolean {
   if (!userId) return false;
 
   const user = findUserById(userId);
-  return user?.role === "staff";
+  // Housekeeping is an operations action — admin and above (not coach).
+  return !!user && !user.archivedAt && can(user.role, "operations.view");
 }
 
 export async function GET(request: NextRequest) {

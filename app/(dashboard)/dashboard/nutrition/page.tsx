@@ -10,8 +10,19 @@ import {
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { computeRollingTrainingLoad, trainingLoadForLog } from "@/lib/recovery";
 import { exertionFromDayLoad, goalBiasFromPrimaryGoal, type Exertion } from "@/lib/nutrition";
+import { recommendFoods } from "@/lib/nutrition-recommendations";
+import {
+  ALLERGEN_OPTIONS,
+  DIETARY_PREFERENCE_OPTIONS,
+  INTOLERANCE_OPTIONS,
+} from "@/lib/profile-options";
 import { verifySession } from "@/lib/session";
 import { NutritionView } from "./NutritionView";
+
+// Friendly label for the "Excluding …" summary line.
+const DIET_LABEL = new Map<string, string>(
+  [...ALLERGEN_OPTIONS, ...INTOLERANCE_OPTIONS].map((o) => [o.value, o.label])
+);
 
 function isoDaysAgo(days: number): string {
   const d = new Date();
@@ -65,6 +76,24 @@ export default async function NutritionPage() {
 
   const lastSession = [...sessions].sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
 
+  // Dietary-aware food suggestions. Hard exclusions are applied in recommendFoods.
+  const foodRecommendations = recommendFoods({
+    dietaryPreference: profile.dietaryPreference,
+    allergies: profile.allergies,
+    intolerancesOrMedical: profile.intolerancesOrMedical,
+  });
+  const pref = profile.dietaryPreference ?? "standard";
+  const preferenceLabel =
+    pref === "standard"
+      ? "Balanced"
+      : DIETARY_PREFERENCE_OPTIONS.find((o) => o.value === pref)?.label ?? "Balanced";
+  const dietarySummary = {
+    preferenceLabel,
+    exclusions: [...(profile.allergies ?? []), ...(profile.intolerancesOrMedical ?? [])].map(
+      (k) => DIET_LABEL.get(k) ?? k
+    ),
+  };
+
   return (
     <NutritionView
       bodyWeightKg={resolveCurrentWeightKg(
@@ -81,6 +110,8 @@ export default async function NutritionPage() {
       lastSessionTitle={lastSession?.title ?? null}
       lastSessionDate={lastSession?.date ?? null}
       initialDrinkSettings={profile.drinkSettings ?? null}
+      foodRecommendations={foodRecommendations}
+      dietarySummary={dietarySummary}
     />
   );
 }

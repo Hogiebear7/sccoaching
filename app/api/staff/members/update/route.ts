@@ -15,6 +15,7 @@ import {
 } from "@/lib/profile-schema";
 import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
 const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (staffUser.role !== "staff") {
+  if (!can(staffUser.role, "members.edit")) {
     return NextResponse.json(
       { success: false, message: "Only staff can manage members." },
       { status: 403 }
@@ -146,6 +147,15 @@ export async function POST(request: NextRequest) {
   const trimmedEmail = newEmail.trim();
 
   if (trimmedEmail.toLowerCase() !== targetUser.email.toLowerCase()) {
+    // Changing the login email is an account-security action — admin+ only.
+    // A coach may still save every other (coaching) field on this form.
+    if (!can(staffUser.role, "members.account")) {
+      return NextResponse.json(
+        { success: false, message: "Only an admin can change a member's email address." },
+        { status: 403 }
+      );
+    }
+
     const emailUpdated = updateUserEmail(userId, trimmedEmail);
 
     if (!emailUpdated) {

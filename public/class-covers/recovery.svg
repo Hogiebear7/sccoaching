@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Recovery cover">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b302a"/>
+      <stop offset="0.6" stop-color="#111f1b"/>
+      <stop offset="1" stop-color="#0b1512"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#g)"/>
+  <g transform="skewX(-18)">
+    <rect x="700" y="-60" width="30" height="580" fill="#a3e635" opacity="0.45"/>
+    <rect x="742" y="-60" width="10" height="580" fill="#a3e635" opacity="0.12"/>
+  </g>
+  <path d="M240 300 C 150 300 130 210 210 180 C 200 250 300 230 300 160 C 360 210 330 300 240 300 Z" fill="#a3e635" opacity="0.16"/>
+</svg>

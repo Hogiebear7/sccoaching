@@ -3,17 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockFindMembershipPackageById,
   mockFindMembershipBillingOptionById,
-  mockFindMembershipPlanById,
 } = vi.hoisted(() => ({
   mockFindMembershipPackageById: vi.fn(),
   mockFindMembershipBillingOptionById: vi.fn(),
-  mockFindMembershipPlanById: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   findMembershipPackageById: mockFindMembershipPackageById,
   findMembershipBillingOptionById: mockFindMembershipBillingOptionById,
-  findMembershipPlanById: mockFindMembershipPlanById,
 }));
 
 import {
@@ -58,7 +55,6 @@ const OPTION = {
 function sub(overrides: Record<string, unknown> = {}) {
   return {
     userId: "u1",
-    planId: null,
     status: "active" as const,
     provider: "stripe" as const,
     providerCustomerId: null,
@@ -89,7 +85,6 @@ describe("resolveSubscriptionEntitlement", () => {
     vi.clearAllMocks();
     mockFindMembershipPackageById.mockReturnValue(PACKAGE);
     mockFindMembershipBillingOptionById.mockReturnValue(OPTION);
-    mockFindMembershipPlanById.mockReturnValue(undefined);
   });
 
   it("derives a plan-shaped entitlement from a package (unlimited → null allowance)", () => {
@@ -111,21 +106,12 @@ describe("resolveSubscriptionEntitlement", () => {
     expect(plan?.monthlySessionAllowance).toBe(12);
   });
 
-  it("falls back to the legacy plan when there is no package link", () => {
-    mockFindMembershipPlanById.mockReturnValue({ id: "legacy", name: "Legacy Plan", monthlySessionAllowance: 8 });
-    const plan = resolveSubscriptionEntitlement(sub({ planId: "legacy" }));
-    expect(plan?.name).toBe("Legacy Plan");
-    expect(mockFindMembershipPackageById).not.toHaveBeenCalled();
-  });
-
-  it("falls back to the legacy plan when the package vanished", () => {
+  it("returns undefined when the package vanished", () => {
     mockFindMembershipPackageById.mockReturnValue(undefined);
-    mockFindMembershipPlanById.mockReturnValue({ id: "legacy", name: "Legacy", monthlySessionAllowance: 4 });
-    const plan = resolveSubscriptionEntitlement(sub({ packageId: "gone", planId: "legacy" }));
-    expect(plan?.name).toBe("Legacy");
+    expect(resolveSubscriptionEntitlement(sub({ packageId: "gone" }))).toBeUndefined();
   });
 
-  it("returns undefined for no subscription / no links", () => {
+  it("returns undefined for no subscription / no package link", () => {
     expect(resolveSubscriptionEntitlement(undefined)).toBeUndefined();
     expect(resolveSubscriptionEntitlement(sub())).toBeUndefined();
   });

@@ -7,14 +7,18 @@ import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import {
   shouldShowSportPlayed,
+  type DietaryPreference,
   type Gender,
   type PrimaryGoal,
   type ProfileRecord,
 } from "@/lib/profile-schema";
 import type { BodyWeightLogRecord } from "@/lib/db";
+import type { MemberStatsData } from "@/lib/member-stats";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { latestWeightLog } from "@/lib/body-weight";
 import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
+import { DietaryRequirementsFields } from "@/components/profile/DietaryRequirementsFields";
+import { ProfileStatsCard } from "./ProfileStatsCard";
 
 const BW_W = 400;
 const BW_H = 140;
@@ -184,6 +188,10 @@ type ProfileFormValues = {
   primaryGoal: PrimaryGoal | "";
   sportPlayed: string;
   additionalInfo: string;
+  dietaryPreference: DietaryPreference | "";
+  allergies: string[];
+  intolerancesOrMedical: string[];
+  dietaryNotes: string;
 };
 
 type FormErrors = Partial<Record<keyof ProfileFormValues, string>>;
@@ -197,6 +205,10 @@ function toFormValues(profile: ProfileRecord): ProfileFormValues {
     primaryGoal: profile.primaryGoal,
     sportPlayed: profile.sportPlayed ?? "",
     additionalInfo: profile.additionalInfo ?? "",
+    dietaryPreference: profile.dietaryPreference ?? "standard",
+    allergies: profile.allergies ?? [],
+    intolerancesOrMedical: profile.intolerancesOrMedical ?? [],
+    dietaryNotes: profile.dietaryNotes ?? "",
   };
 }
 
@@ -204,10 +216,12 @@ export function ProfileForm({
   email,
   profile,
   bodyWeightLogs,
+  statsData,
 }: {
   email: string;
   profile: ProfileRecord;
   bodyWeightLogs: BodyWeightLogRecord[];
+  statsData: MemberStatsData;
 }) {
   const router = useRouter();
   const [values, setValues] = useState<ProfileFormValues>(() => toFormValues(profile));
@@ -336,6 +350,9 @@ export function ProfileForm({
     <section className="space-y-8">
 
       <PageHeader eyebrow="Account" title="Profile" subtitle={email} />
+
+      {/* Training summary — compact, range-filterable stats */}
+      <ProfileStatsCard data={statsData} />
 
       {/* Edit form */}
       <form
@@ -487,6 +504,23 @@ export function ProfileForm({
                 placeholder="Any other info, injuries, preferences, or context we should know"
               />
             </FormField>
+          </div>
+
+          <div className="md:col-span-2">
+            <p className="mb-1 text-sm font-semibold">Dietary requirements</p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Powers your nutrition suggestions. Allergies and intolerances are always excluded.
+            </p>
+            <DietaryRequirementsFields
+              idPrefix="profile-diet"
+              values={{
+                dietaryPreference: values.dietaryPreference,
+                allergies: values.allergies,
+                intolerancesOrMedical: values.intolerancesOrMedical,
+                dietaryNotes: values.dietaryNotes,
+              }}
+              onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
+            />
           </div>
         </div>
 

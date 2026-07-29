@@ -29,6 +29,10 @@ const {
 
 vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
+  // Booking-cancellation email helper reads the member profile; undefined here
+  // makes the fire-and-forget email a no-op (these tests assert cancel logic).
+  findProfileByUserId: vi.fn(),
+  isTransactionalEmailEnabled: vi.fn(() => true),
   findBookingById: mockFindBookingById,
   findClassById: mockFindClassById,
   deleteBooking: mockDeleteBooking,

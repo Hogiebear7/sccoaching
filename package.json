@@ -9,6 +9,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "seed": "node scripts/seed.js",
+    "create:staff": "node scripts/create-staff.mjs",
+    "delete:non-staff": "node scripts/delete-non-staff.mjs",
+    "smoke:switch": "node scripts/smoke-switch-lifecycle.mjs",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots"
   },

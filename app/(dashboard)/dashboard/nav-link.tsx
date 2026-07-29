@@ -7,9 +7,12 @@ import type { ReactNode } from "react";
 export function NavLink({
   href,
   children,
+  tag,
 }: {
   href: string;
   children: ReactNode;
+  /** Optional right-aligned badge. Opt-in — omit it and the link renders as before. */
+  tag?: { label: string; tone: "primary" | "legacy" };
 }) {
   const pathname = usePathname();
   const isActive = pathname === href;
@@ -23,7 +26,22 @@ export function NavLink({
           : "border-transparent text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
       }`}
     >
-      {children}
+      {tag ? (
+        <span className="flex items-center justify-between gap-2">
+          <span>{children}</span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              tag.tone === "primary"
+                ? "bg-blue-400/15 text-blue-300"
+                : "bg-zinc-800 text-zinc-500"
+            }`}
+          >
+            {tag.label}
+          </span>
+        </span>
+      ) : (
+        children
+      )}
     </Link>
   );
 }

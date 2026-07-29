@@ -73,6 +73,8 @@ export function generateOccurrencesForSeries(
       durationMins: series.durationMins,
       capacity: series.capacity,
       seriesId: series.id,
+      imageUrl: series.imageUrl ?? null,
+      imageAlt: series.imageAlt ?? null,
       createdAt: nowIso,
       updatedAt: nowIso,
     };

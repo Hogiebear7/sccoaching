@@ -7,7 +7,7 @@ const {
   mockFindWaitlistEntriesByClassId,
   mockFindUserById,
   mockFindSubscriptionByUserId,
-  mockFindMembershipPlanById,
+  mockResolveEntitlement,
   mockSaveWaitlistEntry,
   mockCreateNotification,
   mockHasActiveMembership,
@@ -18,7 +18,7 @@ const {
   mockFindWaitlistEntriesByClassId: vi.fn(),
   mockFindUserById: vi.fn(),
   mockFindSubscriptionByUserId: vi.fn(),
-  mockFindMembershipPlanById: vi.fn(),
+  mockResolveEntitlement: vi.fn(),
   mockSaveWaitlistEntry: vi.fn(),
   mockCreateNotification: vi.fn(),
   mockHasActiveMembership: vi.fn(),
@@ -30,7 +30,6 @@ vi.mock("@/lib/db", () => ({
   findPassLedgerByBookingId: vi.fn(() => []),
   findPassLedgerByPurchaseId: vi.fn(() => []),
   appendPassLedgerEntry: vi.fn(),
-  findClassPassProductById: vi.fn(),
   savePurchase: vi.fn(),
   findClassById: mockFindClassById,
   findBookingsByClassId: mockFindBookingsByClassId,
@@ -38,9 +37,13 @@ vi.mock("@/lib/db", () => ({
   findWaitlistEntriesByClassId: mockFindWaitlistEntriesByClassId,
   findUserById: mockFindUserById,
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
-  findMembershipPlanById: mockFindMembershipPlanById,
   saveWaitlistEntry: mockSaveWaitlistEntry,
   createNotification: mockCreateNotification,
+}));
+
+vi.mock("@/lib/membership-entitlement", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/membership-entitlement")>()),
+  resolveSubscriptionEntitlement: mockResolveEntitlement,
 }));
 
 vi.mock("@/lib/membership", () => ({
@@ -175,7 +178,7 @@ describe("issueWaitlistOffer", () => {
     mockFindWaitlistEntriesByClassId.mockReset();
     mockFindUserById.mockReset();
     mockFindSubscriptionByUserId.mockReset();
-    mockFindMembershipPlanById.mockReset();
+    mockResolveEntitlement.mockReset();
     mockSaveWaitlistEntry.mockReset();
     mockCreateNotification.mockReset();
     mockHasActiveMembership.mockReset();
@@ -185,7 +188,7 @@ describe("issueWaitlistOffer", () => {
     mockFindWaitlistEntriesByClassId.mockReturnValue([]);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindUserById.mockImplementation((id: string) => ({ id, email: `${id}@example.com`, role: "member" }));
-    mockFindMembershipPlanById.mockReturnValue(PLAN);
+    mockResolveEntitlement.mockReturnValue(PLAN);
   });
 
   it("does nothing when the class doesn't exist", async () => {
@@ -269,8 +272,8 @@ describe("issueWaitlistOffer", () => {
         ? { ...ACTIVE_SUBSCRIPTION, planId: "plan-mb" }
         : ACTIVE_SUBSCRIPTION
     );
-    mockFindMembershipPlanById.mockImplementation((id: string) =>
-      id === "plan-mb"
+    mockResolveEntitlement.mockImplementation((sub: { planId?: string } | undefined) =>
+      sub?.planId === "plan-mb"
         ? { ...PLAN, id: "plan-mb", allowedCategories: ["mother_and_baby"] }
         : PLAN
     );
@@ -294,7 +297,7 @@ describe("issueWaitlistOffer", () => {
         ? { ...ACTIVE_SUBSCRIPTION, sessionsUsedThisPeriod: 8 }
         : ACTIVE_SUBSCRIPTION
     );
-    mockFindMembershipPlanById.mockImplementation(() => ({ ...PLAN, monthlySessionAllowance: 8 }));
+    mockResolveEntitlement.mockImplementation(() => ({ ...PLAN, monthlySessionAllowance: 8 }));
 
     const { issueWaitlistOffer } = await import("@/lib/scheduling");
     issueWaitlistOffer("class-1");

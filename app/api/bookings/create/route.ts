@@ -17,6 +17,7 @@ import {
   type BookingRecord,
 } from "@/lib/db";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
+import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
@@ -202,6 +203,10 @@ export async function POST(request: NextRequest) {
       }
     }
   }
+
+  // Confirmed booking event → fire-and-forget confirmation email (gated on the
+  // member's email prefs inside the helper; never blocks the response).
+  sendBookingConfirmationEmail(user.id, classRecord);
 
   return NextResponse.json(
     { success: true, message: "Class booked." },

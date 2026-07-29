@@ -1,7 +1,6 @@
 import {
   findMembershipBillingOptionById,
   findMembershipPackageById,
-  findMembershipPlanById,
   type BillingInterval,
   type MembershipBillingOptionRecord,
   type MembershipPackageRecord,
@@ -14,9 +13,9 @@ import {
 // The entitlement engine (allowance math, booking consumption, waitlist
 // eligibility, webhook renewal, member/staff views) is deep and tested and
 // reads a MembershipPlanRecord-shaped object. Rather than teach every
-// call-site about the new catalog, we return that same shape here — derived
-// from the catalog PACKAGE when the subscription is catalog-backed, or from
-// the legacy plan otherwise. Downstream code never changes.
+// call-site about the catalog, we return that same shape here — derived from
+// the catalog PACKAGE the subscription is backed by. Downstream code never
+// changes.
 
 // A catalog billing option's cadence collapses onto the app's BillingInterval.
 export function billingIntervalFromOption(
@@ -51,23 +50,18 @@ export function planShapeForPackage(
   };
 }
 
-// The one call-site replacement: `sub?.planId ? findMembershipPlanById(...) : undefined`
-// becomes `resolveSubscriptionEntitlement(sub)`.
+// Resolves a subscription to its entitlement view. Returns undefined when the
+// subscription isn't backed by a (still-present) catalog package.
 export function resolveSubscriptionEntitlement(
   subscription: SubscriptionRecord | undefined | null
 ): MembershipPlanRecord | undefined {
-  if (!subscription) return undefined;
+  if (!subscription?.packageId) return undefined;
 
-  if (subscription.packageId) {
-    const pkg = findMembershipPackageById(subscription.packageId);
-    if (pkg) {
-      const option = subscription.billingOptionId
-        ? findMembershipBillingOptionById(subscription.billingOptionId)
-        : undefined;
-      return planShapeForPackage(pkg, option);
-    }
-    // Package vanished — fall through to any legacy plan link.
-  }
+  const pkg = findMembershipPackageById(subscription.packageId);
+  if (!pkg) return undefined;
 
-  return subscription.planId ? findMembershipPlanById(subscription.planId) : undefined;
+  const option = subscription.billingOptionId
+    ? findMembershipBillingOptionById(subscription.billingOptionId)
+    : undefined;
+  return planShapeForPackage(pkg, option);
 }

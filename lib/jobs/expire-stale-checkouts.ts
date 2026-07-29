@@ -13,8 +13,30 @@ export const expireStaleCheckoutsJob: JobDefinition = {
   async run() {
     const subscriptions = findAllSubscriptions();
     let expiredCount = 0;
+    let clearedSwitches = 0;
 
     for (const subscription of subscriptions) {
+      // Abandoned SWITCH: the member's active membership is untouched, but a
+      // stale in-flight switch left its pending fields set. Clear them so the
+      // record is tidy (entitlement was never affected). Done before the
+      // pending-status check because a switch keeps status "active".
+      if (
+        subscription.pendingSetupOrderId &&
+        subscription.pendingStartedAt &&
+        isPendingCheckoutStale(subscription.pendingStartedAt)
+      ) {
+        saveSubscription({
+          ...subscription,
+          pendingPackageId: null,
+          pendingBillingOptionId: null,
+          pendingSetupOrderId: null,
+          pendingStartedAt: null,
+          updatedAt: new Date().toISOString(),
+        });
+        clearedSwitches += 1;
+        continue;
+      }
+
       if (subscription.status !== "pending") continue;
       if (!isPendingCheckoutStale(subscription.updatedAt)) continue;
 
@@ -27,8 +49,9 @@ export const expireStaleCheckoutsJob: JobDefinition = {
       expiredCount += 1;
     }
 
-    return expiredCount === 0
-      ? "No stale pending checkouts found."
-      : `Expired ${expiredCount} stale pending checkout${expiredCount === 1 ? "" : "s"}.`;
+    const parts: string[] = [];
+    if (expiredCount > 0) parts.push(`Expired ${expiredCount} stale pending checkout${expiredCount === 1 ? "" : "s"}.`);
+    if (clearedSwitches > 0) parts.push(`Cleared ${clearedSwitches} abandoned switch${clearedSwitches === 1 ? "" : "es"}.`);
+    return parts.length > 0 ? parts.join(" ") : "No stale pending checkouts found.";
   },
 };

@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { formatPriceCents } from "@/lib/billing";
-import type { MembershipPlanRecord, SubscriptionStatus } from "@/lib/db";
+import { describePackageAllowance } from "@/lib/catalog";
+import type { MembershipPackageRecord, SubscriptionStatus } from "@/lib/db";
 import {
   formatMembershipDate,
   isPeriodLapsed,
@@ -20,7 +20,7 @@ export type MemberRow = {
   fullName: string | null;
   joinedAt: string;
   archivedAt: string | null;
-  currentPlanId: string | null;
+  currentPackageId: string | null;
   currentPlanName: string | null;
   currentStatus: SubscriptionStatus | null;
   currentPeriodEnd: string | null;
@@ -69,10 +69,13 @@ function matchesExpiry(row: MemberRow, filter: ExpiryFilter): boolean {
 
 export function MembersActivationView({
   rows,
-  plans,
+  packages,
+  canManageBilling,
 }: {
   rows: MemberRow[];
-  plans: MembershipPlanRecord[];
+  packages: MembershipPackageRecord[];
+  /** Admin+ only. Coaches see the member list but can't activate memberships. */
+  canManageBilling: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");
@@ -187,13 +190,13 @@ export function MembersActivationView({
         </div>
       ) : null}
 
-      {plans.length === 0 ? (
+      {packages.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/[0.12] bg-white/[0.02] p-6 text-center">
-          <p className="text-sm font-medium">No active plans</p>
+          <p className="text-sm font-medium">No packages yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Create a plan on the{" "}
-            <Link href="/staff/plans" className="text-gold transition hover:text-gold/80">
-              Plans page
+            Create a package in the{" "}
+            <Link href="/staff/catalog" className="text-gold transition hover:text-gold/80">
+              Catalog
             </Link>{" "}
             before activating memberships.
           </p>
@@ -207,7 +210,7 @@ export function MembersActivationView({
       ) : (
         <div className="space-y-3">
           {visibleRows.map((row) => (
-            <MemberCard key={row.userId} row={row} plans={plans} />
+            <MemberCard key={row.userId} row={row} packages={packages} canManageBilling={canManageBilling} />
           ))}
         </div>
       )}
@@ -217,19 +220,21 @@ export function MembersActivationView({
 
 function MemberCard({
   row,
-  plans,
+  packages,
+  canManageBilling,
 }: {
   row: MemberRow;
-  plans: MembershipPlanRecord[];
+  packages: MembershipPackageRecord[];
+  canManageBilling: boolean;
 }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
-  // Seed from the current plan only when it's in the selectable list — an
-  // archived plan isn't, and the select would show one plan but submit another.
-  const [selectedPlanId, setSelectedPlanId] = useState(
-    row.currentPlanId && plans.some((p) => p.id === row.currentPlanId)
-      ? row.currentPlanId
-      : plans[0]?.id ?? ""
+  // Seed from the current package only when it's in the selectable list — a
+  // hidden package isn't, and the select would show one but submit another.
+  const [selectedPackageId, setSelectedPackageId] = useState(
+    row.currentPackageId && packages.some((p) => p.id === row.currentPackageId)
+      ? row.currentPackageId
+      : packages[0]?.id ?? ""
   );
   const [periodEnd, setPeriodEnd] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -243,8 +248,8 @@ function MemberCard({
   const isCurrentlyActive = row.currentStatus === "active" && !periodLapsed;
 
   async function handleActivate() {
-    if (!selectedPlanId) {
-      setError("Select a plan first.");
+    if (!selectedPackageId) {
+      setError("Select a package first.");
       return;
     }
 
@@ -258,7 +263,7 @@ function MemberCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: row.userId,
-          planId: selectedPlanId,
+          packageId: selectedPackageId,
           periodEndIso: periodEnd || undefined,
         }),
       });
@@ -346,7 +351,7 @@ function MemberCard({
           >
             Details →
           </Link>
-          {plans.length > 0 && row.archivedAt === null ? (
+          {canManageBilling && packages.length > 0 && row.archivedAt === null ? (
             <button
               type="button"
               onClick={() => {
@@ -378,13 +383,13 @@ function MemberCard({
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <select
-              value={selectedPlanId}
-              onChange={(e) => setSelectedPlanId(e.target.value)}
+              value={selectedPackageId}
+              onChange={(e) => setSelectedPackageId(e.target.value)}
               className="flex-1 rounded-xl border border-border bg-input px-3 py-2 text-xs text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
             >
-              {plans.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.name} ({formatPriceCents(plan.priceCents)} / {plan.billingInterval})
+              {packages.map((pkg) => (
+                <option key={pkg.id} value={pkg.id}>
+                  {pkg.name} — {describePackageAllowance(pkg)}
                 </option>
               ))}
             </select>

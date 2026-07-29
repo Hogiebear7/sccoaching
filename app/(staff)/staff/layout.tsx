@@ -5,19 +5,22 @@ import { redirect } from "next/navigation";
 
 import { findUserById } from "@/lib/db";
 import { BRAND_NAME } from "@/lib/content";
+import { can, NAV_CAPABILITY, type Capability } from "@/lib/permissions";
 import { verifySession } from "@/lib/session";
 import { NavLink } from "@/app/(dashboard)/dashboard/nav-link";
 
 export const dynamic = "force-dynamic";
 
-const navItems = [
-  { label: "Operations", href: "/staff/operations" },
-  { label: "Classes",    href: "/staff/classes" },
-  { label: "Members",   href: "/staff/members" },
-  { label: "Catalog",   href: "/staff/catalog" },
-  { label: "Plans",     href: "/staff/plans" },
-  { label: "Passes",    href: "/staff/passes" },
-  { label: "Exercises", href: "/staff/exercises" },
+// Every nav item declares the capability that reveals it — the menu is a
+// projection of the permission model, and each destination re-checks the same
+// capability server-side (see lib/staff-auth.ts requireStaffPage).
+const navItems: { label: string; href: string; capability: Capability }[] = [
+  { label: "Operations",  href: "/staff/operations",  capability: NAV_CAPABILITY["/staff/operations"] },
+  { label: "Classes",     href: "/staff/classes",     capability: NAV_CAPABILITY["/staff/classes"] },
+  { label: "Members",     href: "/staff/members",     capability: NAV_CAPABILITY["/staff/members"] },
+  { label: "Catalog",     href: "/staff/catalog",     capability: NAV_CAPABILITY["/staff/catalog"] },
+  { label: "Exercises",   href: "/staff/exercises",   capability: NAV_CAPABILITY["/staff/exercises"] },
+  { label: "Staff users", href: "/staff/staff-users", capability: NAV_CAPABILITY["/staff/staff-users"] },
 ];
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
@@ -25,9 +28,11 @@ export default async function StaffLayout({ children }: { children: ReactNode })
   const userId = verifySession(cookieStore.get("session")?.value)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
-  if (!user || user.role !== "staff") {
+  if (!user || user.archivedAt || !can(user.role, "staff.access")) {
     redirect("/dashboard");
   }
+
+  const visibleNav = navItems.filter((item) => can(user.role, item.capability));
 
   return (
     <div className="min-h-screen bg-black text-foreground">
@@ -47,7 +52,7 @@ export default async function StaffLayout({ children }: { children: ReactNode })
 
             <nav className="flex-1 px-4 py-4">
               <ul className="space-y-2">
-                {navItems.map((item) => (
+                {visibleNav.map((item) => (
                   <li key={item.href}>
                     <NavLink href={item.href}>{item.label}</NavLink>
                   </li>

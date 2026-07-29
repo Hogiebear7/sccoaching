@@ -2,27 +2,31 @@ import { createHmac } from "crypto";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockFindMembershipPlanById, mockFindSubscriptionByProviderOrderId, mockSaveSubscription } =
+const { mockResolveEntitlement, mockFindSubscriptionByProviderOrderId, mockSaveSubscription } =
   vi.hoisted(() => ({
-    mockFindMembershipPlanById: vi.fn(),
+    mockResolveEntitlement: vi.fn(),
     mockFindSubscriptionByProviderOrderId: vi.fn(),
     mockSaveSubscription: vi.fn(),
   }));
 
 vi.mock("@/lib/db", () => ({
-  findMembershipPlanById: mockFindMembershipPlanById,
   findSubscriptionByProviderOrderId: mockFindSubscriptionByProviderOrderId,
   saveSubscription: mockSaveSubscription,
   // Commerce layer: no pass purchase matches in these membership scenarios,
   // so every event falls through to the subscription path under test.
   findPurchaseByProviderOrderId: vi.fn(() => undefined),
-  findClassPassProductById: vi.fn(() => undefined),
+  findMembershipPackageById: vi.fn(() => undefined),
   hasPaymentEvent: vi.fn(() => false),
   recordPaymentEvent: vi.fn(),
   savePurchase: vi.fn(),
   appendPassLedgerEntry: vi.fn(),
   findPassLedgerByPurchaseId: vi.fn(() => []),
   findPassLedgerByUserId: vi.fn(() => []),
+}));
+
+vi.mock("@/lib/membership-entitlement", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/membership-entitlement")>()),
+  resolveSubscriptionEntitlement: mockResolveEntitlement,
 }));
 
 const SIGNING_SECRET = "wsk_test_secret";
@@ -49,7 +53,7 @@ describe("POST /api/billing/webhook", () => {
 
   beforeEach(() => {
     process.env.REVOLUT_WEBHOOK_SIGNING_SECRET = SIGNING_SECRET;
-    mockFindMembershipPlanById.mockReset();
+    mockResolveEntitlement.mockReset();
     mockFindSubscriptionByProviderOrderId.mockReset();
     mockSaveSubscription.mockReset();
   });
@@ -93,7 +97,7 @@ describe("POST /api/billing/webhook", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
-    mockFindMembershipPlanById.mockReturnValue({
+    mockResolveEntitlement.mockReturnValue({
       id: "plan-1",
       name: "Premium",
       description: null,
@@ -175,7 +179,7 @@ describe("POST /api/billing/webhook", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
-    mockFindMembershipPlanById.mockReturnValue({
+    mockResolveEntitlement.mockReturnValue({
       id: "plan-1",
       name: "Premium",
       description: null,
@@ -214,7 +218,7 @@ describe("POST /api/billing/webhook", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
-    mockFindMembershipPlanById.mockReturnValue({
+    mockResolveEntitlement.mockReturnValue({
       id: "plan-1",
       name: "Premium",
       description: null,
@@ -262,7 +266,7 @@ describe("POST /api/billing/webhook", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
-    mockFindMembershipPlanById.mockReturnValue({
+    mockResolveEntitlement.mockReturnValue({
       id: "plan-1",
       name: "Premium",
       description: null,

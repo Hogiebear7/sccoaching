@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { requireStaffPage } from "@/lib/staff-auth";
 import {
   findBookingsByClassId,
   findClassById,
@@ -16,6 +17,7 @@ export default async function StaffClassWorkoutPage({
 }: {
   params: Promise<{ classId: string }>;
 }) {
+  await requireStaffPage("classes.manage");
   const { classId } = await params;
   const classRecord = findClassById(classId);
 

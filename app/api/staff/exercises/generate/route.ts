@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findUserById, type ExerciseSection } from "@/lib/db";
 import { AI_NOT_CONFIGURED_MESSAGE, generateExerciseContent, isAiConfigured } from "@/lib/ai";
 import { verifySession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 const SECTION_LABELS: Record<ExerciseSection, string> = {
   upper_push: "Upper Body — Push",
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (user.role !== "staff") {
+  if (!can(user.role, "exercises.manage")) {
     return NextResponse.json(
       { success: false, message: "Only staff can draft exercise content." },
       { status: 403 }
