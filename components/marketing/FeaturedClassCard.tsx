@@ -42,17 +42,17 @@ export function FeaturedClassCard({
 
   return (
     <div
-      className={`group relative flex flex-col overflow-hidden rounded-2xl border transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 ${
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 ${
         featured
-          ? "border-lime-400/40 bg-[oklch(0.2_0.02_140)] shadow-[0_20px_50px_-16px_oklch(0.86_0.2_128/0.35)]"
-          : "border-white/[0.08] bg-white/[0.02] hover:border-lime-400/30"
+          ? "border-primary/40 bg-primary/[0.06] shadow-[0_20px_50px_-16px_var(--accent-glow)]"
+          : "border-white/[0.08] bg-white/[0.02] hover:border-primary/30"
       }`}
     >
       {/* Image-led header */}
       <div className="relative">
         <ClassImageSlot seed={seed} label={name} imageUrl={imageUrl} alt={imageAlt} className="h-32 w-full" />
         {featured && (
-          <span className="absolute left-4 top-3 rounded-full bg-lime-400 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[oklch(0.2_0.03_140)]">
+          <span className="absolute left-4 top-3 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary-foreground">
             Most popular
           </span>
         )}
@@ -89,7 +89,7 @@ export function FeaturedClassCard({
           aria-expanded={open}
           aria-controls={detailId}
           onClick={() => setOpen((v) => !v)}
-          className="mt-2 inline-flex w-fit items-center gap-1 text-xs font-medium uppercase tracking-wide text-lime-400 transition-colors hover:text-lime-300"
+          className="mt-2 inline-flex w-fit items-center gap-1 text-xs font-medium uppercase tracking-wide text-primary transition-colors hover:text-[var(--primary-hover)]"
         >
           {open ? "Less" : "Details"}
           <svg
@@ -116,8 +116,8 @@ export function FeaturedClassCard({
           href={href}
           className={`mt-4 rounded-lg py-2.5 text-center text-sm font-semibold uppercase tracking-wide transition-[background-color,border-color,color,transform] duration-150 active:translate-y-px ${
             featured
-              ? "bg-lime-400 text-[oklch(0.2_0.03_140)] hover:bg-lime-300"
-              : "border border-white/[0.12] bg-white/[0.04] text-zinc-200 hover:border-lime-400/40 hover:bg-white/[0.07] hover:text-white"
+              ? "bg-primary text-primary-foreground hover:bg-[var(--primary-hover)]"
+              : "border border-white/[0.12] bg-white/[0.04] text-zinc-200 hover:border-primary/40 hover:bg-white/[0.07] hover:text-white"
           }`}
         >
           Get started

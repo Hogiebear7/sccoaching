@@ -63,7 +63,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-white/[0.08] bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+          className="w-full rounded-lg border border-white/[0.08] bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
           placeholder="At least 8 characters"
         />
       </label>
@@ -78,7 +78,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           minLength={8}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="w-full rounded-lg border border-white/[0.08] bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+          className="w-full rounded-lg border border-white/[0.08] bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
           placeholder="Re-enter your new password"
         />
       </label>

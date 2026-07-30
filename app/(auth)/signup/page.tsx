@@ -268,7 +268,7 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="relative min-h-screen px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,rgba(45,212,191,0.06),transparent)]">
+    <main data-theme="navy" data-palette="gold" className="relative min-h-screen px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.78_0.1_85/0.08),transparent)]">
       <div className="mx-auto w-full max-w-5xl">
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
@@ -276,7 +276,7 @@ export default function SignupPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
               {BRAND_NAME}
             </p>
-            <h1 className="text-display mt-3 text-[30px]">Create your account</h1>
+            <h1 className="text-editorial mt-3 text-[30px]">Create your account</h1>
             <p className="mt-2 text-sm text-zinc-400">
               Set up your profile, goals, and optional cycle tracking preferences.
             </p>
@@ -355,6 +355,10 @@ export default function SignupPage() {
                 />
               </div>
 
+              {/* key={step} remounts this block on every step change, so the
+                  anim-rise entrance replays — the wizard visibly advances
+                  instead of silently swapping content. */}
+              <div key={step} className="anim-rise space-y-6">
               {isAccountStep && (
                 <fieldset className="space-y-4">
                   <legend className="mb-2 text-lg font-semibold text-zinc-50">
@@ -941,6 +945,7 @@ export default function SignupPage() {
                   ) : null}
                 </section>
               )}
+              </div>
 
               <div className="flex flex-col-reverse gap-3 border-t border-zinc-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <button
@@ -1076,6 +1081,6 @@ function inputClass(hasError?: string) {
   return `w-full rounded-lg border bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
     hasError
       ? "border-red-500 focus:border-red-400"
-      : "border-zinc-800 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+      : "border-zinc-800 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
   }`;
 }

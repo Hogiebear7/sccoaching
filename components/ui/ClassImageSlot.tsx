@@ -1,16 +1,17 @@
 // Image-forward header/accent for class & programme cards. There are no real
 // class photos in the data model yet, so this renders an intentional on-brand
-// placeholder (a deterministic onyx→green gradient with a lime streak and an
-// activity watermark). It already accepts an optional `imageUrl`, so real
+// placeholder (a deterministic ink→steel-blue gradient with a gold streak and
+// an activity watermark). It already accepts an optional `imageUrl`, so real
 // imagery can drop in later with no layout change — text stays legible via the
 // overlay gradient either way. Decorative by default (aria-hidden).
 
-// Deterministic hue in the brand green/lime/teal range so different classes
-// look distinct but cohesive.
+// Deterministic hue within the navy/steel-blue range so different classes
+// look distinct but cohesive; the gold accent streak stays constant (one
+// accent color per brand, not seed-varied).
 function hueFor(seed: string): number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return 118 + (h % 62); // ~118–180
+  return 228 + (h % 40); // ~228–268
 }
 
 export function ClassImageSlot({
@@ -75,14 +76,14 @@ export function ClassImageSlot({
               backgroundSize: "22px 22px",
             }}
           />
-          {/* angular lime streaks (echo the landing hero) */}
-          <div className="absolute -right-5 top-0 h-full w-14 -skew-x-[18deg] bg-lime-400/[0.14]" />
-          <div className="absolute right-2 top-0 h-full w-1.5 -skew-x-[18deg] bg-lime-400/60" />
+          {/* angular gold streak (brand accent, not seed-varied) */}
+          <div className="absolute -right-5 top-0 h-full w-14 -skew-x-[18deg] bg-primary/[0.14]" />
+          <div className="absolute right-2 top-0 h-full w-1.5 -skew-x-[18deg] bg-primary/60" />
           {/* activity watermark */}
           <svg
             viewBox="0 0 24 24"
             fill="none"
-            stroke="oklch(0.86 0.2 128)"
+            style={{ stroke: "var(--primary)" }}
             strokeWidth={1.25}
             strokeLinecap="round"
             strokeLinejoin="round"

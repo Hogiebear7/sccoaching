@@ -65,22 +65,26 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen text-zinc-100 lg:grid lg:grid-cols-[1.1fr_1fr]">
+    <main data-theme="navy" data-palette="gold" className="min-h-screen text-zinc-100 lg:grid lg:grid-cols-[1.1fr_1fr]">
       {/* Brand panel */}
       <aside className="relative hidden overflow-hidden border-r border-white/[0.06] lg:flex lg:flex-col lg:justify-between lg:p-12">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-teal-950/80 via-teal-950/30 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(70%_90%_at_35%_0%,rgba(45,212,191,0.16),transparent)]" />
-        <div className="relative">
-          <span className="text-display text-xl text-zinc-50">S<span className="text-teal-400">&</span>C Performance Coaching</span>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[var(--bg-1)]/80 via-[var(--bg-1)]/30 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(70%_90%_at_35%_0%,oklch(0.78_0.1_85/0.14),transparent)]" />
+        <div className="anim-rise relative" style={{ animationDelay: "60ms" }}>
+          <span className="text-display text-xl text-zinc-50">S<span className="text-gold">&</span>C Performance Coaching</span>
         </div>
         <div className="relative max-w-md">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">{BRAND_NAME}</p>
-          <h2 className="text-display mt-4 text-[40px] leading-[1.05] text-zinc-50">{BRAND_TAGLINE}</h2>
+          <p className="anim-rise text-xs font-semibold uppercase tracking-[0.24em] text-gold" style={{ animationDelay: "160ms" }}>{BRAND_NAME}</p>
+          <h2 className="anim-rise mt-4 text-editorial text-[40px] leading-[1.05] text-zinc-50" style={{ animationDelay: "240ms" }}>{BRAND_TAGLINE}</h2>
           <ul className="mt-8 space-y-3">
-            {VALUE_PROPS.slice(0, 3).map((item) => (
-              <li key={item} className="flex items-start gap-3 text-sm text-zinc-300">
-                <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-teal-500/30 bg-teal-500/10">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-3 w-3 text-teal-300">
+            {VALUE_PROPS.slice(0, 3).map((item, i) => (
+              <li
+                key={item}
+                className="anim-rise flex items-start gap-3 text-sm text-zinc-300"
+                style={{ animationDelay: `${340 + i * 90}ms` }}
+              >
+                <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-3 w-3 text-primary">
                     <path d="M20 6 9 17l-5-5" />
                   </svg>
                 </span>
@@ -93,13 +97,13 @@ export default function LoginPage() {
       </aside>
 
       {/* Form column */}
-      <div className="relative flex min-h-screen flex-col px-6 py-8 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-64 before:bg-[radial-gradient(70%_100%_at_50%_0%,rgba(45,212,191,0.06),transparent)] lg:before:hidden">
+      <div className="relative flex min-h-screen flex-col px-6 py-8 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-64 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.78_0.1_85/0.08),transparent)] lg:before:hidden">
         <div className="lg:hidden">
-          <span className="text-display text-base text-zinc-50">S<span className="text-teal-400">&</span>C Performance Coaching</span>
+          <span className="text-display text-base text-zinc-50">S<span className="text-gold">&</span>C Performance Coaching</span>
         </div>
         <div className="anim-rise mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
           <p className="label-caps">Welcome back</p>
-          <h1 className="text-display mt-2 text-[32px]">Sign in</h1>
+          <h1 className="text-editorial mt-2 text-[32px]">Sign in</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Access your training, schedule, messages, and profile.
           </p>
@@ -176,7 +180,7 @@ export default function LoginPage() {
 
             <p className="pt-2 text-center text-[13px] text-zinc-500">
               Need an account?{" "}
-              <Link href="/signup" className="font-medium text-blue-400 transition-colors duration-150 hover:text-blue-300">
+              <Link href="/signup" className="font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]">
                 Create one
               </Link>
             </p>
@@ -222,6 +226,6 @@ function inputClass(hasError?: string) {
   return `w-full rounded-lg border bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
     hasError
       ? "border-red-500 focus:border-red-400"
-      : "border-zinc-800 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+      : "border-zinc-800 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
   }`;
 }

@@ -7,9 +7,9 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants = {
   primary:
-    "bg-teal-500 text-white border border-teal-400/50 " +
+    "bg-primary text-primary-foreground border border-[var(--accent-border)] " +
     "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] " +
-    "hover:bg-teal-400 active:from-teal-600 active:to-teal-600",
+    "hover:bg-[var(--primary-hover)] active:bg-[var(--primary-hover)]",
   secondary:
     "border border-white/[0.1] bg-white/[0.04] text-zinc-200 " +
     "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] " +
@@ -33,7 +33,7 @@ export default function Button({ variant = "primary", size = "md", className = "
         "inline-flex items-center justify-center gap-2 font-medium tracking-[-0.006em] select-none " +
         "transition-[background-color,border-color,color,transform,box-shadow] duration-150 " +
         "active:translate-y-px " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 " +
         `disabled:opacity-40 disabled:cursor-not-allowed disabled:active:translate-y-0 ${variants[variant]} ${sizes[size]} ${className}`
       }
       {...props}

@@ -9,13 +9,13 @@ export default async function ResetPasswordPage({
   const { token } = await searchParams;
 
   return (
-    <main className="relative min-h-screen px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,rgba(45,212,191,0.06),transparent)]">
+    <main data-theme="navy" data-palette="gold" className="relative min-h-screen px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.78_0.1_85/0.08),transparent)]">
       <div className="mx-auto w-full max-w-md">
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">
             {BRAND_NAME}
           </p>
-          <h1 className="text-display mt-3 text-[30px]">Reset password</h1>
+          <h1 className="text-editorial mt-3 text-[30px]">Reset password</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Choose a new password for your account.
           </p>

@@ -134,6 +134,23 @@
   --ring:                oklch(0.86 0.2 128);
 }
 
+/* Gold — muted brass accent for the S&C editorial identity (pairs with the
+   navy theme). Deliberately dimmer/more metallic than --accent-premium's
+   bright gold badge tone, so it can carry primary actions without reading
+   as neon. Dark ink foreground, same reasoning as electric's lime. */
+[data-palette="gold"] {
+  --accent-primary:      oklch(0.74 0.11 83);
+  --accent-primary-weak: oklch(0.74 0.11 83 / 0.12);
+  --accent-grad-top:     oklch(0.78 0.115 82);
+  --accent-grad-bottom:  oklch(0.68 0.105 85);
+  --accent-border:       oklch(0.8 0.12 83 / 0.45);
+  --accent-glow:         oklch(0.74 0.11 83 / 0.5);
+  --primary:             oklch(0.74 0.11 83);
+  --primary-hover:       oklch(0.8 0.12 82);
+  --primary-foreground:  oklch(0.16 0.03 250);
+  --ring:                oklch(0.74 0.11 83);
+}
+
 /* ── Whole-app theme presets (lib/palettes.ts THEME_OPTIONS) ──────────
    A second, independent axis from the accent palette: re-tints the dark
    base — backgrounds, surfaces, atmosphere — at the SAME lightness steps
@@ -142,6 +159,7 @@
    sits outside the themed shell; the shell is min-h-screen so it covers.
    Alias vars resolve at declaration point, so both levels are set. */
 [data-theme="onyx"],
+[data-theme="navy"],
 [data-theme="graphite"],
 [data-theme="forest"],
 [data-theme="plum"] {
@@ -171,6 +189,23 @@
     radial-gradient(60% 65% at 96% 92%, oklch(0.86 0.2 128 / 0.1), oklch(0 0 0 / 0) 64%) fixed,
     radial-gradient(40% 40% at 82% 10%, oklch(0.3 0.02 150 / 0.5), oklch(0 0 0 / 0) 66%) fixed,
     linear-gradient(150deg, oklch(0.19 0.01 150) 0%, oklch(0.15 0.008 150) 55%, oklch(0.12 0.006 150) 100%) fixed;
+}
+
+/* Navy — the S&C editorial identity: a near-black ink-navy base (deeper and
+   more saturated toward blue than onyx/graphite) with a single restrained
+   gold vignette top-right instead of a multi-blob aurora. Pairs with the
+   gold accent palette. */
+[data-theme="navy"] {
+  --bg-0:      oklch(0.16 0.03 250);
+  --bg-1:      oklch(0.2 0.032 249);
+  --surface-1: oklch(0.26 0.036 247);
+  --surface-2: oklch(0.31 0.038 246);
+  --surface-3: oklch(0.36 0.038 245);
+  --input:     oklch(0.15 0.03 250 / 0.85);
+  --sidebar:   oklch(0.13 0.028 250);
+  background:
+    radial-gradient(60% 50% at 82% 0%, oklch(0.78 0.1 85 / 0.10), oklch(0 0 0 / 0) 62%) fixed,
+    linear-gradient(160deg, oklch(0.19 0.032 249) 0%, oklch(0.14 0.028 250) 55%, oklch(0.1 0.024 252) 100%) fixed;
 }
 
 [data-theme="graphite"] {
@@ -270,6 +305,7 @@
 
   --font-sans: var(--font-inter);
   --font-display: var(--font-space-grotesk);
+  --font-editorial: var(--font-fraunces);
 
   --shadow-card: var(--shadow-card);
   --shadow-elev: var(--shadow-elev);
@@ -482,6 +518,16 @@ html {
   line-height: 0.95;
 }
 
+/* Editorial serif headline face for the navy/gold identity's signature
+   moments (marketing hero, high-stakes CTAs). Sharp, high-contrast serif —
+   deliberately not another bold condensed sans, see docs on the S&C brand. */
+@utility text-editorial {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+  line-height: 1.03;
+}
+
 /* ─── Forms ─────────────────────────────────────────────────────────── */
 
 /* The one input recipe. Inputs sit slightly below the surface
@@ -558,12 +604,52 @@ html {
   }
 }
 
+/* Scroll-triggered entrance (components/ui/ScrollReveal.tsx pairs with this).
+   Starts hidden+offset, the component adds --visible once it enters the
+   viewport. transitionDelay is set inline per-instance for stagger. */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.16, 0.84, 0.44, 1), transform 0.7s cubic-bezier(0.16, 0.84, 0.44, 1);
+}
+.scroll-reveal--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Ambient float for hero collage elements — small, slow, never distracting.
+   Each instance offsets its own animation-delay via inline style for a
+   loosely-organic (not synchronized) drift. */
+@keyframes ambient-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@utility anim-float {
+  animation: ambient-float 6s ease-in-out infinite;
+}
+
+/* Bar chart entrance: grows up from the baseline instead of being static.
+   transform-origin: bottom on the caller so it reads as "rising", not
+   stretching from the top. Stagger via inline animation-delay per bar. */
+@keyframes bar-grow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+@utility anim-bar-grow {
+  transform-origin: bottom;
+  animation: bar-grow 0.6s cubic-bezier(0.16, 0.84, 0.44, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  .scroll-reveal {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 
