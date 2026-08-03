@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { hashPassword } from "@/lib/password";
 import { verifySession } from "@/lib/session";
+import { resetRateLimits } from "@/lib/rate-limit";
 
 const { mockFindUserByEmail } = vi.hoisted(() => ({
   mockFindUserByEmail: vi.fn(),
@@ -24,6 +25,7 @@ async function callLogin(body: unknown) {
 describe("POST /api/auth/login", () => {
   beforeEach(() => {
     mockFindUserByEmail.mockReset();
+    resetRateLimits();
   });
 
   it("rejects an unknown email with a generic message", async () => {
@@ -99,5 +101,21 @@ describe("POST /api/auth/login", () => {
   it("rejects a missing password with 400", async () => {
     const res = await callLogin({ email: "athlete@example.com" });
     expect(res.status).toBe(400);
+  });
+
+  it("rate-limits repeated attempts against the same email", async () => {
+    mockFindUserByEmail.mockReturnValue(undefined);
+
+    for (let i = 0; i < 5; i++) {
+      const res = await callLogin({ email: "target@example.com", password: "guess" });
+      expect(res.status).toBe(401);
+    }
+
+    const blocked = await callLogin({ email: "target@example.com", password: "guess" });
+    expect(blocked.status).toBe(429);
+
+    // A different email is unaffected.
+    const other = await callLogin({ email: "someone-else@example.com", password: "guess" });
+    expect(other.status).toBe(401);
   });
 });

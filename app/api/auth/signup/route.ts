@@ -18,8 +18,10 @@ import { DEFAULT_PALETTE, DEFAULT_THEME, isPaletteId, isThemeId } from "@/lib/pa
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
 const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
+// Matches the format check already used in app/api/contact/route.ts.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function validatePasswordStrength(password: string): string | null {
+export function validatePasswordStrength(password: string): string | null {
   if (password.length < 8) {
     return "Password must be at least 8 characters long.";
   }
@@ -87,6 +89,13 @@ export async function POST(request: Request) {
   if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password.trim()) {
     return NextResponse.json(
       { success: false, message: "Email and password are required." },
+      { status: 400 }
+    );
+  }
+
+  if (!EMAIL_RE.test(email.trim())) {
+    return NextResponse.json(
+      { success: false, message: "A valid email is required." },
       { status: 400 }
     );
   }

@@ -3,6 +3,13 @@ import { NextResponse } from "next/server";
 import { findUserByEmail } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { signSession } from "@/lib/session";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+// Keyed by the submitted email (not IP) — the goal is stopping credential
+// stuffing / brute force against one account, regardless of how many
+// addresses the attacker sends from.
+const LOGIN_RATE_LIMIT = 5;
+const LOGIN_RATE_WINDOW_MS = 15 * 60 * 1000;
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -22,6 +29,14 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { success: false, message: "Email and password are required." },
       { status: 400 }
+    );
+  }
+
+  const rate = checkRateLimit(`login:${email.trim().toLowerCase()}`, LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_MS);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { success: false, message: "Too many attempts. Try again shortly, or reset your password." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSecs) } }
     );
   }
 

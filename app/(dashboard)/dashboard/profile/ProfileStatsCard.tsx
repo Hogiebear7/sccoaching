@@ -38,7 +38,7 @@ export function ProfileStatsCard({ data }: { data: MemberStatsData }) {
   }, [data, range, customFrom, customTo]);
 
   return (
-    <div className="panel p-5">
+    <div className="surface-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="label-caps">Your training</p>
         <label className="sr-only" htmlFor="stats-range">
@@ -48,7 +48,7 @@ export function ProfileStatsCard({ data }: { data: MemberStatsData }) {
           id="stats-range"
           value={range}
           onChange={(e) => setRange(e.target.value as StatsRange)}
-          className="rounded-lg border border-border bg-input px-3 py-1.5 text-xs text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+          className="rounded-lg border border-border bg-input px-3 py-1.5 text-xs text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
         >
           {RANGE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -67,7 +67,7 @@ export function ProfileStatsCard({ data }: { data: MemberStatsData }) {
               value={customFrom}
               max={customTo || undefined}
               onChange={(e) => setCustomFrom(e.target.value)}
-              className="rounded-lg border border-border bg-input px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+              className="rounded-lg border border-border bg-input px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
             />
           </label>
           <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
@@ -77,7 +77,7 @@ export function ProfileStatsCard({ data }: { data: MemberStatsData }) {
               value={customTo}
               min={customFrom || undefined}
               onChange={(e) => setCustomTo(e.target.value)}
-              className="rounded-lg border border-border bg-input px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+              className="rounded-lg border border-border bg-input px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
             />
           </label>
         </div>

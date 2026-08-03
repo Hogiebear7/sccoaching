@@ -17,6 +17,7 @@ const {
   mockSaveSubscription,
   mockAppendPassLedgerEntry,
   mockFindPassLedgerByPurchaseId,
+  mockFindAllSubscriptions,
 } = vi.hoisted(() => ({
   mockFindPurchaseByProviderOrderId: vi.fn(),
   mockFindPurchaseById: vi.fn(),
@@ -33,9 +34,11 @@ const {
   mockSaveSubscription: vi.fn(),
   mockAppendPassLedgerEntry: vi.fn(),
   mockFindPassLedgerByPurchaseId: vi.fn(),
+  mockFindAllSubscriptions: vi.fn(() => []),
 }));
 
 vi.mock("@/lib/db", () => ({
+  findAllSubscriptions: mockFindAllSubscriptions,
   findPurchaseByProviderOrderId: mockFindPurchaseByProviderOrderId,
   findPurchaseById: mockFindPurchaseById,
   findPurchaseByProviderPaymentRef: mockFindPurchaseByProviderPaymentRef,
@@ -272,6 +275,33 @@ describe("stripe webhook", () => {
       delta: -10,
       reason: "refund_reversal",
     });
+  });
+
+  it("charge.refunded for a membership (no matching pass-pack purchase) is flagged, not auto-actioned", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindPurchaseByProviderPaymentRef.mockReturnValue(undefined);
+    mockFindPurchaseById.mockReturnValue(undefined);
+    mockFindAllSubscriptions.mockReturnValue([
+      { ...SUBSCRIPTION, providerCustomerId: "cus_1" },
+    ]);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await postEvent({
+      id: "evt_refund_membership",
+      type: "charge.refunded",
+      object: { id: "ch_2", payment_intent: "pi_not_a_pack", customer: "cus_1" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { message: string };
+    expect(body.message).toMatch(/staff review/i);
+    // Not auto-revoked: no purchase/subscription state mutation for this event.
+    expect(mockSavePurchase).not.toHaveBeenCalled();
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
   });
 
   it("subscription-mode completion activates the membership with provider ids", async () => {

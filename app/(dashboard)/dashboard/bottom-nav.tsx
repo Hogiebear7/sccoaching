@@ -61,7 +61,7 @@ export function BottomNavBar() {
               <Link
                 href={href}
                 className={`flex flex-col items-center gap-0.5 rounded-full px-1 py-1.5 text-[9.5px] font-semibold transition-[color,transform] duration-150 active:scale-95 ${
-                  active ? "text-white" : "text-zinc-500 hover:text-zinc-300"
+                  active ? "text-primary-foreground" : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 <svg

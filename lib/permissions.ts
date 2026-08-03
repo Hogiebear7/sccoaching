@@ -52,7 +52,10 @@ export type Capability =
   | "members.billing" // membership activate, subscription set, extra sessions
   | "catalog.manage" // membership catalog CRUD
   | "operations.view" // operations dashboard, housekeeping, class categories
-  | "staffUsers.manage"; // create/manage elevated users
+  | "staffUsers.manage" // create/manage elevated users
+  | "finance.view" // revenue figures, breakdowns, tax estimate — top role only
+  | "reports.view" // membership + class reporting (no monetary figures)
+  | "bugReports.manage"; // TRIAL-ONLY — triage trial-period bug reports, see docs/bug-reports.md
 
 // The MINIMUM role each capability requires. Because roles are hierarchical, a
 // higher role automatically satisfies everything a lower one can do.
@@ -72,6 +75,13 @@ const CAPABILITY_MIN_ROLE: Record<Capability, StaffRole> = {
   "catalog.manage": "admin",
   "operations.view": "admin",
   "staffUsers.manage": "admin_manager",
+  // Revenue figures are the most sensitive data in the staff area — same
+  // tier as permanent deletion and staff-user management.
+  "finance.view": "admin_manager",
+  // Membership/class counts, no money — same tier as Operations.
+  "reports.view": "admin",
+  // All-hands triage during the trial period — same tier as classes.manage.
+  "bugReports.manage": "coach",
 };
 
 export function can(role: UserRole | string | null | undefined, capability: Capability): boolean {
@@ -87,4 +97,7 @@ export const NAV_CAPABILITY: Record<string, Capability> = {
   "/staff/catalog": "catalog.manage",
   "/staff/exercises": "exercises.manage",
   "/staff/staff-users": "staffUsers.manage",
+  "/staff/finances": "finance.view",
+  "/staff/reports": "reports.view",
+  "/staff/bug-reports": "bugReports.manage",
 };

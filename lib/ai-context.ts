@@ -1,13 +1,22 @@
 import type { ProfileRecord } from "./profile-schema";
 import type { RecoveryLogRecord, WorkoutSessionRecord } from "./db";
 import type { DrinkSettings } from "./drink-settings";
+import type { ResolvedBooking } from "./bookings";
 import {
   buildDrinkMix,
   buildDrinkPlan,
   drinkDurationInfo,
+  EXERTION_LABEL,
+  exertionFromDayLoad,
+  fuelBandForLoad,
+  goalBiasFromPrimaryGoal,
+  macroTargets,
   RUN_EFFORTS,
   sodiumTargetPerLitre,
   SPORT_DATA,
+  weightedThreeDayLoad,
+  type Exertion,
+  type FuelDay,
 } from "./nutrition";
 import { excludedAllergensFor, recommendFoods } from "./nutrition-recommendations";
 import {
@@ -16,7 +25,7 @@ import {
   INTOLERANCE_OPTIONS,
 } from "./profile-options";
 import { readinessDelta } from "./progress";
-import { computeRollingTrainingLoad, readinessGuidance } from "./recovery";
+import { computeRollingTrainingLoad, readinessGuidance, trainingLoadForLog } from "./recovery";
 import { classifyLoad, decideTier, LOAD_BAND_LABEL, type LoadBand } from "./workout-helper";
 
 // ─────────────────────────────────────────────────────────────────────
@@ -150,6 +159,53 @@ export function buildDietaryContextBlock(profile: ProfileRecord): string {
   return lines.join("\n");
 }
 
+// Sports-drink grounding lines, shared by the general coach context and the
+// Nutrition Coach context — same computation (lib/nutrition.ts), same
+// wording, so the two assistants never describe the member's drink plan
+// differently.
+function buildDrinkContextLines(profile: ProfileRecord, drinkSettings: DrinkSettings): string[] {
+  const s = drinkSettings;
+  const cfg = SPORT_DATA[s.sport];
+  const drinkInput = {
+    bodyWeightKg: profile.currentWeightKg ?? 75,
+    bottleMl: s.bottleMl,
+    sweat: s.sweat,
+    temp: s.temp,
+    sport: s.sport,
+    role: s.role,
+    durationIdx: s.durationIdx,
+    runKm: s.runKm,
+    runEffort: s.runEffort,
+  };
+  const mix = buildDrinkMix(drinkInput);
+  const plan = buildDrinkPlan(drinkInput);
+  const dur = drinkDurationInfo(drinkInput);
+
+  const lines: string[] = [];
+  lines.push("## Sports performance drink (member's current calculator settings, Nutrition tab)");
+  if (cfg.runMode) {
+    lines.push(
+      `- Session: Run — ${s.runKm} km at ${RUN_EFFORTS[s.runEffort].label.toLowerCase()} effort (estimated ${dur.mins} min)`
+    );
+  } else {
+    lines.push(`- Session: ${cfg.label} — ${cfg.roles[s.role]?.label ?? s.role}, ${dur.mins} min`);
+  }
+  lines.push(`- Settings: ${s.bottleMl} ml bottle | ${s.sweat} sweat profile | ${s.temp} conditions`);
+  lines.push(
+    `- Mix: maltodextrin ${mix.maltodextrinG} g, beta-alanine ${mix.betaAlanineG} g, chia ${mix.chiaG} g, beetroot ${mix.beetrootG} g, orange concentrate ${mix.orangeMl} ml, salt ${mix.saltG} g`
+  );
+  lines.push(
+    `- Totals: ${mix.carbsG} g carbs, ${mix.sodiumTotalMg} mg sodium, ${mix.nitrateMg} mg nitrate, ${mix.calories} kcal`
+  );
+  lines.push(
+    `- How the salt dose is derived: base target ${sodiumTargetPerLitre(s.sweat, s.temp)} mg sodium per litre for this sweat profile and conditions, x duration factor ${Math.round(dur.factor * 100) / 100} (90 min = 1.0), x ${s.bottleMl / 1000} L bottle. Maltodextrin scales with body weight (0.4 g/kg per litre); beetroot with the role's or run's workload.`
+  );
+  lines.push(`- App's bottle/carry advice: ${plan.bottleAdvice}`);
+  lines.push(`- App's drinking plan: ${plan.phases.map((p) => `${p.label} ${p.amount} (${p.tip})`).join("; ")}`);
+  if (plan.extra) lines.push(`- Additional note shown to the member: ${plan.extra}`);
+  return lines;
+}
+
 export function buildCoachingContext(input: CoachingContextInput): CoachingContext {
   const { profile, recoveryLogs, sessions, todayISO } = input;
 
@@ -239,49 +295,8 @@ export function buildCoachingContext(input: CoachingContextInput): CoachingConte
 
   // ── Sports performance drink (Nutrition tab calculator) ──
   if (input.drinkSettings) {
-    const s = input.drinkSettings;
-    const cfg = SPORT_DATA[s.sport];
-    const drinkInput = {
-      bodyWeightKg: profile.currentWeightKg ?? 75,
-      bottleMl: s.bottleMl,
-      sweat: s.sweat,
-      temp: s.temp,
-      sport: s.sport,
-      role: s.role,
-      durationIdx: s.durationIdx,
-      runKm: s.runKm,
-      runEffort: s.runEffort,
-    };
-    const mix = buildDrinkMix(drinkInput);
-    const plan = buildDrinkPlan(drinkInput);
-    const dur = drinkDurationInfo(drinkInput);
-
     lines.push("");
-    lines.push("## Sports performance drink (member's current calculator settings, Nutrition tab)");
-    if (cfg.runMode) {
-      lines.push(
-        `- Session: Run — ${s.runKm} km at ${RUN_EFFORTS[s.runEffort].label.toLowerCase()} effort (estimated ${dur.mins} min)`
-      );
-    } else {
-      lines.push(
-        `- Session: ${cfg.label} — ${cfg.roles[s.role]?.label ?? s.role}, ${dur.mins} min`
-      );
-    }
-    lines.push(`- Settings: ${s.bottleMl} ml bottle | ${s.sweat} sweat profile | ${s.temp} conditions`);
-    lines.push(
-      `- Mix: maltodextrin ${mix.maltodextrinG} g, beta-alanine ${mix.betaAlanineG} g, chia ${mix.chiaG} g, beetroot ${mix.beetrootG} g, orange concentrate ${mix.orangeMl} ml, salt ${mix.saltG} g`
-    );
-    lines.push(
-      `- Totals: ${mix.carbsG} g carbs, ${mix.sodiumTotalMg} mg sodium, ${mix.nitrateMg} mg nitrate, ${mix.calories} kcal`
-    );
-    lines.push(
-      `- How the salt dose is derived: base target ${sodiumTargetPerLitre(s.sweat, s.temp)} mg sodium per litre for this sweat profile and conditions, x duration factor ${Math.round(dur.factor * 100) / 100} (90 min = 1.0), x ${s.bottleMl / 1000} L bottle. Maltodextrin scales with body weight (0.4 g/kg per litre); beetroot with the role's or run's workload.`
-    );
-    lines.push(`- App's bottle/carry advice: ${plan.bottleAdvice}`);
-    lines.push(
-      `- App's drinking plan: ${plan.phases.map((p) => `${p.label} ${p.amount} (${p.tip})`).join("; ")}`
-    );
-    if (plan.extra) lines.push(`- Additional note shown to the member: ${plan.extra}`);
+    lines.push(...buildDrinkContextLines(profile, input.drinkSettings));
   }
 
   return {
@@ -293,6 +308,159 @@ export function buildCoachingContext(input: CoachingContextInput): CoachingConte
       loadBandLabel: LOAD_BAND_LABEL[loadBand],
       sessionCount: sessions.length,
       tierLabel: tier.tier === "full" ? "Full session" : tier.tier === "reduced" ? "Reduced session" : "Standard session",
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Grounding context for the Nutrition tab's AI Nutrition Coach.
+//
+// Deliberately separate from buildCoachingContext above: different scope
+// (daily/weekly meal guidance, not training prescription), different
+// grounding inputs (the Nutrition tab's own yesterday/today/tomorrow fuel
+// model, not the 7-day rolling load the Workout Helper uses), and a
+// distinct system prompt (see lib/ai.ts). Reuses everything it can:
+// buildDietaryContextBlock and buildDrinkContextLines above, and the exact
+// same fuel-day/macro math the Nutrition tab renders — nothing here
+// recomputes a number the app doesn't already show the member.
+// ─────────────────────────────────────────────────────────────────────
+
+export interface NutritionCoachContextInput {
+  profile: ProfileRecord;
+  recoveryLogs: RecoveryLogRecord[];
+  /** ISO date (YYYY-MM-DD) treated as "today" — injectable for tests. */
+  todayISO: string;
+  /** The member's planned exertion for tomorrow — this is a client-side
+      selection on the Nutrition tab (NutritionView.tsx), not a server
+      record, so the caller must supply it same as the tab does. */
+  tomorrow: Exertion;
+  /** The member's upcoming (not-yet-started) bookings, oldest first or in
+      any order — used only to find the next one. See
+      lib/bookings.ts resolveBookingsForUser. */
+  upcomingBookings: ResolvedBooking[];
+  /** Same optional drink-calculator settings the general coach context
+      accepts — lets the Nutrition Coach explain the member's actual
+      match-day drink plan when asked. */
+  drinkSettings?: DrinkSettings | null;
+}
+
+export interface NutritionCoachContextDisplay {
+  fuelDay: FuelDay;
+  fuelDayLabel: string;
+  carbGramsDay: number;
+  proteinGramsDay: number;
+  fatGramsDay: number;
+  weekBand: LoadBand;
+  weekBandLabel: string;
+  nextSession: { title: string; date: string; category: string } | null;
+}
+
+export interface NutritionCoachContext {
+  text: string;
+  display: NutritionCoachContextDisplay;
+}
+
+export function buildNutritionCoachContext(input: NutritionCoachContextInput): NutritionCoachContext {
+  const { profile, recoveryLogs, todayISO, tomorrow, upcomingBookings } = input;
+
+  function isoDaysAgo(days: number): string {
+    const d = new Date(`${todayISO}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - days);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // Same derivation as app/(dashboard)/dashboard/nutrition/page.tsx: real
+  // logged load (duration x RPE) for yesterday/today; tomorrow is the
+  // member's own plan, since the app can't know a session it hasn't seen.
+  function dayLoadFor(dateISO: string): number {
+    return recoveryLogs
+      .filter((log) => log.date === dateISO)
+      .map(trainingLoadForLog)
+      .filter((load): load is number => load !== null)
+      .reduce((total, load) => total + load, 0);
+  }
+
+  const yesterdayExertion = exertionFromDayLoad(dayLoadFor(isoDaysAgo(1)));
+  const todayExertion = exertionFromDayLoad(dayLoadFor(todayISO));
+  const load = weightedThreeDayLoad(yesterdayExertion, todayExertion, tomorrow);
+  const band = fuelBandForLoad(load);
+
+  const bodyWeightKg = profile.currentWeightKg ?? 75;
+  const goalBias = goalBiasFromPrimaryGoal(profile.primaryGoal);
+  const macros = macroTargets(bodyWeightKg, band, goalBias);
+
+  const rolling = computeRollingTrainingLoad(recoveryLogs);
+  const weekBand = classifyLoad(rolling.sevenDaySum, rolling.daysWithLoad);
+
+  const nextBooking =
+    [...upcomingBookings]
+      .filter((b) => !b.isPast)
+      .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`))[0] ?? null;
+
+  const lines: string[] = [];
+
+  lines.push("## Member profile");
+  lines.push(`- Name: ${profile.fullName}`);
+  lines.push(`- Primary goal: ${profile.primaryGoal}`);
+  if (profile.sportPlayed) lines.push(`- Sport: ${profile.sportPlayed}`);
+  lines.push(
+    `- Body weight used for targets: ${bodyWeightKg} kg${
+      profile.currentWeightKg === null ? " (default — no weight on file; suggest they add it in Profile for accuracy)" : ""
+    }`
+  );
+
+  lines.push("");
+  lines.push(buildDietaryContextBlock(profile));
+
+  lines.push("");
+  lines.push("## Training load — the Nutrition tab's yesterday / today / tomorrow model");
+  lines.push(`- Yesterday: ${EXERTION_LABEL[yesterdayExertion]} (from logged training load)`);
+  lines.push(`- Today: ${EXERTION_LABEL[todayExertion]} (from logged training load)`);
+  lines.push(`- Tomorrow (member's own plan, set on the Nutrition tab): ${EXERTION_LABEL[tomorrow]}`);
+  lines.push(
+    `- Weighted 3-day load: ${load.toFixed(2)} (today weighted heaviest at 0.5, tomorrow next at 0.3, yesterday least at 0.2)`
+  );
+  lines.push(`- 7-day training load band (from Recovery logs): ${LOAD_BAND_LABEL[weekBand]}`);
+
+  lines.push("");
+  lines.push("## Today's fuel day and macro targets (already computed by the app — cite exactly, never recompute)");
+  lines.push(`- Fuel day: ${band.label} — ${band.emphasis}`);
+  lines.push(`- Carbs: ${macros.carbGramsDay} g (${macros.carbGkg} g/kg)`);
+  lines.push(`- Protein: ${macros.proteinGramsDay} g (${macros.proteinGkg} g/kg)`);
+  lines.push(`- Fat: ${macros.fatGramsDay} g (${macros.fatGkg} g/kg)`);
+  if (goalBias !== "maintain") {
+    lines.push(`- Carb target is adjusted for their ${profile.primaryGoal.toLowerCase()} goal.`);
+  }
+
+  lines.push("");
+  lines.push("## Upcoming booked session");
+  if (nextBooking) {
+    lines.push(`- ${nextBooking.title} (category: ${nextBooking.category}) on ${nextBooking.date} at ${nextBooking.startTime}`);
+    lines.push(
+      "- Use this to ground next-session or match-day fuelling advice when it's relevant to what the member asks. Don't assume it's a match/game unless the title or category clearly says so — describe it plainly (e.g. \"your session on Saturday\") otherwise."
+    );
+  } else {
+    lines.push("- No upcoming class booked. Base next-session guidance on their stated plan for tomorrow above.");
+  }
+
+  if (input.drinkSettings) {
+    lines.push("");
+    lines.push(...buildDrinkContextLines(profile, input.drinkSettings));
+  }
+
+  return {
+    text: lines.join("\n"),
+    display: {
+      fuelDay: band.day,
+      fuelDayLabel: band.label,
+      carbGramsDay: macros.carbGramsDay,
+      proteinGramsDay: macros.proteinGramsDay,
+      fatGramsDay: macros.fatGramsDay,
+      weekBand,
+      weekBandLabel: LOAD_BAND_LABEL[weekBand],
+      nextSession: nextBooking
+        ? { title: nextBooking.title, date: nextBooking.date, category: nextBooking.category }
+        : null,
     },
   };
 }

@@ -3,8 +3,6 @@ import { cookies } from "next/headers";
 
 import {
   findBookingsByClassId,
-  findBookingsByUserId,
-  findClassById,
   findClassCategories,
   findClasses,
   findDeletedCategoryLabels,
@@ -13,8 +11,9 @@ import {
   findUserById,
   findWaitlistEntriesByClassId,
 } from "@/lib/db";
+import { resolveBookingsForUser } from "@/lib/bookings";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
-import { getCancellationCutoffHours, isCancellationEarly } from "@/lib/scheduling";
+import { getCancellationCutoffHours } from "@/lib/scheduling";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 import { ScheduleView } from "./ScheduleView";
@@ -31,7 +30,7 @@ export default async function DashboardSchedulePage() {
         <div>
           <h1 className="text-display text-[28px]">Schedule</h1>
         </div>
-        <div className="panel p-5">
+        <div className="surface-card p-5">
           <p className="text-sm text-muted-foreground">
             We couldn&apos;t load profile data for this account. Try logging out and back in.
           </p>
@@ -39,9 +38,6 @@ export default async function DashboardSchedulePage() {
       </div>
     );
   }
-
-  const allBookings = findBookingsByUserId(user.id);
-  const myBookedClassIds = new Set(allBookings.map((b) => b.classId));
 
   const subscription = user.role === "member" ? findSubscriptionByUserId(user.id) : undefined;
   const plan = resolveSubscriptionEntitlement(subscription);
@@ -51,27 +47,11 @@ export default async function DashboardSchedulePage() {
 
   const now = Date.now();
 
-  const upcomingBookings = allBookings
-    .flatMap((booking) => {
-      const classRecord = findClassById(booking.classId);
-      if (!classRecord) return [];
-      const classDateTime = new Date(`${classRecord.date}T${classRecord.startTime}`);
-      if (classDateTime.getTime() < now) return [];
-      return [
-        {
-          bookingId: booking.id,
-          classId: classRecord.id,
-          title: classRecord.title,
-          date: classRecord.date,
-          startTime: classRecord.startTime,
-          durationMins: classRecord.durationMins,
-          coachEmail: findUserById(classRecord.coachUserId)?.email ?? "Unknown coach",
-          imageUrl: classRecord.imageUrl ?? null,
-          imageAlt: classRecord.imageAlt ?? null,
-          willRestoreSession: isCancellationEarly(classDateTime),
-        },
-      ];
-    })
+  const resolvedBookings = resolveBookingsForUser(user.id, now);
+  const myBookedClassIds = new Set(resolvedBookings.map((b) => b.classId));
+
+  const upcomingBookings = resolvedBookings
+    .filter((b) => !b.isPast)
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 
   const classes = findClasses()

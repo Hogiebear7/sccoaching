@@ -1,4 +1,4 @@
-import type { WorkoutSessionRecord } from "@/lib/db";
+import type { ExerciseSection, WorkoutSessionRecord } from "@/lib/db";
 
 export interface ExerciseHistoryEntry {
   date: string;
@@ -209,4 +209,135 @@ export function weeklyWorkoutStats(
     }
   }
   return { count, totalKg: Math.round(totalKg) };
+}
+
+// Consecutive ISO weeks (Mon–Sun), ending with the current week, that have
+// at least one logged session. A week with zero sessions so far (including
+// the current, still-in-progress week) breaks the streak — no grace period,
+// so the number stays honest rather than flattering. Pure display derivation
+// for Variant B's consistency framing; does not touch session creation.
+export function computeWeeklyStreak(sessions: WorkoutSessionRecord[], todayISO: string): number {
+  const sessionDates = new Set(sessions.map((s) => s.date));
+  if (sessionDates.size === 0) return 0;
+
+  function mondayOf(iso: string): string {
+    const d = new Date(`${iso}T00:00:00Z`);
+    const day = d.getUTCDay();
+    d.setUTCDate(d.getUTCDate() + (day === 0 ? -6 : 1 - day));
+    return d.toISOString().slice(0, 10);
+  }
+
+  function weekHasSession(mondayISO: string): boolean {
+    const start = new Date(`${mondayISO}T00:00:00Z`);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate() + i);
+      if (sessionDates.has(d.toISOString().slice(0, 10))) return true;
+    }
+    return false;
+  }
+
+  let streak = 0;
+  let cursor = mondayOf(todayISO);
+  while (weekHasSession(cursor)) {
+    streak += 1;
+    const d = new Date(`${cursor}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 7);
+    cursor = d.toISOString().slice(0, 10);
+  }
+  return streak;
+}
+
+// ── Muscle set levels — weekly training-volume balance per muscle group ──
+//
+// Cardio is excluded: "sets" isn't a meaningful measure of cardio work, and
+// cardio load is tracked separately (WorkoutRunEntry), so folding it in here
+// would blur two different kinds of load into one number.
+export type StrengthSection = Exclude<ExerciseSection, "cardio">;
+
+export const SET_LEVEL_SECTIONS: StrengthSection[] = [
+  "upper_push",
+  "upper_pull",
+  "lower_push",
+  "lower_pull",
+  "core",
+];
+
+function isStrengthSection(section: ExerciseSection): section is StrengthSection {
+  return section !== "cardio";
+}
+
+export type SetLevelTier = "none" | "low" | "moderate" | "high";
+
+export interface MuscleSetLevel {
+  section: StrengthSection;
+  weeklySets: number;
+  tier: SetLevelTier;
+}
+
+export interface MuscleSetLevelsResult {
+  levels: Record<StrengthSection, MuscleSetLevel>;
+  /** Sessions in the window, regardless of whether any exercise resolved. */
+  sessionsInWindow: number;
+  /** Of those, how many had at least one library-linked (section-resolvable)
+      exercise — the gap between this and sessionsInWindow is free-text work
+      that can't be attributed to a muscle group. */
+  resolvedSessions: number;
+}
+
+function tierForWeeklySets(weeklySets: number): SetLevelTier {
+  if (weeklySets >= 15) return "high";
+  if (weeklySets >= 7) return "moderate";
+  if (weeklySets >= 1) return "low";
+  return "none";
+}
+
+// Weekly-average logged sets per muscle group over a rolling window ending
+// today, resolved via each entry's exerciseId → library section. Free-text
+// entries (exerciseId null, or an id the library no longer has) are honestly
+// excluded rather than guessed — same rule as the History muscle-map icon.
+// windowDays should be a multiple of 7 so the weekly average is meaningful.
+export function computeMuscleSetLevels(
+  sessions: WorkoutSessionRecord[],
+  sectionByExerciseId: Map<string, ExerciseSection>,
+  windowDays: number,
+  todayISO: string
+): MuscleSetLevelsResult {
+  const start = new Date(`${todayISO}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() - (windowDays - 1));
+  const startISO = start.toISOString().slice(0, 10);
+
+  const totals = Object.fromEntries(SET_LEVEL_SECTIONS.map((s) => [s, 0])) as Record<StrengthSection, number>;
+
+  let sessionsInWindow = 0;
+  let resolvedSessions = 0;
+
+  for (const session of sessions) {
+    if (session.date < startISO || session.date > todayISO) continue;
+    sessionsInWindow += 1;
+
+    let resolvedAny = false;
+    for (const ex of session.exercises) {
+      const section = ex.exerciseId ? sectionByExerciseId.get(ex.exerciseId) : undefined;
+      if (!section || !isStrengthSection(section)) continue;
+
+      const setCount = ex.setDetails && ex.setDetails.length > 0 ? ex.setDetails.length : (ex.sets ?? 0);
+      if (setCount <= 0) continue;
+
+      totals[section] += setCount;
+      resolvedAny = true;
+    }
+    if (resolvedAny) resolvedSessions += 1;
+  }
+
+  const weeks = windowDays / 7;
+  const levels = Object.fromEntries(
+    SET_LEVEL_SECTIONS.map((section) => {
+      const weeklySets = Math.round((totals[section] / weeks) * 10) / 10;
+      const level: MuscleSetLevel = { section, weeklySets, tier: tierForWeeklySets(weeklySets) };
+      return [section, level];
+    })
+  ) as Record<StrengthSection, MuscleSetLevel>;
+
+  return { levels, sessionsInWindow, resolvedSessions };
 }

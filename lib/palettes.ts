@@ -6,9 +6,9 @@
 
 export type PaletteId = "electric" | "gold" | "teal" | "ocean" | "violet" | "ember";
 
-// The member-facing default is the athletic electric-lime accent. Staff
+// The member-facing default is the navy/gold editorial accent. Staff
 // surfaces don't set data-palette, so they keep the :root teal.
-export const DEFAULT_PALETTE: PaletteId = "electric";
+export const DEFAULT_PALETTE: PaletteId = "gold";
 
 export const PALETTE_OPTIONS: {
   id: PaletteId;
@@ -36,8 +36,8 @@ export function isPaletteId(value: unknown): value is PaletteId {
 
 export type ThemeId = "onyx" | "navy" | "midnight" | "graphite" | "forest" | "plum";
 
-// Near-black athletic base is the member-facing default (pairs with electric).
-export const DEFAULT_THEME: ThemeId = "onyx";
+// Ink-navy editorial base is the member-facing default (pairs with gold).
+export const DEFAULT_THEME: ThemeId = "navy";
 
 export const THEME_OPTIONS: {
   id: ThemeId;

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import {
+  findAiMessagesByUserId,
   findBodyWeightLogsByUserId,
   findProfileByUserId,
   findRecoveryLogsByUserId,
@@ -8,6 +9,7 @@ import {
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
+import { resolveBookingsForUser } from "@/lib/bookings";
 import { computeRollingTrainingLoad, trainingLoadForLog } from "@/lib/recovery";
 import { exertionFromDayLoad, goalBiasFromPrimaryGoal, type Exertion } from "@/lib/nutrition";
 import { recommendFoods } from "@/lib/nutrition-recommendations";
@@ -16,6 +18,7 @@ import {
   DIETARY_PREFERENCE_OPTIONS,
   INTOLERANCE_OPTIONS,
 } from "@/lib/profile-options";
+import { isAiConfigured } from "@/lib/ai";
 import { verifySession } from "@/lib/session";
 import { NutritionView } from "./NutritionView";
 
@@ -94,6 +97,14 @@ export default async function NutritionPage() {
     ),
   };
 
+  // Next upcoming booked session/match, for the AI Nutrition Coach's
+  // match-day and next-session grounding — reuses the same resolver the
+  // Bookings and Schedule pages already use, no new business logic.
+  const nextBooking =
+    resolveBookingsForUser(user.id)
+      .filter((b) => !b.isPast)
+      .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`))[0] ?? null;
+
   return (
     <NutritionView
       bodyWeightKg={resolveCurrentWeightKg(
@@ -112,6 +123,11 @@ export default async function NutritionPage() {
       initialDrinkSettings={profile.drinkSettings ?? null}
       foodRecommendations={foodRecommendations}
       dietarySummary={dietarySummary}
+      aiNutritionCoachConfigured={isAiConfigured()}
+      initialAiNutritionMessages={findAiMessagesByUserId(user.id, "nutrition")}
+      nextSession={
+        nextBooking ? { title: nextBooking.title, date: nextBooking.date, category: nextBooking.category } : null
+      }
     />
   );
 }

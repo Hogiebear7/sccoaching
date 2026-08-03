@@ -2,18 +2,43 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import {
-  findMembershipBillingOptionsByPackageId,
-  findMembershipPackages,
-  findUserById,
-} from "@/lib/db";
-import { formatPriceCents } from "@/lib/billing";
-import { formatBillingOptionCadence } from "@/lib/catalog";
-import { AUTH_ROUTES, BRAND_NAME, BRAND_TAGLINE, LANDING_DESCRIPTION, VALUE_PROPS } from "@/lib/content";
+import { findUserById } from "@/lib/db";
+import { AUTH_ROUTES, BRAND_NAME, BRAND_TAGLINE, CONTACT_INFO, LANDING_DESCRIPTION, VALUE_PROPS } from "@/lib/content";
 import { verifySession } from "@/lib/session";
-import { FeaturedClassCard } from "@/components/marketing/FeaturedClassCard";
-import { CountUp } from "@/components/ui/CountUp";
+import { ClassesShowcase } from "@/components/marketing/ClassesShowcase";
+import { ClassPricingShowcase } from "@/components/marketing/ClassPricingShowcase";
+import { ContactForm } from "@/components/marketing/ContactForm";
+import { Ledger, type LedgerRow } from "@/components/marketing/Ledger";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+
+// Structural copy, not business fact — the specific claims here (coach
+// qualifications, locality specifics) are placeholders carried over from the
+// design blueprint and need the client's confirmation/edit before launch.
+const DIFFERENTIATORS = [
+  {
+    title: "Assessment before programming",
+    body: "No member starts on a generic plan. Movement screens and baseline testing shape your first block before you lift a single working set.",
+  },
+  {
+    title: "Capped coaching ratios",
+    body: "Small-group sessions stay small on purpose — every rep gets watched, every cue is specific to you, not shouted at the room.",
+  },
+  {
+    title: "Qualified S&C coaches",
+    body: "Every coach on the floor is degree-qualified in strength & conditioning, not a personal trainer certificate away from athletics.",
+  },
+  {
+    title: "Rooted in the community",
+    body: "Built for members training toward their own first standard, alongside athletes preparing for their sport's season.",
+  },
+] as const;
+
+const SAMPLE_LEDGER_ROWS: LedgerRow[] = [
+  { metric: "Back Squat 1RM", athlete: "C.M.", value: "142", unit: "kg", delta: "+12kg / 8wk", deltaDirection: "up" },
+  { metric: "10m Sprint", athlete: "R.O.", value: "1.71", unit: "s", delta: "−0.09s / 6wk", deltaDirection: "up" },
+  { metric: "Broad Jump", athlete: "S.K.", value: "2.58", unit: "m", delta: "+14cm / 10wk", deltaDirection: "up" },
+  { metric: "CMJ Height", athlete: "L.D.", value: "41.2", unit: "cm", delta: "+5.6cm / 8wk", deltaDirection: "up" },
+];
 
 // Split the tagline on its em-dash so the second half can take the gold accent,
 // echoing the reference two-tone headline without changing the copy.
@@ -32,29 +57,6 @@ export default async function Root() {
     redirect("/dashboard");
   }
 
-  // Marketing "from €X" cards, one per visible membership package, priced by
-  // its cheapest visible recurring billing option.
-  const plans = findMembershipPackages()
-    .filter((pkg) => pkg.visible && pkg.packageType === "membership")
-    .map((pkg) => {
-      const recurring = findMembershipBillingOptionsByPackageId(pkg.id).filter(
-        (o) => o.visible && o.billingType === "recurring"
-      );
-      const cheapest = recurring.length
-        ? recurring.reduce((min, o) => (o.amountCents < min.amountCents ? o : min))
-        : null;
-      return {
-        id: pkg.id,
-        name: pkg.name,
-        teaser: pkg.shortDescription,
-        detail: pkg.fullDescription,
-        imageUrl: pkg.imageUrl ?? null,
-        imageAlt: pkg.imageAlt ?? null,
-        amountCents: cheapest?.amountCents ?? null,
-        cadence: cheapest ? formatBillingOptionCadence(cheapest) : null,
-      };
-    })
-    .filter((p) => p.amountCents !== null);
 
   const [taglineLead, taglineAccent] = splitTagline(BRAND_TAGLINE);
 
@@ -74,32 +76,40 @@ export default async function Root() {
         }}
       />
 
-      {/* Top navigation */}
+      {/* Top navigation — brand lockup mirrors index.html exactly */}
       <nav className="anim-fade relative mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <span className="text-condensed text-xl uppercase tracking-wide text-zinc-50">
-          S<span className="text-gold">&</span>C<span className="hidden font-semibold sm:inline"> Performance</span>
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-editorial text-[22px] italic text-gold">S&amp;C</span>
+          <span className="h-7 w-px bg-white/[0.14]" />
+          <span className="text-mono hidden text-[10px] uppercase leading-[1.35] tracking-[0.08em] text-zinc-400 sm:block">
+            Performance
+            <br />
+            Coaching
+          </span>
+        </div>
         <div className="flex items-center gap-2.5">
           <Link
             href={AUTH_ROUTES.login}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-white"
+            className="rounded-[3px] px-4 py-2 text-sm font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-white"
           >
             Sign in
           </Link>
           <Link
             href={AUTH_ROUTES.signup}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[inset_0_1px_0_0_oklch(1_0_0/0.25),0_8px_24px_-8px_var(--accent-glow)] transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
+            className="rounded-[3px] bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
           >
             Create account
           </Link>
         </div>
       </nav>
 
-      {/* Hero — editorial split, staggered page-load choreography */}
-      <section className="relative mx-auto grid max-w-6xl items-center gap-14 px-6 pb-24 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:pt-20">
+      {/* Hero — editorial split, staggered page-load choreography. The
+          Ledger is the signature element (from the index.html blueprint)
+          in place of a stock athlete photo. */}
+      <section className="relative mx-auto grid max-w-6xl items-start gap-14 px-6 pb-24 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:pt-20">
         <div>
           <p
-            className="anim-rise flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-gold"
+            className="anim-rise text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold"
             style={{ animationDelay: "60ms" }}
           >
             <span className="h-px w-8 bg-primary/70" />
@@ -130,14 +140,14 @@ export default async function Root() {
           >
             <Link
               href={AUTH_ROUTES.signup}
-              className="group inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[inset_0_1px_0_0_oklch(1_0_0/0.25),0_12px_32px_-10px_var(--accent-glow)] transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
+              className="group inline-flex items-center justify-center gap-2 rounded-[3px] bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
             >
               Start training
               <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
             </Link>
             <Link
               href={AUTH_ROUTES.login}
-              className="inline-flex items-center justify-center rounded-lg border border-white/[0.12] bg-white/[0.04] px-6 py-3 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/40 hover:bg-white/[0.07] hover:text-white"
+              className="inline-flex items-center justify-center rounded-[3px] border border-white/[0.14] bg-transparent px-6 py-3 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/40 hover:bg-white/[0.04] hover:text-white"
             >
               Sign in
             </Link>
@@ -160,119 +170,163 @@ export default async function Root() {
           </ul>
         </div>
 
-        {/* Product collage — built from the app's real surfaces, each card
-            assembles in on its own beat rather than appearing as one block */}
-        <div className="relative hidden h-[480px] select-none lg:block" aria-hidden="true">
-          {/* Session card */}
-          <div
-            className="anim-rise panel-raised absolute left-0 top-10 w-[300px] -rotate-2 p-5"
-            style={{ animationDelay: "420ms" }}
-          >
-            <p className="label-caps">Up Next · Today</p>
-            <div className="mt-4 flex items-center gap-4">
-              <div className="flex h-14 w-14 flex-shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/[0.07] bg-white/[0.04]">
-                <span className="text-condensed text-[22px] leading-none text-zinc-50 tabular-nums">06</span>
-                <span className="text-[10px] leading-none text-zinc-500 tabular-nums">:30</span>
-              </div>
-              <div>
-                <p className="text-condensed text-[16px] uppercase text-zinc-50">Strength Foundations</p>
-                <p className="mt-1 text-xs text-zinc-500 tabular-nums">60 min · Coach Sarah</p>
-              </div>
-            </div>
-            <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/[0.06]">
-              <div
-                className="h-full w-0 rounded-full bg-primary transition-[width] duration-[900ms] ease-out"
-                style={{ width: "78%", transitionDelay: "700ms" }}
-              />
-            </div>
-            <p className="mt-2 text-[11px] text-zinc-500 tabular-nums">14/18 enrolled</p>
-          </div>
+        <div
+          className="anim-rise hidden lg:block"
+          style={{ animationDelay: "420ms" }}
+        >
+          <Ledger
+            title="Session Ledger"
+            tag="Latest Testing Block"
+            rows={SAMPLE_LEDGER_ROWS}
+            footnote="Representative data — your numbers, tracked from week one."
+          />
+        </div>
+      </section>
 
-          {/* Streak card */}
-          <div
-            className="anim-rise anim-float panel-raised absolute right-2 top-0 w-[190px] rotate-3 p-5"
-            style={{ animationDelay: "560ms" }}
-          >
-            <p className="label-caps">Streak</p>
-            <p className="text-editorial mt-3 text-[44px] leading-none text-gold">
-              <CountUp value={12} durationMs={900} />
+      {/* Classes we offer — curated services panel (hover/tap reveals each
+          class's description) over the real gym photo. Replaces the old
+          literal weekly timetable; these three classes are fixed content,
+          not derived from booking data. */}
+      <section className="relative border-t border-white/[0.06]">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <ScrollReveal className="max-w-lg">
+            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              The Training Floor
             </p>
-            <p className="mt-1.5 text-xs text-zinc-500">days in a row</p>
-          </div>
+            <h2 className="mt-4 text-editorial text-[32px] text-zinc-50">Classes we offer.</h2>
+          </ScrollReveal>
 
-          {/* Progress card */}
-          <div
-            className="anim-rise panel-raised absolute bottom-6 right-8 w-[260px] rotate-1 p-5"
-            style={{ animationDelay: "680ms" }}
-          >
-            <div className="flex items-baseline justify-between">
-              <p className="label-caps">Back Squat</p>
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary tabular-nums">↑ 12%</span>
-            </div>
-            <p className="text-editorial mt-3 text-[30px] leading-none text-zinc-50">
-              <CountUp value={110} durationMs={900} /> kg
+          <ScrollReveal delayMs={80} className="mt-10">
+            <ClassesShowcase imageUrl="/gymPicture.jpg" imageAlt="Inside the S&C training floor" />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* Membership — one card per class from "Classes we offer" above,
+          priced to match. Fixed marketing content, not catalog-driven (see
+          the Classes we offer section for the same reasoning): the real
+          catalog only prices Semi-Private tiers today, and these three
+          cards are meant to mirror the class showcase one-to-one. */}
+      <section className="relative border-t border-white/[0.06]">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <ScrollReveal className="max-w-lg">
+            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              Membership
             </p>
-            <div className="mt-4 flex h-12 items-end gap-1">
-              {[35, 45, 40, 55, 62, 58, 74, 70, 85, 100].map((h, i, arr) => (
-                <div
-                  key={i}
-                  className={`anim-bar-grow flex-1 rounded-t ${i === arr.length - 1 ? "bg-primary" : "bg-white/[0.08]"}`}
-                  style={{ height: `${h}%`, animationDelay: `${820 + i * 35}ms` }}
-                />
-              ))}
-            </div>
+            <h2 className="text-condensed mt-4 text-4xl uppercase text-zinc-50">Choose how you train</h2>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+              Every plan includes coach messaging, class booking, and full workout tracking.
+            </p>
+          </ScrollReveal>
+
+          <ScrollReveal delayMs={80} className="mt-10">
+            <ClassPricingShowcase href={AUTH_ROUTES.signup} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* The Standard — differentiators. Structural copy only; see the
+          DIFFERENTIATORS comment above re: placeholder specifics. */}
+      <section className="relative border-t border-white/[0.06] bg-[var(--surface-1)]">
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-20 lg:grid-cols-[0.8fr_1.2fr]">
+          <ScrollReveal>
+            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              The Standard
+            </p>
+            <h2 className="mt-4 text-editorial text-[34px] leading-[1.1] text-zinc-50">
+              This is a coaching floor, not a workout class.
+            </h2>
+          </ScrollReveal>
+
+          <div className="grid gap-6">
+            {DIFFERENTIATORS.map((item, i) => (
+              <ScrollReveal
+                key={item.title}
+                delayMs={i * 90}
+                className={`pb-6 ${i !== DIFFERENTIATORS.length - 1 ? "border-b border-white/[0.08]" : ""}`}
+              >
+                <h3 className="text-editorial text-[19px] text-gold">{item.title}</h3>
+                <p className="mt-2 max-w-[52ch] text-sm leading-relaxed text-zinc-400">{item.body}</p>
+              </ScrollReveal>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Plans — image-less premium cards with hover-reveal descriptions,
-          each rising into place as it scrolls into view */}
-      {plans.length > 0 ? (
-        <section className="relative border-t border-white/[0.06]">
-          <div className="mx-auto max-w-6xl px-6 py-20">
-            <ScrollReveal className="max-w-lg">
-              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-gold">
-                <span className="h-px w-8 bg-primary/70" />
-                Membership
-              </p>
-              <h2 className="text-condensed mt-4 text-4xl uppercase text-zinc-50">Choose how you train</h2>
-              <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-                Every plan includes coach messaging, class booking, and full workout tracking.
-              </p>
-            </ScrollReveal>
+      {/* Final CTA — booking links, contact details, and a real lead-capture
+          form (app/api/contact) so visitors can leave their details. id
+          gives other sections' CTAs (e.g. "Book Your Assessment") a real
+          same-page destination to point at. */}
+      <section id="contact" className="relative scroll-mt-20 border-t border-white/[0.06]">
+        <div className="mx-auto grid max-w-5xl gap-12 px-6 py-24 lg:grid-cols-2 lg:items-start">
+          <ScrollReveal>
+            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              Start Your Block
+            </p>
+            <h2 className="mt-4 text-editorial text-[38px] italic leading-[1.06] text-zinc-50">
+              Your first session starts the ledger.
+            </h2>
+            <p className="mt-4 max-w-md text-base leading-relaxed text-zinc-400">
+              Book an assessment and leave with a baseline, a block, and a coach who's read both.
+            </p>
 
-            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {plans.map((plan, i) => (
-                <ScrollReveal key={plan.id} delayMs={i * 100} className="h-full">
-                  <FeaturedClassCard
-                    seed={plan.id}
-                    name={plan.name}
-                    teaser={plan.teaser}
-                    detail={plan.detail}
-                    imageUrl={plan.imageUrl}
-                    imageAlt={plan.imageAlt}
-                    priceLabel={formatPriceCents(plan.amountCents!)}
-                    cadence={plan.cadence}
-                    featured={i === 0}
-                    href={AUTH_ROUTES.signup}
-                  />
-                </ScrollReveal>
-              ))}
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <a
+                href={`mailto:${CONTACT_INFO.email}`}
+                className="inline-flex items-center justify-center rounded-[3px] bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-[background-color] duration-150 hover:bg-[var(--primary-hover)]"
+              >
+                Book Your Assessment
+              </a>
+              <a
+                href={`tel:${CONTACT_INFO.phoneHref}`}
+                className="inline-flex items-center justify-center rounded-[3px] border border-white/[0.14] px-6 py-3 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/40 hover:bg-white/[0.04]"
+              >
+                Call the Floor
+              </a>
             </div>
-          </div>
-        </section>
-      ) : null}
+
+            <dl className="mt-10 grid gap-4 border-t border-white/[0.08] pt-6">
+              <div className="flex items-baseline gap-3">
+                <dt className="text-mono w-16 flex-shrink-0 text-[10px] uppercase tracking-[0.08em] text-zinc-500">Location</dt>
+                <dd className="text-sm text-zinc-200">{CONTACT_INFO.location}</dd>
+              </div>
+              <div className="flex items-baseline gap-3">
+                <dt className="text-mono w-16 flex-shrink-0 text-[10px] uppercase tracking-[0.08em] text-zinc-500">Email</dt>
+                <dd className="break-all text-sm text-zinc-200">{CONTACT_INFO.email}</dd>
+              </div>
+              <div className="flex items-baseline gap-3">
+                <dt className="text-mono w-16 flex-shrink-0 text-[10px] uppercase tracking-[0.08em] text-zinc-500">Phone</dt>
+                <dd className="text-sm text-zinc-200">{CONTACT_INFO.phone}</dd>
+              </div>
+            </dl>
+          </ScrollReveal>
+
+          <ScrollReveal delayMs={120}>
+            <ContactForm />
+          </ScrollReveal>
+        </div>
+      </section>
 
       {/* Footer */}
       <footer className="relative border-t border-white/[0.06]">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-6 py-10 sm:flex-row sm:items-center">
-          <span className="text-condensed text-base uppercase text-zinc-300">S<span className="text-gold">&</span>C Performance Coaching</span>
-          <div className="flex items-center gap-6 text-[13px] text-zinc-500">
+          <div className="flex items-center gap-3">
+            <span className="text-editorial text-[17px] italic text-gold">S&amp;C</span>
+            <span className="h-6 w-px bg-white/[0.14]" />
+            <span className="text-mono text-[10px] uppercase tracking-[0.08em] text-zinc-400">Performance Coaching</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-zinc-500">
             <Link href={AUTH_ROUTES.login} className="transition-colors duration-150 hover:text-gold">Sign in</Link>
             <Link href={AUTH_ROUTES.signup} className="transition-colors duration-150 hover:text-gold">Create account</Link>
             <Link href={AUTH_ROUTES.forgotPassword} className="transition-colors duration-150 hover:text-gold">Forgot password</Link>
+            <Link href="/privacy" className="transition-colors duration-150 hover:text-gold">Privacy</Link>
+            <Link href="/terms" className="transition-colors duration-150 hover:text-gold">Terms</Link>
           </div>
-          <p className="text-xs text-zinc-600">© 2026 {BRAND_NAME}</p>
+          <p className="text-mono text-xs text-zinc-600">© 2026 {BRAND_NAME}</p>
         </div>
       </footer>
     </main>

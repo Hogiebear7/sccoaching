@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
+// Matches the signup form's requirement copy and the server-side check in
+// validatePasswordStrength (app/api/auth/signup/route.ts) — reset-password
+// enforces the same policy, not a weaker one.
+const PASSWORD_REQUIREMENTS_HINT =
+  "Must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.";
+
 export function ResetPasswordForm({ token }: { token: string }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
@@ -66,6 +72,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           className="w-full rounded-lg border border-white/[0.08] bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
           placeholder="At least 8 characters"
         />
+        <span className="mt-1.5 block text-xs text-zinc-500">{PASSWORD_REQUIREMENTS_HINT}</span>
       </label>
 
       <label className="block">

@@ -22,6 +22,12 @@ vi.mock("@/lib/db", () => ({
   appendPassLedgerEntry: vi.fn(),
   findPassLedgerByPurchaseId: vi.fn(() => []),
   findPassLedgerByUserId: vi.fn(() => []),
+  // Revenue ledger: no billing option on file in these scenarios, so the
+  // ORDER_COMPLETED revenue-recording branch is a no-op (see the amountCents
+  // guard in app/api/billing/webhook/route.ts).
+  findMembershipBillingOptionById: vi.fn(() => undefined),
+  findRevenueEventByProviderRef: vi.fn(() => undefined),
+  createRevenueEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/membership-entitlement", async (importActual) => ({

@@ -64,15 +64,15 @@ export default async function DashboardLayout({
     .toUpperCase();
 
   const avatarUrl = profile?.avatarDataUrl ?? null;
-  // Member-facing default is the athletic electric-lime / onyx look. The old
+  // Member-facing default is the navy/gold editorial look. The old
   // auto-assigned defaults ("teal"/"midnight") weren't deliberate member
   // choices, so they resolve to the new default too; any explicit non-default
   // pick (ocean, violet, forest, …) is honoured. Staff surfaces don't set
   // these attributes at all, so they keep the :root teal.
   const palette =
-    profile?.palette && profile.palette !== "teal" ? profile.palette : "electric";
+    profile?.palette && profile.palette !== "teal" ? profile.palette : "gold";
   const theme =
-    profile?.theme && profile.theme !== "midnight" ? profile.theme : "onyx";
+    profile?.theme && profile.theme !== "midnight" ? profile.theme : "navy";
 
   return (
     <div className="min-h-screen text-foreground" data-palette={palette} data-theme={theme}>
@@ -81,7 +81,7 @@ export default async function DashboardLayout({
         <aside className="hidden border-r border-white/[0.06] bg-[oklch(0.155_0.004_255/0.72)] backdrop-blur-xl lg:flex lg:h-screen lg:flex-col lg:sticky lg:top-0">
           <div className="px-5 pt-6 pb-5">
             <Link href="/dashboard" className="text-display text-lg text-zinc-50">
-              S<span className="text-teal-400">&</span>C
+              S<span className="text-gold">&</span>C
             </Link>
             <p className="label-caps mt-1.5 text-[10px]">Performance Coaching</p>
           </div>
@@ -110,7 +110,7 @@ export default async function DashboardLayout({
                   style={{ backgroundImage: `url(${avatarUrl})` }}
                 />
               ) : (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-teal-500 text-[11px] font-semibold text-white ring-1 ring-white/15">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground ring-1 ring-white/15">
                   {initials}
                 </div>
               )}
@@ -132,7 +132,7 @@ export default async function DashboardLayout({
             <div className="flex h-16 items-center justify-between gap-3">
               <div className="min-w-0">
                 <span className="text-display text-base text-zinc-50 lg:hidden">
-                  S<span className="text-teal-400">&</span>C
+                  S<span className="text-gold">&</span>C
                   <span className="hidden min-[420px]:inline"> Performance Coaching</span>
                 </span>
                 <p className="hidden text-sm text-zinc-400 lg:block">
@@ -208,8 +208,8 @@ export default async function DashboardLayout({
                 <Link
                   href="/dashboard/profile"
                   aria-label="Edit profile"
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-semibold text-white ring-1 ring-white/15 transition-transform duration-150 active:scale-95 lg:hidden ${
-                    avatarUrl ? "bg-cover bg-center" : "bg-teal-500"
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-semibold text-primary-foreground ring-1 ring-white/15 transition-transform duration-150 active:scale-95 lg:hidden ${
+                    avatarUrl ? "bg-cover bg-center" : "bg-primary"
                   }`}
                   style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}
                 >

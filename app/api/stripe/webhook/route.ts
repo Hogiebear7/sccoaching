@@ -6,12 +6,17 @@ import { cancelProviderSubscription } from "@/lib/billing";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { randomUUID } from "crypto";
+
 import {
+  createRevenueEvent,
+  findAllSubscriptions,
   findMembershipBillingOptionById,
   findMembershipPackageById,
   findPurchaseById,
   findPurchaseByProviderOrderId,
   findPurchaseByProviderPaymentRef,
+  findRevenueEventByProviderRef,
   findSubscriptionByPendingSetupOrderId,
   findSubscriptionByProviderOrderId,
   findSubscriptionBySetupOrderId,
@@ -277,6 +282,26 @@ export async function POST(request: NextRequest) {
       if (refunded) applyRefundedPassPurchase(refunded);
       return ack(refunded ? "Refund applied." : "No transition applied.");
     }
+
+    // Not a pass-pack purchase — check whether this charge belongs to a
+    // membership subscription instead. A refund here isn't auto-revoked:
+    // distinguishing "full cancellation refund" from "prorated adjustment,
+    // access should continue" isn't safely inferable from this event alone,
+    // so surface it for staff to review and action manually rather than
+    // guessing at entitlement.
+    const customerId = typeof object.customer === "string" ? object.customer : null;
+    const subscriptionMatch = customerId
+      ? findAllSubscriptions().find((s) => s.provider === "stripe" && s.providerCustomerId === customerId)
+      : undefined;
+
+    if (subscriptionMatch) {
+      console.warn(
+        "[stripe webhook] Membership charge refunded — staff review required (entitlement not auto-revoked).",
+        { userId: subscriptionMatch.userId, customerId, chargeId: typeof object.id === "string" ? object.id : null }
+      );
+      return ack("Membership refund noted — staff review required.");
+    }
+
     return ack("No matching purchase for refund.");
   }
 
@@ -298,6 +323,27 @@ export async function POST(request: NextRequest) {
     // A canceled membership stays canceled — a final invoice settling after
     // customer.subscription.deleted must not resurrect access.
     if (subscription.status === "canceled") return ack("Subscription is canceled.");
+
+    // Revenue ledger: the invoice id is the payment's own identity, distinct
+    // from event.id — invoice.paid and invoice.payment_succeeded can both
+    // fire for the same invoice, so dedupe on the invoice id itself rather
+    // than relying on the outer per-event hasPaymentEvent check.
+    const invoiceId = typeof object.id === "string" ? object.id : null;
+    const amountPaid = typeof object.amount_paid === "number" ? object.amount_paid : 0;
+    if (invoiceId && amountPaid > 0 && !findRevenueEventByProviderRef("stripe", invoiceId)) {
+      createRevenueEvent({
+        id: randomUUID(),
+        userId: subscription.userId,
+        packageId: subscription.packageId ?? null,
+        billingOptionId: subscription.billingOptionId ?? null,
+        amountCents: amountPaid,
+        currency: typeof object.currency === "string" ? object.currency : "eur",
+        provider: "stripe",
+        providerRef: invoiceId,
+        source: "membership_renewal",
+        receivedAt: new Date().toISOString(),
+      });
+    }
 
     const paidPeriodEnd = readInvoicePeriodEnd(object);
     const now = new Date().toISOString();

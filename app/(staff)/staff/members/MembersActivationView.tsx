@@ -71,11 +71,14 @@ export function MembersActivationView({
   rows,
   packages,
   canManageBilling,
+  ageBreakdown,
 }: {
   rows: MemberRow[];
   packages: MembershipPackageRecord[];
   /** Admin+ only. Coaches see the member list but can't activate memberships. */
   canManageBilling: boolean;
+  /** Active-member headcount by age bracket — demographics, not billing. */
+  ageBreakdown: { bracket: string; label: string; count: number }[];
 }) {
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");
@@ -136,10 +139,29 @@ export function MembersActivationView({
           </svg>
           <span>
             Manual override — sets provider to &ldquo;none&rdquo;, resets session count to 0. Use
-            for cash payments, comps, or local testing. Does not touch online billing.
+            for cash payments, comps, or local testing. If the member has a live Stripe
+            subscription, it&rsquo;s cancelled automatically as part of this — you&rsquo;ll see a
+            warning here if that fails and needs a manual follow-up in Stripe.
           </span>
         </div>
       </div>
+
+      {/* Age breakdown — active members only */}
+      {ageBreakdown.length > 0 ? (
+        <div className="panel p-4">
+          <p className="text-sm font-medium">Active members by age</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ageBreakdown.map((row) => (
+              <span
+                key={row.bracket}
+                className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
+              >
+                {row.label} · {row.count}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Search + filters */}
       {rows.length > 0 ? (

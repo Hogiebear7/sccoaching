@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { consumeResetToken, updateUserPassword } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
+import { validatePasswordStrength } from "@/app/api/auth/signup/route";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -24,11 +25,16 @@ export async function POST(request: Request) {
     );
   }
 
-  if (typeof password !== "string" || password.trim().length < 8) {
+  if (typeof password !== "string" || !password.trim()) {
     return NextResponse.json(
-      { success: false, message: "Password must be at least 8 characters." },
+      { success: false, message: "Password is required." },
       { status: 400 }
     );
+  }
+
+  const passwordError = validatePasswordStrength(password);
+  if (passwordError) {
+    return NextResponse.json({ success: false, message: passwordError }, { status: 400 });
   }
 
   const userId = consumeResetToken(token);

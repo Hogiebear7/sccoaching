@@ -35,8 +35,8 @@
   --accent-data:         oklch(0.78 0.13 235);
   --accent-data-weak:    oklch(0.78 0.13 235 / 0.16);
   --accent-premium:      oklch(0.78 0.14 85);
-  --success:             oklch(0.72 0.13 180);
-  --success-weak:        oklch(0.72 0.13 180 / 0.12);
+  --success:             oklch(0.7616 0.0683 155.3);
+  --success-weak:        oklch(0.7616 0.0683 155.3 / 0.12);
   --warning:             oklch(0.8 0.13 80);
   --warning-weak:        oklch(0.8 0.13 80 / 0.12);
   --danger:              oklch(0.6 0.22 25);
@@ -135,20 +135,20 @@
 }
 
 /* Gold — muted brass accent for the S&C editorial identity (pairs with the
-   navy theme). Deliberately dimmer/more metallic than --accent-premium's
-   bright gold badge tone, so it can carry primary actions without reading
-   as neon. Dark ink foreground, same reasoning as electric's lime. */
+   navy theme), precisely converted from the blueprint's #C6A15B / #E0BE7C.
+   Deliberately dimmer/more metallic than --accent-premium's bright gold
+   badge tone, so it can carry primary actions without reading as neon. */
 [data-palette="gold"] {
-  --accent-primary:      oklch(0.74 0.11 83);
-  --accent-primary-weak: oklch(0.74 0.11 83 / 0.12);
-  --accent-grad-top:     oklch(0.78 0.115 82);
-  --accent-grad-bottom:  oklch(0.68 0.105 85);
-  --accent-border:       oklch(0.8 0.12 83 / 0.45);
-  --accent-glow:         oklch(0.74 0.11 83 / 0.5);
-  --primary:             oklch(0.74 0.11 83);
-  --primary-hover:       oklch(0.8 0.12 82);
-  --primary-foreground:  oklch(0.16 0.03 250);
-  --ring:                oklch(0.74 0.11 83);
+  --accent-primary:      oklch(0.7279 0.0989 82.1);
+  --accent-primary-weak: oklch(0.7279 0.0989 82.1 / 0.12);
+  --accent-grad-top:     oklch(0.8163 0.0927 83.3);
+  --accent-grad-bottom:  oklch(0.7279 0.0989 82.1);
+  --accent-border:       oklch(0.8163 0.0927 83.3 / 0.45);
+  --accent-glow:         oklch(0.7279 0.0989 82.1 / 0.5);
+  --primary:             oklch(0.7279 0.0989 82.1);
+  --primary-hover:       oklch(0.8163 0.0927 83.3);
+  --primary-foreground:  oklch(0.1954 0.0381 258.8);
+  --ring:                oklch(0.7279 0.0989 82.1);
 }
 
 /* ── Whole-app theme presets (lib/palettes.ts THEME_OPTIONS) ──────────
@@ -191,21 +191,22 @@
     linear-gradient(150deg, oklch(0.19 0.01 150) 0%, oklch(0.15 0.008 150) 55%, oklch(0.12 0.006 150) 100%) fixed;
 }
 
-/* Navy — the S&C editorial identity: a near-black ink-navy base (deeper and
-   more saturated toward blue than onyx/graphite) with a single restrained
-   gold vignette top-right instead of a multi-blob aurora. Pairs with the
-   gold accent palette. */
+/* Navy — the S&C editorial identity, precisely converted from the
+   index.html blueprint's hex values (not eyeballed) so the real app matches
+   it exactly: ink #0A1526, surface #10203A, surface-alt #142B4A,
+   line #24405F. A single restrained gold vignette top-right instead of a
+   multi-blob aurora. Pairs with the gold accent palette. */
 [data-theme="navy"] {
-  --bg-0:      oklch(0.16 0.03 250);
-  --bg-1:      oklch(0.2 0.032 249);
-  --surface-1: oklch(0.26 0.036 247);
-  --surface-2: oklch(0.31 0.038 246);
-  --surface-3: oklch(0.36 0.038 245);
-  --input:     oklch(0.15 0.03 250 / 0.85);
-  --sidebar:   oklch(0.13 0.028 250);
+  --bg-0:      oklch(0.1954 0.0381 258.8);
+  --bg-1:      oklch(0.22 0.042 259);
+  --surface-1: oklch(0.2447 0.0544 259.7);
+  --surface-2: oklch(0.2879 0.0641 256.5);
+  --surface-3: oklch(0.3647 0.0638 252.2);
+  --input:     oklch(0.1954 0.0381 258.8 / 0.85);
+  --sidebar:   oklch(0.165 0.035 259);
   background:
-    radial-gradient(60% 50% at 82% 0%, oklch(0.78 0.1 85 / 0.10), oklch(0 0 0 / 0) 62%) fixed,
-    linear-gradient(160deg, oklch(0.19 0.032 249) 0%, oklch(0.14 0.028 250) 55%, oklch(0.1 0.024 252) 100%) fixed;
+    radial-gradient(60% 50% at 82% 0%, oklch(0.7279 0.0989 82.1 / 0.10), oklch(0 0 0 / 0) 62%) fixed,
+    linear-gradient(160deg, oklch(0.22 0.042 259) 0%, oklch(0.1954 0.0381 258.8) 55%, oklch(0.165 0.035 259) 100%) fixed;
 }
 
 [data-theme="graphite"] {
@@ -289,6 +290,12 @@
   --color-primary-foreground:       var(--primary-foreground);
   --color-gold:                     var(--gold);
   --color-gold-foreground:          var(--gold-foreground);
+  /* Stable blue, untouched by every [data-palette] preset (unlike
+     --primary, which the gold preset repoints to an amber near-identical
+     to --gold/--warning). Use text-data/bg-data/border-data wherever a
+     genuinely distinct "data" or "informational" hue is needed alongside
+     gold — see the 2026-08 palette-semantics audit in memory. */
+  --color-data:                     var(--accent-data);
   --color-secondary:                var(--secondary);
   --color-secondary-foreground:     var(--secondary-foreground);
   --color-muted:                    var(--muted);
@@ -411,6 +418,30 @@ html {
   box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.25);
 }
 
+/* New interior app card language (navy/gold system) — flat and solid, not
+   frosted glass like .panel/.panel-raised. Establishes the pattern for
+   later screens: hairline border, sharp-ish radius, optional accent bar
+   (.surface-card--accent) for the one intentional/hero card per section. */
+@utility surface-card {
+  background-color: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+}
+
+@utility surface-card--accent {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(to right, var(--primary), transparent);
+    border-radius: 4px 4px 0 0;
+  }
+}
+
 /* Standard chip/badge shell — value-forward, crisp hairline, dark fill.
    Pair with a role tint class when state matters. */
 @utility chip {
@@ -476,7 +507,7 @@ html {
   border-radius: 9999px;
   border: 1px solid var(--accent-border);
   background-image: linear-gradient(180deg, var(--accent-grad-top), var(--accent-grad-bottom));
-  color: white;
+  color: var(--primary-foreground);
   font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -526,6 +557,12 @@ html {
   font-weight: 900;
   letter-spacing: -0.015em;
   line-height: 1.03;
+}
+
+/* Technical/data face — testing numbers, labels, the Ledger motif. Matches
+   the static index.html blueprint's IBM Plex Mono exactly. */
+@utility text-mono {
+  font-family: var(--font-plex-mono), "Courier New", monospace;
 }
 
 /* ─── Forms ─────────────────────────────────────────────────────────── */

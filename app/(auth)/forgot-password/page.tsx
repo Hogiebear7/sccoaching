@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main data-theme="navy" data-palette="gold" className="relative min-h-screen px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.78_0.1_85/0.08),transparent)]">
+    <main data-theme="navy" data-palette="gold" className="relative min-h-screen px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.7279_0.0989_82.1/0.08),transparent)]">
       <div className="mx-auto w-full max-w-md">
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">

@@ -30,7 +30,12 @@ import {
 } from "@/lib/nutrition";
 import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
 import type { FoodRecommendations } from "@/lib/nutrition-recommendations";
-import { PageHeader } from "@/components/ui/PageHeader";
+import type { AiMessageRecord } from "@/lib/db";
+import type { NutritionCoachContextDisplay } from "@/lib/ai-context";
+import { FoodCategoryIcon } from "@/components/graphics/FoodCategoryIcon";
+import { IconBadge } from "@/components/graphics/IconBadge";
+import { NutrientFunctionIcon, type NutrientFunction } from "@/components/graphics/NutrientFunctionIcon";
+import { NutritionAiCoach } from "./NutritionAiCoach";
 
 const EXERTION_OPTIONS: Exertion[] = ["low", "medium", "high", "match"];
 const BOTTLE_OPTIONS = [500, 750, 1000] as const;
@@ -67,7 +72,7 @@ const TEMP_HINT: Record<TempProfile, string> = {
   hot: "Over 25°C — fluid and sodium losses climb sharply.",
 };
 
-const INGREDIENT_BENEFITS: { name: string; tag: string; summary: string; detail: string }[] = [
+const INGREDIENT_BENEFITS: { name: string; tag: NutrientFunction; summary: string; detail: string }[] = [
   {
     name: "Maltodextrin",
     tag: "Energy",
@@ -129,11 +134,20 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
+// Mirrors WorkoutHelper's tierChipClass tone mapping — full/high-demand days
+// read as success (green), reduced as warning (amber), match day gets the
+// gold premium accent, everything else stays neutral.
 function fuelChipClass(day: string): string {
   if (day === "match") return "border-gold/30 bg-gold/[0.08] text-gold";
-  if (day === "full") return "border-teal-500/25 bg-teal-500/[0.08] text-teal-300";
-  if (day === "reduced") return "border-amber-500/25 bg-amber-500/[0.08] text-amber-300";
+  if (day === "full") return "border-[var(--success)]/30 bg-[var(--success-weak)] text-[var(--success)]";
+  if (day === "reduced") return "border-[var(--warning)]/30 bg-[var(--warning-weak)] text-[var(--warning)]";
   return "border-white/[0.1] bg-white/[0.04] text-zinc-300";
+}
+
+function sodiumBadgeClass(badge: "below" | "optimal" | "high"): string {
+  if (badge === "optimal") return "border-[var(--success)]/25 bg-[var(--success-weak)] text-[var(--success)]";
+  if (badge === "high") return "border-[var(--warning)]/25 bg-[var(--warning-weak)] text-[var(--warning)]";
+  return "border-white/[0.1] bg-white/[0.04] text-zinc-400";
 }
 
 function Segmented<T extends string | number>({
@@ -168,6 +182,17 @@ function Segmented<T extends string | number>({
   );
 }
 
+// Nutrition — restructured around the same standard as the Workouts rework:
+// a single dominant "Today's Fuel" hero (fuel-day status, macro targets, and
+// concrete food ideas, unified under one header instead of three separate
+// panels), the Sports Performance Drink builder demoted to a clearly
+// secondary tool below it, and narrative guidance kept compact rather than
+// competing with either. All computation stays in lib/nutrition,
+// lib/nutrition-recommendations, and lib/workout-helper — this file only
+// changes composition and token usage (the old frosted-glass .panel/.well
+// language → the surface-card navy/gold system already used in Workouts).
+// Dietary exclusions stay visible in the main flow, never behind a
+// collapsed control — that information is safety-relevant.
 export function NutritionView({
   bodyWeightKg,
   goalBias,
@@ -182,6 +207,9 @@ export function NutritionView({
   initialDrinkSettings = null,
   foodRecommendations,
   dietarySummary,
+  aiNutritionCoachConfigured,
+  initialAiNutritionMessages,
+  nextSession,
 }: {
   bodyWeightKg: number | null;
   goalBias: WeightGoalBias;
@@ -196,8 +224,13 @@ export function NutritionView({
   initialDrinkSettings?: DrinkSettings | null;
   foodRecommendations: FoodRecommendations;
   dietarySummary: { preferenceLabel: string; exclusions: string[] };
+  aiNutritionCoachConfigured: boolean;
+  initialAiNutritionMessages: AiMessageRecord[];
+  nextSession: { title: string; date: string; category: string } | null;
 }) {
   const [tomorrow, setTomorrow] = useState<Exertion>("medium");
+  const [aiCoachOpen, setAiCoachOpen] = useState(false);
+  const [aiCoachPrefill, setAiCoachPrefill] = useState<string | null>(null);
   const [bottleMl, setBottleMl] = useState<(typeof BOTTLE_OPTIONS)[number]>(1000);
   const [sport, setSport] = useState<SportId>("soccer");
   const [role, setRole] = useState<string>(SPORT_DATA.soccer.defaultRole);
@@ -307,6 +340,23 @@ export function NutritionView({
   const macros = macroTargets(weight, band, goalBias);
   const weekBand = classifyLoad(sevenDayLoad, daysWithLoad);
 
+  // Built from the same live values driving the hero above (not a separate
+  // fetch), so the AI Nutrition Coach's context chips update instantly when
+  // "tomorrow" changes — never a stale server snapshot. The actual grounding
+  // text sent to the model is rebuilt server-side per message from the same
+  // inputs (see app/api/ai/nutrition-coach/route.ts), so correctness never
+  // depends on this object either — it's display-only.
+  const nutritionCoachContext: NutritionCoachContextDisplay = {
+    fuelDay: band.day,
+    fuelDayLabel: band.label,
+    carbGramsDay: macros.carbGramsDay,
+    proteinGramsDay: macros.proteinGramsDay,
+    fatGramsDay: macros.fatGramsDay,
+    weekBand,
+    weekBandLabel: LOAD_BAND_LABEL[weekBand],
+    nextSession,
+  };
+
   const sportCfg = SPORT_DATA[sport];
 
   function handleSportChange(next: SportId) {
@@ -361,8 +411,6 @@ export function NutritionView({
       ? `Last logged session: ${lastSessionTitle}${lastSessionDate ? ` (${lastSessionDate})` : ""}. Time most of today's carbs before and after training windows.`
       : "No workouts logged yet — once sessions are in the Workouts tab, fuelling emphasis follows your real training.";
 
-  const aiPrompt = `Give me food ideas for a ${band.label.toLowerCase()} (${macros.carbGramsDay} g carbs, ${macros.proteinGramsDay} g protein, ${macros.fatGramsDay} g fat). Use my dietary requirements from my profile and keep it practical around my training.`;
-
   // Drink handoff prompt: lead with whatever is most likely on the member's
   // mind given their current settings. The chat attaches the full settings
   // itself, so the prompt only needs to point the question.
@@ -375,43 +423,106 @@ export function NutritionView({
       ? "Explain my run drink plan — the salt dose, what to carry, and when to drink."
       : "Explain my drink plan — the salt dose, bottle size, and timing.";
 
+  const foodGroups: { key: keyof FoodRecommendations; label: string }[] = [
+    { key: "protein", label: "Protein" },
+    { key: "carb", label: "Carbs" },
+    { key: "snack", label: "Snacks" },
+  ];
+
   return (
-    <section className="anim-rise space-y-8">
-      <PageHeader
-        eyebrow="Fuelling"
-        title="Nutrition"
-        subtitle="Daily targets and sports performance hydration, tuned to your training."
-      />
+    <section className="anim-rise space-y-10">
+      {/* Bespoke editorial header — same voice/pattern as Workouts variant C */}
+      <div>
+        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Fuelling</p>
+        <h1 className="text-editorial mt-2 text-[32px] leading-[1.05] text-zinc-50 sm:text-[36px]">
+          Fuel built around your training, not a guess.
+        </h1>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+          Daily targets and sports hydration, tuned to what you&apos;ve actually logged.
+        </p>
+      </div>
 
-      {/* Food suggestions — filtered by the member's dietary requirements */}
-      <FoodSuggestions recommendations={foodRecommendations} summary={dietarySummary} />
-
-      {/* Fuel day hero */}
-      <div className="panel relative overflow-hidden p-5">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(70%_100%_at_25%_0%,rgba(45,212,191,0.07),transparent)]" />
-        <div className="relative">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Hero — Today's Fuel: status, macro targets, and food ideas unified
+          under one header, instead of three separate panels each competing
+          for the same amount of attention. */}
+      <div className="surface-card surface-card--accent overflow-hidden">
+        <div className="relative border-b border-white/[0.06] p-5 sm:p-6">
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-28"
+            style={{ background: "radial-gradient(70% 100% at 25% 0%, color-mix(in oklch, var(--gold) 8%, transparent), transparent)" }}
+          />
+          <div className="relative flex flex-wrap items-center justify-between gap-2">
             <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(band.day)}`}>
               {band.label}
             </span>
             <span className="text-xs text-zinc-500 tabular-nums">Weighted 3-day load {load.toFixed(2)}</span>
           </div>
-          <p className="mt-3 text-sm leading-relaxed text-zinc-300">{band.emphasis}</p>
+          <p className="relative mt-3 text-sm leading-relaxed text-zinc-300">{band.emphasis}</p>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-            <div className="well px-2 py-2.5">
+          <div className="relative mt-5 grid grid-cols-3 divide-x divide-white/[0.08] rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+            <div className="px-3 py-3.5 text-center sm:px-4">
+              <div className="flex justify-center">
+                <IconBadge tone="gold" size="sm">
+                  <FoodCategoryIcon type="carb" />
+                </IconBadge>
+              </div>
+              <p className="label-caps mt-1.5 text-[9px]">Carbs</p>
+              <p className="text-display mt-1 text-[24px] leading-none text-gold tabular-nums">
+                {macros.carbGramsDay}
+                <span className="text-xs text-zinc-500"> g</span>
+              </p>
+              <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{macros.carbGkg.toFixed(1)} g/kg</p>
+            </div>
+            <div className="px-3 py-3.5 text-center sm:px-4">
+              <div className="flex justify-center">
+                <IconBadge tone="neutral" size="sm">
+                  <FoodCategoryIcon type="protein" />
+                </IconBadge>
+              </div>
+              <p className="label-caps mt-1.5 text-[9px]">Protein</p>
+              <p className="text-display mt-1 text-[24px] leading-none text-zinc-50 tabular-nums">
+                {macros.proteinGramsDay}
+                <span className="text-xs text-zinc-500"> g</span>
+              </p>
+              <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{macros.proteinGkg.toFixed(1)} g/kg</p>
+            </div>
+            <div className="px-3 py-3.5 text-center sm:px-4">
+              <div className="flex justify-center">
+                <IconBadge tone="neutral" size="sm">
+                  <FoodCategoryIcon type="fat" />
+                </IconBadge>
+              </div>
+              <p className="label-caps mt-1.5 text-[9px]">Fat</p>
+              <p className="text-display mt-1 text-[24px] leading-none text-zinc-50 tabular-nums">
+                {macros.fatGramsDay}
+                <span className="text-xs text-zinc-500"> g</span>
+              </p>
+              <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{macros.fatGkg.toFixed(1)} g/kg</p>
+            </div>
+          </div>
+          <p className="relative mt-2 text-[11px] leading-relaxed text-zinc-600">
+            {bodyWeightKg !== null ? `At ${weight} kg. ` : "Using 75 kg — add your weight in Profile. "}
+            Carbs move with training load
+            {goalBias !== "maintain" ? ` (adjusted for your ${primaryGoal.toLowerCase()} goal)` : ""}; protein and fat stay steady.
+          </p>
+        </div>
+
+        {/* Yesterday / today / tomorrow — the inputs that drive the numbers above */}
+        <div className="border-b border-white/[0.06] p-5 sm:p-6">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-2.5">
               <p className="label-caps text-[9px]">Yesterday</p>
               <p className="mt-1 text-[13px] font-semibold text-zinc-200">{EXERTION_LABEL[yesterdayExertion]}</p>
               <p className="mt-0.5 text-[10px] text-zinc-600">from your logs</p>
             </div>
-            <div className="well px-2 py-2.5">
+            <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-2.5">
               <p className="label-caps text-[9px]">Today</p>
               <p className="mt-1 text-[13px] font-semibold text-zinc-200">{EXERTION_LABEL[todayExertion]}</p>
               <p className="mt-0.5 text-[10px] text-zinc-600">from your logs</p>
             </div>
-            <div className="well px-2 py-2.5">
+            <div className="rounded-lg border border-gold/25 bg-gold/[0.05] px-2 py-2.5">
               <p className="label-caps text-[9px]">Tomorrow</p>
-              <p className="mt-1 text-[13px] font-semibold text-teal-300">{EXERTION_LABEL[tomorrow]}</p>
+              <p className="mt-1 text-[13px] font-semibold text-gold">{EXERTION_LABEL[tomorrow]}</p>
               <p className="mt-0.5 text-[10px] text-zinc-600">your plan ↓</p>
             </div>
           </div>
@@ -426,45 +537,70 @@ export function NutritionView({
             />
           </div>
         </div>
+
+        {/* Food ideas — concrete follow-through on the targets above.
+            Exclusions stay in plain view, never behind a collapsed control. */}
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="label-caps text-[10px]">Food ideas for today</p>
+            <Link
+              href="/dashboard/profile"
+              className="text-[11px] font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]"
+            >
+              Edit dietary requirements
+            </Link>
+          </div>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-zinc-400">
+            {dietarySummary.preferenceLabel} picks that fit today&apos;s targets.
+            {dietarySummary.exclusions.length > 0 ? (
+              <>
+                {" "}Excluding <span className="text-zinc-200">{dietarySummary.exclusions.join(", ")}</span>.
+              </>
+            ) : null}
+          </p>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {foodGroups.map(({ key, label }) => {
+              const items = foodRecommendations[key];
+              return (
+                <div key={key} className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
+                  <div className="flex items-center gap-2">
+                    <IconBadge tone="gold" size="sm">
+                      <FoodCategoryIcon type={key} />
+                    </IconBadge>
+                    <p className="label-caps text-[9px]">{label}</p>
+                  </div>
+                  {items.length === 0 ? (
+                    <p className="mt-2 text-xs text-zinc-500">
+                      Nothing fits your exclusions here — tell your coach and we&apos;ll tailor options.
+                    </p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {items.map((item) => (
+                        <span
+                          key={item.name}
+                          className="rounded-full border border-white/[0.09] bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-200"
+                        >
+                          {item.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Macro targets */}
+      {/* Today's Emphasis — compact guidance explaining the numbers above,
+          kept visible (not accordioned) since it's relevant every day. */}
       <div>
-        <div className="mb-2.5 flex items-baseline justify-between">
-          <h2 className="label-caps">Daily Targets</h2>
-          <span className="text-xs text-zinc-500 tabular-nums">
-            {bodyWeightKg !== null ? `at ${weight} kg` : "using 75 kg — add your weight in Profile"}
-          </span>
-        </div>
-        <div className="panel grid grid-cols-3 divide-x divide-white/[0.06]">
-          <div className="px-3 py-4 text-center sm:px-4">
-            <p className="label-caps text-[9px] sm:text-[10px]">Carbs</p>
-            <p className="text-display mt-2 text-[26px] leading-none text-teal-300 tabular-nums">{macros.carbGramsDay}<span className="text-sm text-zinc-500"> g</span></p>
-            <p className="mt-1.5 text-[11px] text-zinc-500 tabular-nums">{macros.carbGkg.toFixed(1)} g/kg</p>
-          </div>
-          <div className="px-3 py-4 text-center sm:px-4">
-            <p className="label-caps text-[9px] sm:text-[10px]">Protein</p>
-            <p className="text-display mt-2 text-[26px] leading-none text-zinc-50 tabular-nums">{macros.proteinGramsDay}<span className="text-sm text-zinc-500"> g</span></p>
-            <p className="mt-1.5 text-[11px] text-zinc-500 tabular-nums">{macros.proteinGkg.toFixed(1)} g/kg</p>
-          </div>
-          <div className="px-3 py-4 text-center sm:px-4">
-            <p className="label-caps text-[9px] sm:text-[10px]">Fat</p>
-            <p className="text-display mt-2 text-[26px] leading-none text-zinc-50 tabular-nums">{macros.fatGramsDay}<span className="text-sm text-zinc-500"> g</span></p>
-            <p className="mt-1.5 text-[11px] text-zinc-500 tabular-nums">{macros.fatGkg.toFixed(1)} g/kg</p>
-          </div>
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-zinc-600">
-          Carbs move with your training load{goalBias !== "maintain" ? ` (adjusted for your ${primaryGoal.toLowerCase()} goal)` : ""}; protein and fats stay steady.
-        </p>
-      </div>
-
-      {/* Guidance — recovery & training linked */}
-      <div>
-        <h2 className="label-caps mb-2.5">Today&apos;s Emphasis</h2>
-        <div className="panel divide-y divide-white/[0.05] overflow-hidden">
+        <p className="mb-3 px-1 label-caps">Today&apos;s emphasis</p>
+        <div className="surface-card divide-y divide-white/[0.05] overflow-hidden">
           <div className="flex gap-3 px-5 py-4">
-            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-teal-500/20 bg-teal-500/10">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4 text-teal-300">
+            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-white/[0.09] bg-white/[0.05]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4 text-zinc-300">
                 <path d="M12 3c-4 4.5-7 8.2-7 11.5A7 7 0 0 0 12 21a7 7 0 0 0 7-6.5C19 11.2 16 7.5 12 3z" />
               </svg>
             </div>
@@ -485,8 +621,8 @@ export function NutritionView({
             </div>
           </div>
           <div className="flex gap-3 px-5 py-4">
-            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-violet-500/20 bg-violet-500/10">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4 text-violet-300">
+            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--success)]/20 bg-[var(--success-weak)]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4 text-[var(--success)]">
                 <path d="M12 21C7 17 4 13.5 4 10a8 8 0 0 1 16 0c0 3.5-3 7-8 11z" />
                 <circle cx="12" cy="10" r="3" />
               </svg>
@@ -503,35 +639,29 @@ export function NutritionView({
         </div>
       </div>
 
-      {/* AI handoff — optional follow-up, not the core screen */}
-      <Link
-        href={`/dashboard/messages?prompt=${encodeURIComponent(aiPrompt)}`}
-        className="panel hover-lift flex items-center gap-4 p-4"
-      >
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-teal-500/25 bg-teal-500/10">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5 text-teal-300">
-            <path d="M12 3a7 7 0 0 0-7 7c0 2.1.93 4.09 2.54 5.43V19a2 2 0 0 0 2 2h4.92a2 2 0 0 0 2-2v-3.57A7 7 0 0 0 19 10a7 7 0 0 0-7-7z" />
-            <path d="M9.5 21h5" />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold tracking-tight text-zinc-100">Learn more with AI Coach</p>
-          <p className="mt-0.5 text-xs text-zinc-500">
-            Food ideas for today&apos;s targets, your dietary needs, and session demand.
-          </p>
-        </div>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 flex-shrink-0 text-zinc-600">
-          <path d="M9 18l6-6-6-6" />
-        </svg>
-      </Link>
+      {/* AI Nutrition Coach — a premium layer on top of the tab, not a
+          separate chatbot: same page, same targets, opens in place. */}
+      <NutritionAiCoach
+        initialMessages={initialAiNutritionMessages}
+        configured={aiNutritionCoachConfigured}
+        context={nutritionCoachContext}
+        tomorrow={tomorrow}
+        drinkSettings={{ sport, role, durationIdx, runKm, runEffort, bottleMl, sweat, temp }}
+        open={aiCoachOpen}
+        onOpenChange={setAiCoachOpen}
+        prefillPrompt={aiCoachPrefill}
+        onPrefillConsumed={() => setAiCoachPrefill(null)}
+      />
 
-      {/* Sports performance drink */}
+      {/* Sports Performance Drink — a secondary tool for training/match
+          days, deliberately a notch behind the daily fuel hero: everyone
+          checks their macros every day, not everyone is building a bottle. */}
       <div>
-        <div className="mb-2.5 flex items-baseline justify-between">
-          <h2 className="label-caps">Sports Performance Drink</h2>
+        <div className="mb-2.5 flex items-baseline justify-between px-1">
+          <p className="label-caps">Sports performance drink</p>
           <span className="text-xs text-zinc-500 tabular-nums">{workload.dist} {sportCfg.runMode ? "planned" : "typical"}</span>
         </div>
-        <div className="panel overflow-hidden">
+        <div className="surface-card overflow-hidden">
           <div className="space-y-4 border-b border-white/[0.06] p-5">
             <div>
               <p className="label-caps mb-2 text-[10px]">Sport</p>
@@ -584,7 +714,7 @@ export function NutritionView({
                       aria-pressed={runKm === preset.km}
                       className={`rounded-full border px-3 py-1.5 text-[11px] font-medium tabular-nums transition-[background-color,color,border-color] duration-150 active:scale-[0.97] ${
                         runKm === preset.km
-                          ? "border-teal-500/40 bg-teal-500/[0.12] text-teal-300"
+                          ? "border-primary/40 bg-primary/[0.12] text-primary"
                           : "border-white/[0.1] bg-white/[0.04] text-zinc-400 hover:border-white/[0.14] hover:text-zinc-200"
                       }`}
                     >
@@ -647,7 +777,7 @@ export function NutritionView({
               </div>
             </div>
 
-            <div className="well px-4 py-3">
+            <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-4 py-3">
               <p className="text-xs leading-relaxed text-zinc-400">
                 <span className="font-semibold text-zinc-200">Why these settings matter:</span>{" "}
                 saltier sweat means more sodium lost per litre — light sweaters do well near
@@ -658,7 +788,7 @@ export function NutritionView({
               </p>
               <p className="mt-2 text-xs text-zinc-400">
                 Current target:{" "}
-                <span className="font-semibold text-teal-300 tabular-nums">
+                <span className="font-semibold text-gold tabular-nums">
                   ~{sodiumTargetPerLitre(sweat, temp)} mg sodium per litre
                 </span>
                 {temp === "hot" ? " — in the heat, add extra plain water alongside this bottle rather than making the mix stronger." : "."}
@@ -691,7 +821,7 @@ export function NutritionView({
           {/* Totals */}
           <div className="grid grid-cols-4 divide-x divide-white/[0.06] border-t border-white/[0.06] bg-white/[0.015]">
             {[
-              { label: "Carbs", value: `${drink.carbsG.toFixed(0)} g`, tone: "text-teal-300" },
+              { label: "Carbs", value: `${drink.carbsG.toFixed(0)} g`, tone: "text-gold" },
               { label: "Sodium", value: `${drink.sodiumTotalMg} mg`, tone: "text-zinc-50" },
               { label: "Nitrate", value: `${drink.nitrateMg} mg`, tone: "text-zinc-50" },
               { label: "Energy", value: `${drink.calories} kcal`, tone: "text-zinc-50" },
@@ -706,16 +836,16 @@ export function NutritionView({
           {/* Sodium badge + timing */}
           <div className="border-t border-white/[0.06] p-5">
             <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
-                  drink.sodiumBadge === "optimal"
-                    ? "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
-                    : drink.sodiumBadge === "high"
-                    ? "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
-                    : "border-white/[0.1] bg-white/[0.04] text-zinc-400"
-                }`}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${drink.sodiumBadge === "optimal" ? "bg-teal-400" : drink.sodiumBadge === "high" ? "bg-amber-400" : "bg-zinc-500"}`} />
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${sodiumBadgeClass(drink.sodiumBadge)}`}>
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    drink.sodiumBadge === "optimal"
+                      ? "bg-[var(--success)]"
+                      : drink.sodiumBadge === "high"
+                      ? "bg-[var(--warning)]"
+                      : "bg-zinc-500"
+                  }`}
+                />
                 {drink.sodiumBadge === "optimal"
                   ? "Optimal hydration range"
                   : drink.sodiumBadge === "high"
@@ -731,7 +861,7 @@ export function NutritionView({
             </p>
             <div className={`grid gap-2 text-center ${plan.phases.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
               {plan.phases.map((cell) => (
-                <div key={cell.label} className="well px-2 py-2.5">
+                <div key={cell.label} className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-2.5">
                   <p className="label-caps text-[9px]">{cell.label}</p>
                   <p className="text-display mt-1 text-[15px] text-zinc-100 tabular-nums">{cell.amount}</p>
                   <p className="mt-0.5 text-[10px] leading-relaxed text-zinc-600">{cell.tip}</p>
@@ -739,21 +869,25 @@ export function NutritionView({
               ))}
             </div>
             {plan.extra ? (
-              <p className="mt-2.5 text-xs leading-relaxed text-amber-300/90">{plan.extra}</p>
+              <p className="mt-2.5 text-xs leading-relaxed text-[var(--warning)]">{plan.extra}</p>
             ) : null}
 
-            <Link
-              href={`/dashboard/messages?prompt=${encodeURIComponent(drinkAiPrompt)}`}
-              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-400 transition-colors duration-150 hover:text-blue-300"
+            <button
+              type="button"
+              onClick={() => {
+                setAiCoachPrefill(drinkAiPrompt);
+                setAiCoachOpen(true);
+              }}
+              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]"
             >
-              Ask the AI Coach about this plan
+              Ask the AI Nutrition Coach about this plan
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-3 w-3">
                 <path d="M9 18l6-6-6-6" />
               </svg>
-            </Link>
+            </button>
           </div>
 
-          {/* Ingredient benefits — collapsible */}
+          {/* Ingredient benefits — collapsible, pure reference content */}
           <div className="border-t border-white/[0.06]">
             <button
               type="button"
@@ -787,12 +921,13 @@ export function NutritionView({
                         <span>
                           <span className="text-[13px] font-semibold text-zinc-100">{item.name}</span>
                           <span
-                            className={`ml-2 rounded-full border px-2 py-0.5 align-middle text-[10px] font-medium ${
+                            className={`ml-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 align-middle text-[10px] font-medium ${
                               item.tag === "Electrolyte"
                                 ? "border-gold/30 bg-gold/[0.08] text-gold"
-                                : "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
+                                : "border-primary/25 bg-primary/[0.08] text-primary"
                             }`}
                           >
+                            <NutrientFunctionIcon type={item.tag} />
                             {item.tag}
                           </span>
                           <span className="mt-1 block text-xs leading-relaxed text-zinc-500">{item.summary}</span>
@@ -817,72 +952,5 @@ export function NutritionView({
         </p>
       </div>
     </section>
-  );
-}
-
-// Food suggestions filtered by the member's dietary requirements. Hard
-// exclusions (allergies + intolerances) are enforced server-side by
-// recommendFoods; this only renders the already-safe result.
-function FoodSuggestions({
-  recommendations,
-  summary,
-}: {
-  recommendations: FoodRecommendations;
-  summary: { preferenceLabel: string; exclusions: string[] };
-}) {
-  const groups: { key: keyof FoodRecommendations; label: string }[] = [
-    { key: "protein", label: "Protein" },
-    { key: "carb", label: "Carbs" },
-    { key: "snack", label: "Snacks" },
-  ];
-
-  return (
-    <div className="panel p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-lg font-semibold">Food ideas for you</h3>
-        <Link
-          href="/dashboard/profile"
-          className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-        >
-          Edit dietary requirements
-        </Link>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {summary.preferenceLabel} picks that fit your macro targets.
-        {summary.exclusions.length > 0 ? (
-          <>
-            {" "}Excluding{" "}
-            <span className="text-foreground">{summary.exclusions.join(", ")}</span>.
-          </>
-        ) : null}
-      </p>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        {groups.map(({ key, label }) => {
-          const items = recommendations[key];
-          return (
-            <div key={key} className="well p-3">
-              <p className="label-caps text-[11px]">{label}</p>
-              {items.length === 0 ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Nothing fits your exclusions here — tell your coach and we&apos;ll tailor options.
-                </p>
-              ) : (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {items.map((item) => (
-                    <span
-                      key={item.name}
-                      className="rounded-full border border-border bg-white/[0.02] px-2.5 py-1 text-xs text-foreground"
-                    >
-                      {item.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }

@@ -5,15 +5,15 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: "sm" | "md" | "lg";
 }
 
+// Flat, sharp-cornered editorial style (index.html blueprint) — no glossy
+// capsule shadows. Definition comes from color/border contrast, not gloss.
 const variants = {
   primary:
-    "bg-primary text-primary-foreground border border-[var(--accent-border)] " +
-    "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.16),0_1px_2px_0_rgba(0,0,0,0.4)] " +
+    "bg-primary text-primary-foreground border border-transparent " +
     "hover:bg-[var(--primary-hover)] active:bg-[var(--primary-hover)]",
   secondary:
-    "border border-white/[0.1] bg-white/[0.04] text-zinc-200 " +
-    "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] " +
-    "hover:bg-white/[0.07] hover:border-white/[0.16] hover:text-white",
+    "border border-white/[0.14] bg-white/[0.03] text-zinc-200 " +
+    "hover:border-primary/40 hover:bg-white/[0.06] hover:text-white",
   ghost:
     "text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.06]",
   danger:
@@ -21,9 +21,9 @@ const variants = {
 };
 
 const sizes = {
-  sm: "h-8 px-3 text-xs rounded-lg",
-  md: "h-10 px-4 text-sm rounded-lg",
-  lg: "h-12 px-6 text-[15px] rounded-lg",
+  sm: "h-8 px-3 text-xs rounded-[3px]",
+  md: "h-10 px-4 text-sm rounded-[3px]",
+  lg: "h-12 px-6 text-[15px] rounded-[3px]",
 };
 
 export default function Button({ variant = "primary", size = "md", className = "", children, ...props }: Props) {

@@ -7,6 +7,7 @@ import {
   findClasses,
   findDeletedCategoryLabels,
   findProfileByUserId,
+  findStaffUsers,
   findUserById,
   findWaitlistEntriesByClassId,
 } from "@/lib/db";
@@ -56,12 +57,17 @@ export default async function StaffClassesPage() {
     };
   });
 
+  const coaches = findStaffUsers()
+    .map((u) => ({ userId: u.id, label: findProfileByUserId(u.id)?.fullName ?? u.email }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
   return (
     <ClassesView
       classes={classes}
       categories={categories}
       deletedLabels={deletedLabels}
       series={findClassSeries()}
+      coaches={coaches}
     />
   );
 }

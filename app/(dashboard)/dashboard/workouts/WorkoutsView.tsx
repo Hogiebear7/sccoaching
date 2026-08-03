@@ -2,563 +2,40 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
-import type { ExerciseRecord, ExerciseSection, WorkoutRunEntry, WorkoutSessionRecord } from "@/lib/db";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { weeklyWorkoutStats } from "@/lib/workouts";
-import type { HelperContext } from "@/lib/workout-helper";
-import { WorkoutHelper } from "./WorkoutHelper";
+import type { ExerciseRecord, WorkoutSessionRecord } from "@/lib/db";
 import {
   computePersonalBests,
-  findExerciseHistory,
+  computeWeeklyStreak,
   getExerciseTrend,
-  type ExerciseTrendPoint,
+  weeklyWorkoutStats,
 } from "@/lib/workouts";
+import type { HelperContext } from "@/lib/workout-helper";
+import { WorkoutHelper } from "./WorkoutHelper";
 import { formatExerciseLoad } from "@/lib/workout-entries";
+import { ClassSessionEditor } from "./shared/ClassSessionEditor";
+import { ExerciseLibraryPanel } from "./shared/ExerciseLibraryPanel";
+import { ExerciseLookupPanel } from "./shared/ExerciseLookupPanel";
+import { TrendChart } from "./shared/TrendChart";
+import { WorkoutLogForm } from "./shared/WorkoutLogForm";
+import { formatRun, todayDateString } from "./shared/formatters";
+import { computeCurrentWeekDays, computeWeeklyFrequency } from "./shared/consistency";
+import { MuscleMap } from "@/components/graphics/MuscleMap";
+import { SetLevelsPanel } from "./shared/SetLevelsPanel";
 
-const SECTION_LABELS: Record<ExerciseSection, string> = {
-  upper_push: "Upper — Push",
-  upper_pull: "Upper — Pull",
-  lower_push: "Lower — Push",
-  lower_pull: "Lower — Pull",
-  core: "Core",
-  cardio: "Cardio",
-};
-
-// --- Types ---
-
-type WorkoutFormValues = {
-  title: string;
-  date: string;
-  durationMins: string;
-  notes: string;
-};
-
-type FormErrors = Partial<Record<keyof WorkoutFormValues, string>>;
-
-type SetRow = { key: string; weight: string; reps: string };
-
-type ExerciseRow = {
-  key: string;
-  exerciseId: string | null;
-  name: string;
-  weight: string;
-  reps: string;
-  sets: string;
-  notes: string;
-  /** Per-set weight/reps rows; empty = one shared value for every set. */
-  setRows: SetRow[];
-};
-
-type RunRow = {
-  key: string;
-  distance: string;
-  distanceUnit: "km" | "m";
-  duration: string; // MM:SS or H:MM:SS user input
-  reps: string;
-  sets: string;
-  notes: string;
-};
-
-// --- Helpers ---
-
-function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function emptyFormValues(): WorkoutFormValues {
-  return { title: "", date: todayDateString(), durationMins: "", notes: "" };
-}
-
-function newRow(): ExerciseRow {
-  return { key: crypto.randomUUID(), exerciseId: null, name: "", weight: "", reps: "", sets: "", notes: "", setRows: [] };
-}
-
-function newRunRow(): RunRow {
-  return { key: crypto.randomUUID(), distance: "", distanceUnit: "km", duration: "", reps: "", sets: "", notes: "" };
-}
-
-// Parses "MM:SS" or "H:MM:SS" → total seconds, or a bare number as minutes.
-// Returns null if the input is empty or unparseable.
-function parseDuration(raw: string): number | null {
-  const s = raw.trim();
-  if (!s) return null;
-  const parts = s.split(":").map(Number);
-  if (parts.some((n) => !Number.isFinite(n) || n < 0)) return null;
-  if (parts.length === 2) {
-    const [m, sec] = parts;
-    if (sec >= 60) return null;
-    return m * 60 + sec;
-  }
-  if (parts.length === 3) {
-    const [h, m, sec] = parts;
-    if (m >= 60 || sec >= 60) return null;
-    return h * 3600 + m * 60 + sec;
-  }
-  // bare number treated as minutes
-  const n = Number(s);
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 60) : null;
-}
-
-function formatDuration(secs: number): string {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-// Live pace preview for the run input. Both fields must independently parse
-// to positive values — a missing or garbled side shows nothing rather than a
-// misleading number. Metre distances convert to km first.
-function livePace(distanceRaw: string, distanceUnit: "km" | "m", durationRaw: string): string | null {
-  const rawDistance = parseFloat(distanceRaw);
-  if (!Number.isFinite(rawDistance) || rawDistance <= 0) return null;
-  const km = distanceUnit === "m" ? rawDistance / 1000 : rawDistance;
-
-  const secs = parseDuration(durationRaw);
-  if (secs === null || secs <= 0) return null;
-
-  const paceSecs = Math.round(secs / km);
-  return `${Math.floor(paceSecs / 60)}:${String(paceSecs % 60).padStart(2, "0")} /km`;
-}
-
-function formatRun(run: WorkoutRunEntry): string {
-  const parts: string[] = [];
-  if (run.distance !== null) parts.push(`${run.distance} ${run.distanceUnit}`);
-  if (run.durationSecs !== null) parts.push(formatDuration(run.durationSecs));
-  // Pace only when both sides of the division exist — never inferred.
-  if (run.distance !== null && run.distance > 0 && run.durationSecs !== null && run.durationSecs > 0) {
-    const paceSecs = Math.round(run.durationSecs / run.distance);
-    parts.push(`${Math.floor(paceSecs / 60)}:${String(paceSecs % 60).padStart(2, "0")} /km`);
-  }
-  if (run.sets !== null && run.reps !== null) parts.push(`${run.sets}×${run.reps}`);
-  else if (run.sets !== null) parts.push(`${run.sets} sets`);
-  else if (run.reps !== null) parts.push(`${run.reps} reps`);
-  return parts.join(" · ");
-}
-
-// --- ExerciseAutocomplete ---
-// Defined at module level so React doesn't recreate it on every WorkoutsView render.
-
-function ExerciseAutocomplete({
-  exercises,
-  value,
-  onChange,
-}: {
-  exercises: ExerciseRecord[];
-  value: string;
-  onChange: (name: string, exerciseId: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  const suggestions =
-    value.trim().length > 0
-      ? exercises
-          .filter((e) => e.name.toLowerCase().includes(value.trim().toLowerCase()))
-          .slice(0, 8)
-      : [];
-
-  return (
-    <div className="relative">
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value, null);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="e.g. Bench Press"
-        className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-      />
-      {open && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-          {suggestions.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault(); // prevent blur before selection registers
-                onChange(s.name, s.id);
-                setOpen(false);
-              }}
-              className="flex w-full items-baseline gap-2 px-4 py-2.5 text-left text-sm hover:bg-secondary"
-            >
-              <span className="font-medium text-foreground">{s.name}</span>
-              <span className="text-xs text-muted-foreground">{SECTION_LABELS[s.section]}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- ClassSessionEditor ---
-// Same-day correction for a class-synced session: weight/reps/sets/RPE per
-// exercise plus notes. The API enforces the day window; this UI only shows
-// for sessions dated today.
-
-function ClassSessionEditor({
-  session,
-  onDone,
-  onCancel,
-}: {
-  session: WorkoutSessionRecord;
-  onDone: () => void;
-  onCancel: () => void;
-}) {
-  const [rows, setRows] = useState(() =>
-    session.exercises.map((ex) => ({
-      key: crypto.randomUUID(),
-      name: ex.name,
-      weight: ex.weight ?? "",
-      reps: ex.reps === null ? "" : String(ex.reps),
-      sets: ex.sets === null ? "" : String(ex.sets),
-      rpe: ex.rpe == null ? "" : String(ex.rpe),
-    }))
-  );
-  const [notes, setNotes] = useState(session.notes ?? "");
-  const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const inputCls =
-    "w-full rounded-lg border border-border bg-input px-2.5 py-1.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15";
-
-  async function handleSave() {
-    setError(null);
-    setIsSaving(true);
-    try {
-      const res = await fetch("/api/workouts/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: session.id,
-          notes,
-          exercises: rows.map((r) => ({
-            name: r.name,
-            weight: r.weight,
-            reps: r.reps.trim() ? Number(r.reps) : null,
-            sets: r.sets.trim() ? Number(r.sets) : null,
-            rpe: r.rpe.trim() ? Number(r.rpe) : null,
-          })),
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.message ?? "Could not save your correction.");
-        return;
-      }
-      onDone();
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  return (
-    <div className="mt-3 space-y-3 rounded-lg border border-border/60 bg-white/[0.02] p-3">
-      <p className="text-xs text-muted-foreground">
-        Correct your numbers from this class — editable until the end of today.
-      </p>
-      {error ? (
-        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
-      ) : null}
-      {rows.map((row) => (
-        <div key={row.key}>
-          <p className="mb-1 text-xs font-medium text-foreground">{row.name}</p>
-          <div className="grid grid-cols-4 gap-2">
-            <input type="text" value={row.weight} onChange={(e) => setRows((prev) => prev.map((r) => (r.key === row.key ? { ...r, weight: e.target.value } : r)))} placeholder="Weight" aria-label={`${row.name} weight`} className={inputCls} />
-            <input type="number" min={0} value={row.reps} onChange={(e) => setRows((prev) => prev.map((r) => (r.key === row.key ? { ...r, reps: e.target.value } : r)))} placeholder="Reps" aria-label={`${row.name} reps`} className={inputCls} />
-            <input type="number" min={0} value={row.sets} onChange={(e) => setRows((prev) => prev.map((r) => (r.key === row.key ? { ...r, sets: e.target.value } : r)))} placeholder="Sets" aria-label={`${row.name} sets`} className={inputCls} />
-            <input type="number" min={1} max={10} step={0.5} value={row.rpe} onChange={(e) => setRows((prev) => prev.map((r) => (r.key === row.key ? { ...r, rpe: e.target.value } : r)))} placeholder="RPE" aria-label={`${row.name} RPE`} className={inputCls} />
-          </div>
-        </div>
-      ))}
-      <input
-        type="text"
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        placeholder="Notes (optional)"
-        aria-label="Session notes"
-        className={inputCls}
-      />
-      <div className="flex gap-2">
-        <button type="button" onClick={handleSave} disabled={isSaving} className="btn-primary px-3.5 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60">
-          {isSaving ? "Saving…" : "Save correction"}
-        </button>
-        <button type="button" onClick={onCancel} disabled={isSaving} className="rounded-xl border border-border px-3.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent">
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// --- ExerciseLibrary ---
-// Browsable, searchable view of the admin-managed exercise library with the
-// member's own stats per exercise on tap.
-
-function ExerciseLibrary({
-  exercises,
-  sessions,
-}: {
-  exercises: ExerciseRecord[];
-  sessions: WorkoutSessionRecord[];
-}) {
-  const [query, setQuery] = useState("");
-  const [section, setSection] = useState<ExerciseSection | "all">("all");
-  const [openId, setOpenId] = useState<string | null>(null);
-
-  const filtered = exercises
-    .filter((e) => section === "all" || e.section === section)
-    .filter((e) => e.name.toLowerCase().includes(query.trim().toLowerCase()))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  function statsFor(name: string) {
-    let times = 0;
-    let best: number | null = null;
-    let bestStr: string | null = null;
-    let last: string | null = null;
-    for (const session of sessions) {
-      for (const ex of session.exercises) {
-        if (ex.name.trim().toLowerCase() !== name.trim().toLowerCase()) continue;
-        times += 1;
-        if (last === null || session.date > last) last = session.date;
-        const sets = ex.setDetails && ex.setDetails.length > 0 ? ex.setDetails : [{ weight: ex.weight }];
-        for (const set of sets) {
-          if (!set.weight) continue;
-          const w = parseFloat(set.weight);
-          if (Number.isFinite(w) && (best === null || w > best)) {
-            best = w;
-            bestStr = set.weight;
-          }
-        }
-      }
-    }
-    return { times, bestStr, last };
-  }
-
-  const sectionChips: { value: ExerciseSection | "all"; label: string }[] = [
-    { value: "all", label: "All" },
-    ...(Object.entries(SECTION_LABELS) as [ExerciseSection, string][]).map(([value, label]) => ({ value, label })),
-  ];
-
-  return (
-    <div className="panel p-5">
-      <p className="mb-1 label-caps">Exercise library</p>
-      <p className="mb-3 text-xs text-muted-foreground">
-        The club&apos;s exercise list — tap one to see your own numbers for it.
-      </p>
-      <input
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search the library…"
-        aria-label="Search the exercise library"
-        className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-      />
-      {/* Uniform grid keeps the chips aligned across wraps on mobile. */}
-      <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-4" role="group" aria-label="Filter by category">
-        {sectionChips.map((chip) => (
-          <button
-            key={chip.value}
-            type="button"
-            aria-pressed={section === chip.value}
-            onClick={() => setSection(chip.value)}
-            className={`truncate rounded-full border px-2 py-1.5 text-center text-xs font-medium transition ${
-              section === chip.value
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:border-primary hover:text-primary"
-            }`}
-          >
-            {chip.label}
-          </button>
-        ))}
-      </div>
-      <p className="mt-3 text-[11px] text-muted-foreground tabular-nums">
-        {filtered.length} exercise{filtered.length === 1 ? "" : "s"}
-      </p>
-      <div className="mt-1.5 max-h-72 space-y-1.5 overflow-y-auto overscroll-contain rounded-xl border border-border/40 bg-white/[0.02] p-1.5">
-        {filtered.length === 0 ? (
-          <p className="py-3 text-center text-xs text-muted-foreground">No exercises match.</p>
-        ) : (
-          filtered.map((exercise) => {
-            const open = openId === exercise.id;
-            return (
-              <div key={exercise.id} className="rounded-lg border border-border/60 bg-white/[0.02]">
-                <button
-                  type="button"
-                  aria-expanded={open}
-                  onClick={() => setOpenId(open ? null : exercise.id)}
-                  className="flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left"
-                >
-                  <span className="text-sm font-medium text-foreground">{exercise.name}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">
-                    {SECTION_LABELS[exercise.section]}
-                  </span>
-                </button>
-                {open ? (
-                  <div className="space-y-2 border-t border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                    {exercise.description ? (
-                      <p className="leading-relaxed">{exercise.description}</p>
-                    ) : null}
-                    {exercise.cues ? (
-                      <div>
-                        <p className="mb-0.5 font-semibold text-foreground/80">Coaching cues</p>
-                        <ul className="space-y-0.5">
-                          {exercise.cues.split("\n").filter(Boolean).map((cue, i) => (
-                            <li key={i}>· {cue}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {(() => {
-                      const stat = statsFor(exercise.name);
-                      if (stat.times === 0) return <>You haven&apos;t logged this one yet.</>;
-                      return (
-                        <>
-                          Logged {stat.times} time{stat.times === 1 ? "" : "s"}
-                          {stat.bestStr ? <> · best <span className="font-semibold text-foreground">{stat.bestStr}</span></> : null}
-                          {stat.last ? <> · last {stat.last}</> : null}
-                        </>
-                      );
-                    })()}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
-// --- TrendChart ---
-
-const CHART_W = 400;
-const CHART_H = 120;
-const PAD = { top: 20, right: 16, bottom: 28, left: 36 };
-
-function TrendChart({ points }: { points: ExerciseTrendPoint[] }) {
-  const useWeight = points.some((p) => p.weightNum !== null);
-  const chartPoints = useWeight
-    ? points.filter((p) => p.weightNum !== null)
-    : points.filter((p) => p.reps !== null);
-
-  if (chartPoints.length < 2) {
-    return (
-      <p className="py-4 text-center text-xs text-muted-foreground">
-        Not enough data to show a trend.
-      </p>
-    );
-  }
-
-  const innerW = CHART_W - PAD.left - PAD.right;
-  const innerH = CHART_H - PAD.top - PAD.bottom;
-
-  const yVals = chartPoints.map((p) =>
-    useWeight ? (p.weightNum as number) : (p.reps as number)
-  );
-  const minY = Math.min(...yVals);
-  const maxY = Math.max(...yVals);
-  const yRange = maxY === minY ? 1 : maxY - minY;
-
-  const toX = (i: number) =>
-    PAD.left +
-    (chartPoints.length === 1 ? innerW / 2 : (i / (chartPoints.length - 1)) * innerW);
-  const toY = (val: number) =>
-    PAD.top + innerH - ((val - minY) / yRange) * innerH;
-
-  const plotted = chartPoints.map((p, i) => {
-    const yVal = useWeight ? (p.weightNum as number) : (p.reps as number);
-    return {
-      x: toX(i),
-      y: toY(yVal),
-      label: useWeight ? (p.rawWeight ?? "") : String(p.reps ?? ""),
-      date: p.date,
-    };
-  });
-
-  const polylinePoints = plotted.map((p) => `${p.x},${p.y}`).join(" ");
-  const labelStep = Math.max(1, Math.ceil(chartPoints.length / 5));
-
-  function shortDate(iso: string): string {
-    const [, m, d] = iso.split("-").map(Number);
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return `${months[m - 1]} ${d}`;
-  }
-
-  return (
-    <svg
-      viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-      width="100%"
-      className="overflow-visible text-foreground"
-      aria-hidden="true"
-    >
-      <line
-        x1={PAD.left} y1={PAD.top}
-        x2={PAD.left} y2={PAD.top + innerH}
-        stroke="currentColor" strokeOpacity={0.12} strokeWidth={1}
-      />
-      <line
-        x1={PAD.left} y1={PAD.top + innerH}
-        x2={PAD.left + innerW} y2={PAD.top + innerH}
-        stroke="currentColor" strokeOpacity={0.12} strokeWidth={1}
-      />
-      <polyline
-        points={polylinePoints}
-        fill="none"
-        style={{ stroke: "var(--primary)" }}
-        strokeWidth={2}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      {plotted.map(({ x, y, label, date }, i) => (
-        <g key={i}>
-          <circle cx={x} cy={y} r={3.5} style={{ fill: "var(--primary)" }} />
-          <text x={x} y={y - 7} textAnchor="middle" fontSize={8} fill="currentColor" opacity={0.65}>
-            {label}
-          </text>
-          {i % labelStep === 0 && (
-            <text
-              x={x}
-              y={PAD.top + innerH + 14}
-              textAnchor="middle"
-              fontSize={8}
-              fill="currentColor"
-              opacity={0.45}
-            >
-              {shortDate(date)}
-            </text>
-          )}
-        </g>
-      ))}
-      <text
-        x={PAD.left - 4} y={PAD.top}
-        textAnchor="end" dominantBaseline="middle"
-        fontSize={8} fill="currentColor" opacity={0.45}
-      >
-        {maxY}
-      </text>
-      <text
-        x={PAD.left - 4} y={PAD.top + innerH}
-        textAnchor="end" dominantBaseline="middle"
-        fontSize={8} fill="currentColor" opacity={0.45}
-      >
-        {minY}
-      </text>
-    </svg>
-  );
-}
-
-// --- WorkoutsView ---
-
+// Workouts — a real information-architecture rethink, not a reskin:
+//
+//   1. A tabbed hero (Plan / Log) replaces "helper card, then log card"
+//      as two separate full-weight sections — the member picks their
+//      intent once, and the other panel stays mounted-but-hidden so
+//      in-progress form state survives a tab switch.
+//   2. A two-column "Progress" band puts the streak/consistency module
+//      and a horizontally-scrolling personal-records rail side by side
+//      as one grouped unit, instead of each being its own top-level
+//      section with its own header.
+//   3. Exercise lookup + library — pure reference tools nobody needs on
+//      every visit — are collapsed behind <details> at the bottom, quieter
+//      and shorter by default rather than always fully expanded.
 export function WorkoutsView({
   sessions,
   exercises,
@@ -569,67 +46,43 @@ export function WorkoutsView({
   helperContext: HelperContext;
 }) {
   const router = useRouter();
-
-  const [values, setValues] = useState<WorkoutFormValues>(() => emptyFormValues());
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [exerciseRows, setExerciseRows] = useState<ExerciseRow[]>([]);
-  const [runRows, setRunRows] = useState<RunRow[]>([]);
-  const [lookupQuery, setLookupQuery] = useState("");
   const [editingClassSessionId, setEditingClassSessionId] = useState<string | null>(null);
+  const [heroTab, setHeroTab] = useState<"plan" | "log">("plan");
+  const todayISO = todayDateString();
 
-  const lookupResults = useMemo(
-    () => findExerciseHistory(sessions, lookupQuery),
-    [sessions, lookupQuery]
+  // Logged exercises link to the library via exerciseId when the member
+  // picked one from the autocomplete; free-text entries have exerciseId
+  // null and simply don't get a muscle-map icon — showing one would be a
+  // guess, not a fact. Section lookup only, no exercise data mutated.
+  const sectionByExerciseId = useMemo(
+    () => new Map(exercises.map((e) => [e.id, e.section])),
+    [exercises]
   );
 
   const personalBests = useMemo(() => computePersonalBests(sessions), [sessions]);
-  const weeklyStats = useMemo(
-    () => weeklyWorkoutStats(sessions, new Date().toISOString().slice(0, 10)),
-    [sessions]
-  );
-
-  // Pre-compute display parts for the most recent lookup match to avoid
-  // duplicating the filter logic in JSX.
-  const latestMatch = lookupResults[0] ?? null;
-  const latestMatchParts = latestMatch
-    ? [
-        latestMatch.sets ? `${latestMatch.sets} sets` : null,
-        latestMatch.reps ? `${latestMatch.reps} reps` : null,
-        latestMatch.weight ?? null,
-      ].filter((x): x is string => Boolean(x))
-    : [];
+  const weeklyStats = useMemo(() => weeklyWorkoutStats(sessions, todayISO), [sessions, todayISO]);
+  const streakWeeks = useMemo(() => computeWeeklyStreak(sessions, todayISO), [sessions, todayISO]);
+  const currentWeekDays = useMemo(() => computeCurrentWeekDays(sessions, todayISO), [sessions, todayISO]);
+  const weeklyFrequency = useMemo(() => computeWeeklyFrequency(sessions, todayISO), [sessions, todayISO]);
+  const maxWeekCount = Math.max(1, ...weeklyFrequency.map((w) => w.count));
 
   const [trackedExercises, setTrackedExercises] = useState<string[]>([]);
   const [trackInput, setTrackInput] = useState("");
   const [trackOpen, setTrackOpen] = useState(false);
 
-  // Exercises available to add: from history, not already tracked.
   const trackCandidates = useMemo(
-    () =>
-      personalBests
-        .map((pb) => pb.exerciseName)
-        .filter((name) => !trackedExercises.includes(name)),
+    () => personalBests.map((pb) => pb.exerciseName).filter((name) => !trackedExercises.includes(name)),
     [personalBests, trackedExercises]
   );
-
   const filteredCandidates = useMemo(
     () =>
       trackInput.trim()
-        ? trackCandidates.filter((name) =>
-            name.toLowerCase().includes(trackInput.trim().toLowerCase())
-          )
+        ? trackCandidates.filter((name) => name.toLowerCase().includes(trackInput.trim().toLowerCase()))
         : trackCandidates.slice(0, 8),
     [trackCandidates, trackInput]
   );
-
   const trendData = useMemo(
-    () =>
-      Object.fromEntries(
-        trackedExercises.map((name) => [name, getExerciseTrend(sessions, name)])
-      ),
+    () => Object.fromEntries(trackedExercises.map((name) => [name, getExerciseTrend(sessions, name)])),
     [sessions, trackedExercises]
   );
 
@@ -639,601 +92,166 @@ export function WorkoutsView({
     setTrackInput("");
     setTrackOpen(false);
   }
-
   function removeTracked(name: string) {
     setTrackedExercises((prev) => prev.filter((n) => n !== name));
   }
 
-  function handleTextChange(
-    key: keyof WorkoutFormValues,
-    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) {
-    setValues((prev) => ({ ...prev, [key]: e.target.value }));
-    setErrors((prev) => ({ ...prev, [key]: undefined }));
-    setSuccessMessage(null);
-  }
-
-  function updateRow(key: string, patch: Partial<Omit<ExerciseRow, "key">>) {
-    setExerciseRows((prev) =>
-      prev.map((row) => (row.key === key ? { ...row, ...patch } : row))
-    );
-  }
-
-  function removeRow(key: string) {
-    setExerciseRows((prev) => prev.filter((row) => row.key !== key));
-  }
-
-  function updateRunRow(key: string, patch: Partial<Omit<RunRow, "key">>) {
-    setRunRows((prev) =>
-      prev.map((row) => (row.key === key ? { ...row, ...patch } : row))
-    );
-  }
-
-  function removeRunRow(key: string) {
-    setRunRows((prev) => prev.filter((row) => row.key !== key));
-  }
-
-  function validate(): boolean {
-    const nextErrors: FormErrors = {};
-    if (!values.title.trim()) nextErrors.title = "Title is required.";
-    if (!values.date.trim()) nextErrors.date = "Date is required.";
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
-  }
-
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!validate()) return;
-
-    setFormError(null);
-    setSuccessMessage(null);
-    setIsSubmitting(true);
-
-    // Rows with an empty name are silently dropped.
-    const exercisesToSend = exerciseRows
-      .filter((row) => row.name.trim())
-      .map((row) => ({
-        exerciseId: row.exerciseId,
-        name: row.name.trim(),
-        weight: row.weight.trim() || null,
-        reps: row.reps.trim() ? parseInt(row.reps, 10) : null,
-        sets: row.sets.trim() ? parseInt(row.sets, 10) : null,
-        setDetails: row.setRows
-          .filter((sr) => sr.weight.trim() || sr.reps.trim())
-          .map((sr) => ({
-            weight: sr.weight.trim() || null,
-            reps: sr.reps.trim() ? parseInt(sr.reps, 10) : null,
-          })),
-        notes: row.notes.trim() || null,
-      }));
-
-    // Run rows with neither distance nor duration are silently dropped (API also drops them).
-    const runsToSend = runRows.map((row) => ({
-      // Metres are converted on save — km stays the canonical stored unit.
-      distance: row.distance.trim()
-        ? row.distanceUnit === "m"
-          ? Math.round((parseFloat(row.distance) / 1000) * 1000) / 1000
-          : parseFloat(row.distance)
-        : null,
-      distanceUnit: "km" as const,
-      durationSecs: parseDuration(row.duration),
-      reps: row.reps.trim() ? parseInt(row.reps, 10) : null,
-      sets: row.sets.trim() ? parseInt(row.sets, 10) : null,
-      notes: row.notes.trim() || null,
-    }));
-
-    try {
-      const res = await fetch("/api/workouts/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, exercises: exercisesToSend, runs: runsToSend }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setFormError(data?.message ?? "Could not log workout. Please try again.");
-        return;
-      }
-
-      setSuccessMessage(data?.message ?? "Workout logged.");
-      setValues(emptyFormValues());
-      setExerciseRows([]);
-      setRunRows([]);
-      router.refresh();
-    } catch {
-      setFormError("Something went wrong. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
   return (
-    <section className="space-y-8">
-
-      <PageHeader
-        eyebrow="Training"
-        title="Workouts"
-        subtitle="Record your training sessions and keep a history over time."
-      />
-
-      {/* Summary stats — compact weekly row */}
-      <div className="panel grid grid-cols-3 divide-x divide-white/[0.06]">
-        <div className="px-3 py-3.5 text-center sm:px-4">
-          <p className="label-caps text-[9px]">This week</p>
-          <p className="text-display mt-1.5 text-[20px] leading-none tabular-nums">{weeklyStats.count}</p>
-          <p className="mt-1 text-[10px] text-muted-foreground">workout{weeklyStats.count === 1 ? "" : "s"}</p>
-        </div>
-        <div className="px-3 py-3.5 text-center sm:px-4">
-          <p className="label-caps text-[9px]">Volume</p>
-          <p className="text-display mt-1.5 text-[20px] leading-none tabular-nums">
-            {weeklyStats.totalKg > 0 ? weeklyStats.totalKg.toLocaleString("en-GB") : "—"}
-          </p>
-          <p className="mt-1 text-[10px] text-muted-foreground">kg lifted this week</p>
-        </div>
-        <div className="px-3 py-3.5 text-center sm:px-4">
-          <p className="label-caps text-[9px]">All time</p>
-          <p className="text-display mt-1.5 text-[20px] leading-none tabular-nums">{sessions.length}</p>
-          <p className="mt-1 text-[10px] text-muted-foreground">sessions logged</p>
-        </div>
+    <section className="anim-rise space-y-10">
+      {/* Bespoke editorial header — echoes the marketing/dashboard voice
+          rather than reusing the generic PageHeader every other screen
+          shares, since the opening here is the tabbed hero below it, not
+          a standalone header block. */}
+      <div>
+        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Training</p>
+        <h1 className="text-editorial mt-2 text-[32px] leading-[1.05] text-zinc-50 sm:text-[36px]">
+          Where today&rsquo;s session starts.
+        </h1>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+          Plan a session from your readiness and history, or log what you just did.
+        </p>
       </div>
 
-      {/* Workout Helper */}
-      <WorkoutHelper sessions={sessions} context={helperContext} />
-
-      {/* Exercise lookup */}
-      <div className="panel p-5">
-        <p className="mb-3 label-caps">
-          Exercise lookup
-        </p>
-        <input
-          type="text"
-          value={lookupQuery}
-          onChange={(e) => setLookupQuery(e.target.value)}
-          placeholder="Search exercise history…"
-          className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-        />
-        {lookupQuery.trim() === "" ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            Type an exercise name to see your last performance.
-          </p>
-        ) : latestMatch === null ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No history found for &ldquo;{lookupQuery.trim()}&rdquo;.
-          </p>
-        ) : (
-          <div className="mt-3">
-            <p className="text-xs text-muted-foreground">
-              Last performed &mdash;{" "}
-              {lookupResults.length === 1 ? "1 entry" : `${lookupResults.length} entries`} found
-            </p>
-            <div className="mt-2 rounded-lg border border-border bg-secondary/20 p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">{latestMatch.date}</p>
-                  <p className="mt-0.5 text-sm font-medium text-foreground">
-                    {latestMatch.sessionTitle}
-                  </p>
-                  {latestMatch.notes && (
-                    <p className="mt-1 text-xs text-muted-foreground">{latestMatch.notes}</p>
-                  )}
-                </div>
-                {latestMatchParts.length > 0 && (
-                  <p className="shrink-0 text-sm font-semibold text-foreground">
-                    {latestMatchParts.join(" · ")}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Exercise library */}
-      <ExerciseLibrary exercises={exercises} sessions={sessions} />
-
-      {/* Log form */}
-      <form
-        onSubmit={handleSubmit}
-        className="panel p-5"
-      >
-        <p className="mb-4 label-caps">
-          Log a workout
-        </p>
-
-        {formError && (
-          <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {formError}
-          </p>
-        )}
-
-        {successMessage && (
-          <p className="mb-4 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
-            {successMessage}
-          </p>
-        )}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <FormField label="Title" error={errors.title}>
-            <input
-              type="text"
-              value={values.title}
-              onChange={(e) => handleTextChange("title", e)}
-              className={inputClass(errors.title)}
-              placeholder="e.g. Lower Body Strength"
-            />
-          </FormField>
-
-          <FormField label="Date" error={errors.date}>
-            <input
-              type="date"
-              value={values.date}
-              onChange={(e) => handleTextChange("date", e)}
-              className={inputClass(errors.date)}
-            />
-          </FormField>
-
-          <FormField
-            label={
-              <>
-                Duration (minutes){" "}
-                <span className="text-xs font-normal text-muted-foreground">optional</span>
-              </>
-            }
-            error={errors.durationMins}
-          >
-            <input
-              type="number"
-              min={0}
-              value={values.durationMins}
-              onChange={(e) => handleTextChange("durationMins", e)}
-              className={inputClass(errors.durationMins)}
-              placeholder="e.g. 60"
-            />
-          </FormField>
-
-          <div className="md:col-span-2">
-            <FormField
-              label={
-                <>
-                  Notes{" "}
-                  <span className="text-xs font-normal text-muted-foreground">optional</span>
-                </>
-              }
-              error={errors.notes}
-            >
-              <textarea
-                value={values.notes}
-                onChange={(e) => handleTextChange("notes", e)}
-                className={`${inputClass(errors.notes)} min-h-[80px] resize-y`}
-                placeholder="What did you do, how did it feel, anything worth remembering"
-              />
-            </FormField>
-          </div>
-        </div>
-
-        {/* Session entry rows */}
-        <div className="mt-6 border-t border-border pt-5">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="label-caps">Session entries</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setExerciseRows((prev) => [...prev, newRow()])}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary"
-              >
-                + Add exercise
-              </button>
-              <button
-                type="button"
-                onClick={() => setRunRows((prev) => [...prev, newRunRow()])}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary"
-              >
-                + Add run
-              </button>
-            </div>
-          </div>
-
-          {exerciseRows.length === 0 && runRows.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
-              No entries added yet. Use the buttons above to log exercises or a run.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {exerciseRows.map((row, idx) => (
-                <div
-                  key={row.key}
-                  className="rounded-lg border border-border bg-secondary/20 p-4"
-                >
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Exercise {idx + 1}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => removeRow(row.key)}
-                      className="text-xs text-muted-foreground transition hover:text-destructive"
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <span className="mb-1.5 block text-xs font-medium text-foreground">
-                        Exercise name
-                      </span>
-                      <ExerciseAutocomplete
-                        exercises={exercises}
-                        value={row.name}
-                        onChange={(name, exerciseId) => updateRow(row.key, { name, exerciseId })}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium text-foreground">
-                          Weight / time
-                        </label>
-                        <input
-                          type="text"
-                          value={row.weight}
-                          onChange={(e) => updateRow(row.key, { weight: e.target.value })}
-                          placeholder="e.g. 60 kg"
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium text-foreground">
-                          Reps
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.reps}
-                          onChange={(e) => updateRow(row.key, { reps: e.target.value })}
-                          placeholder="e.g. 8"
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium text-foreground">
-                          Sets
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.sets}
-                          onChange={(e) => updateRow(row.key, { sets: e.target.value })}
-                          placeholder="e.g. 3"
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Per-set detail — offered once sets ≥ 2; the shared
-                        weight/reps become each set's prefill. */}
-                    {Number(row.sets) >= 2 && row.setRows.length === 0 ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateRow(row.key, {
-                            setRows: Array.from({ length: Math.min(Number(row.sets), 12) }, () => ({
-                              key: crypto.randomUUID(),
-                              weight: row.weight,
-                              reps: row.reps,
-                            })),
-                          })
-                        }
-                        className="text-xs font-medium text-blue-400 transition hover:text-blue-300"
-                      >
-                        Different weight/reps per set →
-                      </button>
-                    ) : null}
-
-                    {row.setRows.length > 0 ? (
-                      <div className="space-y-2 rounded-lg border border-border/60 bg-white/[0.02] p-3">
-                        {row.setRows.map((set, setIdx) => (
-                          <div key={set.key} className="grid grid-cols-[3rem_1fr_1fr] items-center gap-2">
-                            <span className="text-xs text-muted-foreground">Set {setIdx + 1}</span>
-                            <input
-                              type="text"
-                              value={set.weight}
-                              onChange={(e) =>
-                                updateRow(row.key, {
-                                  setRows: row.setRows.map((sr) =>
-                                    sr.key === set.key ? { ...sr, weight: e.target.value } : sr
-                                  ),
-                                })
-                              }
-                              placeholder="Weight"
-                              aria-label={`Set ${setIdx + 1} weight`}
-                              className="w-full rounded-lg border border-border bg-input px-3 py-1.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                            />
-                            <input
-                              type="number"
-                              min={0}
-                              value={set.reps}
-                              onChange={(e) =>
-                                updateRow(row.key, {
-                                  setRows: row.setRows.map((sr) =>
-                                    sr.key === set.key ? { ...sr, reps: e.target.value } : sr
-                                  ),
-                                })
-                              }
-                              placeholder="Reps"
-                              aria-label={`Set ${setIdx + 1} reps`}
-                              className="w-full rounded-lg border border-border bg-input px-3 py-1.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                            />
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => updateRow(row.key, { setRows: [] })}
-                          className="text-xs text-muted-foreground transition hover:text-foreground"
-                        >
-                          Use one value for all sets
-                        </button>
-                      </div>
-                    ) : null}
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-foreground">
-                        Notes{" "}
-                        <span className="font-normal text-muted-foreground">optional</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={row.notes}
-                        onChange={(e) => updateRow(row.key, { notes: e.target.value })}
-                        placeholder="e.g. Felt strong, could go heavier"
-                        className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {runRows.map((row, idx) => (
-                <div
-                  key={row.key}
-                  className="rounded-lg border border-border bg-secondary/20 p-4"
-                >
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Run {idx + 1}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => removeRunRow(row.key)}
-                      className="text-xs text-muted-foreground transition hover:text-destructive"
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium text-foreground">
-                          Distance{" "}
-                          <span className="font-normal text-muted-foreground">optional</span>
-                        </label>
-                        <div className="flex gap-1.5">
-                          <input
-                            type="number"
-                            min={0}
-                            step="any"
-                            value={row.distance}
-                            onChange={(e) => updateRunRow(row.key, { distance: e.target.value })}
-                            placeholder={row.distanceUnit === "m" ? "e.g. 400" : "e.g. 5.2"}
-                            className="w-full min-w-0 rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                          />
-                          <select
-                            value={row.distanceUnit}
-                            onChange={(e) =>
-                              updateRunRow(row.key, { distanceUnit: e.target.value as "km" | "m" })
-                            }
-                            aria-label="Distance unit"
-                            className="w-16 shrink-0 rounded-lg border border-border bg-input px-2 py-2 text-sm text-foreground outline-none transition focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                          >
-                            <option value="km">km</option>
-                            <option value="m">m</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium text-foreground">
-                          Time (mm:ss){" "}
-                          <span className="font-normal text-muted-foreground">optional</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={row.duration}
-                          onChange={(e) => updateRunRow(row.key, { duration: e.target.value })}
-                          placeholder="e.g. 30:00"
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Live pace — appears only once distance and time both parse */}
-                    {livePace(row.distance, row.distanceUnit, row.duration) ? (
-                      <p aria-live="polite" className="text-xs text-muted-foreground">
-                        Pace:{" "}
-                        <span className="font-semibold text-primary tabular-nums">
-                          {livePace(row.distance, row.distanceUnit, row.duration)}
-                        </span>
-                      </p>
-                    ) : null}
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium text-foreground">
-                          Reps{" "}
-                          <span className="font-normal text-muted-foreground">optional</span>
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.reps}
-                          onChange={(e) => updateRunRow(row.key, { reps: e.target.value })}
-                          placeholder="e.g. 8"
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium text-foreground">
-                          Sets{" "}
-                          <span className="font-normal text-muted-foreground">optional</span>
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.sets}
-                          onChange={(e) => updateRunRow(row.key, { sets: e.target.value })}
-                          placeholder="e.g. 3"
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-foreground">
-                        Notes{" "}
-                        <span className="font-normal text-muted-foreground">optional</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={row.notes}
-                        onChange={(e) => updateRunRow(row.key, { notes: e.target.value })}
-                        placeholder="e.g. Easy pace, felt good"
-                        className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-6 flex justify-end border-t border-border pt-4">
+      {/* Hero — one dominant action zone, switched by intent rather than
+          stacked. Both panels stay mounted so switching tabs never drops
+          in-progress input in the log form. */}
+      <div>
+        <div className="mb-4 inline-flex rounded-full border border-white/[0.1] bg-white/[0.03] p-1">
           <button
-            type="submit"
-            disabled={isSubmitting}
-            className="btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            onClick={() => setHeroTab("plan")}
+            className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
+              heroTab === "plan" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
+            }`}
           >
-            {isSubmitting ? "Saving…" : "Log workout"}
+            Plan a session
+          </button>
+          <button
+            type="button"
+            onClick={() => setHeroTab("log")}
+            className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
+              heroTab === "log" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            Log a session
           </button>
         </div>
-      </form>
 
-      {/* History */}
+        <div className={heroTab === "plan" ? "" : "hidden"}>
+          <WorkoutHelper sessions={sessions} context={helperContext} />
+        </div>
+        <div className={heroTab === "log" ? "" : "hidden"}>
+          <WorkoutLogForm exercises={exercises} />
+        </div>
+      </div>
+
+      {/* Progress — streak/consistency and recent records grouped as one
+          band with a single header, side by side on wider screens, instead
+          of each being its own full-width top-level section. */}
       <div>
-        <p className="mb-3 px-1 label-caps">
-          History
-        </p>
+        <p className="mb-3 px-1 label-caps">Progress</p>
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[0.85fr_1.15fr]">
+          <div className="surface-card surface-card--accent min-w-0 p-5">
+            <div className="flex items-baseline justify-between">
+              <div>
+                <p className="label-caps text-[9px]">Streak</p>
+                <p className="text-editorial mt-2 text-[32px] leading-none text-gold">{streakWeeks}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {streakWeeks === 1 ? "week trained" : "weeks trained"} in a row
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-display text-[20px] leading-none tabular-nums">{weeklyStats.count}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">this week</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-between gap-1">
+              {currentWeekDays.map((d) => (
+                <span
+                  key={d.iso}
+                  className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums ${
+                    d.trained
+                      ? "bg-primary text-primary-foreground"
+                      : d.isToday
+                        ? "border border-primary/50 text-primary"
+                        : "border border-white/[0.1] text-muted-foreground"
+                  }`}
+                  title={d.iso}
+                >
+                  {d.letter}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-4 flex items-end gap-1.5 border-t border-white/[0.06] pt-3.5" aria-hidden="true">
+              {weeklyFrequency.map((w) => (
+                <div key={w.mondayIso} className="flex-1">
+                  <div
+                    className={`w-full rounded-t ${w.mondayIso === weeklyFrequency[weeklyFrequency.length - 1].mondayIso ? "bg-primary" : "bg-white/[0.12]"}`}
+                    style={{ height: `${Math.max(6, (w.count / maxWeekCount) * 26)}px` }}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[10px] text-zinc-600">6-week frequency</p>
+          </div>
+
+          <div className="surface-card min-w-0 p-5">
+            <div className="flex items-baseline justify-between">
+              <p className="label-caps text-[9px]">Recent records</p>
+              <p className="text-[11px] text-muted-foreground tabular-nums">{sessions.length} sessions logged</p>
+            </div>
+            {personalBests.length === 0 ? (
+              <div className="empty-state mt-3">
+                <p className="text-sm font-medium">No personal bests yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Log exercises with sets, reps, or numeric weight to start tracking bests.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 -mx-1 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-1 pb-1">
+                {personalBests.map((pb) => (
+                  <div
+                    key={pb.exerciseName}
+                    className="w-[136px] shrink-0 snap-start rounded-lg border border-white/[0.08] bg-white/[0.02] p-3"
+                  >
+                    <p className="truncate text-[12px] font-semibold text-foreground">{pb.exerciseName}</p>
+                    <p className="text-display mt-1.5 text-[18px] leading-none tabular-nums text-gold">
+                      {pb.heaviestWeight
+                        ? Number.isFinite(parseFloat(pb.heaviestWeight.weightStr))
+                          ? `${pb.heaviestWeight.value} kg`
+                          : pb.heaviestWeight.weightStr
+                        : pb.highestReps
+                          ? `×${pb.highestReps.reps}`
+                          : "—"}
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">
+                      {pb.heaviestWeight?.date ?? pb.highestReps?.date ?? ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Set levels — a real training-balance insight, not decoration:
+          weekly logged sets per muscle group, resolved from the same
+          exerciseId → section link the History icons use. Sits between
+          Progress and History since it's the same kind of "how am I
+          actually training" signal, just aggregated differently. */}
+      <div>
+        <p className="mb-3 px-1 label-caps">Set levels</p>
+        <SetLevelsPanel sessions={sessions} exercises={exercises} todayISO={todayISO} />
+      </div>
+
+      {/* History — full session detail, kept substantive rather than
+          demoted, since a logged session is real proof-of-work content
+          and not just a reference tool. */}
+      <div>
+        <p className="mb-3 px-1 label-caps">History</p>
 
         {sessions.length === 0 ? (
           <div className="empty-state">
@@ -1243,10 +261,7 @@ export function WorkoutsView({
         ) : (
           <div className="space-y-3">
             {sessions.map((session) => (
-              <div
-                key={session.id}
-                className="panel p-4"
-              >
+              <div key={session.id} className="surface-card p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1256,11 +271,11 @@ export function WorkoutsView({
                           Class
                         </span>
                       ) : null}
-                      {session.classId && session.date === todayDateString() && editingClassSessionId !== session.id ? (
+                      {session.classId && session.date === todayISO && editingClassSessionId !== session.id ? (
                         <button
                           type="button"
                           onClick={() => setEditingClassSessionId(session.id)}
-                          className="text-[11px] font-medium text-blue-400 transition hover:text-blue-300"
+                          className="text-[11px] font-medium text-primary transition hover:text-[var(--primary-hover)]"
                         >
                           Edit (today only)
                         </button>
@@ -1277,31 +292,25 @@ export function WorkoutsView({
                         onCancel={() => setEditingClassSessionId(null)}
                       />
                     ) : null}
-                    {session.notes && (
-                      <p className="mt-2 text-sm text-muted-foreground">{session.notes}</p>
-                    )}
+                    {session.notes && <p className="mt-2 text-sm text-muted-foreground">{session.notes}</p>}
                     {(session.exercises.length > 0 || session.runs.length > 0) && (
                       <div className="mt-3 space-y-1 border-t border-border pt-3">
                         {session.exercises.map((ex, i) => {
                           const load = formatExerciseLoad(ex);
+                          const section = ex.exerciseId ? sectionByExerciseId.get(ex.exerciseId) : undefined;
                           return (
                             <div key={i} className="flex items-baseline gap-2 text-sm">
+                              {section && <MuscleMap section={section} className="h-4 w-3 shrink-0 self-center" />}
                               <span className="font-medium text-foreground">{ex.name}</span>
-                              {load && (
-                                <span className="text-xs text-muted-foreground">{load}</span>
-                              )}
+                              {load && <span className="text-xs text-muted-foreground">{load}</span>}
                             </div>
                           );
                         })}
                         {session.runs.map((run, i) => (
                           <div key={`run-${i}`} className="flex items-baseline gap-2 text-sm">
                             <span className="font-medium text-foreground">Run</span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatRun(run)}
-                            </span>
-                            {run.notes && (
-                              <span className="text-xs text-muted-foreground">— {run.notes}</span>
-                            )}
+                            <span className="text-xs text-muted-foreground">{formatRun(run)}</span>
+                            {run.notes && <span className="text-xs text-muted-foreground">— {run.notes}</span>}
                           </div>
                         ))}
                       </div>
@@ -1320,88 +329,23 @@ export function WorkoutsView({
         )}
       </div>
 
-      {/* Personal bests */}
-      <div>
-        <p className="mb-3 px-1 label-caps">
-          Personal bests
-        </p>
-        {personalBests.length === 0 ? (
-          <div className="empty-state">
-            <p className="text-sm font-medium">No personal bests yet</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Log exercises with sets, reps, or numeric weight to start tracking bests.
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {personalBests.map((pb) => (
-              <div
-                key={pb.exerciseName}
-                className="panel p-4"
-              >
-                <p className="text-sm font-semibold text-foreground">{pb.exerciseName}</p>
-                {pb.heaviestWeight ? (
-                  <>
-                    <p className="text-display mt-2 text-[22px] leading-none tabular-nums">
-                      {Number.isFinite(parseFloat(pb.heaviestWeight.weightStr))
-                        ? `${pb.heaviestWeight.value} kg`
-                        : pb.heaviestWeight.weightStr}
-                      {pb.heaviestWeight.reps !== null && (
-                        <span className="ml-1.5 text-sm font-normal tracking-normal text-muted-foreground">
-                          ({pb.heaviestWeight.reps} rep{pb.heaviestWeight.reps === 1 ? "" : "s"})
-                        </span>
-                      )}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
-                      {pb.heaviestWeight.date}
-                      {pb.highestReps && pb.highestReps.reps !== pb.heaviestWeight.reps
-                        ? ` · best reps ×${pb.highestReps.reps}`
-                        : ""}
-                    </p>
-                  </>
-                ) : pb.highestReps ? (
-                  <>
-                    <p className="text-display mt-2 text-[22px] leading-none tabular-nums">
-                      ×{pb.highestReps.reps}
-                      <span className="ml-1.5 text-sm font-normal tracking-normal text-muted-foreground">
-                        (reps)
-                      </span>
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">{pb.highestReps.date}</p>
-                  </>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Track progression */}
+      {/* Track progression — kept as its own light-touch tool, styled a
+          notch quieter than History so it doesn't compete with it. */}
       <div>
         <div className="mb-2.5 flex items-baseline justify-between px-1">
           <p className="label-caps">Track progression</p>
           {trackedExercises.length > 0 && (
-            <span className="text-[11px] text-muted-foreground tabular-nums">
-              {trackedExercises.length}/5 tracked
-            </span>
+            <span className="text-[11px] text-muted-foreground tabular-nums">{trackedExercises.length}/5 tracked</span>
           )}
         </div>
 
-        <div className="panel p-4">
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
           {trackedExercises.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-1.5">
               {trackedExercises.map((name) => (
-                <span
-                  key={name}
-                  className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground"
-                >
+                <span key={name} className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
                   {name}
-                  <button
-                    type="button"
-                    onClick={() => removeTracked(name)}
-                    className="leading-none text-muted-foreground transition hover:text-foreground"
-                    aria-label={`Remove ${name}`}
-                  >
+                  <button type="button" onClick={() => removeTracked(name)} className="leading-none text-muted-foreground transition hover:text-foreground" aria-label={`Remove ${name}`}>
                     ×
                   </button>
                 </span>
@@ -1420,26 +364,14 @@ export function WorkoutsView({
                 }}
                 onFocus={() => setTrackOpen(true)}
                 onBlur={() => setTimeout(() => setTrackOpen(false), 150)}
-                placeholder={
-                  personalBests.length === 0
-                    ? "Log exercises first to track progression"
-                    : "Add an exercise to track…"
-                }
+                placeholder={personalBests.length === 0 ? "Log exercises first to track progression" : "Add an exercise to track…"}
                 disabled={personalBests.length === 0}
-                className="w-full rounded-lg border border-border bg-input px-3.5 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-lg border border-border bg-input px-3.5 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
               />
               {trackOpen && filteredCandidates.length > 0 && (
                 <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
                   {filteredCandidates.map((name) => (
-                    <button
-                      key={name}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        addTracked(name);
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-secondary"
-                    >
+                    <button key={name} type="button" onMouseDown={(e) => { e.preventDefault(); addTracked(name); }} className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-secondary">
                       {name}
                     </button>
                   ))}
@@ -1447,15 +379,11 @@ export function WorkoutsView({
               )}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Maximum of 5 exercises reached. Remove one to add another.
-            </p>
+            <p className="text-xs text-muted-foreground">Maximum of 5 exercises reached. Remove one to add another.</p>
           )}
 
           {trackedExercises.length === 0 && personalBests.length > 0 && (
-            <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
-              Pick up to 5 exercises from your history to chart progression.
-            </p>
+            <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">Pick up to 5 exercises from your history to chart progression.</p>
           )}
         </div>
 
@@ -1467,12 +395,10 @@ export function WorkoutsView({
               const hasReps = points.some((p) => p.reps !== null);
               const chartLabel = useWeight ? "Weight trend" : hasReps ? "Reps trend" : "";
               return (
-                <div key={name} className="panel p-3.5">
+                <div key={name} className="surface-card p-3.5">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-[13px] font-semibold text-foreground">{name}</p>
-                    {chartLabel && (
-                      <p className="text-[11px] text-muted-foreground">{chartLabel}</p>
-                    )}
+                    {chartLabel && <p className="text-[11px] text-muted-foreground">{chartLabel}</p>}
                   </div>
                   <div className="mt-1.5">
                     <TrendChart points={points} />
@@ -1484,34 +410,32 @@ export function WorkoutsView({
         )}
       </div>
 
+      {/* Reference — pure lookup tools, collapsed by default. Nobody needs
+          these open on every visit; progressive disclosure keeps the page
+          short unless a member actually wants to browse or search. */}
+      <div className="border-t border-white/[0.06] pt-6">
+        <p className="mb-3 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">Reference</p>
+
+        <details className="group rounded-xl border border-white/[0.06]">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-300 transition hover:text-zinc-100">
+            Exercise lookup
+            <span className="text-zinc-600 transition group-open:rotate-180">⌄</span>
+          </summary>
+          <div className="border-t border-white/[0.06] p-1">
+            <ExerciseLookupPanel sessions={sessions} className="p-4" />
+          </div>
+        </details>
+
+        <details className="group mt-2 rounded-xl border border-white/[0.06]">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-300 transition hover:text-zinc-100">
+            Exercise library
+            <span className="text-zinc-600 transition group-open:rotate-180">⌄</span>
+          </summary>
+          <div className="border-t border-white/[0.06] p-1">
+            <ExerciseLibraryPanel exercises={exercises} sessions={sessions} className="p-4" />
+          </div>
+        </details>
+      </div>
     </section>
   );
-}
-
-// --- Shared sub-components ---
-
-function FormField({
-  label,
-  error,
-  children,
-}: {
-  label: ReactNode;
-  error?: string;
-  children: ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-medium text-foreground">{label}</span>
-      {children}
-      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
-    </label>
-  );
-}
-
-function inputClass(hasError?: string) {
-  return `w-full rounded-lg border bg-input px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground ${
-    hasError
-      ? "border-destructive focus:border-destructive"
-      : "border-border focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
-  }`;
 }

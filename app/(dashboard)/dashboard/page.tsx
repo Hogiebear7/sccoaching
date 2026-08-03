@@ -38,13 +38,13 @@ function readinessStatus(score: number): string {
   return "Ease off";
 }
 
-function readinessWashClass(score: number | null): string {
-  if (score === null) return "";
-  if (score >= 60)
-    return "bg-[radial-gradient(75%_100%_at_20%_0%,rgba(45,212,191,0.09),transparent)]";
-  if (score >= 40)
-    return "bg-[radial-gradient(75%_100%_at_20%_0%,rgba(96,165,250,0.07),transparent)]";
-  return "bg-[radial-gradient(75%_100%_at_20%_0%,rgba(251,191,36,0.07),transparent)]";
+// Token-driven (not literal hues) so the wash recolors correctly per
+// palette/theme, same band language as ReadinessRing.
+function readinessWashVar(score: number | null): string | null {
+  if (score === null) return null;
+  if (score >= 60) return "--success";
+  if (score >= 40) return "--accent-data";
+  return "--warning";
 }
 
 // Compact 14-day readiness sparkline; gaps stay gaps — no interpolation.
@@ -68,7 +68,7 @@ function ReadinessSparkline({ series }: { series: (number | null)[] }) {
             pathLength={100}
             className="anim-draw"
             fill="none"
-            stroke="oklch(0.62 0.19 260)"
+            stroke="var(--accent-data)"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -80,7 +80,7 @@ function ReadinessSparkline({ series }: { series: (number | null)[] }) {
             cx={Number(points.split(",")[0])}
             cy={Number(points.split(",")[1])}
             r="1.5"
-            fill="oklch(0.62 0.19 260)"
+            fill="var(--accent-data)"
             opacity="0.7"
           />
         )
@@ -90,7 +90,7 @@ function ReadinessSparkline({ series }: { series: (number | null)[] }) {
           cx={lastIdx * stepX}
           cy={H - (lastVal / 100) * H}
           r="3"
-          fill="oklch(0.72 0.13 180)"
+          fill="var(--primary)"
           className="anim-fade"
           style={{ animationDelay: "600ms" }}
         />
@@ -174,28 +174,17 @@ export default async function DashboardPage() {
     ? "Period ended"
     : SUBSCRIPTION_STATUS_LABEL[subscription.status];
 
+  // Trimmed to the two actions not already covered by their own dedicated
+  // module above (Nutrition has its own entry card; Recovery already has a
+  // "Recovery →" link on the Readiness module) — deliberately not a 2x2
+  // grid of equal-weight tiles.
   const quickActions = [
-    {
-      href: "/dashboard/nutrition",
-      icon: "M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.657 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657zM9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z",
-      label: "Nutrition",
-      hint: "Fuel & hydration",
-    },
     {
       href: "/dashboard/workouts",
       icon: "M13 10V3L4 14h7v7l9-11h-7z",
       label: "Today's workout",
       // Programme is a coach-enabled feature — don't reference it when off.
       hint: profile?.programmeEnabled && programme?.title ? programme.title : "Log & review sessions",
-    },
-    {
-      href: "/dashboard/recovery",
-      icon: "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
-      label: "Log recovery",
-      hint:
-        latestRecoveryLog?.readinessScore != null
-          ? `Readiness ${latestRecoveryLog.readinessScore}/100`
-          : "Sleep & load",
     },
     {
       href: "/dashboard/profile",
@@ -228,13 +217,15 @@ export default async function DashboardPage() {
           <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-transparent" />
         </div>
         <div className="relative">
-          <p className="chip label-caps w-fit border-teal-400/20 bg-teal-400/[0.07] !text-teal-300/90">{today}</p>
-          <h1 className="title-athletic mt-3 text-[30px] leading-[1.05]">Hi {firstName}</h1>
+          <p className="chip label-caps w-fit border-primary/25 bg-primary/[0.08] !text-gold">{today}</p>
+          <h1 className="mt-3 text-editorial text-[32px] italic leading-[1.05] text-zinc-50">Hi {firstName}</h1>
           <p className="mt-2 text-sm text-zinc-400">Ready when you are.</p>
         </div>
       </div>
 
-      {/* Hero: next session */}
+      {/* Hero: next session — the one intentional/primary card, marked with
+          the accent bar so it reads as the page's main event, not an equal
+          tile among many. */}
       <div>
         <div className="mb-2.5 flex items-baseline justify-between">
           <div className="flex items-center gap-2">
@@ -247,9 +238,9 @@ export default async function DashboardPage() {
               </span>
             )}
           </div>
-          <Link href="/dashboard/bookings" className="text-xs font-medium text-blue-400 transition-colors duration-150 hover:text-blue-300">My bookings →</Link>
+          <Link href="/dashboard/bookings" className="text-xs font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]">My bookings →</Link>
         </div>
-        <div className="panel overflow-hidden">
+        <div className="surface-card surface-card--accent overflow-hidden">
           {nextBooking ? (
             <div className="flex items-stretch">
               <div className="relative w-[88px] flex-shrink-0 overflow-hidden">
@@ -302,10 +293,17 @@ export default async function DashboardPage() {
       <div>
         <div className="mb-2.5 flex items-baseline justify-between">
           <h2 className="label-caps">Readiness</h2>
-          <Link href="/dashboard/recovery" className="text-xs font-medium text-blue-400 transition-colors duration-150 hover:text-blue-300">Recovery →</Link>
+          <Link href="/dashboard/recovery" className="text-xs font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]">Recovery →</Link>
         </div>
-        <div className="panel relative overflow-hidden p-5">
-          <div className={`pointer-events-none absolute inset-0 ${readinessWashClass(todayReadiness)}`} />
+        <div className="surface-card relative overflow-hidden p-5">
+          {readinessWashVar(todayReadiness) && (
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background: `radial-gradient(75% 100% at 20% 0%, color-mix(in oklch, var(${readinessWashVar(todayReadiness)}) 14%, transparent), transparent)`,
+              }}
+            />
+          )}
           <div className="relative flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-start gap-4">
@@ -322,8 +320,8 @@ export default async function DashboardPage() {
                             aria-label={`${delta > 0 ? "Up" : "Down"} ${Math.abs(delta)} since yesterday`}
                             className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-none tabular-nums ${
                               delta > 0
-                                ? "border-teal-500/25 bg-teal-500/[0.08] text-teal-300"
-                                : "border-amber-500/25 bg-amber-500/[0.08] text-amber-300"
+                                ? "border-[var(--success)]/30 bg-[var(--success-weak)] text-[var(--success)]"
+                                : "border-[var(--warning)]/30 bg-[var(--warning-weak)] text-[var(--warning)]"
                             }`}
                           >
                             {/* SVG instead of ▲/▼ text glyphs — the unicode
@@ -352,6 +350,9 @@ export default async function DashboardPage() {
                       <p className="mt-1 max-w-[34ch] text-[12px] leading-relaxed text-zinc-500">
                         Log today&apos;s recovery to get a readiness score and session guidance.
                       </p>
+                      <Link href="/dashboard/recovery" className="mt-2 inline-block text-[12px] font-medium text-primary hover:text-[var(--primary-hover)]">
+                        Log recovery →
+                      </Link>
                     </>
                   )}
                 </div>
@@ -367,7 +368,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* KPI strip */}
-        <div className="panel mt-2.5 grid grid-cols-3 divide-x divide-white/[0.06]">
+        <div className="surface-card mt-2.5 grid grid-cols-3 divide-x divide-white/[0.06]">
           <div className="px-3 py-3.5 text-center sm:px-4">
             <p className="label-caps text-[9px]">7-day load</p>
             <p className="text-display mt-1.5 text-[20px] leading-none tabular-nums">
@@ -378,7 +379,7 @@ export default async function DashboardPage() {
                 <>
                   {LOAD_BAND_LABEL[loadBand]}
                   {weekChange !== null && (
-                    <span className="text-blue-400 tabular-nums"> · {weekChange > 0 ? "+" : ""}{weekChange}% wk</span>
+                    <span className="text-[var(--accent-data)] tabular-nums"> · {weekChange > 0 ? "+" : ""}{weekChange}% wk</span>
                   )}
                 </>
               ) : (
@@ -415,10 +416,35 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* Nutrition — promoted from the quick-actions grid to its own entry
+          point (priority 4 in the dashboard brief), with real profile
+          context where available rather than a generic hint. */}
+      <div>
+        <h2 className="label-caps mb-2.5">Nutrition</h2>
+        <Link href="/dashboard/nutrition" className="surface-card hover-lift flex items-center gap-4 p-5">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-primary">
+              <path d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.657 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657zM9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-semibold tracking-tight">Fuel today&apos;s training</p>
+            <p className="mt-0.5 truncate text-xs text-zinc-500">
+              {profile?.dietaryPreference && profile.dietaryPreference !== "standard"
+                ? `${profile.dietaryPreference.charAt(0).toUpperCase()}${profile.dietaryPreference.slice(1)} · log meals & hydration`
+                : "Log meals & hydration"}
+            </p>
+          </div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-zinc-600">
+            <path d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </Link>
+      </div>
+
       {/* Status strip: membership + coach */}
       <div>
         <h2 className="label-caps mb-2.5">Your Club</h2>
-        <div className="panel divide-y divide-white/[0.05] overflow-hidden">
+        <div className="surface-card divide-y divide-white/[0.05] overflow-hidden">
           <Link
             href="/dashboard/membership"
             className={`flex items-center gap-4 px-5 py-4 transition-colors duration-150 hover:bg-white/[0.02] ${needsAttention ? "bg-destructive/[0.04]" : ""}`}
@@ -441,8 +467,8 @@ export default async function DashboardPage() {
             </span>
           </Link>
           <Link href="/dashboard/messages" className="flex items-center gap-4 px-5 py-4 transition-colors duration-150 hover:bg-white/[0.02]">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-teal-500/20 bg-teal-500/10">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-teal-300">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-primary/25 bg-primary/10">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-primary">
                 <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
@@ -457,14 +483,15 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick actions */}
+      {/* Quick actions — trimmed to two (see quickActions comment); deliberately
+          not a larger grid of equal-weight tiles. */}
       <div>
         <h2 className="label-caps mb-2.5">Quick Actions</h2>
         <div className="grid grid-cols-2 gap-2.5">
           {quickActions.map(({ href, icon, label, hint }) => (
-            <Link key={href} href={href} className="panel hover-lift flex h-full flex-col gap-3 p-4">
+            <Link key={href} href={href} className="surface-card hover-lift flex h-full flex-col gap-3 p-4">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.09] bg-white/[0.05]">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-teal-300">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-primary">
                   <path d={icon} />
                 </svg>
               </div>

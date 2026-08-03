@@ -21,6 +21,10 @@ const navItems: { label: string; href: string; capability: Capability }[] = [
   { label: "Catalog",     href: "/staff/catalog",     capability: NAV_CAPABILITY["/staff/catalog"] },
   { label: "Exercises",   href: "/staff/exercises",   capability: NAV_CAPABILITY["/staff/exercises"] },
   { label: "Staff users", href: "/staff/staff-users", capability: NAV_CAPABILITY["/staff/staff-users"] },
+  { label: "Reports",     href: "/staff/reports",     capability: NAV_CAPABILITY["/staff/reports"] },
+  { label: "Finances",    href: "/staff/finances",    capability: NAV_CAPABILITY["/staff/finances"] },
+  // TRIAL-ONLY — see docs/bug-reports.md.
+  { label: "Bug reports", href: "/staff/bug-reports", capability: NAV_CAPABILITY["/staff/bug-reports"] },
 ];
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {

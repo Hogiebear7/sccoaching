@@ -122,6 +122,11 @@ export interface AiMessageRecord {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  /** Which AI surface this message belongs to — keeps the general AI Coach
+      (Messages tab) and the Nutrition Coach (Nutrition tab) as separate
+      conversations. Absent on rows written before this field existed;
+      those are treated as "coach" (see findAiMessagesByUserId). */
+  channel?: "coach" | "nutrition";
 }
 
 export interface BodyWeightLogRecord {
@@ -524,6 +529,18 @@ export interface MessageRecord {
   createdAt: string;
 }
 
+// A lead submitted through the public marketing site's contact form.
+// Unauthenticated by design — anyone can submit, so this is never linked to
+// a userId. Staff read these manually for now; no UI surfaces them yet.
+export interface ContactInquiryRecord {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string;
+  createdAt: string;
+}
+
 export interface PushSubscriptionRecord {
   id: string;
   userId: string;
@@ -553,6 +570,47 @@ export interface NotificationRecord {
   linkHref: string | null;
   dedupeKey: string | null;
   createdAt: string;
+}
+
+// Durable observability signal for the AI Coach / AI Nutrition Coach
+// boundary — records when one coach's reply appears (via the same regex
+// heuristic already used at each call site) to redirect a member to the
+// other. Deliberately minimal: no userId, no message text, no other
+// identifiers — this exists to answer "how often does this happen" in
+// aggregate, not "which member asked what." See docs/ai-coach-routing.md.
+export type AiRedirectDirection = "coach_to_nutrition" | "nutrition_to_coach";
+
+export interface AiRedirectEventRecord {
+  id: string;
+  direction: AiRedirectDirection;
+  createdAt: string;
+}
+
+// A real payment amount actually received for a recurring membership
+// renewal — the data this app was missing entirely before the Finances tab
+// (see docs/finances.md). One-off pass/top-up purchases already carry their
+// own amountCents on PurchaseRecord; this record exists only to cover the
+// gap on the recurring side, where the Stripe/Revolut webhooks previously
+// updated subscription status without ever recording what was charged.
+// Append-only and NEVER pruned — unlike JobRunRecord/AiRedirectEventRecord,
+// this is financial history, not operational telemetry, so nothing here is
+// capped or dropped.
+export type RevenueSource = "membership_renewal";
+
+export interface RevenueEventRecord {
+  id: string;
+  userId: string;
+  packageId: string | null;
+  billingOptionId: string | null;
+  amountCents: number;
+  currency: string;
+  provider: BillingProvider;
+  /** Dedupe key together with provider — Stripe invoice id, or Revolut order
+      id. Guards against double-counting when a provider fires more than one
+      event type for the same underlying charge. */
+  providerRef: string;
+  source: RevenueSource;
+  receivedAt: string;
 }
 
 export type JobStatus = "success" | "error";
@@ -598,6 +656,38 @@ export const DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS: TransactionalEmailSettings = 
   classReminder: true,
 };
 
+// ── TRIAL-ONLY: bug reporting ───────────────────────────────────────────
+// Lets anyone signed in during the trial period submit a bug (text +
+// screenshots) from Settings; staff triage it at /staff/bug-reports. This
+// whole feature is meant to be deleted before full launch — see
+// docs/bug-reports.md for the exact removal checklist covering every file
+// this touches.
+export type BugReportStatus = "open" | "resolved";
+
+export interface BugReportRecord {
+  id: string;
+  userId: string;
+  description: string;
+  /** Data URLs — same validation as class cover images (lib/image-upload.ts
+      isValidImageDataUrl): jpeg/png/webp, capped size. Capped at 3 per report. */
+  screenshots: string[];
+  status: BugReportStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Staff-configured settings for the Finances tab (singleton). taxRatePercent
+// is a manually-entered estimate rate, not a computed liability — this app
+// has no expense tracking, so it can only ever show gross revenue × a rate
+// the admin_manager types in themselves. null = not set (no estimate shown).
+export interface FinanceSettings {
+  taxRatePercent: number | null;
+}
+
+export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
+  taxRatePercent: null,
+};
+
 interface Database {
   users: StoredUser[];
   profiles: ProfileRecord[];
@@ -629,16 +719,42 @@ interface Database {
   notifications: NotificationRecord[];
   waitlistEntries: WaitlistEntryRecord[];
   jobRuns: JobRunRecord[];
+  aiRedirectEvents: AiRedirectEventRecord[];
+  revenueEvents: RevenueEventRecord[];
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
   pushSubscriptions: PushSubscriptionRecord[];
+  contactInquiries: ContactInquiryRecord[];
   // Optional-email toggles (singleton). Missing keys default to ON via readDb.
   emailSettings: TransactionalEmailSettings;
+  financeSettings: FinanceSettings;
+  // TRIAL-ONLY — see BugReportRecord above and docs/bug-reports.md.
+  bugReports: BugReportRecord[];
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
+
+// Deployment constraint (see docs/launch-checklist.md §6): this datastore is
+// one JSON file with synchronous read/write, correct for a single persistent
+// Node process and unsafe for serverless/multi-instance deployments (writes
+// can be lost, concurrent instances can clobber each other, and a serverless
+// filesystem is typically ephemeral). `VERCEL` is set by Vercel's platform
+// for every deployment mode, so this can't distinguish a correctly-configured
+// persistent setup from the (more common) default serverless one — hence a
+// warning, not a hard failure, with an explicit opt-out for the former case.
+if (process.env.VERCEL && !process.env.ACKNOWLEDGE_SERVERLESS_DEPLOYMENT) {
+  console.warn(
+    "[lib/db] Running on Vercel with a JSON-file datastore (data/db.json). " +
+      "Vercel's default deployment mode runs ephemeral, per-invocation serverless " +
+      "functions — writes may not persist and concurrent instances can corrupt " +
+      "this file. This app requires a single, persistent Node process (next start " +
+      "behind a process manager, with data/ on a persisted, backed-up volume) — " +
+      "see docs/launch-checklist.md §6. If this deployment is deliberately " +
+      "persistent, set ACKNOWLEDGE_SERVERLESS_DEPLOYMENT=true to silence this warning."
+  );
+}
 
 // Sleep quality and soreness moved from a 1-5 to a 1-10 scale. Legacy
 // entries (no scale10 flag) double on read — 1,2,3,4,5 -> 2,4,6,8,10 — so
@@ -684,10 +800,15 @@ function readDb(): Database {
       notifications: [],
       waitlistEntries: [],
       jobRuns: [],
+      aiRedirectEvents: [],
+      revenueEvents: [],
       cycleSettings: [],
       cyclePrivacyPreferences: [],
       pushSubscriptions: [],
+      contactInquiries: [],
       emailSettings: { ...DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS },
+      financeSettings: { ...DEFAULT_FINANCE_SETTINGS },
+      bugReports: [],
     };
   }
 
@@ -784,14 +905,19 @@ function readDb(): Database {
       resolvedAt: e.resolvedAt ?? null,
     })),
     jobRuns: parsed.jobRuns ?? [],
+    aiRedirectEvents: parsed.aiRedirectEvents ?? [],
+    revenueEvents: parsed.revenueEvents ?? [],
     cycleSettings: parsed.cycleSettings ?? [],
     cyclePrivacyPreferences: parsed.cyclePrivacyPreferences ?? [],
     pushSubscriptions: (parsed.pushSubscriptions ?? []).map((s) => ({
       ...s,
       userAgent: s.userAgent ?? null,
     })),
+    contactInquiries: parsed.contactInquiries ?? [],
     // Merge over defaults so any missing (or future) key stays ON.
     emailSettings: { ...DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS, ...(parsed.emailSettings ?? {}) },
+    financeSettings: { ...DEFAULT_FINANCE_SETTINGS, ...(parsed.financeSettings ?? {}) },
+    bugReports: parsed.bugReports ?? [],
   };
 }
 
@@ -1410,6 +1536,30 @@ export function purgeExpiredResetTokens(): number {
   return before - db.resetTokens.length;
 }
 
+export function createContactInquiry(input: {
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string;
+}): ContactInquiryRecord {
+  const db = readDb();
+  const record: ContactInquiryRecord = {
+    id: randomUUID(),
+    ...input,
+    createdAt: new Date().toISOString(),
+  };
+
+  db.contactInquiries.push(record);
+  writeDb(db);
+
+  return record;
+}
+
+export function findContactInquiries(): ContactInquiryRecord[] {
+  const db = readDb();
+  return db.contactInquiries.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 export function createResetToken(userId: string): { token: string; expiresAt: string } {
   const db = readDb();
   const token = randomBytes(32).toString("hex");
@@ -1469,6 +1619,96 @@ export function createJobRun(run: JobRunRecord) {
 export function findRecentJobRuns(limit: number): JobRunRecord[] {
   const db = readDb();
   return [...db.jobRuns].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, limit);
+}
+
+// AI coach-routing redirect events — same append-only, capped-array shape as
+// jobRuns above. Deliberately minimal (see AiRedirectEventRecord) and
+// deliberately not an audit log: only the direction and a timestamp, kept
+// bounded, for later aggregate review (see scripts/ai-redirect-summary.mjs).
+const MAX_STORED_AI_REDIRECT_EVENTS = 1000;
+
+export function createAiRedirectEvent(event: AiRedirectEventRecord): void {
+  const db = readDb();
+  db.aiRedirectEvents.push(event);
+
+  if (db.aiRedirectEvents.length > MAX_STORED_AI_REDIRECT_EVENTS) {
+    db.aiRedirectEvents = db.aiRedirectEvents.slice(
+      db.aiRedirectEvents.length - MAX_STORED_AI_REDIRECT_EVENTS
+    );
+  }
+
+  writeDb(db);
+}
+
+export function findAllAiRedirectEvents(): AiRedirectEventRecord[] {
+  return readDb().aiRedirectEvents;
+}
+
+// Revenue ledger — deliberately append-only with NO cap (see
+// RevenueEventRecord). createRevenueEvent is idempotent per (provider,
+// providerRef): callers should check findRevenueEventByProviderRef first so
+// a webhook retry, or a second event type for the same charge, can't
+// double-record the same payment.
+export function createRevenueEvent(event: RevenueEventRecord): void {
+  const db = readDb();
+  db.revenueEvents.push(event);
+  writeDb(db);
+}
+
+export function findRevenueEventByProviderRef(
+  provider: BillingProvider,
+  providerRef: string
+): RevenueEventRecord | undefined {
+  return readDb().revenueEvents.find(
+    (e) => e.provider === provider && e.providerRef === providerRef
+  );
+}
+
+export function findAllRevenueEvents(): RevenueEventRecord[] {
+  return readDb().revenueEvents;
+}
+
+export function getFinanceSettings(): FinanceSettings {
+  return readDb().financeSettings;
+}
+
+export function saveFinanceSettings(settings: FinanceSettings): void {
+  const db = readDb();
+  db.financeSettings = settings;
+  writeDb(db);
+}
+
+// ── TRIAL-ONLY: bug reports — see docs/bug-reports.md ──────────────────
+const MAX_STORED_BUG_REPORTS = 300;
+
+export function createBugReport(report: BugReportRecord): void {
+  const db = readDb();
+  db.bugReports.push(report);
+  if (db.bugReports.length > MAX_STORED_BUG_REPORTS) {
+    db.bugReports = db.bugReports.slice(db.bugReports.length - MAX_STORED_BUG_REPORTS);
+  }
+  writeDb(db);
+}
+
+export function findAllBugReports(): BugReportRecord[] {
+  return [...readDb().bugReports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findBugReportById(id: string): BugReportRecord | undefined {
+  return readDb().bugReports.find((r) => r.id === id);
+}
+
+export function saveBugReport(report: BugReportRecord): void {
+  const db = readDb();
+  const index = db.bugReports.findIndex((r) => r.id === report.id);
+  if (index !== -1) db.bugReports[index] = report;
+  writeDb(db);
+}
+
+export function deleteBugReport(id: string): void {
+  const db = readDb();
+  db.bugReports = db.bugReports.filter((r) => r.id !== id);
+  writeDb(db);
 }
 
 export function findCycleSettingsByUserId(userId: string): CycleSettingsRecord | undefined {
@@ -1538,10 +1778,13 @@ export function deleteExercise(id: string) {
 
 // AI chat messages (member-facing, deferred to Slice 3)
 
-export function findAiMessagesByUserId(userId: string): AiMessageRecord[] {
+export function findAiMessagesByUserId(
+  userId: string,
+  channel: "coach" | "nutrition" = "coach"
+): AiMessageRecord[] {
   const db = readDb();
   return db.aiMessages
-    .filter((m) => m.userId === userId)
+    .filter((m) => m.userId === userId && (m.channel ?? "coach") === channel)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
@@ -1781,6 +2024,10 @@ export function findPurchasesByUserId(userId: string): PurchaseRecord[] {
   return readDb()
     .purchases.filter((p) => p.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findAllPurchases(): PurchaseRecord[] {
+  return readDb().purchases;
 }
 
 export function savePurchase(purchase: PurchaseRecord) {

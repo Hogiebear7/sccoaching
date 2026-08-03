@@ -1,12 +1,8 @@
 import { cookies } from "next/headers";
 
-import {
-  findBookingsByUserId,
-  findClassById,
-  findProfileByUserId,
-  findUserById,
-} from "@/lib/db";
-import { getCancellationCutoffHours, isCancellationEarly } from "@/lib/scheduling";
+import { findProfileByUserId, findUserById } from "@/lib/db";
+import { resolveBookingsForUser } from "@/lib/bookings";
+import { getCancellationCutoffHours } from "@/lib/scheduling";
 import { verifySession } from "@/lib/session";
 import { BookingsView } from "./BookingsView";
 
@@ -35,30 +31,7 @@ export default async function DashboardBookingsPage() {
 
   const now = Date.now();
 
-  const resolvedBookings = findBookingsByUserId(user.id)
-    .map((booking) => {
-      const classRecord = findClassById(booking.classId);
-      if (!classRecord) return null;
-
-      const classDateTime = new Date(`${classRecord.date}T${classRecord.startTime}`);
-
-      return {
-        bookingId: booking.id,
-        classId: classRecord.id,
-        title: classRecord.title,
-        category: classRecord.category,
-        date: classRecord.date,
-        startTime: classRecord.startTime,
-        durationMins: classRecord.durationMins,
-        imageUrl: classRecord.imageUrl ?? null,
-        imageAlt: classRecord.imageAlt ?? null,
-        coachEmail: findUserById(classRecord.coachUserId)?.email ?? "Unknown coach",
-        attended: booking.attendedAt !== null,
-        isPast: classDateTime.getTime() < now,
-        willRestoreSession: isCancellationEarly(classDateTime),
-      };
-    })
-    .filter((booking): booking is NonNullable<typeof booking> => booking !== null);
+  const resolvedBookings = resolveBookingsForUser(user.id, now);
 
   const upcomingBookings = resolvedBookings
     .filter((booking) => !booking.isPast)

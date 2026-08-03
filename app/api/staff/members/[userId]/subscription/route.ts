@@ -11,6 +11,7 @@ import {
 } from "@/lib/db";
 import { verifySession } from "@/lib/session";
 import { can } from "@/lib/permissions";
+import { cancelProviderSubscription } from "@/lib/billing";
 
 const STATUS_VALUES: SubscriptionStatus[] = [
   "inactive",
@@ -112,6 +113,27 @@ export async function POST(
   // A manual staff override always records provider: "none" — it's separate
   // from the Revolut-backed flow (cash payment, comp membership, correcting
   // a stuck state, etc). It does not touch any in-flight Revolut order.
+  //
+  // But if the member currently has a LIVE Stripe subscription, walking away
+  // from it locally without also cancelling it at the provider would leave
+  // Stripe billing them indefinitely with nothing surfacing the mismatch —
+  // so cancel it first. Best-effort: a provider failure is reported back to
+  // staff rather than silently swallowed, but doesn't block the local status
+  // change (the override may be exactly what's needed to correct a stuck
+  // state).
+  let providerCancelWarning: string | null = null;
+
+  if (existingSubscription?.provider === "stripe" && existingSubscription.providerSubscriptionId) {
+    const result = await cancelProviderSubscription({
+      provider: "stripe",
+      providerSubscriptionId: existingSubscription.providerSubscriptionId,
+    });
+
+    if (!result.ok) {
+      providerCancelWarning = `Membership status updated, but the live Stripe subscription could not be cancelled automatically (${result.message ?? "unknown error"}). Cancel it manually in the Stripe dashboard.`;
+    }
+  }
+
   const subscription: SubscriptionRecord = {
     userId: member.id,
     packageId: resolvedPackageId,
@@ -139,7 +161,7 @@ export async function POST(
   saveSubscription(subscription);
 
   return NextResponse.json(
-    { success: true, message: "Membership status updated." },
+    { success: true, message: providerCancelWarning ?? "Membership status updated.", warning: providerCancelWarning },
     { status: 200 }
   );
 }

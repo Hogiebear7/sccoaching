@@ -1,10 +1,15 @@
+import { randomUUID } from "crypto";
+
 import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  createRevenueEvent,
+  findMembershipBillingOptionById,
   findMembershipPackageById,
   findPurchaseByProviderOrderId,
+  findRevenueEventByProviderRef,
   findSubscriptionByProviderOrderId,
   hasPaymentEvent,
   recordPaymentEvent,
@@ -203,6 +208,33 @@ export async function POST(request: NextRequest) {
       { success: true, message: "Event is older than the last applied update; ignored." },
       { status: 200 }
     );
+  }
+
+  // Revenue ledger: ORDER_COMPLETED is Revolut's actual payment-succeeded
+  // signal (ORDER_AUTHORISED/SUBSCRIPTION_INITIATED precede capture and
+  // aren't confirmed money). Unlike Stripe's invoice.paid, Revolut's webhook
+  // payload carries no charged amount, so this uses the billing option's
+  // currently configured price as a best-effort figure — it won't reflect a
+  // coupon, a manual adjustment, or a price changed since the subscription
+  // started. Dedupe on entityId (the order id), which is unique per charge.
+  if (event === "ORDER_COMPLETED" && !findRevenueEventByProviderRef("revolut", entityId)) {
+    const option = subscription.billingOptionId
+      ? findMembershipBillingOptionById(subscription.billingOptionId)
+      : undefined;
+    if (option && option.amountCents > 0) {
+      createRevenueEvent({
+        id: randomUUID(),
+        userId: subscription.userId,
+        packageId: subscription.packageId ?? null,
+        billingOptionId: subscription.billingOptionId ?? null,
+        amountCents: option.amountCents,
+        currency: option.currency,
+        provider: "revolut",
+        providerRef: entityId,
+        source: "membership_renewal",
+        receivedAt: new Date().toISOString(),
+      });
+    }
   }
 
   const plan = resolveSubscriptionEntitlement(subscription);

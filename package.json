@@ -11,7 +11,10 @@
     "seed": "node scripts/seed.js",
     "create:staff": "node scripts/create-staff.mjs",
     "delete:non-staff": "node scripts/delete-non-staff.mjs",
+    "delete:members": "node scripts/delete-members.mjs",
+    "delete:class-types": "node scripts/delete-class-types.mjs",
     "smoke:switch": "node scripts/smoke-switch-lifecycle.mjs",
+    "ai-redirects": "node scripts/ai-redirect-summary.mjs",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots"
   },

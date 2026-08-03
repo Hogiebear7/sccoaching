@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "S&C Performance Coaching",
     short_name: "S&C",
-    description: "Training, programmes, and bookings in one place.",
+    description: "Science-backed training, nutrition and recovery in one place.",
     start_url: "/dashboard",
     display: "standalone",
     orientation: "portrait",

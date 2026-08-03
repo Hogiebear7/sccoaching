@@ -15,6 +15,7 @@ import {
   type PlanExercise,
   type WorkoutPlan,
 } from "@/lib/workout-helper";
+import { WorkoutTypeIcon, workoutTypeFromLabel } from "@/components/graphics/WorkoutTypeIcon";
 
 const TIME_OPTIONS: { value: HelperTime; label: string }[] = [
   { value: 20, label: "20 min" },
@@ -43,14 +44,14 @@ const FOCUS_OPTIONS: { value: HelperFocus; label: string }[] = [
 
 function readinessTone(score: number | null): { dot: string; text: string; sub: string } {
   if (score === null) return { dot: "bg-zinc-500", text: "text-zinc-500", sub: "Not logged today" };
-  if (score >= 75) return { dot: "bg-teal-400", text: "text-teal-300", sub: "Well recovered" };
+  if (score >= 75) return { dot: "bg-[var(--success)]", text: "text-[var(--success)]", sub: "Well recovered" };
   if (score >= 50) return { dot: "bg-zinc-300", text: "text-zinc-100", sub: "Moderate" };
-  return { dot: "bg-amber-400", text: "text-amber-300", sub: "Take it easier" };
+  return { dot: "bg-[var(--warning)]", text: "text-[var(--warning)]", sub: "Take it easier" };
 }
 
 function tierChipClass(tier: WorkoutPlan["tier"]): string {
-  if (tier === "full") return "border-teal-500/30 bg-teal-500/10 text-teal-300";
-  if (tier === "reduced") return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+  if (tier === "full") return "border-[var(--success)]/30 bg-[var(--success-weak)] text-[var(--success)]";
+  if (tier === "reduced") return "border-[var(--warning)]/30 bg-[var(--warning-weak)] text-[var(--warning)]";
   return "border-white/[0.1] bg-white/[0.04] text-zinc-300";
 }
 
@@ -73,7 +74,7 @@ function ExerciseCard({ item }: { item: PlanExercise }) {
           <span className="text-zinc-600">·</span>
           <span
             className={`text-display text-[15px] tabular-nums ${
-              fromHistory ? "text-blue-300" : "text-zinc-300"
+              fromHistory ? "text-[var(--accent-data)]" : "text-zinc-300"
             }`}
           >
             {prescription.loadText}
@@ -84,8 +85,8 @@ function ExerciseCard({ item }: { item: PlanExercise }) {
       {(fromHistory || prescription.kind === "rpe") && (
         <div className="mt-2">
           {fromHistory ? (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-blue-400/25 bg-blue-400/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-blue-300">
-              <span className="h-1 w-1 rounded-full bg-blue-400" />
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent-data)]/25 bg-[var(--accent-data-weak)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--accent-data)]">
+              <span className="h-1 w-1 rounded-full bg-[var(--accent-data)]" />
               From your history
             </span>
           ) : (
@@ -127,7 +128,7 @@ function BlockHeader({ index, title }: { index: number; title: string }) {
   return (
     <div className="mb-2.5 flex items-center gap-3">
       <p className="label-caps whitespace-nowrap">
-        <span className="text-teal-500/80 tabular-nums">{String(index + 1).padStart(2, "0")}</span>
+        <span className="text-primary/80 tabular-nums">{String(index + 1).padStart(2, "0")}</span>
         <span className="mx-1.5 text-zinc-700">/</span>
         {title}
       </p>
@@ -142,7 +143,7 @@ function GeneratingState({ phase }: { phase: 0 | 1 }) {
   return (
     <div className="p-5 sm:p-6" aria-live="polite">
       <div className="flex items-center gap-2.5">
-        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 animate-spin text-teal-400">
+        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 animate-spin text-primary">
           <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity={0.2} strokeWidth={3} />
           <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" />
         </svg>
@@ -220,13 +221,16 @@ export function WorkoutHelper({
   }
 
   return (
-    <div className="panel overflow-hidden">
+    <div className="surface-card surface-card--accent overflow-hidden">
       {/* ── Masthead ── */}
       <div className="relative border-b border-white/[0.06] p-5 sm:p-6">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(70%_100%_at_30%_0%,rgba(45,212,191,0.08),transparent)]" />
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-32"
+          style={{ background: "radial-gradient(70% 100% at 30% 0%, color-mix(in oklch, var(--primary) 10%, transparent), transparent)" }}
+        />
         <div className="relative">
           <div className="flex items-start gap-3.5">
-            <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-teal-500/25 bg-teal-500/10">
+            <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -234,7 +238,7 @@ export function WorkoutHelper({
                 strokeWidth={1.8}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="h-5 w-5 text-teal-300"
+                className="h-5 w-5 text-primary"
               >
                 <path d="M6.5 6.5h11" />
                 <path d="M6.5 17.5h11" />
@@ -292,7 +296,7 @@ export function WorkoutHelper({
           {context.readinessScore === null && (
             <Link
               href="/dashboard/recovery"
-              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-400 transition-colors duration-150 hover:text-blue-300"
+              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]"
             >
               Log today&apos;s recovery for a sharper session
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3 w-3">
@@ -365,7 +369,7 @@ export function WorkoutHelper({
                   aria-pressed={focus === opt.value}
                   className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-95 ${
                     focus === opt.value
-                      ? "border-teal-500/40 bg-teal-500/10 text-teal-300 shadow-[inset_0_1px_0_0_rgba(45,212,191,0.1)]"
+                      ? "border-primary/40 bg-primary/10 text-primary shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]"
                       : "border-white/[0.08] text-zinc-500 hover:border-white/[0.15] hover:text-zinc-300"
                   }`}
                 >
@@ -402,21 +406,22 @@ export function WorkoutHelper({
             <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(plan.tier)}`}>
               {plan.tierLabel}
             </span>
-            <span className="inline-flex items-center rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+              <WorkoutTypeIcon type={workoutTypeFromLabel(plan.focusLabel)} className="h-3 w-3" />
               {plan.focusLabel}
             </span>
             <span className="inline-flex items-center rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 tabular-nums">
               ~{time === 60 ? "60+" : time} min
             </span>
             {plan.historyAnchoredCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/25 bg-blue-400/[0.08] px-2.5 py-1 text-[11px] font-medium text-blue-300 tabular-nums">
-                <span className="h-1 w-1 rounded-full bg-blue-400" />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-data)]/25 bg-[var(--accent-data-weak)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent-data)] tabular-nums">
+                <span className="h-1 w-1 rounded-full bg-[var(--accent-data)]" />
                 {plan.historyAnchoredCount} from your history
               </span>
             )}
           </div>
 
-          <div className="mt-4 border-l-2 border-teal-500/50 pl-3.5">
+          <div className="mt-4 border-l-2 border-primary/50 pl-3.5">
             <p className="text-sm leading-relaxed text-zinc-200">{plan.rationale}</p>
             {plan.notes.map((note) => (
               <p key={note} className="mt-1.5 text-xs leading-relaxed text-zinc-500">

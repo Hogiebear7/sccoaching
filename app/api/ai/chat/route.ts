@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 
 import {
   createAiMessage,
+  createAiRedirectEvent,
   findAiMessagesByUserId,
   findBodyWeightLogsByUserId,
   findProfileByUserId,
@@ -175,6 +176,22 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encoder.encode(fallback));
             accumulated = fallback;
           }
+        }
+
+        // Rough, heuristic signal only (substring match on the reply, not a
+        // real classifier) — durably recorded so it survives restarts and
+        // can be reviewed after launch (see docs/ai-coach-routing.md and
+        // scripts/ai-redirect-summary.mjs), without adding any analytics
+        // infrastructure or changing behavior. Deliberately minimal: no
+        // userId, no message content — see AiRedirectEventRecord. See the
+        // Nutrition Coach route for the symmetric signal in the other
+        // direction.
+        if (/nutrition (coach|tab)/i.test(accumulated)) {
+          createAiRedirectEvent({
+            id: randomUUID(),
+            direction: "coach_to_nutrition",
+            createdAt: new Date().toISOString(),
+          });
         }
 
         persistAssistant(accumulated);

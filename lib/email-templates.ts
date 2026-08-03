@@ -483,3 +483,100 @@ export function lowPassBalanceEmail(opts: LowPassBalanceEmailOpts): {
 
   return { subject, html, text };
 }
+
+// ─── Password reset ────────────────────────────────────────────────────────────
+
+export interface PasswordResetEmailOpts {
+  resetToken: string;
+}
+
+export function passwordResetEmail(opts: PasswordResetEmailOpts): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { resetToken } = opts;
+  const actionUrl = `${APP_URL}/reset-password?token=${resetToken}`;
+  const subject = "Reset your password";
+
+  const html = emailWrapper(subject, `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Password reset</p>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">Reset your password</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
+      We received a request to reset your password. This link expires in 15 minutes and can only be used once.
+    </p>
+    ${ctaButton("Reset password →", actionUrl)}
+    <p style="margin:20px 0 0;font-size:12px;color:#52525b;">If you didn&#39;t request this, you can safely ignore this email — your password won&#39;t change.</p>
+  `);
+
+  const text = [
+    `We received a request to reset your password.`,
+    ``,
+    `This link expires in 15 minutes and can only be used once:`,
+    actionUrl,
+    ``,
+    `If you didn't request this, you can safely ignore this email — your password won't change.`,
+    ``,
+    `— S&C Performance Coaching`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
+
+// ─── Contact form lead (staff notification, not member-facing) ──────────────
+
+export interface ContactInquiryEmailOpts {
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string;
+}
+
+export function contactInquiryEmail(opts: ContactInquiryEmailOpts): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { name, email, phone, message } = opts;
+  const eName = escapeHtml(name);
+  const eEmail = escapeHtml(email);
+  const ePhone = phone ? escapeHtml(phone) : null;
+  const eMessage = escapeHtml(message).replace(/\n/g, "<br/>");
+  const subject = `New website enquiry — ${name}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><title>${subject}</title></head>
+<body style="margin:0;padding:0;background:#09090b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+        <tr><td style="padding-bottom:20px;">
+          <span style="font-size:15px;font-weight:700;color:#e4c55a;letter-spacing:0.04em;">S&amp;C Performance Coaching — Website Enquiry</span>
+        </td></tr>
+        <tr><td style="background:#18181b;border:1px solid #27272a;border-radius:16px;padding:28px 24px;">
+          <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">New enquiry</p>
+          <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">${eName}</h1>
+          <p style="margin:0 0 6px;font-size:14px;color:#a1a1aa;">Email: <a href="mailto:${eEmail}" style="color:#fafafa;">${eEmail}</a></p>
+          ${ePhone ? `<p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">Phone: <a href="tel:${ePhone}" style="color:#fafafa;">${ePhone}</a></p>` : ""}
+          <p style="margin:16px 0 4px;font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#71717a;">Message</p>
+          <p style="margin:0;font-size:14px;line-height:1.6;color:#e4e4e7;">${eMessage}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `New website enquiry — ${name}`,
+    ``,
+    `Email: ${email}`,
+    phone ? `Phone: ${phone}` : null,
+    ``,
+    `Message:`,
+    message,
+  ].filter((line) => line !== null).join("\n");
+
+  return { subject, html, text };
+}

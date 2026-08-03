@@ -1,6 +1,7 @@
 // Shared readiness score ring — used on the Home readiness module and the
 // Recovery summary so the score reads identically everywhere. Color follows
-// the app's band language: teal ≥60, blue 40–59, amber <40.
+// the app's semantic tokens (not literal hues) so it recolors correctly
+// per palette/theme: success ≥60, data/neutral 40–59, warning <40.
 export function ReadinessRing({
   score,
   size = 76,
@@ -16,10 +17,10 @@ export function ReadinessRing({
     score === null
       ? "oklch(0.49 0.005 255)"
       : score >= 60
-        ? "oklch(0.72 0.13 180)"
+        ? "var(--success)"
         : score >= 40
-          ? "oklch(0.62 0.19 260)"
-          : "oklch(0.8 0.13 80)";
+          ? "var(--accent-data)"
+          : "var(--warning)";
 
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -43,7 +44,7 @@ export function ReadinessRing({
             strokeLinecap="round"
             strokeDasharray={c}
             strokeDashoffset={c * (1 - pct)}
-            style={{ filter: `drop-shadow(0 0 6px ${color.replace(")", " / 0.5)")})` }}
+            style={{ filter: `drop-shadow(0 0 6px color-mix(in oklch, ${color} 50%, transparent))` }}
           />
         )}
       </svg>

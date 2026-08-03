@@ -36,7 +36,7 @@ export default async function DashboardMembershipPage({
         <div>
           <h1 className="text-display text-[28px]">Membership</h1>
         </div>
-        <div className="panel p-5">
+        <div className="surface-card p-5">
           <p className="text-sm text-muted-foreground">
             We couldn&apos;t load account data. Try logging out and back in.
           </p>

@@ -16,9 +16,40 @@ import type {
   MembershipPackageRecord,
 } from "@/lib/db";
 
+// Recurring/one-off is a genuine categorical distinction, not an ordinal
+// one — and this palette only has two hues (gold, --data) available once
+// success/warning/danger are reserved for status. Icon + label carry the
+// distinction alongside color rather than color alone, and the same icon
+// is used at both the package level ("Membership"/"Pass") and the billing-
+// option level ("Recurring"/"One-off") since they're the same concept.
+function CommitmentTag({ recurring, label }: { recurring: boolean; label: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+        recurring ? "bg-data/15 text-data" : "bg-gold/[0.12] text-gold"
+      }`}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5 shrink-0">
+        <path
+          d={
+            recurring
+              ? "M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0114.13-5.36M20 15a9 9 0 01-14.13 5.36"
+              : "M4 8a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 000 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2a2 2 0 000-4V8z"
+          }
+        />
+      </svg>
+      {label}
+    </span>
+  );
+}
+
 // Member drill-down: category cards ("from €X") → packages → billing options
 // → checkout. Recurring options are memberships; one-time options are class
-// passes / top-ups. Entitlement comes from the package, price from the option.
+// passes / top-ups. Entitlement comes from the package, price from the
+// option. Checkout flow and all business logic below (the /api/membership/
+// checkout call, plan-switch detection, entitlement matching) are
+// unchanged — this pass only corrects token semantics and adds icon +
+// label so the recurring/one-off distinction doesn't rely on color alone.
 export function CatalogBrowser({
   categories,
   packages,
@@ -88,7 +119,7 @@ export function CatalogBrowser({
           <button
             type="button"
             onClick={() => (pkg ? setPackageId(null) : setCategoryId(null))}
-            className="text-[11px] font-medium text-blue-400 transition hover:text-blue-300"
+            className="text-[11px] font-medium text-primary transition hover:text-[var(--primary-hover)]"
           >
             ← {pkg ? "All packages" : "All categories"}
           </button>
@@ -111,9 +142,9 @@ export function CatalogBrowser({
                 key={cat.id}
                 type="button"
                 onClick={() => setCategoryId(cat.id)}
-                className="panel group flex min-h-[150px] flex-col p-5 text-left transition hover:border-primary/40"
+                className="surface-card group flex min-h-[150px] flex-col p-5 text-left transition hover:border-white/[0.18]"
               >
-                <p className="text-base font-semibold tracking-tight">{cat.name}</p>
+                <p className="text-base font-semibold tracking-tight text-zinc-50">{cat.name}</p>
                 {cat.description ? (
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{cat.description}</p>
                 ) : null}
@@ -122,7 +153,7 @@ export function CatalogBrowser({
                     {from !== null ? (
                       <>
                         <span className="block text-[11px] text-muted-foreground">From</span>
-                        <span className="text-display text-[22px] leading-none tabular-nums">
+                        <span className="text-display text-[22px] leading-none tabular-nums text-zinc-50">
                           {formatPriceCents(from.amountCents)}
                         </span>
                         {from.billingType === "one_time" ? (
@@ -162,20 +193,14 @@ export function CatalogBrowser({
                   type="button"
                   onClick={() => setPackageId(p.id)}
                   disabled={!hasOptions}
-                  className="panel flex w-full items-center justify-between gap-3 p-5 text-left transition hover:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="surface-card flex w-full items-center justify-between gap-3 p-5 text-left transition hover:border-white/[0.18] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold">{p.name}</p>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          isPass ? "bg-gold/[0.1] text-gold" : "bg-primary/10 text-primary"
-                        }`}
-                      >
-                        {isPass ? "Pass" : "Membership"}
-                      </span>
+                      <p className="font-semibold text-zinc-50">{p.name}</p>
+                      <CommitmentTag recurring={!isPass} label={isPass ? "Pass" : "Membership"} />
                       {p.id === currentPackageId ? (
-                        <span className="rounded-full border border-primary/30 bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                        <span className="rounded-full border border-[var(--success)]/30 bg-[var(--success-weak)] px-2 py-0.5 text-[10px] font-semibold text-[var(--success)]">
                           Your plan
                         </span>
                       ) : null}
@@ -185,7 +210,7 @@ export function CatalogBrowser({
                   {hasOptions ? (
                     <span className="shrink-0 text-right text-sm">
                       <span className="text-muted-foreground">from </span>
-                      <span className="text-display text-[18px] tabular-nums">{formatPriceCents(from)}</span>
+                      <span className="text-display text-[18px] tabular-nums text-zinc-50">{formatPriceCents(from)}</span>
                     </span>
                   ) : (
                     <span className="shrink-0 text-xs text-muted-foreground">Unavailable</span>
@@ -197,7 +222,9 @@ export function CatalogBrowser({
       ) : null}
 
       {/* Level 3: ways to pay for this package — recurring vs one-off,
-          clearly distinguished. */}
+          clearly distinguished by icon + label + color, and "your active
+          plan" always reads as success, never as the same color as either
+          commitment type. */}
       {category && pkg ? (
         <div className="space-y-3">
           <p className="px-1 text-sm text-muted-foreground">
@@ -215,32 +242,26 @@ export function CatalogBrowser({
               return (
                 <div
                   key={o.id}
-                  className={`panel flex items-center justify-between gap-3 p-5 ${
+                  className={`surface-card flex items-center justify-between gap-3 p-5 ${
                     isCurrent
-                      ? "border-primary/50 bg-primary/[0.06]"
+                      ? "border-[var(--success)]/40 bg-[var(--success-weak)]"
                       : recurring
-                        ? "border-primary/25 bg-primary/[0.03]"
+                        ? "border-data/25 bg-data/[0.03]"
                         : "border-gold/25 bg-gold/[0.03]"
                   }`}
                 >
                   <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-2 font-semibold">
+                    <p className="flex flex-wrap items-center gap-2 font-semibold text-zinc-50">
                       {memberBillingLabel(o)}
                       {isCurrent ? (
-                        <span className="rounded-full border border-primary/40 bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                        <span className="rounded-full border border-[var(--success)]/40 bg-[var(--success-weak)] px-2 py-0.5 text-[10px] font-semibold text-[var(--success)]">
                           Your plan
                         </span>
                       ) : (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            recurring ? "bg-primary/10 text-primary" : "bg-gold/[0.12] text-gold"
-                          }`}
-                        >
-                          {recurring ? "Recurring" : "One-off"}
-                        </span>
+                        <CommitmentTag recurring={recurring} label={recurring ? "Recurring" : "One-off"} />
                       )}
                     </p>
-                    <p className="mt-0.5 text-sm tabular-nums">
+                    <p className="mt-0.5 text-sm tabular-nums text-zinc-200">
                       {formatPriceCents(o.amountCents)}{" "}
                       <span className="text-xs text-muted-foreground">{formatBillingOptionCadence(o)}</span>
                     </p>
@@ -248,7 +269,7 @@ export function CatalogBrowser({
                       {isCurrent ? "This is your active membership." : memberBillingHint(o)}
                     </p>
                     {isSwitch ? (
-                      <p className="mt-1 text-[11px] text-primary/80">
+                      <p className="mt-1 text-[11px] text-zinc-400">
                         When your payment goes through, this becomes your membership and a new billing
                         period starts. Your current membership stays active until then — and any time
                         left on it isn&apos;t refunded or credited.
@@ -256,7 +277,7 @@ export function CatalogBrowser({
                     ) : null}
                   </div>
                   {isCurrent ? (
-                    <span className="shrink-0 rounded-full border border-primary/30 px-4 py-2 text-sm font-medium text-primary">
+                    <span className="shrink-0 rounded-full border border-[var(--success)]/40 px-4 py-2 text-sm font-medium text-[var(--success)]">
                       Current
                     </span>
                   ) : (

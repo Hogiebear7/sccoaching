@@ -58,10 +58,13 @@ anything for these surfaces until that question has an answer.
 
 ## Guardrails
 
-- Do not add `/app`, `/admin`, or `/admin-mobile` paths to `proxy.ts`'s
-  `matcher` until that specific surface is actually being converted — adding
-  them earlier would silently break the prototype (redirecting logged-out
-  visitors to `/login`) without it actually being wired to real data yet.
+- As of the launch-readiness fix pass, `proxy.ts`'s `matcher` **does** include
+  `/app`, `/admin`, and `/admin-mobile` — but only to return a 404 for them
+  when `NODE_ENV === "production"` (these surfaces were publicly reachable
+  with no login wall, which is a launch blocker on its own). This is not a
+  conversion and does not touch auth/data for these routes — in development
+  they behave exactly as before. Do not wire real auth/data into them, and do
+  not remove the production block, without reading this doc first.
 - Do not import from `lib/mock-data.ts` into any file under `app/(auth)/`,
   `app/(dashboard)/`, or `lib/db.ts`. Do not import `lib/db.ts` or
   `lib/session.ts` into any file under `app/(member)/`, `app/(admin)/`, or

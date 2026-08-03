@@ -69,7 +69,7 @@ export default function LoginPage() {
       {/* Brand panel */}
       <aside className="relative hidden overflow-hidden border-r border-white/[0.06] lg:flex lg:flex-col lg:justify-between lg:p-12">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[var(--bg-1)]/80 via-[var(--bg-1)]/30 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(70%_90%_at_35%_0%,oklch(0.78_0.1_85/0.14),transparent)]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(70%_90%_at_35%_0%,oklch(0.7279_0.0989_82.1/0.14),transparent)]" />
         <div className="anim-rise relative" style={{ animationDelay: "60ms" }}>
           <span className="text-display text-xl text-zinc-50">S<span className="text-gold">&</span>C Performance Coaching</span>
         </div>
@@ -77,7 +77,7 @@ export default function LoginPage() {
           <p className="anim-rise text-xs font-semibold uppercase tracking-[0.24em] text-gold" style={{ animationDelay: "160ms" }}>{BRAND_NAME}</p>
           <h2 className="anim-rise mt-4 text-editorial text-[40px] leading-[1.05] text-zinc-50" style={{ animationDelay: "240ms" }}>{BRAND_TAGLINE}</h2>
           <ul className="mt-8 space-y-3">
-            {VALUE_PROPS.slice(0, 3).map((item, i) => (
+            {VALUE_PROPS.map((item, i) => (
               <li
                 key={item}
                 className="anim-rise flex items-start gap-3 text-sm text-zinc-300"
@@ -97,7 +97,7 @@ export default function LoginPage() {
       </aside>
 
       {/* Form column */}
-      <div className="relative flex min-h-screen flex-col px-6 py-8 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-64 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.78_0.1_85/0.08),transparent)] lg:before:hidden">
+      <div className="relative flex min-h-screen flex-col px-6 py-8 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-64 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.7279_0.0989_82.1/0.08),transparent)] lg:before:hidden">
         <div className="lg:hidden">
           <span className="text-display text-base text-zinc-50">S<span className="text-gold">&</span>C Performance Coaching</span>
         </div>

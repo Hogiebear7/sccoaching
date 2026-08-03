@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { MeasurementUnits, ProfileRecord } from "@/lib/profile-schema";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { AppearancePanel } from "@/components/settings/AppearancePanel";
+// TRIAL-ONLY — see docs/bug-reports.md.
+import { BugReportPanel } from "@/components/settings/BugReportPanel";
 
 // Inlined at build time via the NEXT_PUBLIC_ prefix. Null when not configured.
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null;
@@ -56,6 +57,20 @@ interface MembershipInfo {
   renewsAt: string | null;
 }
 
+// Settings — same IA-first standard as elsewhere, but this screen's own
+// section grouping (Account / Membership / Preferences / Appearance /
+// Notifications) was already sound, so this pass is mostly a token
+// migration (.panel → surface-card, stray teal/blue literals → the
+// established primary/success mapping) plus the bespoke header, not a
+// structural rework — per the brief, plain labels and grouping already do
+// the job here, so no new color distinctions were invented (toggle
+// switches keep their standard on/off track styling rather than gaining a
+// second success-colored "this is good" signal on top of their position).
+// The membership status dot/badge is the one place a real correction
+// applies: it shows the same "active" fact Membership's page now renders
+// as --success, so it's corrected here too for consistency across screens.
+// All account/settings behavior (password reset, units, reminders, email/
+// push toggles) is unchanged.
 export function SettingsView({
   email,
   profile,
@@ -327,14 +342,18 @@ export function SettingsView({
   }
 
   return (
-    <section className="anim-rise space-y-8">
-
-      <PageHeader eyebrow="Account" title="Settings" />
+    <section className="anim-rise space-y-10">
+      <div>
+        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Account</p>
+        <h1 className="text-editorial mt-2 text-[32px] leading-[1.05] text-zinc-50 sm:text-[36px]">
+          Set it up your way.
+        </h1>
+      </div>
 
       {/* Account */}
       <div>
         <h2 className="label-caps mb-2.5">Account Details</h2>
-        <div className="panel divide-y divide-white/[0.05] overflow-hidden">
+        <div className="surface-card divide-y divide-white/[0.05] overflow-hidden">
           <div className="flex items-center justify-between gap-4 px-5 py-4">
             <p className="text-sm text-zinc-400">Name</p>
             <p className="text-sm font-medium text-zinc-100">{profile.fullName}</p>
@@ -347,7 +366,7 @@ export function SettingsView({
             <div>
               <p className="text-sm text-zinc-400">Password</p>
               {resetSent && (
-                <p className="mt-1 text-xs text-teal-400">
+                <p className="mt-1 text-xs text-[var(--success)]">
                   Reset link sent to {email}. Check your inbox.
                 </p>
               )}
@@ -369,16 +388,16 @@ export function SettingsView({
       <div>
         <div className="mb-2.5 flex items-baseline justify-between">
           <h2 className="label-caps">Membership</h2>
-          <Link href="/dashboard/membership" className="text-xs font-medium text-blue-400 transition-colors duration-150 hover:text-blue-300">Manage →</Link>
+          <Link href="/dashboard/membership" className="text-xs font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]">Manage →</Link>
         </div>
-        <div className="panel divide-y divide-white/[0.05] overflow-hidden">
+        <div className="surface-card divide-y divide-white/[0.05] overflow-hidden">
           <div className="flex items-center justify-between gap-4 px-5 py-4">
             <p className="text-sm text-zinc-400">Plan</p>
             <div className="flex items-center gap-2.5">
               <p className="text-sm font-medium text-zinc-100">{membership.planName ?? "No active plan"}</p>
               {membership.statusLabel && (
-                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] font-medium leading-none ${membership.statusIsActive ? "border-white/[0.1] bg-white/[0.05] text-zinc-300" : "border-white/[0.06] text-zinc-500"}`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${membership.statusIsActive ? "bg-teal-400" : "bg-zinc-500"}`} />
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] font-medium leading-none ${membership.statusIsActive ? "border-[var(--success)]/25 bg-[var(--success-weak)] text-[var(--success)]" : "border-white/[0.06] text-zinc-500"}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${membership.statusIsActive ? "bg-[var(--success)]" : "bg-zinc-500"}`} />
                   {membership.statusLabel}
                 </span>
               )}
@@ -398,7 +417,7 @@ export function SettingsView({
       {/* Preferences */}
       <div>
         <h2 className="label-caps mb-2.5">Preferences</h2>
-        <div className="panel px-5 py-4">
+        <div className="surface-card px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-zinc-100">Measurement units</p>
@@ -445,7 +464,7 @@ export function SettingsView({
         <div className="space-y-4">
 
           {/* Class reminder preferences */}
-          <div className="panel p-5">
+          <div className="surface-card p-5">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-zinc-100">Class reminders</p>
@@ -466,7 +485,7 @@ export function SettingsView({
               </p>
             ) : null}
             {reminderSuccess ? (
-              <p className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+              <p className="mb-3 rounded-lg border border-[var(--success)]/30 bg-[var(--success-weak)] px-4 py-3 text-sm text-[var(--success)]">
                 {reminderSuccess}
               </p>
             ) : null}
@@ -571,7 +590,7 @@ export function SettingsView({
           </div>
 
           {/* Email notifications */}
-          <div className="panel p-5">
+          <div className="surface-card p-5">
             <p className="mb-1 text-sm font-medium text-zinc-100">Email notifications</p>
             <p className="mb-4 text-xs text-zinc-500">
               Receive emails for time-sensitive events like waitlist offers. In-app notifications are always sent regardless of this setting.
@@ -583,7 +602,7 @@ export function SettingsView({
               </p>
             )}
             {emailSuccess && (
-              <p className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
+              <p className="mb-3 rounded-lg border border-[var(--success)]/30 bg-[var(--success-weak)] px-3 py-2 text-xs text-[var(--success)]">
                 {emailSuccess}
               </p>
             )}
@@ -594,7 +613,7 @@ export function SettingsView({
               aria-checked={emailEnabled}
               disabled={emailSaving}
               onClick={() => handleEmailToggle(!emailEnabled)}
-              className="well flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition disabled:opacity-60"
+              className="rounded-lg border border-white/[0.09] bg-white/[0.03] flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition disabled:opacity-60"
             >
               <span className="text-sm">Email notifications</span>
               <span
@@ -617,7 +636,7 @@ export function SettingsView({
 
           {/* Push notifications */}
           {pushPermission !== "checking" && (
-            <div className="panel p-5">
+            <div className="surface-card p-5">
               <p className="mb-1 text-sm font-medium text-zinc-100">Push notifications</p>
               <p className="mb-4 text-xs text-zinc-500">
                 Receive alerts on this device even when the app is in the background.
@@ -629,7 +648,7 @@ export function SettingsView({
                 </p>
               )}
               {pushSuccess && (
-                <p className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
+                <p className="mb-3 rounded-lg border border-[var(--success)]/30 bg-[var(--success-weak)] px-3 py-2 text-xs text-[var(--success)]">
                   {pushSuccess}
                 </p>
               )}
@@ -647,7 +666,7 @@ export function SettingsView({
               )}
 
               {pushPermission === "default" && (
-                <div className="well p-4">
+                <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] p-4">
                   <p className="mb-3 text-sm text-foreground">
                     Allow push notifications to receive alerts for waitlist offers and class reminders directly on this device.
                   </p>
@@ -669,7 +688,7 @@ export function SettingsView({
                   aria-checked={pushEnabled}
                   disabled={pushWorking}
                   onClick={() => handleTogglePush(!pushEnabled)}
-                  className="well flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition disabled:opacity-60"
+                  className="rounded-lg border border-white/[0.09] bg-white/[0.03] flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition disabled:opacity-60"
                 >
                   <span className="text-sm">Push notifications</span>
                   <span
@@ -692,6 +711,12 @@ export function SettingsView({
             </div>
           )}
         </div>
+      </div>
+
+      {/* TRIAL-ONLY — see docs/bug-reports.md */}
+      <div>
+        <h2 className="label-caps mb-2.5">Trial feedback</h2>
+        <BugReportPanel />
       </div>
 
     </section>

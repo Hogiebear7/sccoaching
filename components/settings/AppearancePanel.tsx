@@ -176,7 +176,7 @@ export function AppearancePanel({
           ) : (
             <div
               aria-hidden="true"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-teal-500 text-sm font-semibold text-white ring-1 ring-white/15"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground ring-1 ring-white/15"
             >
               {initials}
             </div>

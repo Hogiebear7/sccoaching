@@ -29,8 +29,15 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This app's datastore is a single JSON file (`data/db.json`) with synchronous
+read/write — correct for **one persistent, long-lived Node process**, and
+**unsafe for serverless or multi-instance deployments** (concurrent instances
+can corrupt the file, and a serverless filesystem is typically ephemeral).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Do **not** deploy this with Vercel's default serverless functions. Run it as
+`next build && next start` behind a process manager, with `data/` on a
+persisted, backed-up volume. See `docs/launch-checklist.md` for the full
+pre-launch checklist (credential rotation, required env vars, Stripe/cron
+setup, and this constraint in more detail).

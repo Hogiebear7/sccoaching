@@ -11,6 +11,7 @@ import { classCategoryLabel, isFutureDateTime } from "@/lib/scheduling-status";
 import { CoverImageField } from "@/components/ui/CoverImageField";
 import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
 import { suggestAltForCover, suggestCoverForCategory } from "@/lib/class-covers";
+import { ClassesCalendar } from "./ClassesCalendar";
 
 type RosterMember = {
   bookingId: string;
@@ -97,11 +98,13 @@ export function ClassesView({
   categories,
   deletedLabels,
   series,
+  coaches,
 }: {
   classes: ClassWithRoster[];
   categories: ClassCategoryRecord[];
   deletedLabels: Record<string, string>;
   series: ClassSeriesRecord[];
+  coaches: { userId: string; label: string }[];
 }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -124,6 +127,7 @@ export function ClassesView({
   const [attendanceUpdatingId, setAttendanceUpdatingId] = useState<string | null>(null);
   const [showUpcoming, setShowUpcoming] = useState(true);
   const [showPast, setShowPast] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -701,55 +705,102 @@ export function ClassesView({
           </div>
         </div>
       ) : null}
-      {/* Class list — delete feedback lives above both groups so it stays
-          visible whichever section the class was in. */}
-      {deleteError ? (
-        <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {deleteError}
-        </p>
-      ) : null}
-      {deleteMessage ? (
-        <p className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
-          {deleteMessage}
-        </p>
-      ) : null}
+      {/* List / Calendar toggle */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setViewMode("list")}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+            viewMode === "list"
+              ? "bg-primary text-primary-foreground"
+              : "border border-border text-muted-foreground hover:border-primary hover:text-foreground"
+          }`}
+        >
+          List
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode("calendar")}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+            viewMode === "calendar"
+              ? "bg-primary text-primary-foreground"
+              : "border border-border text-muted-foreground hover:border-primary hover:text-foreground"
+          }`}
+        >
+          Calendar
+        </button>
+      </div>
 
-      {classes.length === 0 ? (
-        <div className="panel p-6">
-          <h3 className="text-lg font-semibold">All classes</h3>
-          <p className="mt-3 text-sm text-muted-foreground">
-            No classes yet. Create the first one above.
-          </p>
-        </div>
+      {viewMode === "calendar" ? (
+        <ClassesCalendar
+          classes={classes.map((c) => ({
+            id: c.id,
+            title: c.title,
+            category: c.category,
+            date: c.date,
+            startTime: c.startTime,
+            coachUserId: c.coachUserId,
+            coachLabel: coaches.find((coach) => coach.userId === c.coachUserId)?.label ?? c.coachEmail,
+            capacity: c.capacity,
+            bookedCount: c.bookedCount,
+          }))}
+          categories={categories}
+          deletedLabels={deletedLabels}
+          coaches={coaches}
+        />
       ) : (
         <>
-          <CollapsibleSection
-            title="Upcoming classes"
-            count={upcomingClasses.length}
-            isOpen={showUpcoming}
-            onToggle={() => setShowUpcoming((open) => !open)}
-          >
-            {upcomingClasses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nothing scheduled — create a class above.
-              </p>
-            ) : (
-              upcomingClasses.map((classRecord) => renderClassCard(classRecord, true))
-            )}
-          </CollapsibleSection>
+          {/* Class list — delete feedback lives above both groups so it stays
+              visible whichever section the class was in. */}
+          {deleteError ? (
+            <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {deleteError}
+            </p>
+          ) : null}
+          {deleteMessage ? (
+            <p className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+              {deleteMessage}
+            </p>
+          ) : null}
 
-          <CollapsibleSection
-            title="Past classes"
-            count={pastClasses.length}
-            isOpen={showPast}
-            onToggle={() => setShowPast((open) => !open)}
-          >
-            {pastClasses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No past classes yet.</p>
-            ) : (
-              pastClasses.map((classRecord) => renderClassCard(classRecord, false))
-            )}
-          </CollapsibleSection>
+          {classes.length === 0 ? (
+            <div className="panel p-6">
+              <h3 className="text-lg font-semibold">All classes</h3>
+              <p className="mt-3 text-sm text-muted-foreground">
+                No classes yet. Create the first one above.
+              </p>
+            </div>
+          ) : (
+            <>
+              <CollapsibleSection
+                title="Upcoming classes"
+                count={upcomingClasses.length}
+                isOpen={showUpcoming}
+                onToggle={() => setShowUpcoming((open) => !open)}
+              >
+                {upcomingClasses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nothing scheduled — create a class above.
+                  </p>
+                ) : (
+                  upcomingClasses.map((classRecord) => renderClassCard(classRecord, true))
+                )}
+              </CollapsibleSection>
+
+              <CollapsibleSection
+                title="Past classes"
+                count={pastClasses.length}
+                isOpen={showPast}
+                onToggle={() => setShowPast((open) => !open)}
+              >
+                {pastClasses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No past classes yet.</p>
+                ) : (
+                  pastClasses.map((classRecord) => renderClassCard(classRecord, false))
+                )}
+              </CollapsibleSection>
+            </>
+          )}
         </>
       )}
     </div>

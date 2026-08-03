@@ -25,7 +25,7 @@ export default async function ProfilePage() {
         <div>
           <h1 className="text-display text-[28px]">Profile</h1>
         </div>
-        <div className="panel p-5">
+        <div className="surface-card p-5">
           <p className="text-sm text-muted-foreground">
             We couldn&apos;t load profile data for this account. Try logging out and
             back in.

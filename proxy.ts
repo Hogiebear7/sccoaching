@@ -7,8 +7,22 @@ import { verifySession } from "@/lib/session";
 
 const GUEST_ONLY_PATHS = ["/login", "/signup"];
 
+// Prototype surfaces (see docs/surface-architecture.md) — mock-data-backed,
+// never wired to real auth. Fine to reach during local development, but must
+// never be publicly reachable once deployed: they render convincing-looking
+// member/staff data (including fake revenue figures) with zero login wall.
+const BLOCKED_IN_PRODUCTION_PREFIXES = ["/app", "/admin", "/admin-mobile"];
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (
+    process.env.NODE_ENV === "production" &&
+    BLOCKED_IN_PRODUCTION_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+  ) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
   const hasSession = userId !== null;
 
@@ -38,5 +52,13 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/staff/:path*", "/login", "/signup"],
+  matcher: [
+    "/dashboard/:path*",
+    "/staff/:path*",
+    "/login",
+    "/signup",
+    "/app/:path*",
+    "/admin/:path*",
+    "/admin-mobile/:path*",
+  ],
 };

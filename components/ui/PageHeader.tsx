@@ -18,7 +18,7 @@ export function PageHeader({
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
         {eyebrow && (
-          <p className="chip label-caps w-fit border-teal-400/20 bg-teal-400/[0.07] !text-teal-300/90">
+          <p className="chip label-caps w-fit border-primary/25 bg-primary/[0.08] !text-primary">
             {eyebrow}
           </p>
         )}
