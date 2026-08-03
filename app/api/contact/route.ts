@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createContactInquiry } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
 import { contactInquiryEmail } from "@/lib/email-templates";
 import { sendEmail } from "@/lib/email";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -55,14 +55,34 @@ export async function POST(request: Request) {
     );
   }
 
-  const inquiry = createContactInquiry({
+  const trimmedPhone = typeof phone === "string" && phone.trim() ? phone.trim() : null;
+
+  const supabase = await createClient();
+  // No .select() here on purpose: the anon role can only INSERT on this
+  // table (no SELECT policy — leads are write-only from the public form),
+  // and RLS checks apply to RETURNING too, so asking for the row back would
+  // fail even though the insert itself succeeds.
+  const { error } = await supabase.from("contact_inquiries").insert({
     name: name.trim(),
     email: email.trim(),
-    phone: typeof phone === "string" && phone.trim() ? phone.trim() : null,
+    phone: trimmedPhone,
     message: message.trim(),
   });
 
-  const notification = contactInquiryEmail(inquiry);
+  if (error) {
+    console.error("contact insert failed:", error);
+    return NextResponse.json(
+      { success: false, message: "Something went wrong. Please try again." },
+      { status: 500 }
+    );
+  }
+
+  const notification = contactInquiryEmail({
+    name: name.trim(),
+    email: email.trim(),
+    phone: trimmedPhone,
+    message: message.trim(),
+  });
   await sendEmail({ to: NOTIFY_EMAIL, ...notification });
 
   return NextResponse.json(GENERIC_SUCCESS, { status: 200 });
