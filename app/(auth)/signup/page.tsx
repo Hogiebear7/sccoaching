@@ -28,6 +28,8 @@ type FormErrors = Partial<Record<keyof SignupFormValues, string>>;
 const PASSWORD_REQUIREMENTS_HINT =
   "Must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function getPasswordStrengthError(password: string): string | null {
   if (password.length < 8) {
     return "Password must be at least 8 characters long.";
@@ -62,8 +64,40 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Debounced live availability check — lets someone know their email is
+  // already registered before they fill out the whole form, instead of
+  // finding out only when the final submit fails.
+  useEffect(() => {
+    const email = values.email.trim();
+    if (!EMAIL_RE.test(email)) {
+      setEmailStatus("idle");
+      return;
+    }
+
+    setEmailStatus("checking");
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`, {
+        signal: controller.signal,
+      })
+        .then((res) => res.json())
+        .then((data: { available?: boolean }) => {
+          setEmailStatus(data.available === false ? "taken" : "available");
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setEmailStatus("idle");
+        });
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [values.email]);
 
   const sportVisible = shouldShowSportPlayed(values);
   const cycleEligible = shouldShowCycleTracking(values);
@@ -170,7 +204,11 @@ export default function SignupPage() {
     const nextErrors: FormErrors = {};
 
     if (currentStep === 0) {
-      if (!values.email.trim()) nextErrors.email = "Email is required.";
+      if (!values.email.trim()) {
+        nextErrors.email = "Email is required.";
+      } else if (emailStatus === "taken") {
+        nextErrors.email = "This email already has an account.";
+      }
 
       if (!values.password.trim()) {
         nextErrors.password = "Password is required.";
@@ -365,16 +403,43 @@ export default function SignupPage() {
                     Account details
                   </legend>
 
-                  <FormField label="Email" id="signup-email" error={errors.email}>
+                  <FormField
+                    label="Email"
+                    id="signup-email"
+                    error={emailStatus === "taken" ? undefined : errors.email}
+                  >
                     <input
                       id="signup-email"
                       type="email"
                       value={values.email}
                       onChange={(e) => handleTextChange("email", e)}
-                      className={inputClass(errors.email)}
+                      className={inputClass(errors.email || (emailStatus === "taken" ? "taken" : undefined))}
                       placeholder="you@example.com"
                     />
                   </FormField>
+
+                  {emailStatus === "taken" ? (
+                    <div
+                      role="alert"
+                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+                    >
+                      <p>This email already has an account.</p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                        <Link href="/login" className="font-medium underline underline-offset-2 hover:text-amber-100">
+                          Log in instead
+                        </Link>
+                        <Link
+                          href="/forgot-password"
+                          className="font-medium underline underline-offset-2 hover:text-amber-100"
+                        >
+                          Reset your password
+                        </Link>
+                      </div>
+                      <p className="mt-2 text-amber-200/70">
+                        Or use a different email to continue creating a new account.
+                      </p>
+                    </div>
+                  ) : null}
 
                   <FormField
                     label="Password"
