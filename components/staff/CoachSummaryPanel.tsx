@@ -56,9 +56,19 @@ export function CoachSummaryPanel({ memberId }: { memberId: string }) {
       ) : null}
 
       {summary ? (
-        <p className={`mt-4 text-sm ${configured ? "text-foreground" : "text-muted-foreground"}`}>
-          {summary}
-        </p>
+        configured ? (
+          <ul className="mt-4 list-disc space-y-1.5 pl-5 text-sm text-foreground">
+            {summary
+              .split("\n")
+              .map((line) => line.replace(/^-\s*/, "").trim())
+              .filter(Boolean)
+              .map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+          </ul>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">{summary}</p>
+        )
       ) : !error ? (
         <p className="mt-4 text-sm text-muted-foreground">
           Generate a quick AI-assisted summary of this member&apos;s recent training and recovery.

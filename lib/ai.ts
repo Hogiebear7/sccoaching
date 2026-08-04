@@ -232,7 +232,7 @@ Grounding rules — these are strict:
 - A "Member data" block follows this prompt. It is the ONLY source of facts. Cite numbers from it exactly; never invent readiness scores, weights, sets, reps, dates, or history not in it.
 - If the data is thin (little or no recent logging), say that plainly rather than padding the summary out.
 
-Write 3-5 plain sentences: current readiness/training-load trend, anything notable (a dip, a strong stretch, a gap in logging), and one practical note if there's something worth flagging. Third person about the member ("She's...", "His readiness..."), professional coach-to-coach tone, no greeting, no sign-off, no markdown or headings.`;
+Reply as 3-5 short bullet points, one per line, each starting with "- ". Each bullet is one self-contained fact or observation — readiness/load trend, anything notable (a dip, a strong stretch, a gap in logging), a practical note if something's worth flagging. Third person about the member ("She's...", "His readiness..."), professional coach-to-coach tone. No intro line, no sign-off, no sub-bullets, no other markdown.`;
 
 export async function generateCoachSummary(
   context: CoachSummaryContext
