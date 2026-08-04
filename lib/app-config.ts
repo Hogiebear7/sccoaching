@@ -12,6 +12,7 @@
 interface AppConfig {
   sessionSecret?: string;
   dataDir?: string;
+  appUrl?: string;
 }
 
 let cached: AppConfig | null = null;
@@ -33,6 +34,7 @@ function loadAppConfig(): AppConfig {
     const value = pair.slice(eq + 1).trim();
     if (key === "sessionSecret") config.sessionSecret = value;
     if (key === "dataDir") config.dataDir = value;
+    if (key === "appUrl") config.appUrl = value;
   }
 
   cached = config;
@@ -45,4 +47,8 @@ export function getConfiguredSessionSecret(): string | undefined {
 
 export function getConfiguredDataDir(): string | undefined {
   return process.env.DATA_DIR?.trim() || loadAppConfig().dataDir;
+}
+
+export function getConfiguredAppUrl(): string | undefined {
+  return process.env.APP_URL?.trim() || loadAppConfig().appUrl;
 }

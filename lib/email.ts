@@ -1,5 +1,7 @@
 import { Resend } from "resend";
 
+import { getConfiguredAppUrl } from "@/lib/app-config";
+
 const apiKey = process.env.RESEND_API_KEY?.trim() || null;
 const fromAddress = process.env.EMAIL_FROM?.trim() || "onboarding@resend.dev";
 
@@ -7,7 +9,7 @@ const fromAddress = process.env.EMAIL_FROM?.trim() || "onboarding@resend.dev";
 // is safe to import in any context without side effects when email is unconfigured.
 const resend = apiKey ? new Resend(apiKey) : null;
 
-if (process.env.NODE_ENV === "production" && !process.env.APP_URL?.trim()) {
+if (process.env.NODE_ENV === "production" && !getConfiguredAppUrl()) {
   console.warn(
     "[email] APP_URL is not set in production — action links in emails will point to http://localhost:3000"
   );

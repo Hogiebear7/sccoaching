@@ -1,6 +1,8 @@
+import { getConfiguredAppUrl } from "@/lib/app-config";
+
 // APP_URL is used to build action links in emails. Must be set in production.
 // Falls back to localhost for development.
-const APP_URL = process.env.APP_URL?.trim() || "http://localhost:3000";
+const APP_URL = getConfiguredAppUrl() || "http://localhost:3000";
 
 function escapeHtml(str: string): string {
   return str
