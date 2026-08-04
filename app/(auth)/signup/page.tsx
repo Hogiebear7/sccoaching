@@ -311,9 +311,12 @@ export default function SignupPage() {
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
             {/* Long brand name in a 280px column — tighter tracking keeps it on one line */}
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
+            <Link
+              href="/"
+              className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold transition-opacity hover:opacity-80"
+            >
               {BRAND_NAME}
-            </p>
+            </Link>
             <h1 className="text-editorial mt-3 text-[30px]">Create your account</h1>
             <p className="mt-2 text-sm text-zinc-400">
               Set up your profile, goals, and optional cycle tracking preferences.

@@ -71,7 +71,9 @@ export default function LoginPage() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[var(--bg-1)]/80 via-[var(--bg-1)]/30 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(70%_90%_at_35%_0%,oklch(0.7279_0.0989_82.1/0.14),transparent)]" />
         <div className="anim-rise relative" style={{ animationDelay: "60ms" }}>
-          <span className="text-display text-xl text-zinc-50">S<span className="text-gold">&</span>C Performance Coaching</span>
+          <Link href="/" className="text-display text-xl text-zinc-50 transition-opacity hover:opacity-80">
+            S<span className="text-gold">&</span>C Performance Coaching
+          </Link>
         </div>
         <div className="relative max-w-md">
           <p className="anim-rise text-xs font-semibold uppercase tracking-[0.24em] text-gold" style={{ animationDelay: "160ms" }}>{BRAND_NAME}</p>
@@ -99,7 +101,9 @@ export default function LoginPage() {
       {/* Form column */}
       <div className="relative flex min-h-screen flex-col px-6 py-8 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-64 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.7279_0.0989_82.1/0.08),transparent)] lg:before:hidden">
         <div className="lg:hidden">
-          <span className="text-display text-base text-zinc-50">S<span className="text-gold">&</span>C Performance Coaching</span>
+          <Link href="/" className="text-display text-base text-zinc-50 transition-opacity hover:opacity-80">
+            S<span className="text-gold">&</span>C Performance Coaching
+          </Link>
         </div>
         <div className="anim-rise mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
           <p className="label-caps">Welcome back</p>
