@@ -732,7 +732,13 @@ interface Database {
   bugReports: BugReportRecord[];
 }
 
-const DATA_DIR = path.join(process.cwd(), "data");
+// DATA_DIR defaults to a folder inside the deployed code, which is fine for
+// local dev — but on a host that replaces the whole code directory on every
+// deploy (e.g. Hostinger's per-release .builds/versions/<id> layout), that
+// default silently wipes every member/booking/etc. on the next push. Set the
+// DATA_DIR env var to an absolute path outside the deploy-managed tree (a
+// sibling of the release folders, not inside one) to persist real data.
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
