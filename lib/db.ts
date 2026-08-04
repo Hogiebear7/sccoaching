@@ -10,6 +10,7 @@ import type {
   UserRole,
 } from "@/lib/profile-schema";
 import { isStaffRole } from "@/lib/permissions";
+import { getConfiguredDataDir } from "@/lib/app-config";
 
 export type StoredUser = UserRecord & { passwordHash: string };
 
@@ -738,7 +739,8 @@ interface Database {
 // default silently wipes every member/booking/etc. on the next push. Set the
 // DATA_DIR env var to an absolute path outside the deploy-managed tree (a
 // sibling of the release folders, not inside one) to persist real data.
-const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(process.cwd(), "data");
+const configuredDataDir = getConfiguredDataDir();
+const DATA_DIR = configuredDataDir ? path.resolve(configuredDataDir) : path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 

@@ -1,11 +1,13 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
+import { getConfiguredSessionSecret } from "./app-config";
+
 export interface SessionPayload {
   userId: string;
 }
 
 function getSessionSecret(): string {
-  const secret = process.env.SESSION_SECRET;
+  const secret = getConfiguredSessionSecret();
 
   if (!secret) {
     throw new Error(
