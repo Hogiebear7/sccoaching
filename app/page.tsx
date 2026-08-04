@@ -8,7 +8,7 @@ import { verifySession } from "@/lib/session";
 import { ClassesShowcase } from "@/components/marketing/ClassesShowcase";
 import { ClassPricingShowcase } from "@/components/marketing/ClassPricingShowcase";
 import { ContactForm } from "@/components/marketing/ContactForm";
-import { Ledger, type LedgerRow } from "@/components/marketing/Ledger";
+import { MemberPreviewStack } from "@/components/marketing/MemberPreviewStack";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 // Structural copy, not business fact — the specific claims here (coach
@@ -16,8 +16,8 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 // design blueprint and need the client's confirmation/edit before launch.
 const DIFFERENTIATORS = [
   {
-    title: "Assessment before programming",
-    body: "No member starts on a generic plan. Movement screens and baseline testing shape your first block before you lift a single working set.",
+    title: "Your goals, not a template",
+    body: "No member starts on a generic plan. Your first session sets your goals and baseline, then shapes the block that follows.",
   },
   {
     title: "Capped coaching ratios",
@@ -32,13 +32,6 @@ const DIFFERENTIATORS = [
     body: "Built for members training toward their own first standard, alongside athletes preparing for their sport's season.",
   },
 ] as const;
-
-const SAMPLE_LEDGER_ROWS: LedgerRow[] = [
-  { metric: "Back Squat 1RM", athlete: "C.M.", value: "142", unit: "kg", delta: "+12kg / 8wk", deltaDirection: "up" },
-  { metric: "10m Sprint", athlete: "R.O.", value: "1.71", unit: "s", delta: "−0.09s / 6wk", deltaDirection: "up" },
-  { metric: "Broad Jump", athlete: "S.K.", value: "2.58", unit: "m", delta: "+14cm / 10wk", deltaDirection: "up" },
-  { metric: "CMJ Height", athlete: "L.D.", value: "41.2", unit: "cm", delta: "+5.6cm / 8wk", deltaDirection: "up" },
-];
 
 // Split the tagline on its em-dash so the second half can take the gold accent,
 // echoing the reference two-tone headline without changing the copy.
@@ -103,9 +96,10 @@ export default async function Root() {
         </div>
       </nav>
 
-      {/* Hero — editorial split, staggered page-load choreography. The
-          Ledger is the signature element (from the index.html blueprint)
-          in place of a stock athlete photo. */}
+      {/* Hero — editorial split, staggered page-load choreography. Right
+          column previews three member-area features (training, nutrition,
+          recovery) in the same solid-panel/gold-accent language as the
+          Ledger signature motif, in place of a stock athlete photo. */}
       <section className="relative mx-auto grid max-w-6xl items-start gap-14 px-6 pb-24 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:pt-20">
         <div>
           <p
@@ -174,12 +168,10 @@ export default async function Root() {
           className="anim-rise hidden lg:block"
           style={{ animationDelay: "420ms" }}
         >
-          <Ledger
-            title="Session Ledger"
-            tag="Latest Testing Block"
-            rows={SAMPLE_LEDGER_ROWS}
-            footnote="Representative data — your numbers, tracked from week one."
-          />
+          <MemberPreviewStack />
+          <p className="mt-4 text-[12px] italic text-zinc-500">
+            Representative data — your numbers, tracked from week one.
+          </p>
         </div>
       </section>
 
@@ -258,7 +250,7 @@ export default async function Root() {
 
       {/* Final CTA — booking links, contact details, and a real lead-capture
           form (app/api/contact) so visitors can leave their details. id
-          gives other sections' CTAs (e.g. "Book Your Assessment") a real
+          gives other sections' CTAs (e.g. "Book Your First Session") a real
           same-page destination to point at. */}
       <section id="contact" className="relative scroll-mt-20 border-t border-white/[0.06]">
         <div className="mx-auto grid max-w-5xl gap-12 px-6 py-24 lg:grid-cols-2 lg:items-start">
@@ -268,10 +260,10 @@ export default async function Root() {
               Start Your Block
             </p>
             <h2 className="mt-4 text-editorial text-[38px] italic leading-[1.06] text-zinc-50">
-              Your first session starts the ledger.
+              Start with a plan, not a guess.
             </h2>
             <p className="mt-4 max-w-md text-base leading-relaxed text-zinc-400">
-              Book an assessment and leave with a baseline, a block, and a coach who's read both.
+              Book your first session and leave with a baseline, a block, and a coach who's read both.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -279,7 +271,7 @@ export default async function Root() {
                 href={`mailto:${CONTACT_INFO.email}`}
                 className="inline-flex items-center justify-center rounded-[3px] bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-[background-color] duration-150 hover:bg-[var(--primary-hover)]"
               >
-                Book Your Assessment
+                Book Your First Session
               </a>
               <a
                 href={`tel:${CONTACT_INFO.phoneHref}`}
