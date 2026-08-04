@@ -13,6 +13,7 @@ interface AppConfig {
   sessionSecret?: string;
   dataDir?: string;
   appUrl?: string;
+  anthropicApiKey?: string;
 }
 
 let cached: AppConfig | null = null;
@@ -35,6 +36,7 @@ function loadAppConfig(): AppConfig {
     if (key === "sessionSecret") config.sessionSecret = value;
     if (key === "dataDir") config.dataDir = value;
     if (key === "appUrl") config.appUrl = value;
+    if (key === "anthropicApiKey") config.anthropicApiKey = value;
   }
 
   cached = config;
@@ -51,4 +53,8 @@ export function getConfiguredDataDir(): string | undefined {
 
 export function getConfiguredAppUrl(): string | undefined {
   return process.env.APP_URL?.trim() || loadAppConfig().appUrl;
+}
+
+export function getConfiguredAnthropicApiKey(): string | undefined {
+  return process.env.ANTHROPIC_API_KEY?.trim() || loadAppConfig().anthropicApiKey;
 }

@@ -4,16 +4,28 @@
 // It is grounded: every user-specific number in the system prompt comes from
 // lib/ai-context.ts, which reads only the signed-in member's own records.
 //
-// Staff-facing helpers (generateCoachSummary, draftReply) remain honest
-// stubs until those features are built out.
+// generateCoachSummary and draftReply are the staff-facing counterparts —
+// same grounding discipline (buildCoachingContext), but the target member is
+// staff-supplied (memberId), not the signed-in user, since staff act on
+// someone else's data. Both are single-shot (no streaming, no chat history).
 //
 // Setup: set ANTHROPIC_API_KEY in .env.local. Optionally set ANTHROPIC_MODEL
 // to override the default model.
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import { resolveCurrentWeightKg } from "@/lib/body-weight";
+import { buildCoachingContext } from "@/lib/ai-context";
+import { getConfiguredAnthropicApiKey } from "@/lib/app-config";
+import {
+  findBodyWeightLogsByUserId,
+  findProfileByUserId,
+  findRecoveryLogsByUserId,
+  findWorkoutSessionsByUserId,
+} from "@/lib/db";
+
 export function isAiConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return Boolean(getConfiguredAnthropicApiKey());
 }
 
 export const AI_NOT_CONFIGURED_MESSAGE =
@@ -26,7 +38,7 @@ let cachedClient: Anthropic | null = null;
 
 function getClient(): Anthropic {
   if (!cachedClient) {
-    cachedClient = new Anthropic(); // reads ANTHROPIC_API_KEY from env
+    cachedClient = new Anthropic({ apiKey: getConfiguredAnthropicApiKey() });
   }
   return cachedClient;
 }
@@ -184,18 +196,105 @@ export interface DraftReplyContext {
   latestMemberMessage: string | null;
 }
 
+// Same grounding as the member chat (buildCoachingContext), built for a
+// staff-supplied memberId instead of the signed-in user. Null when the
+// member has no profile yet — callers should show a plain "no data" message
+// rather than call the model with nothing to ground it.
+function buildStaffMemberContext(userId: string): string | null {
+  const profile = findProfileByUserId(userId);
+  if (!profile) return null;
+
+  return buildCoachingContext({
+    profile: {
+      ...profile,
+      currentWeightKg: resolveCurrentWeightKg(
+        profile.currentWeightKg,
+        findBodyWeightLogsByUserId(userId)
+      ),
+    },
+    recoveryLogs: findRecoveryLogsByUserId(userId),
+    sessions: findWorkoutSessionsByUserId(userId),
+    todayISO: new Date().toISOString().slice(0, 10),
+    drinkSettings: profile.drinkSettings ?? null,
+  }).text;
+}
+
+function textFromMessage(message: Anthropic.Message): string {
+  return message.content
+    .filter((block) => block.type === "text")
+    .map((block) => ("text" in block ? block.text : ""))
+    .join("");
+}
+
+const STAFF_SUMMARY_SYSTEM_PROMPT = `You write brief internal briefings for a strength & conditioning gym's coaching staff, read in a few seconds before a session or a message reply.
+
+Grounding rules — these are strict:
+- A "Member data" block follows this prompt. It is the ONLY source of facts. Cite numbers from it exactly; never invent readiness scores, weights, sets, reps, dates, or history not in it.
+- If the data is thin (little or no recent logging), say that plainly rather than padding the summary out.
+
+Write 3-5 plain sentences: current readiness/training-load trend, anything notable (a dip, a strong stretch, a gap in logging), and one practical note if there's something worth flagging. Third person about the member ("She's...", "His readiness..."), professional coach-to-coach tone, no greeting, no sign-off, no markdown or headings.`;
+
 export async function generateCoachSummary(
-  _context: CoachSummaryContext
+  context: CoachSummaryContext
 ): Promise<string> {
   if (!isAiConfigured()) return AI_NOT_CONFIGURED_MESSAGE;
 
-  return AI_NOT_CONFIGURED_MESSAGE;
+  const memberContext = buildStaffMemberContext(context.memberId);
+  if (!memberContext) return "No profile found for this member yet.";
+
+  const client = getClient();
+
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 1000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: [
+      { type: "text", text: STAFF_SUMMARY_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      { type: "text", text: `Member data (current, from the app's records):\n\n${memberContext}` },
+    ],
+    messages: [{ role: "user", content: "Summarize this member for their coach." }],
+  });
+
+  const text = textFromMessage(message).trim();
+  return text || "Nothing notable to report right now.";
 }
 
-export async function draftReply(_context: DraftReplyContext): Promise<string> {
+const STAFF_DRAFT_REPLY_SYSTEM_PROMPT = `You draft in-app message replies for a strength & conditioning coach to send to their member — written in the coach's own voice: warm, direct, professional, never robotic or corporate.
+
+Grounding rules — these are strict:
+- A "Member data" block follows this prompt. It is the ONLY source of member facts. Never invent readiness scores, weights, sets, reps, dates, or history not in it.
+- A "Member's latest message" section is what you're replying to. If it says "(no message yet)", the member hasn't written anything — draft a brief, natural check-in instead of a reply.
+
+Write 2-5 plain sentences, ready to send after a quick edit from the coach. No markdown, no greeting like "Hi [name]," no sign-off or signature — just the reply body. Reference specific facts from the member data only when they're actually relevant to what the member asked or to a genuine check-in.`;
+
+export async function draftReply(context: DraftReplyContext): Promise<string> {
   if (!isAiConfigured()) return AI_NOT_CONFIGURED_MESSAGE;
 
-  return AI_NOT_CONFIGURED_MESSAGE;
+  const memberContext = buildStaffMemberContext(context.memberId);
+  if (!memberContext) return "No profile found for this member yet.";
+
+  const client = getClient();
+
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 1000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: [
+      { type: "text", text: STAFF_DRAFT_REPLY_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      { type: "text", text: `Member data (current, from the app's records):\n\n${memberContext}` },
+    ],
+    messages: [
+      {
+        role: "user",
+        content: `Member's latest message:\n\n${context.latestMemberMessage?.trim() || "(no message yet)"}`,
+      },
+    ],
+  });
+
+  const text = textFromMessage(message).trim();
+  return text || "Hey — how's training been going this week?";
 }
 
 // ── Staff exercise-content drafting ────────────────────────────────────
@@ -261,10 +360,5 @@ Category: ${input.sectionLabel}`,
     ],
   });
 
-  const text = message.content
-    .filter((block) => block.type === "text")
-    .map((block) => ("text" in block ? block.text : ""))
-    .join("");
-
-  return parseExerciseContentResponse(text);
+  return parseExerciseContentResponse(textFromMessage(message));
 }
