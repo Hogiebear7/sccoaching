@@ -18,7 +18,7 @@ const navItems: { label: string; href: string; capability: Capability }[] = [
   { label: "Operations",  href: "/staff/operations",  capability: NAV_CAPABILITY["/staff/operations"] },
   { label: "Classes",     href: "/staff/classes",     capability: NAV_CAPABILITY["/staff/classes"] },
   { label: "Members",     href: "/staff/members",     capability: NAV_CAPABILITY["/staff/members"] },
-  { label: "Catalog",     href: "/staff/catalog",     capability: NAV_CAPABILITY["/staff/catalog"] },
+  { label: "Membership/Class Options", href: "/staff/catalog", capability: NAV_CAPABILITY["/staff/catalog"] },
   { label: "Exercises",   href: "/staff/exercises",   capability: NAV_CAPABILITY["/staff/exercises"] },
   { label: "Staff users", href: "/staff/staff-users", capability: NAV_CAPABILITY["/staff/staff-users"] },
   { label: "Reports",     href: "/staff/reports",     capability: NAV_CAPABILITY["/staff/reports"] },

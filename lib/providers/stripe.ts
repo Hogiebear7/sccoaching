@@ -13,10 +13,12 @@
 //  - metadata carries the internal purchase id on both the session and the
 //    PaymentIntent, which is how refunds are correlated back.
 
+import { getConfiguredStripeSecretKey } from "@/lib/app-config";
+
 const STRIPE_API_BASE = "https://api.stripe.com/v1";
 
 function getSecretKey(): string | null {
-  const key = process.env.STRIPE_SECRET_KEY?.trim();
+  const key = getConfiguredStripeSecretKey();
   return key ? key : null;
 }
 

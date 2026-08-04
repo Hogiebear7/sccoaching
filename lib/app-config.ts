@@ -14,6 +14,8 @@ interface AppConfig {
   dataDir?: string;
   appUrl?: string;
   anthropicApiKey?: string;
+  stripeSecretKey?: string;
+  stripeWebhookSecret?: string;
 }
 
 let cached: AppConfig | null = null;
@@ -37,6 +39,8 @@ function loadAppConfig(): AppConfig {
     if (key === "dataDir") config.dataDir = value;
     if (key === "appUrl") config.appUrl = value;
     if (key === "anthropicApiKey") config.anthropicApiKey = value;
+    if (key === "stripeSecretKey") config.stripeSecretKey = value;
+    if (key === "stripeWebhookSecret") config.stripeWebhookSecret = value;
   }
 
   cached = config;
@@ -57,4 +61,12 @@ export function getConfiguredAppUrl(): string | undefined {
 
 export function getConfiguredAnthropicApiKey(): string | undefined {
   return process.env.ANTHROPIC_API_KEY?.trim() || loadAppConfig().anthropicApiKey;
+}
+
+export function getConfiguredStripeSecretKey(): string | undefined {
+  return process.env.STRIPE_SECRET_KEY?.trim() || loadAppConfig().stripeSecretKey;
+}
+
+export function getConfiguredStripeWebhookSecret(): string | undefined {
+  return process.env.STRIPE_WEBHOOK_SECRET?.trim() || loadAppConfig().stripeWebhookSecret;
 }

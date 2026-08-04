@@ -4,10 +4,12 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 
+import { getConfiguredStripeWebhookSecret } from "@/lib/app-config";
+
 const TOLERANCE_SECONDS = 300;
 
 function getSigningSecret(): string | null {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
+  const secret = getConfiguredStripeWebhookSecret();
   return secret ? secret : null;
 }
 
