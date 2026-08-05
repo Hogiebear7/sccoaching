@@ -40,6 +40,10 @@ type ClassFormValues = {
   category: ClassCategory;
   date: string;
   startTime: string;
+  // Extra same-day sessions of this class (e.g. a 7am AND a 6pm Semi-Private
+  // PT). Only used on create — editing always targets a single occurrence.
+  // Each entry submits as its own class/series via the same API call.
+  additionalStartTimes: string[];
   durationMins: string;
   capacity: string;
   repeat: "none" | "weekly";
@@ -66,6 +70,7 @@ function emptyFormValues(defaultCategory = "general"): ClassFormValues {
     category: defaultCategory,
     date: "",
     startTime: "",
+    additionalStartTimes: [],
     durationMins: "",
     capacity: "",
     repeat: "none",
@@ -82,6 +87,7 @@ function toFormValues(classRecord: ClassRecord): ClassFormValues {
     category: classRecord.category,
     date: classRecord.date,
     startTime: classRecord.startTime,
+    additionalStartTimes: [],
     durationMins: String(classRecord.durationMins),
     capacity: String(classRecord.capacity),
     // Editing always targets this single occurrence.
@@ -200,6 +206,28 @@ export function ClassesView({
     }
   }
 
+  function addStartTime() {
+    setValues((prev) => ({ ...prev, additionalStartTimes: [...prev.additionalStartTimes, ""] }));
+    setSuccessMessage(null);
+  }
+
+  function updateStartTime(index: number, value: string) {
+    setValues((prev) => ({
+      ...prev,
+      additionalStartTimes: prev.additionalStartTimes.map((t, i) => (i === index ? value : t)),
+    }));
+    setErrors((prev) => ({ ...prev, startTime: undefined }));
+    setSuccessMessage(null);
+  }
+
+  function removeStartTime(index: number) {
+    setValues((prev) => ({
+      ...prev,
+      additionalStartTimes: prev.additionalStartTimes.filter((_, i) => i !== index),
+    }));
+    setSuccessMessage(null);
+  }
+
   function toggleWeekday(day: number) {
     setValues((prev) => ({
       ...prev,
@@ -292,11 +320,12 @@ export function ClassesView({
     if (!values.date.trim()) nextErrors.date = "Date is required.";
     if (!values.startTime.trim()) nextErrors.startTime = "Start time is required.";
 
-    if (
-      values.date.trim() &&
-      values.startTime.trim() &&
-      !isFutureDateTime(values.date, values.startTime)
-    ) {
+    // Blank added-time rows are dropped silently at submit, not an error.
+    const allTimes = [values.startTime, ...values.additionalStartTimes]
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    if (values.date.trim() && allTimes.some((t) => !isFutureDateTime(values.date, t))) {
       nextErrors.startTime = "Class date and time must be in the future.";
     }
 
@@ -337,24 +366,71 @@ export function ClassesView({
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("/api/staff/classes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingId ? { id: editingId, ...values } : values),
-      });
+      if (editingId) {
+        const res = await fetch("/api/staff/classes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editingId, ...values }),
+        });
 
-      const data = await res.json().catch(() => null);
+        const data = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        setFormError(data?.message ?? "Could not save class. Please try again.");
+        if (!res.ok) {
+          setFormError(data?.message ?? "Could not save class. Please try again.");
+          return;
+        }
+
+        setSuccessMessage(data?.message ?? "Class saved.");
+        setEditingId(null);
+        setValues(emptyFormValues());
+        setCoverSuggested(false);
+        setHintDismissed(false);
+        router.refresh();
         return;
       }
 
-      setSuccessMessage(data?.message ?? "Class saved.");
-      setEditingId(null);
-      setValues(emptyFormValues());
-      setCoverSuggested(false);
-      setHintDismissed(false);
+      // Create path: one call per distinct start time, so "07:00 and 18:00,
+      // same days" produces two ordinary classes/series instead of one.
+      const times = Array.from(
+        new Set([values.startTime, ...values.additionalStartTimes].map((t) => t.trim()).filter(Boolean))
+      );
+
+      const succeeded: string[] = [];
+      const failed: string[] = [];
+
+      for (const startTime of times) {
+        try {
+          const res = await fetch("/api/staff/classes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...values, startTime }),
+          });
+          const data = await res.json().catch(() => null);
+          if (!res.ok) {
+            failed.push(`${startTime} — ${data?.message ?? "failed"}`);
+          } else {
+            succeeded.push(startTime);
+          }
+        } catch {
+          failed.push(`${startTime} — request failed`);
+        }
+      }
+
+      if (succeeded.length > 0) {
+        setSuccessMessage(
+          times.length > 1
+            ? `Created ${succeeded.length} of ${times.length} classes (${succeeded.join(", ")}).`
+            : "Class saved."
+        );
+      }
+      if (failed.length > 0) {
+        setFormError(`Couldn't create: ${failed.join("; ")}`);
+      }
+      if (failed.length === 0) {
+        setValues(emptyFormValues());
+        setCoverSuggested(false);
+        setHintDismissed(false);
+      }
       router.refresh();
     } catch {
       setFormError("Something went wrong. Please try again.");
@@ -506,14 +582,53 @@ export function ClassesView({
             />
           </FormField>
 
-          <FormField label="Start time" error={errors.startTime}>
-            <input
-              type="time"
-              value={values.startTime}
-              onChange={(e) => handleTextChange("startTime", e)}
-              className={inputClass(errors.startTime)}
-            />
-          </FormField>
+          <fieldset className="min-w-0">
+            <legend className="mb-2 block text-sm font-medium text-foreground">
+              {isEditing ? "Start time" : "Start time(s)"}
+            </legend>
+            <div className="space-y-2">
+              <input
+                type="time"
+                value={values.startTime}
+                onChange={(e) => handleTextChange("startTime", e)}
+                className={inputClass(errors.startTime)}
+              />
+              {!isEditing
+                ? values.additionalStartTimes.map((time, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={time}
+                        onChange={(e) => updateStartTime(i, e.target.value)}
+                        className={inputClass(errors.startTime)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeStartTime(i)}
+                        aria-label="Remove this time"
+                        className="shrink-0 rounded-lg p-2 text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden className="h-4 w-4">
+                          <path d="M6 6l12 12M18 6L6 18" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))
+                : null}
+            </div>
+            {errors.startTime ? (
+              <p className="mt-1.5 text-xs text-destructive">{errors.startTime}</p>
+            ) : null}
+            {!isEditing ? (
+              <button
+                type="button"
+                onClick={addStartTime}
+                className="mt-2 text-xs font-medium text-primary hover:text-primary/80"
+              >
+                + Add another time
+              </button>
+            ) : null}
+          </fieldset>
 
           <FormField label="Duration (minutes)" error={errors.durationMins}>
             <input
