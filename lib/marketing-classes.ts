@@ -18,7 +18,7 @@ export const MARKETING_CLASSES: MarketingClass[] = [
       "A supportive session for new parents to rebuild strength, improve movement, and train with their baby nearby.",
   },
   {
-    name: "Older Athletes",
+    name: "Mature Athletes",
     description:
       "Smart, resilient training for older adults who want to stay strong, mobile, and capable for the long term.",
   },
