@@ -12,6 +12,8 @@ export interface PhaseEstimate {
   trainingGuidance: string;
   intensityGuidance: string;
   recoveryGuidance: string;
+  /** One short sentence — for surfacing alongside the daily readiness score, distinct from the longer `explanation`. */
+  readinessNote: string;
 }
 
 type PhaseContent = {
@@ -20,6 +22,7 @@ type PhaseContent = {
   trainingGuidance: string;
   intensityGuidance: string;
   recoveryGuidance: string;
+  readinessNote: string;
 };
 
 const PHASE_CONTENT: Record<Exclude<PhaseName, "Unknown">, PhaseContent> = {
@@ -33,6 +36,8 @@ const PHASE_CONTENT: Record<Exclude<PhaseName, "Unknown">, PhaseContent> = {
       "Lower intensities tend to suit this phase. It is fine to reduce load if you feel you need to.",
     recoveryGuidance:
       "Prioritise sleep and hydration. Iron-rich foods can help support energy levels during menstruation.",
+    readinessNote:
+      "You're in your menstrual phase — lighter sessions are well tolerated today, and it's fine to ease off if you need to.",
   },
   Follicular: {
     label: "Follicular",
@@ -44,6 +49,8 @@ const PHASE_CONTENT: Record<Exclude<PhaseName, "Unknown">, PhaseContent> = {
       "Higher intensities may feel more achievable, though this differs between individuals. Use how you feel as your guide.",
     recoveryGuidance:
       "Standard recovery practices apply. Protein and sleep remain the key foundations.",
+    readinessNote:
+      "You're in your follicular phase — energy often trends upward here, a good window for a more demanding session.",
   },
   Ovulatory: {
     label: "Ovulatory",
@@ -54,6 +61,8 @@ const PHASE_CONTENT: Record<Exclude<PhaseName, "Unknown">, PhaseContent> = {
     intensityGuidance:
       "Peak output often feels accessible here. Warm up fully — some people experience slightly increased joint laxity around ovulation.",
     recoveryGuidance: "Fuel well around harder sessions to support recovery.",
+    readinessNote:
+      "You're in your ovulatory phase — many people feel their strongest and most coordinated around now.",
   },
   Luteal: {
     label: "Luteal",
@@ -65,6 +74,8 @@ const PHASE_CONTENT: Record<Exclude<PhaseName, "Unknown">, PhaseContent> = {
       "Perceived effort may feel higher for the same output. Match your effort to how you feel on the day rather than hitting fixed targets.",
     recoveryGuidance:
       "Extra recovery time often helps in this phase. Magnesium-rich foods may support sleep quality and muscle comfort.",
+    readinessNote:
+      "You're in your luteal phase — perceived effort can run higher than usual, so match intensity to how you feel today.",
   },
 };
 
@@ -85,6 +96,7 @@ export function estimatePhase(
       trainingGuidance: "—",
       intensityGuidance: "—",
       recoveryGuidance: "—",
+      readinessNote: "—",
     };
   }
 
@@ -110,6 +122,7 @@ export function estimatePhase(
       trainingGuidance: "—",
       intensityGuidance: "—",
       recoveryGuidance: "—",
+      readinessNote: "—",
     };
   }
 
@@ -141,5 +154,40 @@ export function estimatePhase(
     trainingGuidance: content.trainingGuidance,
     intensityGuidance: content.intensityGuidance,
     recoveryGuidance: content.recoveryGuidance,
+    readinessNote: content.readinessNote,
   };
+}
+
+export interface PhaseSegment {
+  phase: Exclude<PhaseName, "Unknown">;
+  label: string;
+  startDay: number;
+  endDay: number;
+  dayCount: number;
+}
+
+// Same day-range boundaries estimatePhase() uses to classify a cycleDay —
+// kept in one place so the visual chart can never drift from what the text
+// guidance says. A phase is omitted if the cycle is short enough to leave it
+// no days (e.g. a very short cycle can squeeze out the follicular phase).
+export function phaseSegments(cycleLength: number, periodLengthDays: number | null): PhaseSegment[] {
+  const periodLength = periodLengthDays ?? 5;
+  const midCycle = Math.round(cycleLength / 2);
+
+  const raw: { phase: Exclude<PhaseName, "Unknown">; start: number; end: number }[] = [
+    { phase: "Menstrual", start: 1, end: periodLength },
+    { phase: "Follicular", start: periodLength + 1, end: midCycle - 2 },
+    { phase: "Ovulatory", start: midCycle - 1, end: midCycle + 1 },
+    { phase: "Luteal", start: midCycle + 2, end: cycleLength },
+  ];
+
+  return raw
+    .map(({ phase, start, end }) => ({
+      phase,
+      label: PHASE_CONTENT[phase].label,
+      startDay: Math.max(1, start),
+      endDay: Math.min(cycleLength, end),
+    }))
+    .filter((seg) => seg.endDay >= seg.startDay)
+    .map((seg) => ({ ...seg, dayCount: seg.endDay - seg.startDay + 1 }));
 }

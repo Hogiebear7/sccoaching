@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import {
   findBookingsByUserId,
   findClassById,
+  findCycleSettingsByUserId,
   findProfileByUserId,
   findProgrammeByUserId,
   findRecoveryLogsByUserId,
@@ -12,6 +13,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
+import { estimatePhase } from "@/lib/cycle-phase";
 import {
   isPeriodLapsed,
   SUBSCRIPTION_STATUS_LABEL,
@@ -110,6 +112,19 @@ export default async function DashboardPage() {
   const subscriptionPlan = resolveSubscriptionEntitlement(subscription);
   const recoveryLogs = user ? findRecoveryLogsByUserId(user.id) : [];
   const latestRecoveryLog = recoveryLogs[0];
+
+  const cycleSettings =
+    user && profile?.cycleTrackingEligible && profile.cycleTrackingEnabled
+      ? findCycleSettingsByUserId(user.id)
+      : undefined;
+  const phaseEstimate = cycleSettings
+    ? estimatePhase(
+        cycleSettings.lastPeriodStartDate,
+        cycleSettings.averageCycleLengthDays,
+        cycleSettings.periodLengthDays,
+        cycleSettings.regularity
+      )
+    : null;
 
   // Readiness module data — all from the member's own logs.
   const todayISO = new Date().toISOString().slice(0, 10);
@@ -343,6 +358,11 @@ export default async function DashboardPage() {
                       <p className="mt-1 max-w-[34ch] text-[12px] leading-relaxed text-zinc-500">
                         {readinessGuidance(todayReadiness)}
                       </p>
+                      {phaseEstimate && phaseEstimate.phase !== "Unknown" ? (
+                        <p className="mt-1 max-w-[34ch] text-[12px] leading-relaxed text-zinc-500">
+                          {phaseEstimate.readinessNote}
+                        </p>
+                      ) : null}
                     </>
                   ) : (
                     <>
@@ -350,6 +370,11 @@ export default async function DashboardPage() {
                       <p className="mt-1 max-w-[34ch] text-[12px] leading-relaxed text-zinc-500">
                         Log today&apos;s recovery to get a readiness score and session guidance.
                       </p>
+                      {phaseEstimate && phaseEstimate.phase !== "Unknown" ? (
+                        <p className="mt-1 max-w-[34ch] text-[12px] leading-relaxed text-zinc-500">
+                          {phaseEstimate.readinessNote}
+                        </p>
+                      ) : null}
                       <Link href="/dashboard/recovery" className="mt-2 inline-block text-[12px] font-medium text-primary hover:text-[var(--primary-hover)]">
                         Log recovery →
                       </Link>
@@ -361,7 +386,7 @@ export default async function DashboardPage() {
             {hasTrend && (
               <div className="shrink-0 text-right">
                 <ReadinessSparkline series={readinessTrend} />
-                <p className="mt-1 text-[10px] text-zinc-600">14 days</p>
+                <p className="mt-1 text-[10px] text-zinc-600">Readiness · 14d trend</p>
               </div>
             )}
           </div>

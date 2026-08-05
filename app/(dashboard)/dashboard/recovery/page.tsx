@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
-import { findRecoveryLogsByUserId, findUserById } from "@/lib/db";
+import { findCycleSettingsByUserId, findProfileByUserId, findRecoveryLogsByUserId, findUserById } from "@/lib/db";
+import { estimatePhase } from "@/lib/cycle-phase";
 import { computeRollingTrainingLoad, readinessGuidance } from "@/lib/recovery";
 import { verifySession } from "@/lib/session";
 import { RecoveryView } from "./RecoveryView";
@@ -29,6 +30,20 @@ export default async function DashboardRecoveryPage() {
   const latestLog = logs[0] ?? null;
   const rollingLoad = computeRollingTrainingLoad(logs);
 
+  const profile = findProfileByUserId(user.id);
+  const cycleSettings =
+    profile?.cycleTrackingEligible && profile.cycleTrackingEnabled
+      ? findCycleSettingsByUserId(user.id)
+      : undefined;
+  const phaseEstimate = cycleSettings
+    ? estimatePhase(
+        cycleSettings.lastPeriodStartDate,
+        cycleSettings.averageCycleLengthDays,
+        cycleSettings.periodLengthDays,
+        cycleSettings.regularity
+      )
+    : null;
+
   return (
     <RecoveryView
       logs={logs}
@@ -39,6 +54,8 @@ export default async function DashboardRecoveryPage() {
           : null
       }
       rollingLoad={rollingLoad}
+      phaseEstimate={phaseEstimate}
+      periodLengthDays={cycleSettings?.periodLengthDays ?? null}
     />
   );
 }

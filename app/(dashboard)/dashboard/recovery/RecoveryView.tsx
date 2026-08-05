@@ -7,6 +7,8 @@ import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import type { RecoveryLogRecord } from "@/lib/db";
 import { ReadinessRing } from "@/components/ui/ReadinessRing";
 import { ScoreHelp } from "@/components/ui/ScoreHelp";
+import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
+import type { PhaseEstimate } from "@/lib/cycle-phase";
 import { intensityMix, weeklyTrainingSummary } from "@/lib/progress";
 import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
 
@@ -67,11 +69,16 @@ export function RecoveryView({
   latestReadinessScore,
   latestGuidance,
   rollingLoad,
+  phaseEstimate,
+  periodLengthDays,
 }: {
   logs: RecoveryLogRecord[];
   latestReadinessScore: number | null;
   latestGuidance: string | null;
   rollingLoad: { sevenDaySum: number; sevenDayAverage: number; daysWithLoad: number };
+  /** Only passed when the member is cycle-tracking eligible + has it enabled. */
+  phaseEstimate: PhaseEstimate | null;
+  periodLengthDays: number | null;
 }) {
   const router = useRouter();
   const [values, setValues] = useState<RecoveryFormValues>(() => emptyFormValues());
@@ -175,6 +182,11 @@ export function RecoveryView({
               <p className="mt-1.5 text-sm leading-relaxed text-zinc-300">
                 {latestGuidance ?? "Log today's check-in below to get guidance."}
               </p>
+              {phaseEstimate && phaseEstimate.phase !== "Unknown" ? (
+                <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">
+                  {phaseEstimate.readinessNote}
+                </p>
+              ) : null}
               <ScoreHelp>
                 Readiness scores today&apos;s check-in out of 100 — sleep hours, sleep quality,
                 soreness, and fatigue each contribute up to 25 points. Higher means you&apos;re
@@ -398,6 +410,13 @@ export function RecoveryView({
           </div>
         </form>
       </div>
+
+      {/* Cycle phase — only rendered for members with cycle tracking on and
+          enough data for an estimate; same card/data source as the Cycle
+          page so the two can't say different things. */}
+      {phaseEstimate ? (
+        <CyclePhaseCard phaseEstimate={phaseEstimate} periodLengthDays={periodLengthDays} />
+      ) : null}
 
       {/* Progress — Training Weeks and Intensity Mix grouped as one band
           with a single header, side by side on wider screens. */}
