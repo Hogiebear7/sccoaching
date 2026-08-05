@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getConfiguredContactNotifyEmail } from "@/lib/app-config";
 import { createClient } from "@/lib/supabase/server";
 import { contactInquiryEmail } from "@/lib/email-templates";
 import { sendEmail } from "@/lib/email";
@@ -7,7 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 
 const CONTACT_RATE_LIMIT = 3;
 const CONTACT_RATE_WINDOW_MS = 10 * 60 * 1000;
-const NOTIFY_EMAIL = process.env.CONTACT_NOTIFY_EMAIL?.trim() || "hello@scperformancecoaching.ie";
+const NOTIFY_EMAIL = getConfiguredContactNotifyEmail() || "info@sandccoaching.com";
 
 const GENERIC_SUCCESS = { success: true, message: "Thanks — we'll be in touch shortly." };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

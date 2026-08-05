@@ -1,9 +1,9 @@
 import { Resend } from "resend";
 
-import { getConfiguredAppUrl } from "@/lib/app-config";
+import { getConfiguredAppUrl, getConfiguredEmailFrom, getConfiguredResendApiKey } from "@/lib/app-config";
 
-const apiKey = process.env.RESEND_API_KEY?.trim() || null;
-const fromAddress = process.env.EMAIL_FROM?.trim() || "onboarding@resend.dev";
+const apiKey = getConfiguredResendApiKey() || null;
+const fromAddress = getConfiguredEmailFrom() || "onboarding@resend.dev";
 
 // Lazily initialised — only when an API key is present. This means the module
 // is safe to import in any context without side effects when email is unconfigured.

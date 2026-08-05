@@ -16,6 +16,9 @@ interface AppConfig {
   anthropicApiKey?: string;
   stripeSecretKey?: string;
   stripeWebhookSecret?: string;
+  resendApiKey?: string;
+  emailFrom?: string;
+  contactNotifyEmail?: string;
 }
 
 let cached: AppConfig | null = null;
@@ -41,6 +44,9 @@ function loadAppConfig(): AppConfig {
     if (key === "anthropicApiKey") config.anthropicApiKey = value;
     if (key === "stripeSecretKey") config.stripeSecretKey = value;
     if (key === "stripeWebhookSecret") config.stripeWebhookSecret = value;
+    if (key === "resendApiKey") config.resendApiKey = value;
+    if (key === "emailFrom") config.emailFrom = value;
+    if (key === "contactNotifyEmail") config.contactNotifyEmail = value;
   }
 
   cached = config;
@@ -69,4 +75,16 @@ export function getConfiguredStripeSecretKey(): string | undefined {
 
 export function getConfiguredStripeWebhookSecret(): string | undefined {
   return process.env.STRIPE_WEBHOOK_SECRET?.trim() || loadAppConfig().stripeWebhookSecret;
+}
+
+export function getConfiguredResendApiKey(): string | undefined {
+  return process.env.RESEND_API_KEY?.trim() || loadAppConfig().resendApiKey;
+}
+
+export function getConfiguredEmailFrom(): string | undefined {
+  return process.env.EMAIL_FROM?.trim() || loadAppConfig().emailFrom;
+}
+
+export function getConfiguredContactNotifyEmail(): string | undefined {
+  return process.env.CONTACT_NOTIFY_EMAIL?.trim() || loadAppConfig().contactNotifyEmail;
 }
