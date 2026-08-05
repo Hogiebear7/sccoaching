@@ -10,7 +10,7 @@ Fill in **Owner** and **Evidence of completion** as each item is done.
 | ☐ | Rotate `SESSION_SECRET`, `STRIPE_SECRET_KEY` (live-mode, not test), `ANTHROPIC_API_KEY` (if AI coach is enabled) | | |
 | ☐ | Confirm deployment runs as one persistent Node process (`next build && next start` behind a process manager) — not default serverless | | |
 | ☐ | Confirm `data/` is on storage that survives redeploys/restarts, with scheduled backups | | |
-| ☐ | Set required env vars: `SESSION_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `APP_BASE_URL`, `APP_URL`, `CRON_SECRET` | | |
+| ☐ | Set required env vars: `SESSION_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `APP_URL` (also drives Stripe checkout redirects), `CRON_SECRET` | | |
 | ☐ | Set feature env vars as needed: `RESEND_API_KEY` + `EMAIL_FROM` (verified sending domain, not the sandbox address), `ANTHROPIC_API_KEY`, `VAPID_*` keys | | |
 | ☐ | Confirm no `REVOLUT_*` env vars are set | | |
 | ☐ | Deploy to production | | |

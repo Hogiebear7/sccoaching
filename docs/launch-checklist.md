@@ -23,9 +23,9 @@ in the codebase blocks them.
   `customer.subscription.deleted`.
   (`invoice.payment_succeeded` is also handled if delivered, but does not
   need separate registration.)
-- ☐ Set `APP_BASE_URL=https://<domain>` — Stripe checkout success/cancel
-  redirects are built from it. If unset, members return to localhost after
-  paying.
+- ☐ Set `APP_URL=https://<domain>` — Stripe checkout success/cancel
+  redirects are built from it (same var as email action links). If unset,
+  members return to localhost after paying.
 - Signature verification, event-id dedupe, out-of-order guards and
   entitlement idempotency are code-side and already verified (see §5).
 
@@ -43,7 +43,7 @@ in the codebase blocks them.
 ## 4. Environment variables for production
 
 Required: `SESSION_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-`APP_BASE_URL`, `APP_URL` (email links), `CRON_SECRET`.
+`APP_URL` (email links and Stripe checkout redirects), `CRON_SECRET`.
 
 Feature-gated (app degrades honestly without them): `ANTHROPIC_API_KEY`
 (AI coach), `RESEND_API_KEY` + `EMAIL_FROM` (real email — the resend.dev

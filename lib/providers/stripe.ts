@@ -13,7 +13,7 @@
 //  - metadata carries the internal purchase id on both the session and the
 //    PaymentIntent, which is how refunds are correlated back.
 
-import { getConfiguredStripeSecretKey } from "@/lib/app-config";
+import { getConfiguredAppUrl, getConfiguredStripeSecretKey } from "@/lib/app-config";
 
 const STRIPE_API_BASE = "https://api.stripe.com/v1";
 
@@ -31,7 +31,7 @@ function getCurrency(): string {
 }
 
 function getAppBaseUrl(): string {
-  return (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  return (getConfiguredAppUrl() ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
 type StripeOk = { ok: true; sessionId: string; checkoutUrl: string };

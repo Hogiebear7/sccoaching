@@ -10,7 +10,8 @@ properties.
 Stripe is the **primary provider** (`activeBillingProvider()` in
 lib/billing.ts picks Stripe when `STRIPE_SECRET_KEY` is set; Revolut remains
 a configured fallback). Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-(whsec_), optional `STRIPE_CURRENCY` (default eur), `APP_BASE_URL`.
+(whsec_), optional `STRIPE_CURRENCY` (default eur), `APP_URL` (checkout
+success/cancel redirects — same var used for email action links).
 
 **Correct Stripe usage implemented:**
 - Memberships → Checkout Sessions in `subscription` mode (inline recurring
