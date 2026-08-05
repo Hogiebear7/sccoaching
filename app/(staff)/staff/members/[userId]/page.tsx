@@ -14,6 +14,7 @@ import {
   findMembershipPackages,
   findMessagesByMemberId,
   findProfileByUserId,
+  markMemberMessagesReadByStaff,
   findProgrammeByUserId,
   findRecoveryLogsByUserId,
   findSubscriptionByUserId,
@@ -91,6 +92,9 @@ export default async function StaffMemberDetailPage({
   const sessions = findWorkoutSessionsByUserId(user.id);
   const coachNote = findCoachNoteByUserId(user.id);
   const recoveryLogs = findRecoveryLogsByUserId(user.id).slice(0, 7);
+  // Opening this page is the staff "I've seen it" signal for their thread —
+  // mirrors how the member-side notification bell marks things read on open.
+  markMemberMessagesReadByStaff(user.id);
   const messages = findMessagesByMemberId(user.id);
   const packages = findMembershipPackages().filter((pkg) => pkg.visible);
   const subscription = findSubscriptionByUserId(user.id);
@@ -427,7 +431,7 @@ export default async function StaffMemberDetailPage({
       </div>
 
       {/* Messages */}
-      <div className="panel p-6">
+      <div id="messages" className="panel scroll-mt-6 p-6">
         <h3 className="text-lg font-semibold">Messages</h3>
         <p className="mt-2 text-sm text-muted-foreground">
           Conversation with {profile?.fullName ?? user.email}.

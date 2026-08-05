@@ -3,7 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { findUserById } from "@/lib/db";
+import { countUnreadMessagesForStaff, findUserById } from "@/lib/db";
 import { BRAND_NAME } from "@/lib/content";
 import { can, NAV_CAPABILITY, type Capability } from "@/lib/permissions";
 import { verifySession } from "@/lib/session";
@@ -18,6 +18,7 @@ const navItems: { label: string; href: string; capability: Capability }[] = [
   { label: "Operations",  href: "/staff/operations",  capability: NAV_CAPABILITY["/staff/operations"] },
   { label: "Classes",     href: "/staff/classes",     capability: NAV_CAPABILITY["/staff/classes"] },
   { label: "Members",     href: "/staff/members",     capability: NAV_CAPABILITY["/staff/members"] },
+  { label: "Messages",    href: "/staff/messages",    capability: NAV_CAPABILITY["/staff/messages"] },
   { label: "Membership/Class Options", href: "/staff/catalog", capability: NAV_CAPABILITY["/staff/catalog"] },
   { label: "Exercises",   href: "/staff/exercises",   capability: NAV_CAPABILITY["/staff/exercises"] },
   { label: "Staff users", href: "/staff/staff-users", capability: NAV_CAPABILITY["/staff/staff-users"] },
@@ -37,6 +38,7 @@ export default async function StaffLayout({ children }: { children: ReactNode })
   }
 
   const visibleNav = navItems.filter((item) => can(user.role, item.capability));
+  const unreadMessages = can(user.role, "members.view") ? countUnreadMessagesForStaff() : 0;
 
   return (
     <div className="min-h-screen bg-black text-foreground">
@@ -58,7 +60,16 @@ export default async function StaffLayout({ children }: { children: ReactNode })
               <ul className="space-y-2">
                 {visibleNav.map((item) => (
                   <li key={item.href}>
-                    <NavLink href={item.href}>{item.label}</NavLink>
+                    <NavLink
+                      href={item.href}
+                      tag={
+                        item.href === "/staff/messages" && unreadMessages > 0
+                          ? { label: String(unreadMessages), tone: "primary" }
+                          : undefined
+                      }
+                    >
+                      {item.label}
+                    </NavLink>
                   </li>
                 ))}
               </ul>

@@ -1446,6 +1446,58 @@ export function createMessage(message: MessageRecord) {
   writeDb(db);
 }
 
+export interface MessageThreadSummary {
+  memberId: string;
+  lastMessage: MessageRecord;
+  unreadFromMemberCount: number;
+}
+
+// One row per member who has ever messaged/been messaged, newest thread
+// first — the staff-facing inbox (previously the only way to notice a new
+// member message was to open that member's profile and scroll down).
+export function findMessageThreadSummaries(): MessageThreadSummary[] {
+  const db = readDb();
+  const byMember = new Map<string, MessageRecord[]>();
+
+  for (const message of db.messages) {
+    const list = byMember.get(message.memberId);
+    if (list) list.push(message);
+    else byMember.set(message.memberId, [message]);
+  }
+
+  const summaries: MessageThreadSummary[] = [];
+  for (const [memberId, thread] of byMember) {
+    thread.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    summaries.push({
+      memberId,
+      lastMessage: thread[thread.length - 1],
+      unreadFromMemberCount: thread.filter((m) => m.senderRole === "member" && m.readAt === null)
+        .length,
+    });
+  }
+
+  return summaries.sort((a, b) => b.lastMessage.createdAt.localeCompare(a.lastMessage.createdAt));
+}
+
+export function countUnreadMessagesForStaff(): number {
+  const db = readDb();
+  return db.messages.filter((m) => m.senderRole === "member" && m.readAt === null).length;
+}
+
+// Called when staff open a member's thread — mirrors markAllNotificationsRead.
+export function markMemberMessagesReadByStaff(memberId: string) {
+  const db = readDb();
+  const now = new Date().toISOString();
+  let changed = false;
+  for (const m of db.messages) {
+    if (m.memberId === memberId && m.senderRole === "member" && m.readAt === null) {
+      m.readAt = now;
+      changed = true;
+    }
+  }
+  if (changed) writeDb(db);
+}
+
 // Active states — the entry is still relevant to capacity and queue position.
 // Terminal states (accepted, rejected, expired, removed) are kept for audit
 // and purged later by the cleanup job.
