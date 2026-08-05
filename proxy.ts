@@ -48,17 +48,22 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // Next.js's default full-route cache sets a year-long Cache-Control on
+  // statically-rendered pages (anything with no server-side dynamic data —
+  // e.g. /signup, /login), assuming the host ties cache invalidation to
+  // each deployment the way Vercel's Edge Network does. Hostinger's hosting
+  // doesn't: after a redeploy replaced the JS chunk files, the CDN kept
+  // serving a cached HTML shell referencing the old (now-deleted) chunk
+  // filenames, so every visitor hit a hard hydration failure ("That didn't
+  // work"). Forcing no-store here overrides that for every page this proxy
+  // runs on (see the broadened matcher below) — /_next/static assets are
+  // excluded there since those are content-hashed and safe to cache forever.
+  response.headers.set("Cache-Control", "no-store, must-revalidate");
+  return response;
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/staff/:path*",
-    "/login",
-    "/signup",
-    "/app/:path*",
-    "/admin/:path*",
-    "/admin-mobile/:path*",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
