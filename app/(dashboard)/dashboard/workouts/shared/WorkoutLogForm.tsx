@@ -6,7 +6,7 @@ import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { ExerciseRecord } from "@/lib/db";
 import { ExerciseAutocomplete } from "./ExerciseAutocomplete";
-import { livePace, parseDuration, todayDateString } from "./formatters";
+import { formatAsKg, formatAsMmSs, livePace, parseDuration, todayDateString } from "./formatters";
 
 // --- Types ---
 
@@ -31,6 +31,10 @@ type ExerciseRow = {
   notes: string;
   /** Per-set weight/reps rows; empty = one shared value for every set. */
   setRows: SetRow[];
+  /** Input-assistance only — controls what typed numbers auto-format to on
+      blur ("60" → "60 kg" vs "130" → "1:30"). The stored value is always
+      just the same free-text `weight` field either way. */
+  unitMode: "weight" | "time";
 };
 
 type RunRow = {
@@ -48,7 +52,17 @@ function emptyFormValues(): WorkoutFormValues {
 }
 
 function newRow(): ExerciseRow {
-  return { key: crypto.randomUUID(), exerciseId: null, name: "", weight: "", reps: "", sets: "", notes: "", setRows: [] };
+  return {
+    key: crypto.randomUUID(),
+    exerciseId: null,
+    name: "",
+    weight: "",
+    reps: "",
+    sets: "",
+    notes: "",
+    setRows: [],
+    unitMode: "weight",
+  };
 }
 
 function newRunRow(): RunRow {
@@ -315,14 +329,49 @@ export function WorkoutLogForm({
 
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-foreground">
-                        Weight / time
-                      </label>
+                      <div className="mb-1.5 flex items-center justify-between gap-1">
+                        <label className="block text-xs font-medium text-foreground">
+                          {row.unitMode === "time" ? "Time" : "Weight"}
+                        </label>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => updateRow(row.key, { unitMode: "weight" })}
+                            aria-pressed={row.unitMode === "weight"}
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold transition ${
+                              row.unitMode === "weight"
+                                ? "bg-primary/15 text-primary"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            kg
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateRow(row.key, { unitMode: "time" })}
+                            aria-pressed={row.unitMode === "time"}
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold transition ${
+                              row.unitMode === "time"
+                                ? "bg-primary/15 text-primary"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            time
+                          </button>
+                        </div>
+                      </div>
                       <input
                         type="text"
                         value={row.weight}
                         onChange={(e) => updateRow(row.key, { weight: e.target.value })}
-                        placeholder="e.g. 60 kg"
+                        onBlur={(e) => {
+                          const formatted =
+                            row.unitMode === "time"
+                              ? formatAsMmSs(e.target.value)
+                              : formatAsKg(e.target.value);
+                          if (formatted !== e.target.value) updateRow(row.key, { weight: formatted });
+                        }}
+                        placeholder={row.unitMode === "time" ? "e.g. 1:30" : "e.g. 60"}
                         className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
                       />
                     </div>

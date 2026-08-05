@@ -21,14 +21,9 @@ export function ExerciseLookupPanel({
     [sessions, lookupQuery]
   );
 
-  const latestMatch = lookupResults[0] ?? null;
-  const latestMatchParts = latestMatch
-    ? [
-        latestMatch.sets ? `${latestMatch.sets} sets` : null,
-        latestMatch.reps ? `${latestMatch.reps} reps` : null,
-        latestMatch.weight ?? null,
-      ].filter((x): x is string => Boolean(x))
-    : [];
+  // Newest first, most recent 3 instances only — this is a "what did I just
+  // do" lookup, not a full history browser (that's the History list below).
+  const recentMatches = [...lookupResults].reverse().slice(0, 3);
 
   return (
     <div className={className}>
@@ -42,35 +37,49 @@ export function ExerciseLookupPanel({
       />
       {lookupQuery.trim() === "" ? (
         <p className="mt-3 text-sm text-muted-foreground">
-          Type an exercise name to see your last performance.
+          Type an exercise name to see your last performances.
         </p>
-      ) : latestMatch === null ? (
+      ) : recentMatches.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">
           No history found for &ldquo;{lookupQuery.trim()}&rdquo;.
         </p>
       ) : (
         <div className="mt-3">
           <p className="text-xs text-muted-foreground">
-            Last performed &mdash;{" "}
-            {lookupResults.length === 1 ? "1 entry" : `${lookupResults.length} entries`} found
+            Last {recentMatches.length === 1 ? "performance" : `${recentMatches.length} performances`}
+            {lookupResults.length > recentMatches.length
+              ? ` (of ${lookupResults.length} logged)`
+              : ""}
           </p>
-          <div className="mt-2 rounded-lg border border-border bg-secondary/20 p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">{latestMatch.date}</p>
-                <p className="mt-0.5 text-sm font-medium text-foreground">
-                  {latestMatch.sessionTitle}
-                </p>
-                {latestMatch.notes && (
-                  <p className="mt-1 text-xs text-muted-foreground">{latestMatch.notes}</p>
-                )}
-              </div>
-              {latestMatchParts.length > 0 && (
-                <p className="shrink-0 text-sm font-semibold text-foreground">
-                  {latestMatchParts.join(" · ")}
-                </p>
-              )}
-            </div>
+          <div className="mt-2 space-y-2">
+            {recentMatches.map((entry, i) => {
+              const parts = [
+                entry.sets ? `${entry.sets} sets` : null,
+                entry.reps ? `${entry.reps} reps` : null,
+                entry.weight ?? null,
+              ].filter((x): x is string => Boolean(x));
+
+              return (
+                <div key={i} className="rounded-lg border border-border bg-secondary/20 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{entry.name}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {entry.date} · {entry.sessionTitle}
+                      </p>
+                      {entry.notes && (
+                        <p className="mt-1 text-xs text-muted-foreground">{entry.notes}</p>
+                      )}
+                    </div>
+                    {parts.length > 0 && (
+                      <p className="shrink-0 text-sm font-semibold text-foreground">
+                        {parts.join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

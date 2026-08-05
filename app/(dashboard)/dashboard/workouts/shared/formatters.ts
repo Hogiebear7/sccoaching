@@ -54,6 +54,25 @@ export function livePace(distanceRaw: string, distanceUnit: "km" | "m", duration
   return `${Math.floor(paceSecs / 60)}:${String(paceSecs % 60).padStart(2, "0")} /km`;
 }
 
+// On-blur auto-format helpers for the exercise log form's Weight/Time toggle
+// (see WorkoutLogForm.tsx). Purely an input-assistance nicety — the stored
+// value is still just a free-text string either way, so a value that's
+// already formatted or non-numeric is left untouched.
+export function formatAsKg(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  return /^\d+(\.\d+)?$/.test(trimmed) ? `${trimmed} kg` : trimmed;
+}
+
+export function formatAsMmSs(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.includes(":")) return trimmed;
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return trimmed;
+  if (digits.length <= 2) return `0:${digits.padStart(2, "0")}`;
+  return `${Number(digits.slice(0, -2))}:${digits.slice(-2)}`;
+}
+
 export function formatRun(run: WorkoutRunEntry): string {
   const parts: string[] = [];
   if (run.distance !== null) parts.push(`${run.distance} ${run.distanceUnit}`);
