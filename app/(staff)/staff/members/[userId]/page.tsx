@@ -21,6 +21,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
+import { estimatePhase } from "@/lib/cycle-phase";
 import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { describeDrinkSettings } from "@/lib/drink-settings";
@@ -28,20 +29,20 @@ import { formatMembershipDate } from "@/lib/membership-status";
 import { buildDrinkMix, buildDrinkPlan } from "@/lib/nutrition";
 import { purchasedPassBalance } from "@/lib/payments";
 import { classPassBalance } from "@/lib/scheduling-status";
+import { formatExerciseLoad } from "@/lib/workout-entries";
+import { formatRun } from "@/app/(dashboard)/dashboard/workouts/shared/formatters";
+import {
+  computePersonalBests,
+  findPersonalBestByKeywords,
+  TRACKED_PERSONAL_BEST_EXERCISES,
+} from "@/lib/workouts";
 import { MessagesThread } from "@/components/messages/MessagesThread";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
 import { MemberAccountPanel } from "@/components/staff/MemberAccountPanel";
 import { MembershipStatusPanel } from "@/components/staff/MembershipStatusPanel";
+import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
 import { DietaryRequirementsSummary } from "@/components/profile/DietaryRequirementsSummary";
 import { StaffMemberEditor } from "./StaffMemberEditor";
-
-function approximateCycleDay(lastPeriodStartDate: string, averageCycleLengthDays: number): number {
-  const diffDays = Math.floor(
-    (Date.now() - new Date(lastPeriodStartDate).getTime()) / 86_400_000
-  );
-  if (diffDays < 0) return 1;
-  return (diffDays % averageCycleLengthDays) + 1;
-}
 
 function CycleInfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -88,8 +89,17 @@ export default async function StaffMemberDetailPage({
   const cyclePrivacy = profile?.cycleTrackingEligible
     ? findCyclePrivacyByUserId(user.id)
     : undefined;
+  const phaseEstimate = cycleSettings
+    ? estimatePhase(
+        cycleSettings.lastPeriodStartDate,
+        cycleSettings.averageCycleLengthDays,
+        cycleSettings.periodLengthDays,
+        cycleSettings.regularity
+      )
+    : null;
   const programme = findProgrammeByUserId(user.id);
   const sessions = findWorkoutSessionsByUserId(user.id);
+  const personalBests = computePersonalBests(sessions);
   const coachNote = findCoachNoteByUserId(user.id);
   const recoveryLogs = findRecoveryLogsByUserId(user.id).slice(0, 7);
   // Opening this page is the staff "I've seen it" signal for their thread —
@@ -278,10 +288,10 @@ export default async function StaffMemberDetailPage({
                 </p>
               ) : null}
               {cyclePrivacy.shareCurrentPhaseWithCoach ? (
-                cycleSettings?.lastPeriodStartDate && cycleSettings.averageCycleLengthDays ? (
-                  <CycleInfoRow
-                    label="Approx. cycle day"
-                    value={`Day ${approximateCycleDay(cycleSettings.lastPeriodStartDate, cycleSettings.averageCycleLengthDays)} of ~${cycleSettings.averageCycleLengthDays}`}
+                phaseEstimate && phaseEstimate.phase !== "Unknown" ? (
+                  <CyclePhaseCard
+                    phaseEstimate={phaseEstimate}
+                    periodLengthDays={cycleSettings?.periodLengthDays ?? null}
                   />
                 ) : (
                   <CycleInfoRow label="Approx. cycle day" value="Not enough data to estimate" />
@@ -332,6 +342,46 @@ export default async function StaffMemberDetailPage({
         )}
       </div>
 
+      {/* Personal bests — fixed set of movements coaches care about most;
+          matched loosely against whatever the member actually typed, since
+          there's no canonical exercise-library entry enforced. */}
+      <div className="panel p-6">
+        <h3 className="text-lg font-semibold">Personal bests</h3>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {TRACKED_PERSONAL_BEST_EXERCISES.map(({ label, keywords }) => {
+            const best = findPersonalBestByKeywords(personalBests, keywords);
+            return (
+              <div key={label} className="well p-4">
+                <p className="text-sm font-medium">{label}</p>
+                {!best ? (
+                  <p className="mt-1 text-sm text-muted-foreground">No data yet.</p>
+                ) : (
+                  <div className="mt-1 space-y-0.5">
+                    {best.heaviestWeight ? (
+                      <p className="text-sm text-foreground">
+                        {best.heaviestWeight.weightStr}
+                        {best.heaviestWeight.reps !== null ? ` × ${best.heaviestWeight.reps}` : ""}
+                        <span className="ml-1.5 text-xs text-muted-foreground">
+                          {best.heaviestWeight.date}
+                        </span>
+                      </p>
+                    ) : null}
+                    {best.highestReps ? (
+                      <p className="text-sm text-foreground">
+                        {best.highestReps.reps} reps
+                        <span className="ml-1.5 text-xs text-muted-foreground">
+                          {best.highestReps.date}
+                        </span>
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Workout history */}
       <div className="panel p-6">
         <h3 className="text-lg font-semibold">Workout history</h3>
@@ -349,8 +399,33 @@ export default async function StaffMemberDetailPage({
                 {session.notes ? (
                   <p className="mt-2 text-sm text-muted-foreground">{session.notes}</p>
                 ) : null}
+                {session.exercises.length > 0 || session.runs.length > 0 ? (
+                  <div className="mt-3 space-y-1 border-t border-border pt-3">
+                    {session.exercises.map((ex, i) => {
+                      const load = formatExerciseLoad(ex);
+                      return (
+                        <div key={i} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                          <span className="font-medium text-foreground">{ex.name}</span>
+                          {load ? <span className="text-xs text-muted-foreground">{load}</span> : null}
+                          {ex.notes ? (
+                            <span className="text-xs text-muted-foreground">— {ex.notes}</span>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                    {session.runs.map((run, i) => (
+                      <div key={`run-${i}`} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                        <span className="font-medium text-foreground">Run</span>
+                        <span className="text-xs text-muted-foreground">{formatRun(run)}</span>
+                        {run.notes ? (
+                          <span className="text-xs text-muted-foreground">— {run.notes}</span>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 {session.durationMins !== null ? (
-                  <span className="mt-2 inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+                  <span className="mt-3 inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
                     {session.durationMins} min
                   </span>
                 ) : null}
@@ -381,6 +456,19 @@ export default async function StaffMemberDetailPage({
                         Sleep {log.sleepHours}h · Quality {log.sleepQuality}/10 · Soreness{" "}
                         {log.soreness}/10 · Fatigue {log.fatigue}/5
                       </p>
+                      {log.trainingDurationMins !== null || log.rpe !== null ? (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {log.trainingDurationMins !== null ? `${log.trainingDurationMins} min` : null}
+                          {log.trainingDurationMins !== null && log.rpe !== null ? " · " : null}
+                          {log.rpe !== null ? `RPE ${log.rpe}` : null}
+                        </p>
+                      ) : null}
+                      {log.goal ? (
+                        <p className="mt-1 text-sm text-muted-foreground">Goal: {log.goal}</p>
+                      ) : null}
+                      {log.notes ? (
+                        <p className="mt-1 text-sm text-muted-foreground">Notes: {log.notes}</p>
+                      ) : null}
                       {log.readinessScore !== null ? (
                         <p className="mt-2 text-xs text-muted-foreground">
                           {readinessGuidance(log.readinessScore)}

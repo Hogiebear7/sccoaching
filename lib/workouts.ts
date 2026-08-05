@@ -2,6 +2,8 @@ import type { ExerciseSection, WorkoutSessionRecord } from "@/lib/db";
 
 export interface ExerciseHistoryEntry {
   date: string;
+  /** The exercise's own logged name — not the workout session's title. */
+  name: string;
   sessionTitle: string;
   sets: number | null;
   reps: number | null;
@@ -34,6 +36,7 @@ export function findExerciseHistory(
       if (ex.name.toLowerCase().includes(normalized)) {
         entries.push({
           date: session.date,
+          name: ex.name,
           sessionTitle: session.title,
           sets: ex.sets,
           reps: ex.reps,
@@ -105,6 +108,26 @@ export function computePersonalBests(sessions: WorkoutSessionRecord[]): Personal
   }
 
   return result.sort((a, b) => a.exerciseName.localeCompare(b.exerciseName));
+}
+
+// The 5 movements coaches most often want a quick PB read on (staff member
+// detail page). Matched loosely by keyword rather than an exact name, since
+// there's no enforced canonical exercise-library entry — members log
+// "Back Squat", "Barbell Back Squat", "BB Squat", etc. interchangeably.
+export const TRACKED_PERSONAL_BEST_EXERCISES: { label: string; keywords: string[] }[] = [
+  { label: "Back Squat", keywords: ["squat"] },
+  { label: "Bench Press", keywords: ["bench"] },
+  { label: "Lunge", keywords: ["lunge"] },
+  { label: "Push Up", keywords: ["push up", "push-up", "pushup"] },
+  { label: "Front Plank", keywords: ["plank"] },
+];
+
+export function findPersonalBestByKeywords(
+  bests: PersonalBest[],
+  keywords: string[]
+): PersonalBest | null {
+  const lower = keywords.map((k) => k.toLowerCase());
+  return bests.find((b) => lower.some((k) => b.exerciseName.toLowerCase().includes(k))) ?? null;
 }
 
 export interface ExerciseTrendPoint {
