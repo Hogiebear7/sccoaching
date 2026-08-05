@@ -432,7 +432,12 @@ export default async function StaffMemberDetailPage({
 
       {/* Messages */}
       <div id="messages" className="panel scroll-mt-6 p-6">
-        <h3 className="text-lg font-semibold">Messages</h3>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-lg font-semibold">Messages</h3>
+          <Link href="/staff/messages" className="text-sm text-gold transition hover:text-gold/80">
+            ← Back to Messages
+          </Link>
+        </div>
         <p className="mt-2 text-sm text-muted-foreground">
           Conversation with {profile?.fullName ?? user.email}.
         </p>

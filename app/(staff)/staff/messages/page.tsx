@@ -72,7 +72,7 @@ export default async function StaffMessagesPage() {
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className={`text-sm font-semibold ${isUnread ? "text-foreground" : "text-foreground/80"}`}>
+                    <p className={`text-sm ${isUnread ? "font-bold text-foreground" : "font-medium text-foreground/80"}`}>
                       {s.memberName ?? s.memberEmail}
                     </p>
                     {s.memberArchived ? (
@@ -83,7 +83,7 @@ export default async function StaffMessagesPage() {
                   </div>
                   <p
                     className={`mt-1 max-w-xl truncate text-sm ${
-                      isUnread ? "text-foreground" : "text-muted-foreground"
+                      isUnread ? "font-semibold text-foreground" : "font-normal text-muted-foreground"
                     }`}
                   >
                     {s.lastMessage.senderRole === "staff" ? "You: " : ""}

@@ -3,11 +3,12 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { countUnreadMessagesForStaff, findUserById } from "@/lib/db";
+import { findUserById } from "@/lib/db";
 import { BRAND_NAME } from "@/lib/content";
 import { can, NAV_CAPABILITY, type Capability } from "@/lib/permissions";
 import { verifySession } from "@/lib/session";
 import { NavLink } from "@/app/(dashboard)/dashboard/nav-link";
+import { UnreadMessagesBadge } from "@/components/staff/UnreadMessagesBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,6 @@ export default async function StaffLayout({ children }: { children: ReactNode })
   }
 
   const visibleNav = navItems.filter((item) => can(user.role, item.capability));
-  const unreadMessages = can(user.role, "members.view") ? countUnreadMessagesForStaff() : 0;
 
   return (
     <div className="min-h-screen bg-black text-foreground">
@@ -60,15 +60,15 @@ export default async function StaffLayout({ children }: { children: ReactNode })
               <ul className="space-y-2">
                 {visibleNav.map((item) => (
                   <li key={item.href}>
-                    <NavLink
-                      href={item.href}
-                      tag={
-                        item.href === "/staff/messages" && unreadMessages > 0
-                          ? { label: String(unreadMessages), tone: "primary" }
-                          : undefined
-                      }
-                    >
-                      {item.label}
+                    <NavLink href={item.href}>
+                      {item.href === "/staff/messages" ? (
+                        <span className="flex items-center justify-between gap-2">
+                          <span>{item.label}</span>
+                          <UnreadMessagesBadge />
+                        </span>
+                      ) : (
+                        item.label
+                      )}
                     </NavLink>
                   </li>
                 ))}
