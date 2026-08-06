@@ -71,8 +71,9 @@ export default function LoginPage() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[var(--bg-1)]/80 via-[var(--bg-1)]/30 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(70%_90%_at_35%_0%,oklch(0.7279_0.0989_82.1/0.14),transparent)]" />
         <div className="anim-rise relative" style={{ animationDelay: "60ms" }}>
-          <Link href="/" className="text-display text-xl text-zinc-50 transition-opacity hover:opacity-80">
-            S<span className="text-gold">&</span>C Performance Coaching
+          <Link href="/" className="inline-block transition-opacity hover:opacity-80">
+            {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
+            <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-9 w-auto" />
           </Link>
         </div>
         <div className="relative max-w-md">
@@ -101,8 +102,9 @@ export default function LoginPage() {
       {/* Form column */}
       <div className="relative flex min-h-screen flex-col px-6 py-8 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-64 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.7279_0.0989_82.1/0.08),transparent)] lg:before:hidden">
         <div className="lg:hidden">
-          <Link href="/" className="text-display text-base text-zinc-50 transition-opacity hover:opacity-80">
-            S<span className="text-gold">&</span>C Performance Coaching
+          <Link href="/" className="inline-block transition-opacity hover:opacity-80">
+            {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
+            <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-7 w-auto" />
           </Link>
         </div>
         <div className="anim-rise mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">

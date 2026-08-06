@@ -80,10 +80,10 @@ export default async function DashboardLayout({
         {/* Sidebar */}
         <aside className="hidden border-r border-white/[0.06] bg-[oklch(0.155_0.004_255/0.72)] backdrop-blur-xl lg:flex lg:h-screen lg:flex-col lg:sticky lg:top-0">
           <div className="px-5 pt-6 pb-5">
-            <Link href="/dashboard" className="text-display text-lg text-zinc-50">
-              S<span className="text-gold">&</span>C
+            <Link href="/dashboard" className="inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
+              <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-9 w-auto" />
             </Link>
-            <p className="label-caps mt-1.5 text-[10px]">Performance Coaching</p>
           </div>
 
           <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
@@ -131,10 +131,10 @@ export default async function DashboardLayout({
           <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-zinc-950/70 px-4 backdrop-blur-md sm:px-6">
             <div className="flex h-16 items-center justify-between gap-3">
               <div className="min-w-0">
-                <span className="text-display text-base text-zinc-50 lg:hidden">
-                  S<span className="text-gold">&</span>C
-                  <span className="hidden min-[420px]:inline"> Performance Coaching</span>
-                </span>
+                <div className="lg:hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
+                  <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-7 w-auto" />
+                </div>
                 <p className="hidden text-sm text-zinc-400 lg:block">
                   Welcome back{profile?.fullName ? `, ${profile.fullName.split(" ")[0]}` : ""}.
                 </p>

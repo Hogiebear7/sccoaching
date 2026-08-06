@@ -310,12 +310,9 @@ export default function SignupPage() {
       <div className="mx-auto w-full max-w-5xl">
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-            {/* Long brand name in a 280px column — tighter tracking keeps it on one line */}
-            <Link
-              href="/"
-              className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold transition-opacity hover:opacity-80"
-            >
-              {BRAND_NAME}
+            <Link href="/" className="inline-block transition-opacity hover:opacity-80">
+              {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
+              <img src="/brand/website-logo.png" alt={BRAND_NAME} className="h-7 w-auto" />
             </Link>
             <h1 className="text-editorial mt-3 text-[30px]">Create your account</h1>
             <p className="mt-2 text-sm text-zinc-400">
