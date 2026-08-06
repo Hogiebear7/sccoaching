@@ -69,6 +69,9 @@ export interface WorkoutExerciseEntry {
   sets: number | null;
   /** Rate of perceived exertion 1-10 — used by class workout recording. */
   rpe?: number | null;
+  /** Reps in reserve 0-5 — member self-logged effort ("how many more could
+      you have done"), distinct from staff-recorded rpe above. */
+  rir?: number | null;
   /** Per-set weight/reps when they differ between sets. Length matches the
       performed sets; null/absent = the shared weight/reps applied to all. */
   setDetails?: { weight: string | null; reps: number | null }[] | null;

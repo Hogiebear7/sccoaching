@@ -29,6 +29,8 @@ type ExerciseRow = {
   reps: string;
   sets: string;
   notes: string;
+  /** Reps in reserve — 0 (failure) to 5+ (very easy). Optional. */
+  rir: string;
   /** Per-set weight/reps rows; empty = one shared value for every set. */
   setRows: SetRow[];
   /** Input-assistance only — controls what typed numbers auto-format to on
@@ -60,6 +62,7 @@ function newRow(): ExerciseRow {
     reps: "",
     sets: "",
     notes: "",
+    rir: "",
     setRows: [],
     unitMode: "weight",
   };
@@ -144,6 +147,7 @@ export function WorkoutLogForm({
         weight: row.weight.trim() || null,
         reps: row.reps.trim() ? parseInt(row.reps, 10) : null,
         sets: row.sets.trim() ? parseInt(row.sets, 10) : null,
+        rir: row.rir.trim() ? parseInt(row.rir, 10) : null,
         setDetails: row.setRows
           .filter((sr) => sr.weight.trim() || sr.reps.trim())
           .map((sr) => ({
@@ -327,7 +331,7 @@ export function WorkoutLogForm({
                     />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div>
                       <div className="mb-1.5 flex items-center justify-between gap-1">
                         <label className="block text-xs font-medium text-foreground">
@@ -398,6 +402,22 @@ export function WorkoutLogForm({
                         value={row.sets}
                         onChange={(e) => updateRow(row.key, { sets: e.target.value })}
                         placeholder="e.g. 3"
+                        className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-foreground">
+                        RIR <span className="font-normal text-muted-foreground">opt.</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={5}
+                        value={row.rir}
+                        onChange={(e) => updateRow(row.key, { rir: e.target.value })}
+                        placeholder="e.g. 2"
+                        aria-label="Reps in reserve"
+                        title="Reps in reserve — how many more reps you could have done"
                         className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
                       />
                     </div>

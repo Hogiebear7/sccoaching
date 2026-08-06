@@ -15,6 +15,7 @@ export function parseExerciseEntries(exercises: unknown): WorkoutExerciseEntry[]
     const repsRaw = typeof e.reps === "number" ? e.reps : null;
     const setsRaw = typeof e.sets === "number" ? e.sets : null;
     const rpeRaw = typeof e.rpe === "number" ? e.rpe : null;
+    const rirRaw = typeof e.rir === "number" ? e.rir : null;
 
     // Per-set rows: keep only sets carrying at least one value; cap length
     // defensively so a buggy client can't balloon a record.
@@ -43,6 +44,10 @@ export function parseExerciseEntries(exercises: unknown): WorkoutExerciseEntry[]
           rpeRaw !== null && Number.isFinite(rpeRaw) && rpeRaw >= 1 && rpeRaw <= 10
             ? Math.round(rpeRaw * 2) / 2
             : null,
+        rir:
+          rirRaw !== null && Number.isFinite(rirRaw) && rirRaw >= 0 && rirRaw <= 5
+            ? Math.round(rirRaw)
+            : null,
         setDetails: setDetails.length > 0 ? setDetails : null,
         notes: typeof e.notes === "string" && e.notes.trim() ? e.notes.trim() : null,
       } satisfies WorkoutExerciseEntry,
@@ -69,5 +74,6 @@ export function formatExerciseLoad(ex: WorkoutExerciseEntry): string {
   else if (ex.reps !== null) parts.push(`${ex.reps} reps`);
   if (ex.weight) parts.push(`@ ${ex.weight}`);
   if (ex.rpe != null) parts.push(`RPE ${ex.rpe}`);
+  if (ex.rir != null) parts.push(`RIR ${ex.rir}`);
   return parts.join(" ");
 }
