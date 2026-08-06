@@ -148,25 +148,82 @@ describe("getCancellationCutoffHours / isCancellationEarly", () => {
 });
 
 describe("computeOfferWindowMs", () => {
-  it("returns 3 hours when class is more than 3 hours away", async () => {
+  // Pinned to a daytime hour (outside the 8pm-10am quiet-hours extension)
+  // so these cases exercise the plain proximity tiers deterministically,
+  // regardless of what time the test suite actually runs.
+  function atHour(hour: number): number {
+    const d = new Date();
+    d.setHours(hour, 0, 0, 0);
+    return d.getTime();
+  }
+
+  it("returns 3 hours when class is between 90 min and 2 days away", async () => {
     const { computeOfferWindowMs } = await import("@/lib/scheduling");
-    const now = Date.now();
+    const now = atHour(14);
     const classMs = now + 4 * 60 * 60 * 1000;
     expect(computeOfferWindowMs(classMs, now)).toBe(3 * 60 * 60 * 1000);
   });
 
   it("returns 90 minutes when class is between 90 min and 3 hours away", async () => {
     const { computeOfferWindowMs } = await import("@/lib/scheduling");
-    const now = Date.now();
+    const now = atHour(14);
     const classMs = now + 2 * 60 * 60 * 1000;
     expect(computeOfferWindowMs(classMs, now)).toBe(90 * 60 * 1000);
   });
 
   it("returns 30 minutes when class is less than 90 minutes away", async () => {
     const { computeOfferWindowMs } = await import("@/lib/scheduling");
-    const now = Date.now();
+    const now = atHour(14);
     const classMs = now + 45 * 60 * 1000;
     expect(computeOfferWindowMs(classMs, now)).toBe(30 * 60 * 1000);
+  });
+
+  it("returns 12 hours when class is more than 2 days away", async () => {
+    const { computeOfferWindowMs } = await import("@/lib/scheduling");
+    const now = atHour(14);
+    const classMs = now + 3 * 24 * 60 * 60 * 1000;
+    expect(computeOfferWindowMs(classMs, now)).toBe(12 * 60 * 60 * 1000);
+  });
+
+  it("extends the window to 10am the next morning when issued at night", async () => {
+    const { computeOfferWindowMs } = await import("@/lib/scheduling");
+    const now = atHour(21); // 9pm
+    const classMs = now + 24 * 60 * 60 * 1000; // 1 day away — base window would be 3hr
+    const windowMs = computeOfferWindowMs(classMs, now);
+    const expiresAt = new Date(now + windowMs);
+    expect(expiresAt.getHours()).toBe(10);
+    expect(expiresAt.getDate()).toBe(new Date(now).getDate() + 1);
+  });
+
+  it("extends the window to 10am the same morning when issued just after midnight", async () => {
+    const { computeOfferWindowMs } = await import("@/lib/scheduling");
+    const now = atHour(1); // 1am
+    const classMs = now + 24 * 60 * 60 * 1000; // 1 day away — base window would be 3hr
+    const windowMs = computeOfferWindowMs(classMs, now);
+    const expiresAt = new Date(now + windowMs);
+    expect(expiresAt.getHours()).toBe(10);
+    expect(expiresAt.getDate()).toBe(new Date(now).getDate());
+  });
+
+  it("a far-out class offered at night is extended at least to the 12hr floor (may land after 10am)", async () => {
+    const { computeOfferWindowMs } = await import("@/lib/scheduling");
+    const now = atHour(1); // 1am — quiet-hours target (10am) is only 9hr away, less than the 12hr floor
+    const classMs = now + 3 * 24 * 60 * 60 * 1000;
+    expect(computeOfferWindowMs(classMs, now)).toBe(12 * 60 * 60 * 1000);
+  });
+
+  it("does not extend into quiet hours for the imminent (<90 min) tier", async () => {
+    const { computeOfferWindowMs } = await import("@/lib/scheduling");
+    const now = atHour(23); // 11pm
+    const classMs = now + 45 * 60 * 1000;
+    expect(computeOfferWindowMs(classMs, now)).toBe(30 * 60 * 1000);
+  });
+
+  it("caps the quiet-hours extension at the time actually remaining until class", async () => {
+    const { computeOfferWindowMs } = await import("@/lib/scheduling");
+    const now = atHour(21); // 9pm — quiet hours, extension target is ~13hr away
+    const classMs = now + 5 * 60 * 60 * 1000; // class in 5hr, before that extension target
+    expect(computeOfferWindowMs(classMs, now)).toBe(5 * 60 * 60 * 1000);
   });
 });
 

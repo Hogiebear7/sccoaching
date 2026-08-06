@@ -46,19 +46,57 @@ function classDateTimeMs(date: string, startTime: string): number {
   return dt.getTime();
 }
 
+const TWO_DAYS_MS     = 2 * 24 * 60 * 60 * 1000;
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const THREE_HOURS_MS  = 3 * 60 * 60 * 1000;
 const NINETY_MINS_MS  = 90 * 60 * 1000;
 const THIRTY_MINS_MS  = 30 * 60 * 1000;
 
-// Returns the offer response window (in ms) based on how far the class is.
-//   class > 3 hr away  → 3 hr window
-//   90 min – 3 hr away → 90 min window
-//   < 90 min away      → 30 min window
+// Offers issued between 8pm and 10am get their window extended so they
+// don't quietly expire overnight — nobody should lose a spot because they
+// were asleep when it came in.
+const QUIET_HOURS_START_HOUR = 20; // 8pm
+const QUIET_HOURS_END_HOUR = 10; // 10am
+
+function isQuietHour(hour: number): boolean {
+  return hour >= QUIET_HOURS_START_HOUR || hour < QUIET_HOURS_END_HOUR;
+}
+
+// The next 10am, local time — same day if `at` is still in the pre-10am leg
+// of quiet hours, otherwise the following morning.
+function nextQuietHoursEndMs(at: Date): number {
+  const end = new Date(at);
+  end.setHours(QUIET_HOURS_END_HOUR, 0, 0, 0);
+  if (end.getTime() <= at.getTime()) end.setDate(end.getDate() + 1);
+  return end.getTime();
+}
+
+// Returns the offer response window (in ms) based on how far the class is:
+//   > 2 days away        → 12 hr window (a flat 3hr cap was too easy to miss
+//                           for an offer on a class that's days out)
+//   90 min – 2 days away → 3 hr window
+//   < 90 min away        → 30 min window
+// On top of that base window, an offer issued during quiet hours (8pm-10am)
+// is extended so it doesn't expire before 10am the same/next morning —
+// capped at the time actually remaining until the class, and never applied
+// to the < 90 min tier (the class is too close for there to be room to
+// extend into, and that tight window is intentional).
 export function computeOfferWindowMs(classMs: number, nowMs: number): number {
   const timeUntilClass = classMs - nowMs;
-  if (timeUntilClass > THREE_HOURS_MS) return THREE_HOURS_MS;
-  if (timeUntilClass > NINETY_MINS_MS) return NINETY_MINS_MS;
-  return THIRTY_MINS_MS;
+  if (timeUntilClass <= NINETY_MINS_MS) return THIRTY_MINS_MS;
+
+  const baseWindowMs =
+    timeUntilClass > TWO_DAYS_MS
+      ? TWELVE_HOURS_MS
+      : timeUntilClass > THREE_HOURS_MS
+      ? THREE_HOURS_MS
+      : NINETY_MINS_MS;
+
+  const now = new Date(nowMs);
+  if (!isQuietHour(now.getHours())) return baseWindowMs;
+
+  const extendedWindowMs = nextQuietHoursEndMs(now) - nowMs;
+  return Math.min(Math.max(baseWindowMs, extendedWindowMs), timeUntilClass);
 }
 
 // Called whenever a confirmed slot opens up (member cancels or staff raises
