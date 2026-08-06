@@ -12,6 +12,7 @@ import {
   type ClassWorkoutRecord,
   type WorkoutSessionRecord,
 } from "@/lib/db";
+import { syncClassWorkoutToAllBooked } from "@/lib/class-workout-sync";
 import { parseExerciseEntries } from "@/lib/workout-entries";
 import { verifySession } from "@/lib/session";
 import { can } from "@/lib/permissions";
@@ -87,6 +88,12 @@ export async function POST(
   };
   saveClassWorkout(workout);
 
+  // Prepopulate every currently booked member's Workouts tab with this
+  // template right away — booking is the signal for "prepopulated", not
+  // attendance. Explicit per-member results entered below (checked-in only)
+  // then refine specific members on top of this baseline.
+  const prepopulatedCount = syncClassWorkoutToAllBooked(classRecord.id);
+
   // Per-member results are only accepted for members with a checked-in
   // booking on this class — the roster is the allow-list.
   const checkedInUserIds = new Set(
@@ -136,7 +143,10 @@ export async function POST(
   }
 
   const parts = ["Class workout saved."];
-  if (synced > 0) parts.push(`Synced to ${synced} member${synced === 1 ? "" : "s"}.`);
+  if (prepopulatedCount > 0) {
+    parts.push(`Prepopulated for ${prepopulatedCount} booked member${prepopulatedCount === 1 ? "" : "s"}.`);
+  }
+  if (synced > 0) parts.push(`${synced} check-in result${synced === 1 ? "" : "s"} recorded.`);
   if (skipped > 0) parts.push(`${skipped} entr${skipped === 1 ? "y" : "ies"} skipped (not checked in or empty).`);
 
   return NextResponse.json({ success: true, message: parts.join(" ") }, { status: 200 });

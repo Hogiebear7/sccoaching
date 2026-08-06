@@ -8,6 +8,7 @@ const {
   mockFindClassById,
   mockFindBookingsByClassId,
   mockFindWorkoutSessionByUserAndClass,
+  mockFindClassWorkoutByClassId,
   mockSaveClassWorkout,
   mockSaveWorkoutSession,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   mockFindClassById: vi.fn(),
   mockFindBookingsByClassId: vi.fn(),
   mockFindWorkoutSessionByUserAndClass: vi.fn(),
+  mockFindClassWorkoutByClassId: vi.fn(),
   mockSaveClassWorkout: vi.fn(),
   mockSaveWorkoutSession: vi.fn(),
 }));
@@ -24,6 +26,7 @@ vi.mock("@/lib/db", () => ({
   findClassById: mockFindClassById,
   findBookingsByClassId: mockFindBookingsByClassId,
   findWorkoutSessionByUserAndClass: mockFindWorkoutSessionByUserAndClass,
+  findClassWorkoutByClassId: mockFindClassWorkoutByClassId,
   saveClassWorkout: mockSaveClassWorkout,
   saveWorkoutSession: mockSaveWorkoutSession,
 }));
@@ -66,6 +69,10 @@ describe("POST /api/staff/classes/[classId]/workout", () => {
     mockFindClassById.mockReturnValue(CLASS);
     mockFindBookingsByClassId.mockReturnValue([]);
     mockFindWorkoutSessionByUserAndClass.mockReturnValue(undefined);
+    // No stored template by default — syncClassWorkoutToAllBooked reads back
+    // via this mock rather than seeing what saveClassWorkout was just called
+    // with, since the db module is fully mocked here.
+    mockFindClassWorkoutByClassId.mockReturnValue(undefined);
   });
 
   it("rejects non-staff", async () => {
@@ -107,7 +114,7 @@ describe("POST /api/staff/classes/[classId]/workout", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.message).toContain("Synced to 1 member");
+    expect(data.message).toContain("1 check-in result recorded");
     expect(data.message).toContain("1 entry skipped");
 
     expect(mockSaveClassWorkout.mock.calls[0][0]).toMatchObject({
@@ -161,5 +168,39 @@ describe("POST /api/staff/classes/[classId]/workout", () => {
     expect(session.id).toBe("session-existing");
     expect(session.createdAt).toBe("2026-07-15T19:00:00.000Z");
     expect(session.exercises[0].weight).toBe("85");
+  });
+
+  it("prepopulates every booked member (not just checked-in) once a template exists", async () => {
+    mockFindBookingsByClassId.mockReturnValue([
+      { id: "b1", classId: "class-1", userId: "member-1", attendedAt: "2026-07-15T18:05:00.000Z" },
+      { id: "b2", classId: "class-1", userId: "member-2", attendedAt: null }, // booked, not checked in
+    ]);
+    // Simulate the template that was just saved actually being readable back.
+    mockFindClassWorkoutByClassId.mockReturnValue({
+      classId: "class-1",
+      notes: "Strength block week 3",
+      exercises: TEMPLATE,
+      updatedByStaffId: "staff-1",
+      createdAt: "x",
+      updatedAt: "x",
+    });
+
+    const res = await callWorkout(
+      { notes: "Strength block week 3", exercises: TEMPLATE },
+      signSession({ userId: STAFF_USER.id })
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.message).toContain("Prepopulated for 2 booked members");
+
+    // Both members get a session, including the one who never checked in.
+    expect(mockSaveWorkoutSession).toHaveBeenCalledTimes(2);
+    const memberIds = mockSaveWorkoutSession.mock.calls.map((c) => c[0].userId).sort();
+    expect(memberIds).toEqual(["member-1", "member-2"]);
+    const notCheckedIn = mockSaveWorkoutSession.mock.calls.find((c) => c[0].userId === "member-2")![0];
+    expect(notCheckedIn.exercises).toMatchObject(TEMPLATE);
+    expect(notCheckedIn.title).toBe("Evening Strength");
+    expect(notCheckedIn.date).toBe("2026-07-15");
   });
 });

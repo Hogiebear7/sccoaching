@@ -61,6 +61,9 @@ vi.mock("@/lib/db", () => ({
   findPassLedgerByBookingId: mockFindPassLedgerByBookingId,
   findPassLedgerByPurchaseId: vi.fn(() => []),
   savePurchase: vi.fn(),
+  // No class workout template by default — syncClassWorkoutToMember becomes
+  // a no-op (these tests assert booking logic, not workout prepopulation).
+  findClassWorkoutByClassId: vi.fn(),
 }));
 
 vi.mock("@/lib/membership-entitlement", async (importActual) => ({

@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import { hasActiveMembership } from "@/lib/membership";
 import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
+import { syncClassWorkoutToMember } from "@/lib/class-workout-sync";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
@@ -198,6 +199,10 @@ export async function POST(request: NextRequest) {
   };
 
   createBooking(booking);
+
+  // If staff already prepared a workout for this class, it shows up in the
+  // member's Workouts tab immediately — no need to wait for check-in.
+  syncClassWorkoutToMember(entry.classId, user.id);
 
   if (subscription) {
     if (coverWithPurchasedPass) {

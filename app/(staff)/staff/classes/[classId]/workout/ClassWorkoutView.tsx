@@ -181,10 +181,11 @@ export function ClassWorkoutView({
         <p className="label-caps">Class workout</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">{classTitle}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          {formatFriendlyClassDate(classDate)} · {startTime}. Record what the class did, then
-          adjust the numbers per checked-in member — results sync straight into each
-          member&apos;s workout history. Members can correct their own numbers until the end of
-          today; after that only this screen changes them.
+          {formatFriendlyClassDate(classDate)} · {startTime}. Save the workout below and it lands
+          in every booked member&apos;s Workouts tab right away — no need to wait for the class.
+          Once someone&apos;s checked in you can also enter their exact numbers here, which sync
+          straight into their history. Members can fill in or correct their own weights until the
+          end of today; after that only this screen changes them.
         </p>
       </div>
 
