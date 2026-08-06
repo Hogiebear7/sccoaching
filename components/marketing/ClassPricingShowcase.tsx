@@ -19,6 +19,23 @@ const PRICING: PricingInfo[] = [
   { priceLabel: "€20", cadence: "/ class" },
 ];
 
+// Real photography, one per class — replaces the ClassImageSlot gradient
+// placeholder. Same order as MARKETING_CLASSES/PRICING.
+const IMAGES: { imageUrl: string; alt: string }[] = [
+  {
+    imageUrl: "/marketing/semi-private-training.jpg",
+    alt: "A coach spotting an athlete during a barbell back squat in a small-group training session",
+  },
+  {
+    imageUrl: "/marketing/parent-baby-class.jpg",
+    alt: "A parent training with a supported squat while their baby rests safely nearby",
+  },
+  {
+    imageUrl: "/marketing/mature-athletes.jpg",
+    alt: "An older athlete performing a kettlebell deadlift with a coach observing her form",
+  },
+];
+
 // One shared `active` index drives every card's expand state, so exactly
 // one card can be open at a time by construction — hovering, focusing, or
 // tapping a card sets it; leaving the whole grid (mouse-leave) or tabbing
@@ -63,7 +80,13 @@ export function ClassPricingShowcase({ href }: { href: string }) {
             }`}
           >
             <div className="relative">
-              <ClassImageSlot seed={cls.name} label={cls.name} className="h-32 w-full" />
+              <ClassImageSlot
+                seed={cls.name}
+                label={cls.name}
+                imageUrl={IMAGES[i].imageUrl}
+                alt={IMAGES[i].alt}
+                className="h-32 w-full"
+              />
               {featured ? (
                 <span className="absolute left-4 top-3 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary-foreground">
                   Most popular
