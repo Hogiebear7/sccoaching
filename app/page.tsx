@@ -25,7 +25,7 @@ const DIFFERENTIATORS = [
   },
   {
     title: "Highly qualified coach",
-    body: "15+ years of hands-on coaching, backed by a science degree in strength & conditioning — not a personal trainer certificate away from athletics.",
+    body: "15+ years of hands-on experience, backed by multiple science and coaching degrees. Not your standard club trainer.",
   },
   {
     title: "Rooted in the community",
@@ -69,17 +69,12 @@ export default async function Root() {
         }}
       />
 
-      {/* Top navigation — brand lockup mirrors index.html exactly */}
+      {/* Top navigation */}
       <nav className="anim-fade relative mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <div className="flex items-center gap-3">
-          <span className="text-editorial text-[22px] italic text-gold">S&amp;C</span>
-          <span className="h-7 w-px bg-white/[0.14]" />
-          <span className="text-mono hidden text-[10px] uppercase leading-[1.35] tracking-[0.08em] text-zinc-400 sm:block">
-            Performance
-            <br />
-            Coaching
-          </span>
-        </div>
+        <Link href="/" className="flex items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
+          <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-10 w-auto" />
+        </Link>
         <div className="flex items-center gap-2.5">
           <Link
             href={AUTH_ROUTES.login}
@@ -306,11 +301,8 @@ export default async function Root() {
       {/* Footer */}
       <footer className="relative border-t border-white/[0.06]">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-6 py-10 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3">
-            <span className="text-editorial text-[17px] italic text-gold">S&amp;C</span>
-            <span className="h-6 w-px bg-white/[0.14]" />
-            <span className="text-mono text-[10px] uppercase tracking-[0.08em] text-zinc-400">Performance Coaching</span>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
+          <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-8 w-auto" />
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-zinc-500">
             <Link href={AUTH_ROUTES.login} className="transition-colors duration-150 hover:text-gold">Sign in</Link>
             <Link href={AUTH_ROUTES.signup} className="transition-colors duration-150 hover:text-gold">Create account</Link>

@@ -25,11 +25,9 @@ export const AUTH_ROUTES = {
   forgotPassword: "/forgot-password",
 } as const;
 
-// Placeholder contact details for the public marketing site — swap for the
-// real address/phone/email before launch.
 export const CONTACT_INFO = {
   location: "Navan, Co. Meath",
-  email: "hello@scperformancecoaching.ie",
-  phone: "046 900 0000",
-  phoneHref: "+353469000000",
+  email: "info@sandccoaching.com",
+  phone: "083 007 9025",
+  phoneHref: "+353830079025",
 } as const;
