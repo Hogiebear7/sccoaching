@@ -233,6 +233,8 @@ export interface BookingConfirmationEmailOpts {
   startTime: string;
   durationLabel: string;
   coachName?: string | null;
+  /** Hours before class a member can cancel and keep their session credit. */
+  cancellationCutoffHours: number;
 }
 
 export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
@@ -240,7 +242,7 @@ export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
   html: string;
   text: string;
 } {
-  const { memberName, className, classDate, startTime, durationLabel, coachName } = opts;
+  const { memberName, className, classDate, startTime, durationLabel, coachName, cancellationCutoffHours } = opts;
   const eName = escapeHtml(memberName);
   const eClass = escapeHtml(className);
   const eDate = escapeHtml(classDate);
@@ -249,6 +251,7 @@ export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
   const eCoach = coachName ? escapeHtml(coachName) : null;
   const actionUrl = `${APP_URL}/dashboard/bookings`;
   const subject = `Booking confirmed: ${className}`;
+  const cancellationPolicy = `Cancel at least ${cancellationCutoffHours} hour${cancellationCutoffHours === 1 ? "" : "s"} before the class starts and your session credit is returned automatically. Cancelling later than that forfeits the credit.`;
 
   const html = emailWrapper(`Booking confirmed: ${eClass}`, `
     <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Booking confirmed</p>
@@ -269,6 +272,8 @@ export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
       </tr>
       ${eCoach ? `<tr><td style="font-size:13px;color:#71717a;padding-top:10px;">Coach: ${eCoach}</td></tr>` : ""}
     </table>
+    <p style="margin:16px 0 0;font-size:12px;color:#71717a;">${escapeHtml(cancellationPolicy)}</p>
+    <p style="margin:8px 0 0;font-size:12px;color:#71717a;">A calendar invite for this class is attached to this email.</p>
     ${ctaButton("View booking →", actionUrl)}
   `);
 
@@ -279,6 +284,10 @@ export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
     ``,
     `When: ${classDate} at ${startTime} (${durationLabel})`,
     ...(coachName ? [`Coach: ${coachName}`] : []),
+    ``,
+    cancellationPolicy,
+    ``,
+    `A calendar invite for this class is attached to this email.`,
     ``,
     `View your booking: ${actionUrl}`,
     ``,

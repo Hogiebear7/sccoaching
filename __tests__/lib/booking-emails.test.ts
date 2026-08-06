@@ -54,6 +54,7 @@ describe("bookingConfirmationEmail template", () => {
       startTime: "06:30",
       durationLabel: "60 min",
       coachName: "Coach Sarah",
+      cancellationCutoffHours: 3,
     });
     expect(subject).toBe("Booking confirmed: Sunrise Strength");
     expect(html).toContain("Sunrise Strength");
@@ -72,9 +73,24 @@ describe("bookingConfirmationEmail template", () => {
       startTime: "06:30",
       durationLabel: "60 min",
       coachName: null,
+      cancellationCutoffHours: 3,
     });
     expect(html).not.toContain("Coach:");
     expect(text).not.toContain("Coach:");
+  });
+
+  it("includes the cancellation policy with the configured cutoff", () => {
+    const { html, text } = bookingConfirmationEmail({
+      memberName: "Alex",
+      className: "Sunrise Strength",
+      classDate: "Thu, Jul 30",
+      startTime: "06:30",
+      durationLabel: "60 min",
+      coachName: null,
+      cancellationCutoffHours: 5,
+    });
+    expect(html).toContain("Cancel at least 5 hours before");
+    expect(text).toContain("Cancel at least 5 hours before");
   });
 });
 
@@ -193,6 +209,23 @@ describe("sendBookingConfirmationEmail", () => {
     sendBookingConfirmationEmail("member-1", CLASS);
     expect(mockSendEmail).not.toHaveBeenCalled();
     expect(mockIsTransactionalEmailEnabled).toHaveBeenCalledWith("bookingConfirmation");
+  });
+
+  it("attaches a calendar invite for the class", () => {
+    mockFindProfileByUserId.mockImplementation((id: string) =>
+      id === "member-1"
+        ? { email: "alex@example.com", fullName: "Alex", emailNotificationsEnabled: true }
+        : { fullName: "Coach Sarah" }
+    );
+
+    sendBookingConfirmationEmail("member-1", CLASS);
+
+    const payload = mockSendEmail.mock.calls[0][0];
+    expect(payload.attachments).toHaveLength(1);
+    expect(payload.attachments[0].filename).toBe("class.ics");
+    const decoded = Buffer.from(payload.attachments[0].content, "base64").toString("utf8");
+    expect(decoded).toContain("BEGIN:VCALENDAR");
+    expect(decoded).toContain("SUMMARY:Sunrise Strength");
   });
 });
 

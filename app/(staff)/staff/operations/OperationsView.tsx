@@ -1,19 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import type {
   ClassCategoryRecord,
   JobRunRecord,
-  SubscriptionStatus,
   TransactionalEmailSettings,
   TransactionalEmailType,
 } from "@/lib/db";
-import { SUBSCRIPTION_STATUS_LABEL, SUBSCRIPTION_STATUS_STYLE } from "@/lib/membership-status";
-import { classCategoryLabel, formatRemainingSessions } from "@/lib/scheduling-status";
 import type { ClassPressureSummary, MemberOperationalSummary } from "@/lib/staff-operations";
+import { OperationsCalendar } from "./OperationsCalendar";
 
 // Locale and time zone must be pinned: this renders during SSR, and any
 // difference between the server's and browser's defaults (locale ordering
@@ -31,30 +28,6 @@ const RUN_TIMESTAMP_FORMAT = new Intl.DateTimeFormat("en-US", {
 
 function formatRunTimestamp(isoDate: string): string {
   return RUN_TIMESTAMP_FORMAT.format(new Date(isoDate));
-}
-
-type FilterKey = "all" | "attention" | "active" | "pending" | "past_due" | "no_plan";
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: "all",       label: "All" },
-  { key: "attention", label: "Needs attention" },
-  { key: "active",    label: "Active" },
-  { key: "pending",   label: "Pending" },
-  { key: "past_due",  label: "Past due" },
-  { key: "no_plan",   label: "No plan" },
-];
-
-function matchesFilter(member: MemberOperationalSummary, filter: FilterKey): boolean {
-  switch (filter) {
-    case "all":       return true;
-    case "attention": return member.attentionReasons.length > 0;
-    case "active":    return member.subscriptionStatus === "active";
-    case "pending":   return member.subscriptionStatus === "pending";
-    case "past_due":  return member.subscriptionStatus === "past_due";
-    case "no_plan":
-      return member.subscriptionStatus === null || member.subscriptionStatus === "inactive";
-    default:          return true;
-  }
 }
 
 export type ClassTypeRow = {
@@ -83,23 +56,9 @@ export function OperationsView({
   emailSettings: TransactionalEmailSettings;
 }) {
   const router = useRouter();
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterKey>("all");
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [runMessage, setRunMessage] = useState<string | null>(null);
-
-  const filteredMembers = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return members.filter((member) => {
-      if (!matchesFilter(member, filter)) return false;
-      if (!query) return true;
-      return (
-        member.email.toLowerCase().includes(query) ||
-        (member.fullName ?? "").toLowerCase().includes(query)
-      );
-    });
-  }, [members, search, filter]);
 
   const attentionCount = members.filter((m) => m.attentionReasons.length > 0).length;
   const fullClasses = classes.filter((c) => c.isFull);
@@ -235,143 +194,8 @@ export function OperationsView({
       {/* Transactional email toggles */}
       <EmailSettingsManager settings={emailSettings} />
 
-      {/* Upcoming classes */}
-      <div className="panel p-6">
-        <h3 className="text-lg font-semibold">Upcoming classes</h3>
-
-        {classes.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">No upcoming classes scheduled.</p>
-        ) : (
-          <div className="mt-4 space-y-2">
-            {classes.map((classRecord) => (
-              <div
-                key={classRecord.classId}
-                className="flex flex-col gap-2 well p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    {classRecord.date} · {classRecord.startTime}
-                  </p>
-                  <p className="text-sm font-medium">
-                    {classRecord.title}{" "}
-                    <span className="text-xs font-normal text-muted-foreground">
-                      ({classCategoryLabel(categories, classRecord.category, deletedLabels)})
-                    </span>
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      classRecord.isFull
-                        ? "bg-amber-500/15 text-amber-300"
-                        : "bg-secondary text-secondary-foreground"
-                    }`}
-                  >
-                    {classRecord.bookedCount} of {classRecord.capacity} booked
-                  </span>
-                  {classRecord.waitlistCount > 0 ? (
-                    <span className="rounded-full bg-gold/15 px-3 py-1 text-xs font-semibold text-gold">
-                      {classRecord.waitlistCount} waitlisted
-                    </span>
-                  ) : null}
-                  <Link
-                    href="/staff/classes"
-                    className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
-                  >
-                    Manage
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Members table */}
-      <div className="panel p-6">
-        <h3 className="text-lg font-semibold">Members</h3>
-
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or email"
-            className="w-full rounded-xl border border-border bg-input px-4 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15 sm:max-w-xs"
-          />
-          <div className="flex flex-wrap gap-2">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setFilter(f.key)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  filter === f.key
-                    ? "bg-primary text-primary-foreground"
-                    : "border border-border text-muted-foreground hover:border-primary hover:text-foreground"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {filteredMembers.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">No members match this search/filter.</p>
-        ) : (
-          <div className="mt-4 space-y-2">
-            {filteredMembers.map((member) => (
-              <Link
-                key={member.userId}
-                href={`/staff/members/${member.userId}`}
-                className="block well p-4 transition hover:border-primary/30 hover:bg-accent/30"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {member.fullName ?? member.email}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{member.email}</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {member.planName ?? "No plan selected"}
-                      {member.subscriptionStatus ? (
-                        <span
-                          className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${SUBSCRIPTION_STATUS_STYLE[member.subscriptionStatus as SubscriptionStatus]}`}
-                        >
-                          {SUBSCRIPTION_STATUS_LABEL[member.subscriptionStatus as SubscriptionStatus]}
-                        </span>
-                      ) : null}
-                    </p>
-                  </div>
-
-                  <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                      {formatRemainingSessions(member.remainingSessions)}
-                    </span>
-                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                      Readiness {member.latestReadinessScore ?? "—"}
-                    </span>
-                  </div>
-                </div>
-
-                {member.attentionReasons.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {member.attentionReasons.map((reason) => (
-                      <span
-                        key={reason}
-                        className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300"
-                      >
-                        {reason}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Upcoming classes — condensed month calendar instead of a flat list */}
+      <OperationsCalendar classes={classes} categories={categories} deletedLabels={deletedLabels} />
     </div>
   );
 }

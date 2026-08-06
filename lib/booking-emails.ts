@@ -16,6 +16,10 @@ import {
   bookingConfirmationEmail,
   classCancelledEmail,
 } from "@/lib/email-templates";
+import { buildClassIcsEvent } from "@/lib/ics";
+import { getCancellationCutoffHours } from "@/lib/scheduling";
+
+const GYM_LOCATION = "S&C Performance Coaching, Navan, Co. Meath";
 
 function formatClassDate(date: string): string {
   return new Date(date).toLocaleDateString("en-IE", {
@@ -51,9 +55,25 @@ export function sendBookingConfirmationEmail(userId: string, classRecord: ClassR
     startTime: classRecord.startTime,
     durationLabel: `${classRecord.durationMins} min`,
     coachName: resolveCoachName(classRecord.coachUserId),
+    cancellationCutoffHours: getCancellationCutoffHours(),
   });
 
-  void sendEmail({ to: recipient.email, ...template });
+  const ics = buildClassIcsEvent({
+    uid: `${classRecord.id}-${userId}@sandccoaching.com`,
+    title: classRecord.title,
+    date: classRecord.date,
+    startTime: classRecord.startTime,
+    durationMins: classRecord.durationMins,
+    location: GYM_LOCATION,
+  });
+
+  void sendEmail({
+    to: recipient.email,
+    ...template,
+    attachments: [
+      { filename: "class.ics", content: Buffer.from(ics, "utf8").toString("base64") },
+    ],
+  });
 }
 
 // Staff/gym-initiated cancellation of a whole class — distinct wording from a

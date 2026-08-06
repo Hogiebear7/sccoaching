@@ -15,11 +15,18 @@ if (process.env.NODE_ENV === "production" && !getConfiguredAppUrl()) {
   );
 }
 
+export interface EmailAttachment {
+  filename: string;
+  /** Base64-encoded file content. */
+  content: string;
+}
+
 export interface EmailPayload {
   to: string;
   subject: string;
   html: string;
   text: string;
+  attachments?: EmailAttachment[];
 }
 
 // Sends a transactional email. Never throws — failures are logged and swallowed
@@ -37,6 +44,7 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     subject: payload.subject,
     html: payload.html,
     text: payload.text,
+    attachments: payload.attachments,
   }).catch((err: unknown) => ({ data: null, error: err }));
 
   if (error) {
