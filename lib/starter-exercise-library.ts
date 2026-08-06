@@ -1,9 +1,14 @@
 import type { ExerciseSection } from "./db";
 
-// A well-rounded starter set of common gym exercises, tagged by
-// ExerciseSection, for staff to bulk-import into an empty library via the
-// "Import starter library" button on /staff/exercises. Same list used by
-// scripts/seed-exercise-library.mjs for local dev seeding.
+// Coach-authored starter library, transcribed from the gym's own programming
+// reference sheet (whiteboard categories: Knee Dominant → lower_push, Hip
+// Dominant → lower_pull, Upper Push/Pull map directly, High Tempo →
+// cardio). Core has no whiteboard equivalent, so it keeps a small generic
+// set. Whiteboard-derived entries are left without a description/cues —
+// coaching shorthand for movements like "Gorilla Row" or "SL Wall B.O.R"
+// shouldn't be guessed at; staff can fill those in with "Draft with AI" or
+// by hand. Used by the "Import starter library" button on
+// /staff/exercises, and by scripts/seed-exercise-library.mjs for local dev.
 export interface StarterExercise {
   name: string;
   section: ExerciseSection;
@@ -11,136 +16,101 @@ export interface StarterExercise {
   cues: string;
 }
 
+const wb = (name: string, section: ExerciseSection): StarterExercise => ({
+  name,
+  section,
+  description: "",
+  cues: "",
+});
+
 export const STARTER_EXERCISE_LIBRARY: StarterExercise[] = [
-  // upper_push
-  {
-    name: "Bench Press",
-    section: "upper_push",
-    description: "Barbell press from the chest — the standard upper-body pushing strength movement.",
-    cues: "Shoulder blades pinned back and down\nFeet planted, slight arch\nBar path touches low chest, drives up and slightly back",
-  },
-  {
-    name: "Overhead Press",
-    section: "upper_push",
-    description: "Standing barbell or dumbbell press overhead — builds shoulder strength and trunk stability.",
-    cues: "Brace the core, ribs down\nBar starts at collarbone\nPress in a straight line, head through at the top",
-  },
-  {
-    name: "Incline Dumbbell Press",
-    section: "upper_push",
-    description: "Press on an inclined bench — shifts more emphasis onto the upper chest and front shoulder.",
-    cues: "30–45° incline\nDumbbells track over the upper chest\nControl the lowering, don't bounce",
-  },
-  {
-    name: "Push Up",
-    section: "upper_push",
-    description: "Bodyweight horizontal press — a scalable, no-equipment pushing movement.",
-    cues: "Straight line from head to heels\nElbows at roughly 45° from the torso\nFull range: chest close to the floor",
-  },
-  {
-    name: "Dip",
-    section: "upper_push",
-    description: "Bodyweight or weighted press on parallel bars — targets chest, triceps, and front shoulders.",
-    cues: "Lean slightly forward for chest emphasis\nControl the descent to a comfortable depth\nDon't let shoulders roll forward at the bottom",
-  },
+  // Knee Dominant → lower_push
+  wb("Box Squat", "lower_push"),
+  wb("Bodyweight Squat", "lower_push"),
+  wb("Tempo Squat", "lower_push"),
+  wb("Med Ball Squat", "lower_push"),
+  wb("Drop Squat", "lower_push"),
+  wb("Goblet Squat", "lower_push"),
+  wb("Double Dumbbell Squat", "lower_push"),
+  wb("Back Squat", "lower_push"),
+  wb("Front Squat", "lower_push"),
+  wb("Overhead Squat", "lower_push"),
+  wb("Thruster", "lower_push"),
+  wb("Assisted Split Squat", "lower_push"),
+  wb("Split Squat", "lower_push"),
+  wb("Reverse Lunge", "lower_push"),
+  wb("Forward Lunge", "lower_push"),
+  wb("Walking Lunge", "lower_push"),
+  wb("Bulgarian Split Squat", "lower_push"),
 
-  // upper_pull
-  {
-    name: "Pull Up",
-    section: "upper_pull",
-    description: "Bodyweight vertical pull — a core test of back and grip strength.",
-    cues: "Start from a dead hang\nPull elbows down and back\nChin clears the bar under control",
-  },
-  {
-    name: "Lat Pulldown",
-    section: "upper_pull",
-    description: "Cable vertical pull — a regressable alternative to the pull up for building the same pattern.",
-    cues: "Lead with the elbows, not the hands\nAvoid leaning back excessively\nPause briefly at full contraction",
-  },
-  {
-    name: "Barbell Row",
-    section: "upper_pull",
-    description: "Bent-over horizontal pull — builds the mid-back and rear shoulders.",
-    cues: "Hinge at the hips, flat back\nPull to the lower ribs\nAvoid using momentum to heave the weight",
-  },
-  {
-    name: "Seated Cable Row",
-    section: "upper_pull",
-    description: "Seated horizontal cable pull — controlled back-strength builder, easy to load progressively.",
-    cues: "Sit tall, don't round through the pull\nDrive elbows past the ribs\nControl the return, don't let the stack slam",
-  },
-  {
-    name: "Face Pull",
-    section: "upper_pull",
-    description: "Cable pull to the face — targets rear shoulders and upper back for posture and shoulder health.",
-    cues: "Pull to eyebrow height\nExternally rotate at the end range\nLight weight, focus on the squeeze",
-  },
+  // Hip Dominant → lower_pull
+  wb("Bodyweight Hinge", "lower_pull"),
+  wb("Med Ball Chop", "lower_pull"),
+  wb("Kettlebell Deadlift", "lower_pull"),
+  wb("Single-Arm Deadlift", "lower_pull"),
+  wb("Suitcase Deadlift", "lower_pull"),
+  wb("Kettlebell Swing", "lower_pull"),
+  wb("Kettlebell Swing to High Pull", "lower_pull"),
+  wb("Single-Arm Swing", "lower_pull"),
+  wb("Kettlebell Overhead Swing", "lower_pull"),
+  wb("Kettlebell Clean", "lower_pull"),
+  wb("Kettlebell Snatch", "lower_pull"),
+  wb("Dumbbell Snatch", "lower_pull"),
+  wb("Kettlebell/Dumbbell Romanian Deadlift", "lower_pull"),
+  wb("Side Lunge", "lower_pull"),
+  wb("Reach Lunge", "lower_pull"),
+  wb("Barbell Deadlift/Romanian Deadlift", "lower_pull"),
+  wb("Barbell Clean", "lower_pull"),
+  wb("Barbell Snatch", "lower_pull"),
 
-  // lower_push
-  {
-    name: "Back Squat",
-    section: "lower_push",
-    description: "Barbell squat with the bar on the back — the benchmark lower-body strength movement.",
-    cues: "Brace before descending\nKnees track over toes\nHips and chest rise together out of the hole",
-  },
-  {
-    name: "Front Squat",
-    section: "lower_push",
-    description: "Barbell squat with the bar racked on the front shoulders — more upright torso, quad-dominant.",
-    cues: "Elbows up to keep the bar racked\nStay tall through the torso\nDrive through the whole foot",
-  },
-  {
-    name: "Leg Press",
-    section: "lower_push",
-    description: "Machine-based squat pattern — allows heavy loading with less balance/coordination demand.",
-    cues: "Feet shoulder-width on the platform\nDon't let the lower back round at the bottom\nPress through the heels",
-  },
-  {
-    name: "Walking Lunge",
-    section: "lower_push",
-    description: "Alternating forward-stepping lunge — single-leg strength, balance, and hip stability.",
-    cues: "Step far enough for a 90° front knee\nBack knee lightly grazes the floor\nStay upright through the torso",
-  },
-  {
-    name: "Bulgarian Split Squat",
-    section: "lower_push",
-    description: "Rear-foot-elevated single-leg squat — heavily loads one leg at a time for strength and stability.",
-    cues: "Rear foot elevated behind, front foot far enough forward\nDescend under control\nMost of the weight through the front leg",
-  },
+  // Upper Push
+  wb("Knee Push Up", "upper_push"),
+  wb("Incline Push Up", "upper_push"),
+  wb("Band-Assisted Push Up", "upper_push"),
+  wb("Explosive Push Up", "upper_push"),
+  wb("Push Up", "upper_push"),
+  wb("Decline Push Up", "upper_push"),
+  wb("Med Ball Push Up", "upper_push"),
+  wb("Weighted/Band Push Up", "upper_push"),
+  wb("Bench Press", "upper_push"),
+  wb("Single-Arm Bench Press", "upper_push"),
+  wb("Single-Arm Alternating Bench Press", "upper_push"),
+  wb("Incline Bench Press", "upper_push"),
+  wb("Dumbbell Shoulder Press", "upper_push"),
+  wb("Dumbbell Curl + Press", "upper_push"),
+  wb("Kettlebell Shoulder Press", "upper_push"),
+  wb("Barbell Shoulder Press", "upper_push"),
+  wb("Dips", "upper_push"),
 
-  // lower_pull
-  {
-    name: "Deadlift",
-    section: "lower_pull",
-    description: "Barbell lift from the floor — a full-posterior-chain hip hinge and one of the biggest strength movements.",
-    cues: "Bar over mid-foot\nFlat back, brace before the pull\nDrive the floor away, hips and shoulders rise together",
-  },
-  {
-    name: "Romanian Deadlift",
-    section: "lower_pull",
-    description: "Hip-hinge from standing, minimal knee bend — targets the hamstrings and glutes.",
-    cues: "Push hips back, soft knees\nBar stays close to the legs\nStop when the hamstrings feel loaded, not when the back rounds",
-  },
-  {
-    name: "Hip Thrust",
-    section: "lower_pull",
-    description: "Barbell hip extension with shoulders on a bench — isolates the glutes with a big range of motion.",
-    cues: "Chin tucked, ribs down\nDrive through the heels\nSqueeze glutes hard at the top, avoid over-arching",
-  },
-  {
-    name: "Kettlebell Swing",
-    section: "lower_pull",
-    description: "Ballistic hip hinge — trains explosive hip extension and doubles as conditioning.",
-    cues: "Hinge, don't squat\nSnap the hips forward to drive the bell\nArms are just along for the ride",
-  },
-  {
-    name: "Good Morning",
-    section: "lower_pull",
-    description: "Barbell hip hinge with the bar on the back — builds hamstring and lower-back strength.",
-    cues: "Soft knees, flat back\nHinge until you feel a hamstring stretch\nDrive the hips forward to stand tall",
-  },
+  // Upper Pull
+  wb("Dumbbell/Kettlebell Single-Arm Bent-Over Row", "upper_pull"),
+  wb("Dumbbell/Kettlebell Single-Arm Single-Leg Row", "upper_pull"),
+  wb("Face Pull", "upper_pull"),
+  wb("Upright Row", "upper_pull"),
+  wb("TRX Row", "upper_pull"),
+  wb("Renegade Row", "upper_pull"),
+  wb("Gorilla Row", "upper_pull"),
+  wb("Barbell Bent-Over Row", "upper_pull"),
+  wb("Pendlay Row", "upper_pull"),
+  wb("Band-Assisted Pull-Up/Chin-Up", "upper_pull"),
+  wb("Bodyweight Pull-Up/Chin-Up", "upper_pull"),
+  wb("Single-Leg Wall Bent-Over Row", "upper_pull"),
 
-  // core
+  // High Tempo → cardio
+  wb("Bike", "cardio"),
+  wb("Ski Erg", "cardio"),
+  wb("Row", "cardio"),
+  wb("Boxing", "cardio"),
+  wb("Battle Ropes", "cardio"),
+  wb("Rope Pulley", "cardio"),
+  wb("Overhead Slam", "cardio"),
+  wb("Side-to-Side Slam", "cardio"),
+  wb("Partner Slam", "cardio"),
+  wb("Skipping", "cardio"),
+  wb("Wall Ball", "cardio"),
+  wb("Sled", "cardio"),
+
+  // Core — no whiteboard column, kept as a small generic set.
   {
     name: "Plank",
     section: "core",
@@ -170,37 +140,5 @@ export const STARTER_EXERCISE_LIBRARY: StarterExercise[] = [
     section: "core",
     description: "Supine opposite-arm/opposite-leg reach — anti-extension core control, easy on the lower back.",
     cues: "Press the lower back into the floor throughout\nMove slowly, opposite arm and leg together\nOnly go as low as control allows",
-  },
-
-  // cardio
-  {
-    name: "Running",
-    section: "cardio",
-    description: "Steady-state or interval running — the most accessible cardiovascular conditioning tool.",
-    cues: "Relaxed shoulders, arms drive front to back\nLand under the hips, not way out in front\nBreathe rhythmically",
-  },
-  {
-    name: "Rowing",
-    section: "cardio",
-    description: "Full-body cardio on the rowing machine — low-impact, high output.",
-    cues: "Legs, then hips, then arms on the drive\nArms, then hips, then legs on the recovery\nStay relaxed on the recovery — it's not a rush",
-  },
-  {
-    name: "Assault Bike",
-    section: "cardio",
-    description: "Fan-bike cardio using arms and legs together — brutal for short, high-intensity efforts.",
-    cues: "Push and pull with the arms, don't just spin the legs\nStay seated, don't bounce\nPace efforts — it rewards nothing but honest output",
-  },
-  {
-    name: "Jump Rope",
-    section: "cardio",
-    description: "Skipping — cheap, portable conditioning that also builds coordination.",
-    cues: "Small jumps, just enough to clear the rope\nSpin from the wrists, not the shoulders\nLand softly on the balls of the feet",
-  },
-  {
-    name: "Stair Climber",
-    section: "cardio",
-    description: "Continuous stepping machine — steady cardio with a lower-body strength-endurance component.",
-    cues: "Stand tall, avoid leaning on the rails\nFull foot on each step\nSteady rhythm over sprinting the first minute",
   },
 ];
