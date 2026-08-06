@@ -72,7 +72,7 @@ export const INTOLERANCE_OPTIONS: SelectOption<string>[] = [
 ];
 
 export const DIETARY_NOTES_PLACEHOLDER =
-  "Anything else about your diet — other allergies, dislikes, or preferences";
+  "Anything else about your diet, or any other medical issues we should know about";
 
 export const DIETARY_PREFERENCE_VALUES = DIETARY_PREFERENCE_OPTIONS.map((o) => o.value);
 const ALLERGEN_VALUES = new Set(ALLERGEN_OPTIONS.map((o) => o.value));

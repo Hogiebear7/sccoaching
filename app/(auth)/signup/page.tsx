@@ -61,6 +61,8 @@ export default function SignupPage() {
   const [step, setStep] = useState(0);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -279,6 +281,11 @@ export default function SignupPage() {
 
   async function handleSubmit() {
     if (!validateStep(step)) return;
+
+    if (!agreedToTerms || !agreedToPrivacy) {
+      setFormError("Please agree to the Terms and Conditions and Privacy Policy to continue.");
+      return;
+    }
 
     setFormError(null);
     setIsSubmitting(true);
@@ -1008,6 +1015,37 @@ export default function SignupPage() {
                       />
                     </ReviewCard>
                   ) : null}
+
+                  <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                    <label className="flex items-start gap-3 text-sm text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={agreedToTerms}
+                        onChange={(e) => setAgreedToTerms(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                      />
+                      <span>
+                        I agree to the{" "}
+                        <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-gold underline transition hover:text-gold/80">
+                          Terms and Conditions
+                        </Link>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 text-sm text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={agreedToPrivacy}
+                        onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                      />
+                      <span>
+                        I agree to the{" "}
+                        <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="text-gold underline transition hover:text-gold/80">
+                          Privacy Policy
+                        </Link>
+                      </span>
+                    </label>
+                  </div>
                 </section>
               )}
               </div>

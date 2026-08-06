@@ -351,12 +351,22 @@ select optgroup {
 }
 
 select option:disabled {
-  color: oklch(0.60 0.006 255);
+  color: oklch(0.75 0.006 255);
 }
 
 select:required:invalid {
   /* Empty "Select…" placeholder option shown in the closed field */
-  color: oklch(0.60 0.006 255);
+  color: oklch(0.75 0.006 255);
+}
+
+/* Sitewide placeholder color — a lighter, white-ish grey rather than the
+   darker standard gray, which read as low-contrast/hard-to-read on the
+   navy background. !important because a number of individual forms set
+   their own `placeholder:text-*` Tailwind utility (same specificity as a
+   plain ::placeholder rule, so without this it'd be a coin flip which one
+   wins) — this makes the readable color the one guarantee everywhere. */
+::placeholder {
+  color: oklch(0.75 0.006 255) !important;
 }
 
 * {
@@ -583,7 +593,7 @@ html {
   transition: border-color 150ms ease, box-shadow 150ms ease;
 
   &::placeholder {
-    color: oklch(0.60 0.006 255);
+    color: oklch(0.75 0.006 255);
   }
 
   &:focus {

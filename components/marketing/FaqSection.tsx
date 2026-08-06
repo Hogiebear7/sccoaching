@@ -26,7 +26,7 @@ const FAQS: FaqItem[] = [
   {
     question: "What should I bring to my first session?",
     answer:
-      "Comfortable training clothes, trainers you can lift in, and water. Everything else — equipment, program, coaching — is taken care of on the floor.",
+      "Comfortable training clothes, trainers you can lift in, a towel, and water. Everything else — equipment, program, coaching — is taken care of on the floor.",
   },
   {
     question: "Can I pause my membership?",

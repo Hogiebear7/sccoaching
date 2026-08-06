@@ -81,7 +81,9 @@ export function DietaryRequirementsFields({
 
       {/* Notes */}
       <label className="block">
-        <span className="mb-1.5 block text-sm font-medium">Additional notes (optional)</span>
+        <span className="mb-1.5 block text-sm font-medium">
+          Additional notes — diet or medical <span className="font-normal text-muted-foreground">(optional)</span>
+        </span>
         <textarea
           value={values.dietaryNotes}
           onChange={(e) => onChange({ dietaryNotes: e.target.value })}
