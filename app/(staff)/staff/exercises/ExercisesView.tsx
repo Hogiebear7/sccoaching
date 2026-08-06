@@ -38,6 +38,10 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
 
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
   // Sections holding exercises start open; empty ones start collapsed.
   const [openSections, setOpenSections] = useState<Set<ExerciseSection>>(
     () => new Set(exercises.map((e) => e.section))
@@ -176,6 +180,29 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
     }
   }
 
+  async function handleImportStarter() {
+    setImportError(null);
+    setImportMessage(null);
+    setImporting(true);
+
+    try {
+      const res = await fetch("/api/staff/exercises/import-starter", { method: "POST" });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setImportError(data?.message ?? "Could not import the starter library.");
+        return;
+      }
+
+      setImportMessage(data?.message ?? "Imported.");
+      router.refresh();
+    } catch {
+      setImportError("Something went wrong. Please try again.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleDelete(id: string) {
     setDeleteError(null);
 
@@ -217,6 +244,27 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
           Deleting an exercise removes it from future suggestions but does not affect historical
           workout records.
         </p>
+      </div>
+
+      {/* One-time starter import — remove this block once the library is populated */}
+      <div className="panel flex flex-wrap items-center justify-between gap-3 border-dashed p-4">
+        <div>
+          <p className="text-sm font-medium">Import starter library</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Adds 30 common exercises across every muscle group and cardio, with descriptions
+            and cues. Safe to press more than once — existing exercises are never duplicated.
+          </p>
+          {importMessage ? <p className="mt-1.5 text-xs text-primary">{importMessage}</p> : null}
+          {importError ? <p className="mt-1.5 text-xs text-destructive">{importError}</p> : null}
+        </div>
+        <button
+          type="button"
+          onClick={handleImportStarter}
+          disabled={importing}
+          className="shrink-0 rounded-xl border border-teal-600/40 px-4 py-2 text-sm font-medium text-teal-300 transition hover:border-teal-600/70 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {importing ? "Importing…" : "Import starter library"}
+        </button>
       </div>
 
       {/* Add form */}
