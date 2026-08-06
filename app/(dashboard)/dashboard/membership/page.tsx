@@ -77,6 +77,7 @@ export default async function DashboardMembershipPage({
       subscriptionStatus={subscription?.status ?? null}
       subscriptionUpdatedAt={subscription?.updatedAt ?? null}
       subscriptionCurrentPeriodEnd={subscription?.currentPeriodEnd ?? null}
+      subscriptionPausedUntil={subscription?.pausedUntil ?? null}
       passBalance={currentPlan && subscription ? classPassBalance(currentPlan, subscription) : null}
       purchasedPasses={purchasedPassBalance(user.id)}
       expiringPasses={expiringPassSummary(user.id, 30)}

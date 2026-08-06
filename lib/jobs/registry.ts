@@ -6,6 +6,7 @@ import { notifyLowPassBalanceJob } from "./notify-low-pass-balance";
 import { notifyLapsedMembershipsJob } from "./notify-lapsed-memberships";
 import { processWaitlistOffersJob } from "./process-waitlist-offers";
 import { purgeExpiredResetTokensJob } from "./purge-expired-reset-tokens";
+import { resumePausedMembershipsJob } from "./resume-paused-memberships";
 import { sendClassRemindersJob } from "./send-class-reminders";
 import type { JobDefinition } from "./types";
 
@@ -20,6 +21,7 @@ export const ALL_JOBS: JobDefinition[] = [
   notifyLapsedMembershipsJob,
   notifyExpiringPassesJob,
   notifyLowPassBalanceJob,
+  resumePausedMembershipsJob,
   generateClassSeriesJob,
   processWaitlistOffersJob,
   sendClassRemindersJob,

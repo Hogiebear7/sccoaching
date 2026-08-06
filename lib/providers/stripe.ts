@@ -175,6 +175,67 @@ export async function createStripeCatalogCheckout(input: {
   );
 }
 
+// Pauses billing on a Stripe subscription (POST /v1/subscriptions/{id} with
+// pause_collection). behavior "void" means Stripe generates no invoices at
+// all for the paused period — nothing to reconcile when it resumes.
+// resumesAt is a unix timestamp; Stripe automatically clears pause_collection
+// and resumes billing at that time on its own, independent of our own
+// resume-paused-memberships job (which exists to flip OUR local status back).
+export async function pauseStripeSubscription(
+  subscriptionId: string,
+  resumesAtUnixSeconds: number
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const secretKey = getSecretKey();
+  if (!secretKey) return { ok: false, message: "Stripe is not configured." };
+
+  try {
+    const res = await fetch(`${STRIPE_API_BASE}/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        "pause_collection[behavior]": "void",
+        "pause_collection[resumes_at]": String(resumesAtUnixSeconds),
+      }).toString(),
+    });
+    if (res.ok) return { ok: true };
+    if (res.status === 404) return { ok: true }; // nothing left to pause
+    const body = await res.text().catch(() => "");
+    return { ok: false, message: `Stripe pause failed (${res.status}): ${body.slice(0, 200)}` };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Stripe pause request failed." };
+  }
+}
+
+// Clears pause_collection so billing resumes immediately, for a staff-driven
+// early resume (member's own action, or an admin ending the pause early).
+export async function resumeStripeSubscription(
+  subscriptionId: string
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const secretKey = getSecretKey();
+  if (!secretKey) return { ok: false, message: "Stripe is not configured." };
+
+  try {
+    const res = await fetch(`${STRIPE_API_BASE}/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      // An empty value for a hash-type param clears it in Stripe's API.
+      body: new URLSearchParams({ "pause_collection": "" }).toString(),
+    });
+    if (res.ok) return { ok: true };
+    if (res.status === 404) return { ok: true };
+    const body = await res.text().catch(() => "");
+    return { ok: false, message: `Stripe resume failed (${res.status}): ${body.slice(0, 200)}` };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Stripe resume request failed." };
+  }
+}
+
 // Cancels a Stripe subscription immediately (DELETE /v1/subscriptions/{id}).
 // Used when a switch is confirmed, so the member's PREVIOUS subscription can't
 // keep billing alongside the new one. Best-effort by design: the caller has

@@ -28,6 +28,8 @@ import {
   createStripePassCheckout,
   createStripeSubscriptionCheckout,
   isStripeConfigured,
+  pauseStripeSubscription,
+  resumeStripeSubscription,
 } from "./providers/stripe";
 import { isStripeWebhookConfigured } from "./providers/stripe-webhook";
 
@@ -322,6 +324,29 @@ export async function cancelProviderSubscription(input: {
 }): Promise<{ ok: boolean; message: string | null }> {
   if (input.provider !== "stripe") return { ok: true, message: null };
   const result = await cancelStripeSubscription(input.providerSubscriptionId);
+  return result.ok ? { ok: true, message: null } : { ok: false, message: result.message };
+}
+
+// Pause/resume are Stripe-only at the provider level — other providers (or
+// manual/no provider) have no live billing to touch, so they no-op success.
+// Access is still blocked locally either way: it's driven by subscription
+// status, not by whether a provider call happened.
+export async function pauseProviderSubscription(input: {
+  provider: BillingProvider;
+  providerSubscriptionId: string;
+  resumesAtUnixSeconds: number;
+}): Promise<{ ok: boolean; message: string | null }> {
+  if (input.provider !== "stripe") return { ok: true, message: null };
+  const result = await pauseStripeSubscription(input.providerSubscriptionId, input.resumesAtUnixSeconds);
+  return result.ok ? { ok: true, message: null } : { ok: false, message: result.message };
+}
+
+export async function resumeProviderSubscription(input: {
+  provider: BillingProvider;
+  providerSubscriptionId: string;
+}): Promise<{ ok: boolean; message: string | null }> {
+  if (input.provider !== "stripe") return { ok: true, message: null };
+  const result = await resumeStripeSubscription(input.providerSubscriptionId);
   return result.ok ? { ok: true, message: null } : { ok: false, message: result.message };
 }
 

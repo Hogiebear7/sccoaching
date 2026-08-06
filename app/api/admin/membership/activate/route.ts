@@ -102,6 +102,8 @@ export async function POST(request: NextRequest) {
     packageId: pkg.id,
     billingOptionId: null,
     status: "active",
+    pausedUntil: null,
+    statusBeforePause: null,
     provider: "none",
     providerCustomerId: existing?.providerCustomerId ?? null,
     providerSubscriptionId: existing?.providerSubscriptionId ?? null,

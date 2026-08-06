@@ -240,6 +240,8 @@ export async function POST(request: NextRequest) {
     packageId: pkg.id,
     billingOptionId: option.id,
     status: "pending",
+    pausedUntil: null,
+    statusBeforePause: null,
     provider: "stripe",
     providerCustomerId: existingSubscription?.providerCustomerId ?? null,
     providerSubscriptionId: existingSubscription?.providerSubscriptionId ?? null,

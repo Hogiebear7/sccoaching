@@ -139,6 +139,8 @@ export async function POST(
     packageId: resolvedPackageId,
     billingOptionId: existingSubscription?.billingOptionId ?? null,
     status: status as SubscriptionStatus,
+    pausedUntil: null,
+    statusBeforePause: null,
     provider: "none",
     providerCustomerId: existingSubscription?.providerCustomerId ?? null,
     providerSubscriptionId: existingSubscription?.providerSubscriptionId ?? null,

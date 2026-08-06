@@ -23,6 +23,7 @@ function statusBadgeClass(status: SubscriptionStatus, lapsed: boolean, stale: bo
   if (lapsed || status === "past_due") return "bg-destructive/10 text-destructive border-destructive/20";
   if (stale) return "bg-muted text-muted-foreground border";
   if (status === "active") return "border-[var(--success)]/25 bg-[var(--success-weak)] text-[var(--success)]";
+  if (status === "paused") return "border-sky-500/25 bg-sky-500/10 text-sky-300";
   return "bg-muted text-muted-foreground border";
 }
 
@@ -63,6 +64,7 @@ export function MembershipView({
   subscriptionStatus,
   subscriptionUpdatedAt,
   subscriptionCurrentPeriodEnd,
+  subscriptionPausedUntil,
   passBalance,
   purchasedPasses,
   expiringPasses,
@@ -81,6 +83,8 @@ export function MembershipView({
   subscriptionStatus: SubscriptionStatus | null;
   subscriptionUpdatedAt: string | null;
   subscriptionCurrentPeriodEnd: string | null;
+  /** Only meaningful while subscriptionStatus is "paused". */
+  subscriptionPausedUntil: string | null;
   passBalance: ClassPassBalance | null;
   /** Purchased pass-pack balance from the ledger — separate from the plan's
       monthly allowance and never reset by billing periods. */
@@ -157,6 +161,15 @@ export function MembershipView({
                 <div className="mt-3 flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
                   <WarningIcon />
                   <span>Your last payment failed. Update your payment method to keep your sessions.</span>
+                </div>
+              )}
+
+              {subscriptionStatus === "paused" && (
+                <div className="mt-3 rounded-lg border border-sky-500/25 bg-sky-500/10 p-3 text-xs text-sky-300">
+                  Your membership is paused
+                  {subscriptionPausedUntil ? ` until ${formatMembershipDate(subscriptionPausedUntil)}` : ""}.
+                  You won&rsquo;t be able to book classes or use your benefits until it resumes.
+                  {billingConfigured ? " Billing is paused too — you won't be charged in the meantime." : ""}
                 </div>
               )}
 

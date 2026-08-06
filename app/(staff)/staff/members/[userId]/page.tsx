@@ -191,6 +191,7 @@ export default async function StaffMemberDetailPage({
           currentProvider={subscription?.provider ?? null}
           currentUpdatedAt={subscription?.updatedAt ?? null}
           currentPeriodEnd={subscription?.currentPeriodEnd ?? null}
+          currentPausedUntil={subscription?.pausedUntil ?? null}
           passBalance={
             subscriptionPlan && subscription
               ? classPassBalance(subscriptionPlan, subscription)

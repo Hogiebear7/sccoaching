@@ -290,7 +290,7 @@ export type BillingProvider = "none" | "stripe" | "revolut";
 // "pending" = a checkout was created with the provider but payment hasn't
 // been confirmed yet (webhook hasn't fired). Only a provider webhook (or a
 // staff manual override) should ever move a subscription to "active".
-export type SubscriptionStatus = "inactive" | "pending" | "active" | "past_due" | "canceled";
+export type SubscriptionStatus = "inactive" | "pending" | "active" | "past_due" | "canceled" | "paused";
 
 // A manual class-pass credit granted by staff on top of the plan's monthly
 // allowance (goodwill, catch-up, promo, correction). Grants apply to the
@@ -325,6 +325,12 @@ export interface SubscriptionRecord {
   /** When the switch checkout was started, for staleness/abandon cleanup. */
   pendingStartedAt?: string | null;
   status: SubscriptionStatus;
+  /** Set only while status is "paused" — the pause auto-resumes once this
+      passes (see lib/jobs/resume-paused-memberships.ts). Null otherwise. */
+  pausedUntil: string | null;
+  /** The status this subscription had immediately before being paused, so
+      resuming restores it exactly rather than assuming "active". */
+  statusBeforePause: SubscriptionStatus | null;
   provider: BillingProvider;
   providerCustomerId: string | null;
   // Revolut subscription ID (for subscription-based billing). Legacy records

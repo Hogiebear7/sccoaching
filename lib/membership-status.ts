@@ -10,6 +10,7 @@ export const SUBSCRIPTION_STATUS_LABEL: Record<SubscriptionStatus, string> = {
   active: "Active",
   canceled: "Canceled",
   past_due: "Past due",
+  paused: "Paused",
 };
 
 export const SUBSCRIPTION_STATUS_STYLE: Record<SubscriptionStatus, string> = {
@@ -18,6 +19,7 @@ export const SUBSCRIPTION_STATUS_STYLE: Record<SubscriptionStatus, string> = {
   active: "bg-emerald-500/15 text-emerald-300",
   canceled: "bg-zinc-800 text-zinc-400",
   past_due: "bg-red-500/15 text-red-300",
+  paused: "bg-sky-500/15 text-sky-300",
 };
 
 // True recurring auto-billing isn't implemented yet (see

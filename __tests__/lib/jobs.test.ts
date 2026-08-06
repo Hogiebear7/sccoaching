@@ -296,3 +296,76 @@ describe("purgeExpiredResetTokensJob", () => {
     expect(summary).toMatch(/no expired/i);
   });
 });
+
+describe("resumePausedMembershipsJob", () => {
+  beforeEach(() => {
+    mockFindAllSubscriptions.mockReset();
+    mockSaveSubscription.mockReset();
+  });
+
+  function pausedSubscription(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      userId: "user-1",
+      packageId: "pkg-1",
+      status: "paused",
+      statusBeforePause: "active",
+      pausedUntil: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1h ago — due
+      provider: "stripe",
+      providerCustomerId: null,
+      providerSubscriptionId: "sub_123",
+      providerSetupOrderId: null,
+      currentPeriodEnd: null,
+      lastWebhookEventAt: null,
+      sessionsUsedThisPeriod: 0,
+      extraSessionGrants: [],
+      periodLapsedNotifiedAt: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("resumes a paused membership once its pause period has passed", async () => {
+    mockFindAllSubscriptions.mockReturnValue([pausedSubscription()]);
+    const { resumePausedMembershipsJob } = await import("@/lib/jobs/resume-paused-memberships");
+
+    const summary = await resumePausedMembershipsJob.run();
+
+    expect(mockSaveSubscription).toHaveBeenCalledTimes(1);
+    const saved = mockSaveSubscription.mock.calls[0][0];
+    expect(saved.status).toBe("active");
+    expect(saved.statusBeforePause).toBeNull();
+    expect(saved.pausedUntil).toBeNull();
+    expect(summary).toMatch(/resumed 1/i);
+  });
+
+  it("restores the exact pre-pause status, not just active", async () => {
+    mockFindAllSubscriptions.mockReturnValue([pausedSubscription({ statusBeforePause: "past_due" })]);
+    const { resumePausedMembershipsJob } = await import("@/lib/jobs/resume-paused-memberships");
+
+    await resumePausedMembershipsJob.run();
+
+    expect(mockSaveSubscription.mock.calls[0][0].status).toBe("past_due");
+  });
+
+  it("leaves a still-paused membership alone", async () => {
+    mockFindAllSubscriptions.mockReturnValue([
+      pausedSubscription({ pausedUntil: new Date(Date.now() + 60 * 60 * 1000).toISOString() }), // 1h from now
+    ]);
+    const { resumePausedMembershipsJob } = await import("@/lib/jobs/resume-paused-memberships");
+
+    const summary = await resumePausedMembershipsJob.run();
+
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+    expect(summary).toMatch(/no paused/i);
+  });
+
+  it("ignores non-paused subscriptions entirely", async () => {
+    mockFindAllSubscriptions.mockReturnValue([pausedSubscription({ status: "active", pausedUntil: null })]);
+    const { resumePausedMembershipsJob } = await import("@/lib/jobs/resume-paused-memberships");
+
+    await resumePausedMembershipsJob.run();
+
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+});

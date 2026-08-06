@@ -23,6 +23,12 @@ const STATUS_OPTIONS: SubscriptionStatus[] = [
   "canceled",
 ];
 
+const PAUSE_DURATION_LABEL: Record<string, string> = {
+  "2w": "2 weeks",
+  "1m": "1 month",
+  "6m": "6 months",
+};
+
 export function MembershipStatusPanel({
   memberId,
   packages,
@@ -32,6 +38,7 @@ export function MembershipStatusPanel({
   currentProvider,
   currentUpdatedAt,
   currentPeriodEnd,
+  currentPausedUntil,
   passBalance,
   purchasedPasses,
   passLedger,
@@ -45,6 +52,8 @@ export function MembershipStatusPanel({
   currentUpdatedAt: string | null;
   passBalance: ClassPassBalance | null;
   currentPeriodEnd: string | null;
+  /** Only meaningful while currentStatus is "paused". */
+  currentPausedUntil: string | null;
   purchasedPasses: number;
   /** Most recent pass-ledger entries (already limited server-side). */
   passLedger: PassLedgerEntryRecord[];
@@ -62,10 +71,16 @@ export function MembershipStatusPanel({
       ? currentPackageId
       : packages[0]?.id ?? ""
   );
-  const [status, setStatus] = useState<SubscriptionStatus>(currentStatus ?? "inactive");
+  const [status, setStatus] = useState<SubscriptionStatus>(
+    currentStatus && currentStatus !== "paused" ? currentStatus : "inactive"
+  );
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pauseDuration, setPauseDuration] = useState<"2w" | "1m" | "6m">("1m");
+  const [pauseError, setPauseError] = useState<string | null>(null);
+  const [pauseMessage, setPauseMessage] = useState<string | null>(null);
+  const [isPausing, setIsPausing] = useState(false);
   const [grantAmount, setGrantAmount] = useState("1");
   const [grantNote, setGrantNote] = useState("");
   const [grantError, setGrantError] = useState<string | null>(null);
@@ -107,6 +122,34 @@ export function MembershipStatusPanel({
       setGrantError("Something went wrong. Please try again.");
     } finally {
       setIsGranting(false);
+    }
+  }
+
+  async function handlePauseAction(action: "pause" | "resume") {
+    setPauseError(null);
+    setPauseMessage(null);
+    setIsPausing(true);
+
+    try {
+      const res = await fetch(`/api/staff/members/${memberId}/pause`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(action === "pause" ? { action, duration: pauseDuration } : { action }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setPauseError(data?.message ?? "Could not update the pause. Please try again.");
+        return;
+      }
+
+      setPauseMessage(data?.message ?? (action === "pause" ? "Membership paused." : "Membership resumed."));
+      router.refresh();
+    } catch {
+      setPauseError("Something went wrong. Please try again.");
+    } finally {
+      setIsPausing(false);
     }
   }
 
@@ -190,6 +233,61 @@ export function MembershipStatusPanel({
           </span>
         ) : null}
       </div>
+
+      {/* Pause / resume — distinct from the manual override below: it keeps
+          the member's real plan and provider intact, just blocks booking and
+          benefits (and Stripe billing, when live) for a fixed window. */}
+      {currentStatus === "paused" ? (
+        <div className="mt-4 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3">
+          <p className="text-sm text-sky-300">
+            Paused until {currentPausedUntil ? formatMembershipDate(currentPausedUntil) : "—"}. The
+            member can&apos;t book classes or use in-app benefits until then.
+          </p>
+          {pauseError ? (
+            <p className="mt-2 text-xs text-destructive">{pauseError}</p>
+          ) : null}
+          {pauseMessage ? (
+            <p className="mt-2 text-xs text-sky-300">{pauseMessage}</p>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => handlePauseAction("resume")}
+            disabled={isPausing}
+            className="mt-3 rounded-xl border border-sky-500/40 px-3 py-1.5 text-xs font-medium text-sky-300 transition hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isPausing ? "Resuming…" : "Resume now"}
+          </button>
+        </div>
+      ) : currentStatus === "active" || currentStatus === "past_due" ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-white/[0.02] px-4 py-3">
+          <p className="mr-auto text-xs text-muted-foreground">
+            Pause this membership — no bookings or benefits, no billing, until it resumes.
+          </p>
+          <select
+            value={pauseDuration}
+            onChange={(e) => setPauseDuration(e.target.value as "2w" | "1m" | "6m")}
+            aria-label="Pause duration"
+            className="input-field px-2 py-1.5 text-xs"
+          >
+            {(Object.keys(PAUSE_DURATION_LABEL) as ("2w" | "1m" | "6m")[]).map((key) => (
+              <option key={key} value={key}>
+                {PAUSE_DURATION_LABEL[key]}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => handlePauseAction("pause")}
+            disabled={isPausing}
+            className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isPausing ? "Pausing…" : "Pause membership"}
+          </button>
+          {pauseError ? (
+            <p className="w-full text-xs text-destructive">{pauseError}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {packages.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">

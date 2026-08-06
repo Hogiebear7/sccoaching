@@ -56,6 +56,8 @@ function sub(overrides: Record<string, unknown> = {}) {
   return {
     userId: "u1",
     status: "active" as const,
+    pausedUntil: null,
+    statusBeforePause: null,
     provider: "stripe" as const,
     providerCustomerId: null,
     providerSubscriptionId: null,
