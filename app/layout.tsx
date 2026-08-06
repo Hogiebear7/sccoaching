@@ -3,6 +3,7 @@ import { Fraunces, IBM_Plex_Mono, Inter, Oswald, Space_Grotesk } from "next/font
 import "./globals.css";
 
 import { ChunkErrorRecovery } from "@/components/ChunkErrorRecovery";
+import { SplashIntro } from "@/components/SplashIntro";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const spaceGrotesk = Space_Grotesk({
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${oswald.variable} ${fraunces.variable} ${ibmPlexMono.variable} h-full`}>
       <body data-design="v6-liquid-glass" className="min-h-full text-zinc-50 antialiased">
         <ChunkErrorRecovery />
+        <SplashIntro />
         {children}
       </body>
     </html>
