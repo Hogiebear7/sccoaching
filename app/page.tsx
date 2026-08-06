@@ -8,6 +8,7 @@ import { verifySession } from "@/lib/session";
 import { ClassesShowcase } from "@/components/marketing/ClassesShowcase";
 import { ClassPricingShowcase } from "@/components/marketing/ClassPricingShowcase";
 import { ContactForm } from "@/components/marketing/ContactForm";
+import { FaqSection } from "@/components/marketing/FaqSection";
 import { MemberPreviewStack } from "@/components/marketing/MemberPreviewStack";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
@@ -240,6 +241,24 @@ export default async function Root() {
               </ScrollReveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* FAQ — resolves the common objections/questions right before the
+          final CTA asks for action. */}
+      <section className="relative border-t border-white/[0.06]">
+        <div className="mx-auto max-w-3xl px-6 py-20">
+          <ScrollReveal className="max-w-lg">
+            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              FAQ
+            </p>
+            <h2 className="mt-4 text-editorial text-[32px] text-zinc-50">Common questions.</h2>
+          </ScrollReveal>
+
+          <ScrollReveal delayMs={80} className="mt-10">
+            <FaqSection />
+          </ScrollReveal>
         </div>
       </section>
 
