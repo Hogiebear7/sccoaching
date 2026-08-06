@@ -319,7 +319,7 @@ export default async function DashboardPage() {
               }}
             />
           )}
-          <div className="relative flex items-start justify-between gap-4">
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-start gap-4">
                 <ReadinessRing score={todayReadiness} />
@@ -384,7 +384,7 @@ export default async function DashboardPage() {
               </div>
             </div>
             {hasTrend && (
-              <div className="shrink-0 text-right">
+              <div className="shrink-0 border-t border-white/[0.06] pt-3 text-right sm:border-t-0 sm:pt-0">
                 <ReadinessSparkline series={readinessTrend} />
                 <p className="mt-1 text-[10px] text-zinc-600">Readiness · 14d trend</p>
               </div>

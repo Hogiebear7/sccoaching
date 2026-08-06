@@ -24,12 +24,12 @@ const DIFFERENTIATORS = [
     body: "Small-group sessions stay small on purpose — every rep gets watched, every cue is specific to you, not shouted at the room.",
   },
   {
-    title: "Qualified S&C coaches",
-    body: "Every coach on the floor is degree-qualified in strength & conditioning, not a personal trainer certificate away from athletics.",
+    title: "Highly qualified coach",
+    body: "15+ years of hands-on coaching, backed by a science degree in strength & conditioning — not a personal trainer certificate away from athletics.",
   },
   {
     title: "Rooted in the community",
-    body: "Built for members training toward their own first standard, alongside athletes preparing for their sport's season.",
+    body: "Members, athletes, and everyone in between train side by side in a calm, focused environment.",
   },
 ] as const;
 
@@ -257,13 +257,13 @@ export default async function Root() {
           <ScrollReveal>
             <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
               <span className="h-px w-8 bg-primary/70" />
-              Start Your Block
+              Get Started
             </p>
             <h2 className="mt-4 text-editorial text-[38px] italic leading-[1.06] text-zinc-50">
-              Start with a plan, not a guess.
+              Begin your training with us.
             </h2>
             <p className="mt-4 max-w-md text-base leading-relaxed text-zinc-400">
-              Book your first session and leave with a baseline, a block, and a coach who's read both.
+              Book your first session and walk out with a baseline, a plan, and a coach who already knows your goals.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">

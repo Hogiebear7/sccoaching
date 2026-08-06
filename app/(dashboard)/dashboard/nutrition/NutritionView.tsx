@@ -80,6 +80,8 @@ const INGREDIENT_BENEFITS: {
   summary: string;
   /** What the substance actually is — composition/origin, not what it does. */
   whatItIs: string;
+  /** The mechanism — why that composition produces the benefit. */
+  whyItHelps: string;
   detail: string;
 }[] = [
   {
@@ -88,6 +90,8 @@ const INGREDIENT_BENEFITS: {
     summary: "Fast carbohydrate to fuel long, intense sessions.",
     whatItIs:
       "A carbohydrate made by partially breaking down starch — usually corn, though sometimes rice or potato — into shorter chains of glucose. It isn't a sugar itself, but the body digests it almost as fast as one.",
+    whyItHelps:
+      "Because it breaks down to glucose so quickly, it tops up blood sugar during exercise, which spares the glycogen stored in your muscles. That stored glycogen is limited — once it runs low, output drops — so feeding the body sugar from the drink instead delays that fade.",
     detail:
       "Sports drinks are commonly built around 4–8 g of carbohydrate per 100 ml — roughly 60 g per litre for isotonic use — because concentration matters for both fuel delivery and fluid absorption. Maltodextrin digests quickly with a mild taste, which is why it's the base carbohydrate here.",
   },
@@ -97,6 +101,8 @@ const INGREDIENT_BENEFITS: {
     summary: "Supports repeated hard efforts by helping buffer acidity.",
     whatItIs:
       "A naturally occurring amino acid, made in the liver and also found in meat and fish. The body combines it with another amino acid, histidine, to build carnosine, which is stored in muscle tissue.",
+    whyItHelps:
+      "Hard efforts produce acid in working muscle, and that build-up is a big part of why a set or sprint starts to burn and fade. Carnosine acts as a buffer — it soaks up some of that acid — so more beta-alanine in the diet means more carnosine in the muscle, and a bit more tolerance for repeated hard efforts before the burn sets in.",
     detail:
       "Included as part of the recipe ratio, though the biggest benefit comes from regular daily use over weeks rather than only on game day. A mild skin tingle at higher doses is normal and harmless.",
   },
@@ -106,6 +112,8 @@ const INGREDIENT_BENEFITS: {
     summary: "Adds a slow-gel texture and a little fibre and fat.",
     whatItIs:
       "Small edible seeds from the Salvia hispanica plant, native to Central America. They're mostly soluble fibre, which is what makes them swell and form a gel when soaked in liquid.",
+    whyItHelps:
+      "The fibre gel slightly slows how fast the drink empties from the stomach, which can smooth out carbohydrate delivery over a long session instead of it arriving all at once. It's a texture and pacing addition, not a major energy source on its own.",
     detail:
       "Soaked chia adds body without much flavour. The amount stays modest so the drink is easy to tolerate and quick to get down during short breaks.",
   },
@@ -115,6 +123,8 @@ const INGREDIENT_BENEFITS: {
     summary: "Dietary nitrate may support exercise efficiency.",
     whatItIs:
       "Whole beetroot that's been juiced or pureed, then dried and ground into a fine powder — concentrated specifically for its naturally high dietary nitrate content.",
+    whyItHelps:
+      "Nitrate is a naturally occurring compound (found in beetroot and leafy greens) that the body converts, via bacteria in the mouth and then the gut, into nitric oxide. Nitric oxide relaxes and widens blood vessels, improving blood flow to working muscle and reducing the amount of oxygen the body needs to produce the same effort — meaning the same pace or output feels a little easier to sustain.",
     detail:
       "Dietary nitrate can modestly reduce the oxygen cost of exercise. The dose is adjusted to your role or run distance first, then scaled with bottle size so concentration stays stable.",
   },
@@ -124,6 +134,8 @@ const INGREDIENT_BENEFITS: {
     summary: "Makes the drink more palatable, plus a little fructose.",
     whatItIs:
       "Orange juice with most of its water removed, leaving a concentrated syrup of natural sugars, citrus flavour, and a small amount of vitamin C.",
+    whyItHelps:
+      "A drink that tastes good gets finished — and under-drinking because a drink is bland or too sweet is one of the most common reasons athletes end a session dehydrated. Flavour also drives thirst, and its natural fructose adds to the carbohydrate mix alongside maltodextrin, which the body can absorb faster than either sugar alone.",
     detail:
       "Better-tasting drinks get finished, and sodium works with flavour to stimulate thirst. The small fructose contribution also pairs with maltodextrin for carbohydrate uptake.",
   },
@@ -133,6 +145,8 @@ const INGREDIENT_BENEFITS: {
     summary: "Replaces sweat sodium, drives thirst, and helps retain fluid.",
     whatItIs:
       "Sodium chloride — the same table salt used in cooking. It's included here purely for its sodium content, not for flavour.",
+    whyItHelps:
+      "Sodium is the main electrolyte lost in sweat, and it's what keeps fluid inside your bloodstream rather than being lost as excess urine. Replacing it helps maintain blood volume during long or hot sessions, and it's also what triggers the feeling of thirst in the first place — without enough sodium, the drive to keep drinking drops off even while you're still losing fluid.",
     detail:
       "A practical in-drink sodium target is 400–1100 mg per litre depending on sweat loss and conditions — higher for salty sweaters and hot sessions. Your dose comes from the sweat and conditions settings above.",
   },
@@ -960,6 +974,10 @@ export function NutritionView({
                           <p className="text-xs leading-relaxed text-zinc-400">
                             <span className="font-medium text-zinc-300">What it is: </span>
                             {item.whatItIs}
+                          </p>
+                          <p className="text-xs leading-relaxed text-zinc-400">
+                            <span className="font-medium text-zinc-300">Why it helps: </span>
+                            {item.whyItHelps}
                           </p>
                           <p className="text-xs leading-relaxed text-zinc-400">{item.detail}</p>
                         </div>

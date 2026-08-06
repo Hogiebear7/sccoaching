@@ -188,12 +188,32 @@ export default async function DashboardLayout({
                 </Link>
 
                 {isStaffRole(user?.role) ? (
-                  <Link
-                    href="/staff/classes"
-                    className="hidden rounded-lg border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100 sm:block"
-                  >
-                    Staff area
-                  </Link>
+                  <>
+                    <Link
+                      href="/staff/classes"
+                      aria-label="Staff area"
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] text-zinc-400 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100 sm:hidden"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.8}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-[18px] w-[18px]"
+                      >
+                        <path d="M3 7a2 2 0 012-2h2l1-2h8l1 2h2a2 2 0 012 2v11a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                        <path d="M9 12h6" />
+                      </svg>
+                    </Link>
+                    <Link
+                      href="/staff/classes"
+                      className="hidden rounded-lg border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-zinc-100 sm:block"
+                    >
+                      Staff area
+                    </Link>
+                  </>
                 ) : null}
 
                 <form action="/api/auth/logout" method="POST">

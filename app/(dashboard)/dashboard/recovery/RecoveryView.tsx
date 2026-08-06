@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { RecoveryLogRecord } from "@/lib/db";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { ReadinessRing } from "@/components/ui/ReadinessRing";
 import { ScoreHelp } from "@/components/ui/ScoreHelp";
 import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
@@ -317,10 +318,11 @@ export function RecoveryView({
 
             <FormField
               label={
-                <>
+                <span className="inline-flex items-center gap-1">
                   RPE (1-10){" "}
                   <span className="text-xs font-normal text-muted-foreground">optional</span>
-                </>
+                  <InfoTooltip text="Rate of Perceived Exertion — how hard the whole session felt, from 1 (very easy) to 10 (maximal effort). Used to track your weekly training load." />
+                </span>
               }
               error={errors.rpe}
             >

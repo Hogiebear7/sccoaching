@@ -84,6 +84,8 @@ export function MembersActivationView({
   const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");
   const [expiryFilter, setExpiryFilter] = useState<ExpiryFilter>("all");
   const [showArchived, setShowArchived] = useState(false);
+  const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
+  const [page, setPage] = useState(0);
 
   const archivedCount = rows.filter((row) => row.archivedAt !== null).length;
 
@@ -115,6 +117,19 @@ export function MembersActivationView({
       }
     });
   }, [rows, search, sortOrder, expiryFilter, showArchived]);
+
+  // Reset back to page 1 whenever the underlying result set could have
+  // shifted out from under the current page (new search, filter, or size).
+  const resultsKey = `${search}|${sortOrder}|${expiryFilter}|${showArchived}|${pageSize}`;
+  const [lastResultsKey, setLastResultsKey] = useState(resultsKey);
+  if (resultsKey !== lastResultsKey) {
+    setLastResultsKey(resultsKey);
+    setPage(0);
+  }
+
+  const pageCount = Math.max(1, Math.ceil(visibleRows.length / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pagedRows = visibleRows.slice(currentPage * pageSize, currentPage * pageSize + pageSize);
 
   return (
     <div className="space-y-5">
@@ -209,6 +224,19 @@ export function MembersActivationView({
               Show archived ({archivedCount})
             </label>
           ) : null}
+          <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            Per page
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value) as 10 | 20 | 50)}
+              aria-label="Members per page"
+              className="input-field px-2 py-1.5 text-xs"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </label>
         </div>
       ) : null}
 
@@ -231,9 +259,36 @@ export function MembersActivationView({
         </p>
       ) : (
         <div className="space-y-3">
-          {visibleRows.map((row) => (
+          {pagedRows.map((row) => (
             <MemberCard key={row.userId} row={row} packages={packages} canManageBilling={canManageBilling} />
           ))}
+
+          {pageCount > 1 ? (
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-xs text-muted-foreground">
+                Page {currentPage + 1} of {pageCount} · {visibleRows.length} member
+                {visibleRows.length === 1 ? "" : "s"}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={currentPage === 0}
+                  className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                  disabled={currentPage >= pageCount - 1}
+                  className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>
