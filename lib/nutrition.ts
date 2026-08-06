@@ -157,11 +157,18 @@ export type SweatProfile = "low" | "medium" | "high";
 export type TempProfile = "cool" | "warm" | "hot";
 export type RunEffort = "easy" | "steady" | "hard";
 
+// Broad role archetype, purely for picking a consistent icon in the
+// position picker — a handful of shared symbols reused across sports
+// (goalkeeper/defence/midfield/attack) rather than one bespoke icon per
+// named position, which would be dozens of near-identical marks.
+export type RoleArchetype = "gk" | "def" | "mid" | "atk";
+
 export interface SportRole {
   label: string;
   dist: string;
   desc: string;
   beet: number;
+  archetype: RoleArchetype;
 }
 
 export interface SportDuration {
@@ -173,6 +180,8 @@ export interface SportDuration {
 
 export interface SportConfig {
   label: string;
+  /** Emoji shown beside the sport in the sport picker. */
+  icon: string;
   roleLabel: string;
   // Labels for the four drinking-plan phases (team sports only).
   phaseLabels: [string, string, string, string];
@@ -193,6 +202,7 @@ const MATCH_PHASES: [string, string, string, string] = [
 export const SPORT_DATA: Record<SportId, SportConfig> = {
   soccer: {
     label: "Soccer",
+    icon: "⚽",
     roleLabel: "Position",
     phaseLabels: MATCH_PHASES,
     durations: [
@@ -203,17 +213,18 @@ export const SPORT_DATA: Record<SportId, SportConfig> = {
     defaultDurationIdx: 1,
     defaultRole: "cm",
     roles: {
-      gk: { label: "Goalkeeper", dist: "~5–6 km", desc: "Explosive short bursts, minimal continuous running.", beet: 5 },
-      cb: { label: "Centre Back", dist: "~8–9 km", desc: "Moderate distance, lower sprint frequency.", beet: 5 },
-      fb: { label: "Full Back", dist: "~10–11 km", desc: "High up-and-down running and overlapping support.", beet: 6 },
-      dm: { label: "Defensive Mid", dist: "~10–11 km", desc: "Covering space behind the ball and screening lanes.", beet: 6 },
-      cm: { label: "Centre Mid", dist: "~10–12 km", desc: "Box-to-box covering with repeated sprints.", beet: 8 },
-      wm: { label: "Winger", dist: "~11–13 km", desc: "Highest distance role with repeated wide sprints.", beet: 8 },
-      st: { label: "Striker", dist: "~9–11 km", desc: "Explosive pressing and short sprint actions.", beet: 6 },
+      gk: { label: "Goalkeeper", dist: "~5–6 km", desc: "Explosive short bursts, minimal continuous running.", beet: 5, archetype: "gk" },
+      cb: { label: "Centre Back", dist: "~8–9 km", desc: "Moderate distance, lower sprint frequency.", beet: 5, archetype: "def" },
+      fb: { label: "Full Back", dist: "~10–11 km", desc: "High up-and-down running and overlapping support.", beet: 6, archetype: "def" },
+      dm: { label: "Defensive Mid", dist: "~10–11 km", desc: "Covering space behind the ball and screening lanes.", beet: 6, archetype: "mid" },
+      cm: { label: "Centre Mid", dist: "~10–12 km", desc: "Box-to-box covering with repeated sprints.", beet: 8, archetype: "mid" },
+      wm: { label: "Winger", dist: "~11–13 km", desc: "Highest distance role with repeated wide sprints.", beet: 8, archetype: "atk" },
+      st: { label: "Striker", dist: "~9–11 km", desc: "Explosive pressing and short sprint actions.", beet: 6, archetype: "atk" },
     },
   },
   gaelic: {
     label: "Gaelic football",
+    icon: "🏐",
     roleLabel: "Line / role",
     phaseLabels: MATCH_PHASES,
     durations: [
@@ -224,14 +235,15 @@ export const SPORT_DATA: Record<SportId, SportConfig> = {
     defaultDurationIdx: 1,
     defaultRole: "mid",
     roles: {
-      gk: { label: "Goalkeeper", dist: "~2–4 km", desc: "Kick-outs and restarts, low continuous running.", beet: 5 },
-      back: { label: "Back line", dist: "~7–9 km", desc: "Tracking runners and supporting attacks from deep.", beet: 6 },
-      mid: { label: "Midfield", dist: "~9–11 km", desc: "Kick-out contests plus end-to-end support running.", beet: 8 },
-      fwd: { label: "Forward line", dist: "~8–10 km", desc: "Repeated hard pressing and sharp movement for possession.", beet: 7 },
+      gk: { label: "Goalkeeper", dist: "~2–4 km", desc: "Kick-outs and restarts, low continuous running.", beet: 5, archetype: "gk" },
+      back: { label: "Back line", dist: "~7–9 km", desc: "Tracking runners and supporting attacks from deep.", beet: 6, archetype: "def" },
+      mid: { label: "Midfield", dist: "~9–11 km", desc: "Kick-out contests plus end-to-end support running.", beet: 8, archetype: "mid" },
+      fwd: { label: "Forward line", dist: "~8–10 km", desc: "Repeated hard pressing and sharp movement for possession.", beet: 7, archetype: "atk" },
     },
   },
   hurling: {
     label: "Hurling / Camogie",
+    icon: "🥍",
     roleLabel: "Line / role",
     phaseLabels: MATCH_PHASES,
     durations: [
@@ -242,14 +254,15 @@ export const SPORT_DATA: Record<SportId, SportConfig> = {
     defaultDurationIdx: 1,
     defaultRole: "mid",
     roles: {
-      gk: { label: "Goalkeeper", dist: "~2–3 km", desc: "Puck-outs and reflex work, minimal running volume.", beet: 5 },
-      back: { label: "Back line", dist: "~6–8 km", desc: "Contesting deliveries with short explosive duels.", beet: 6 },
-      mid: { label: "Midfield", dist: "~8–10 km", desc: "Link play both ways at sustained high intensity.", beet: 8 },
-      fwd: { label: "Forward line", dist: "~7–9 km", desc: "Sharp movement, pressing puck-outs, repeated sprints.", beet: 7 },
+      gk: { label: "Goalkeeper", dist: "~2–3 km", desc: "Puck-outs and reflex work, minimal running volume.", beet: 5, archetype: "gk" },
+      back: { label: "Back line", dist: "~6–8 km", desc: "Contesting deliveries with short explosive duels.", beet: 6, archetype: "def" },
+      mid: { label: "Midfield", dist: "~8–10 km", desc: "Link play both ways at sustained high intensity.", beet: 8, archetype: "mid" },
+      fwd: { label: "Forward line", dist: "~7–9 km", desc: "Sharp movement, pressing puck-outs, repeated sprints.", beet: 7, archetype: "atk" },
     },
   },
   rugby: {
     label: "Rugby",
+    icon: "🏉",
     roleLabel: "Position group",
     phaseLabels: MATCH_PHASES,
     durations: [
@@ -260,15 +273,16 @@ export const SPORT_DATA: Record<SportId, SportConfig> = {
     defaultDurationIdx: 1,
     defaultRole: "backrow",
     roles: {
-      tight: { label: "Tight five (1–5)", dist: "~5–6 km", desc: "Scrums, mauls, and repeated collisions — big anaerobic load.", beet: 5 },
-      backrow: { label: "Back row (6–8)", dist: "~6–7 km", desc: "Constant carrying, tackling, and breakdown work.", beet: 6 },
-      halves: { label: "Half-backs (9–10)", dist: "~7–8 km", desc: "Support lines to every ruck plus game management.", beet: 7 },
-      centres: { label: "Centres (12–13)", dist: "~6–7 km", desc: "Hard carries and defensive reads with collision sprints.", beet: 6 },
-      back3: { label: "Back three (11, 14, 15)", dist: "~7–8 km", desc: "High-speed chases, counters, and covering kicks.", beet: 7 },
+      tight: { label: "Tight five (1–5)", dist: "~5–6 km", desc: "Scrums, mauls, and repeated collisions — big anaerobic load.", beet: 5, archetype: "def" },
+      backrow: { label: "Back row (6–8)", dist: "~6–7 km", desc: "Constant carrying, tackling, and breakdown work.", beet: 6, archetype: "mid" },
+      halves: { label: "Half-backs (9–10)", dist: "~7–8 km", desc: "Support lines to every ruck plus game management.", beet: 7, archetype: "mid" },
+      centres: { label: "Centres (12–13)", dist: "~6–7 km", desc: "Hard carries and defensive reads with collision sprints.", beet: 6, archetype: "atk" },
+      back3: { label: "Back three (11, 14, 15)", dist: "~7–8 km", desc: "High-speed chases, counters, and covering kicks.", beet: 7, archetype: "atk" },
     },
   },
   hockey: {
     label: "Hockey",
+    icon: "🏑",
     roleLabel: "Position",
     phaseLabels: ["Pre-match", "Early quarters", "Quarter & half breaks", "Final quarters"],
     durations: [
@@ -279,14 +293,15 @@ export const SPORT_DATA: Record<SportId, SportConfig> = {
     defaultDurationIdx: 1,
     defaultRole: "mid",
     roles: {
-      gk: { label: "Goalkeeper", dist: "~2–3 km", desc: "Explosive saves in heavy kit — heat builds quickly.", beet: 5 },
-      def: { label: "Defender", dist: "~7–8 km", desc: "Structured pressing and recovery runs with rolling subs.", beet: 6 },
-      mid: { label: "Midfielder", dist: "~8–9 km", desc: "Two-way running at high intensity between rotations.", beet: 8 },
-      fwd: { label: "Forward", dist: "~7–9 km", desc: "Repeated sprint pressing in short, intense shifts.", beet: 7 },
+      gk: { label: "Goalkeeper", dist: "~2–3 km", desc: "Explosive saves in heavy kit — heat builds quickly.", beet: 5, archetype: "gk" },
+      def: { label: "Defender", dist: "~7–8 km", desc: "Structured pressing and recovery runs with rolling subs.", beet: 6, archetype: "def" },
+      mid: { label: "Midfielder", dist: "~8–9 km", desc: "Two-way running at high intensity between rotations.", beet: 8, archetype: "mid" },
+      fwd: { label: "Forward", dist: "~7–9 km", desc: "Repeated sprint pressing in short, intense shifts.", beet: 7, archetype: "atk" },
     },
   },
   run: {
     label: "Run",
+    icon: "🏃",
     roleLabel: "Distance",
     phaseLabels: ["Before", "During", "After", ""],
     durations: [],
@@ -295,6 +310,13 @@ export const SPORT_DATA: Record<SportId, SportConfig> = {
     roles: {},
     runMode: true,
   },
+};
+
+export const ROLE_ARCHETYPE_ICON: Record<RoleArchetype, string> = {
+  gk: "🧤",
+  def: "🛡️",
+  mid: "⚙️",
+  atk: "⚡",
 };
 
 export const RUN_EFFORTS: Record<

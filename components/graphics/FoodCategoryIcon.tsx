@@ -17,9 +17,21 @@ export const FOOD_CATEGORY_LABEL: Record<FoodCategoryType, string> = {
 function IconShape({ type }: { type: FoodCategoryType }) {
   switch (type) {
     case "protein":
-      // Drumstick — bold, unmistakable protein mark.
+      // Amino-acid chain — three linked units, diet-neutral (works equally
+      // for meat, dairy, or plant protein sources like tofu and lentils).
       return (
-        <path d="M30 6c6 0 11 5 11 11 0 5-3 9-7 10l-8 8c2 3 2 7-1 10-3 3-8 3-11 0l-2-2-4 4c-1 1-3 1-4 0-1-1-1-3 0-4l4-4-2-2c-3-3-3-8 0-11 3-3 7-3 10-1l8-8c1-4 5-7 10-7 1-3 3-4 6-4z" />
+        <g>
+          <path
+            d="M13 35l7-7M28 20l7-7"
+            stroke="currentColor"
+            strokeWidth="4"
+            strokeLinecap="round"
+            fill="none"
+          />
+          <circle cx="10" cy="38" r="7" />
+          <circle cx="24" cy="24" r="7" />
+          <circle cx="38" cy="10" r="7" />
+        </g>
       );
     case "carb":
       // Wheat stalk — three seed pairs up a stem.

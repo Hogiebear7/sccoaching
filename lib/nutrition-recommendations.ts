@@ -83,6 +83,45 @@ export const FOOD_CATALOG: FoodItem[] = [
   { name: "Protein bar", group: "snack", animal: "animal_product", allergens: ["milk", "soy"] },
 ];
 
+// A small visual cue per catalog item — not literal icon art, just enough to
+// make the "Food ideas" pills scannable at a glance instead of plain text.
+export const FOOD_ITEM_EMOJI: Record<string, string> = {
+  "Chicken breast": "🍗",
+  "Lean beef": "🥩",
+  Turkey: "🦃",
+  Salmon: "🐟",
+  Tuna: "🐟",
+  Prawns: "🍤",
+  Eggs: "🥚",
+  "Greek yogurt": "🥣",
+  "Cottage cheese": "🧀",
+  "Whey protein": "🥤",
+  Tofu: "🥡",
+  Tempeh: "🫘",
+  Lentils: "🍲",
+  Chickpeas: "🫛",
+  "Black beans": "🫘",
+  "Pea protein": "🌱",
+  "Brown rice": "🍚",
+  "White rice": "🍚",
+  Quinoa: "🌾",
+  "Sweet potato": "🍠",
+  Potatoes: "🥔",
+  Oats: "🥣",
+  "Wholegrain bread": "🍞",
+  Pasta: "🍝",
+  Banana: "🍌",
+  Almonds: "🌰",
+  "Peanut butter": "🥜",
+  Hummus: "🫘",
+  "Rice cakes": "🍘",
+  "Roasted chickpeas": "🫛",
+  Berries: "🫐",
+  Cheese: "🧀",
+  "Boiled eggs": "🥚",
+  "Protein bar": "🍫",
+};
+
 // The allergen keys a member must never be shown, derived from their explicit
 // allergies plus any intolerance/medical condition that implies an allergen.
 export function excludedAllergensFor(profile: DietaryProfile): Set<string> {

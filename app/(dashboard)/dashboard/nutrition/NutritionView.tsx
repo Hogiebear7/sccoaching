@@ -17,6 +17,7 @@ import {
   EXERTION_LABEL,
   fuelBandForLoad,
   macroTargets,
+  ROLE_ARCHETYPE_ICON,
   RUN_EFFORTS,
   sodiumTargetPerLitre,
   SPORT_DATA,
@@ -29,11 +30,12 @@ import {
   type WeightGoalBias,
 } from "@/lib/nutrition";
 import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
-import type { FoodRecommendations } from "@/lib/nutrition-recommendations";
+import { FOOD_ITEM_EMOJI, type FoodRecommendations } from "@/lib/nutrition-recommendations";
 import type { AiMessageRecord } from "@/lib/db";
 import type { NutritionCoachContextDisplay } from "@/lib/ai-context";
 import { FoodCategoryIcon } from "@/components/graphics/FoodCategoryIcon";
 import { IconBadge } from "@/components/graphics/IconBadge";
+import { IconSelect } from "@/components/ui/IconSelect";
 import { NutrientFunctionIcon, type NutrientFunction } from "@/components/graphics/NutrientFunctionIcon";
 import { NutritionAiCoach } from "./NutritionAiCoach";
 
@@ -72,11 +74,20 @@ const TEMP_HINT: Record<TempProfile, string> = {
   hot: "Over 25°C — fluid and sodium losses climb sharply.",
 };
 
-const INGREDIENT_BENEFITS: { name: string; tag: NutrientFunction; summary: string; detail: string }[] = [
+const INGREDIENT_BENEFITS: {
+  name: string;
+  tag: NutrientFunction;
+  summary: string;
+  /** What the substance actually is — composition/origin, not what it does. */
+  whatItIs: string;
+  detail: string;
+}[] = [
   {
     name: "Maltodextrin",
     tag: "Energy",
     summary: "Fast carbohydrate to fuel long, intense sessions.",
+    whatItIs:
+      "A carbohydrate made by partially breaking down starch — usually corn, though sometimes rice or potato — into shorter chains of glucose. It isn't a sugar itself, but the body digests it almost as fast as one.",
     detail:
       "Sports drinks are commonly built around 4–8 g of carbohydrate per 100 ml — roughly 60 g per litre for isotonic use — because concentration matters for both fuel delivery and fluid absorption. Maltodextrin digests quickly with a mild taste, which is why it's the base carbohydrate here.",
   },
@@ -84,6 +95,8 @@ const INGREDIENT_BENEFITS: { name: string; tag: NutrientFunction; summary: strin
     name: "Beta-alanine",
     tag: "Buffering",
     summary: "Supports repeated hard efforts by helping buffer acidity.",
+    whatItIs:
+      "A naturally occurring amino acid, made in the liver and also found in meat and fish. The body combines it with another amino acid, histidine, to build carnosine, which is stored in muscle tissue.",
     detail:
       "Included as part of the recipe ratio, though the biggest benefit comes from regular daily use over weeks rather than only on game day. A mild skin tingle at higher doses is normal and harmless.",
   },
@@ -91,6 +104,8 @@ const INGREDIENT_BENEFITS: { name: string; tag: NutrientFunction; summary: strin
     name: "Chia seeds",
     tag: "Texture",
     summary: "Adds a slow-gel texture and a little fibre and fat.",
+    whatItIs:
+      "Small edible seeds from the Salvia hispanica plant, native to Central America. They're mostly soluble fibre, which is what makes them swell and form a gel when soaked in liquid.",
     detail:
       "Soaked chia adds body without much flavour. The amount stays modest so the drink is easy to tolerate and quick to get down during short breaks.",
   },
@@ -98,6 +113,8 @@ const INGREDIENT_BENEFITS: { name: string; tag: NutrientFunction; summary: strin
     name: "Beetroot powder",
     tag: "Nitrate",
     summary: "Dietary nitrate may support exercise efficiency.",
+    whatItIs:
+      "Whole beetroot that's been juiced or pureed, then dried and ground into a fine powder — concentrated specifically for its naturally high dietary nitrate content.",
     detail:
       "Dietary nitrate can modestly reduce the oxygen cost of exercise. The dose is adjusted to your role or run distance first, then scaled with bottle size so concentration stays stable.",
   },
@@ -105,6 +122,8 @@ const INGREDIENT_BENEFITS: { name: string; tag: NutrientFunction; summary: strin
     name: "Orange concentrate",
     tag: "Flavour",
     summary: "Makes the drink more palatable, plus a little fructose.",
+    whatItIs:
+      "Orange juice with most of its water removed, leaving a concentrated syrup of natural sugars, citrus flavour, and a small amount of vitamin C.",
     detail:
       "Better-tasting drinks get finished, and sodium works with flavour to stimulate thirst. The small fructose contribution also pairs with maltodextrin for carbohydrate uptake.",
   },
@@ -112,6 +131,8 @@ const INGREDIENT_BENEFITS: { name: string; tag: NutrientFunction; summary: strin
     name: "Salt",
     tag: "Electrolyte",
     summary: "Replaces sweat sodium, drives thirst, and helps retain fluid.",
+    whatItIs:
+      "Sodium chloride — the same table salt used in cooking. It's included here purely for its sodium content, not for flavour.",
     detail:
       "A practical in-drink sodium target is 400–1100 mg per litre depending on sweat loss and conditions — higher for salty sweaters and hot sessions. Your dose comes from the sweat and conditions settings above.",
   },
@@ -579,8 +600,9 @@ export function NutritionView({
                       {items.map((item) => (
                         <span
                           key={item.name}
-                          className="rounded-full border border-white/[0.09] bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-200"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.09] bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-200"
                         >
+                          <span aria-hidden="true">{FOOD_ITEM_EMOJI[item.name] ?? "🍽️"}</span>
                           {item.name}
                         </span>
                       ))}
@@ -665,17 +687,16 @@ export function NutritionView({
           <div className="space-y-4 border-b border-white/[0.06] p-5">
             <div>
               <p className="label-caps mb-2 text-[10px]">Sport</p>
-              <select
+              <IconSelect
+                ariaLabel="Sport"
                 value={sport}
-                onChange={(e) => handleSportChange(e.target.value as SportId)}
-                className="input-field"
-              >
-                {SPORT_OPTIONS.map((key) => (
-                  <option key={key} value={key}>
-                    {SPORT_DATA[key].label}
-                  </option>
-                ))}
-              </select>
+                onChange={handleSportChange}
+                options={SPORT_OPTIONS.map((key) => ({
+                  value: key,
+                  label: SPORT_DATA[key].label,
+                  icon: SPORT_DATA[key].icon,
+                }))}
+              />
             </div>
 
             {sportCfg.runMode ? (
@@ -726,17 +747,17 @@ export function NutritionView({
             ) : (
               <div>
                 <p className="label-caps mb-2 text-[10px]">{sportCfg.roleLabel}</p>
-                <select
+                <IconSelect
+                  ariaLabel={sportCfg.roleLabel}
                   value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="input-field"
-                >
-                  {Object.entries(sportCfg.roles).map(([key, r]) => (
-                    <option key={key} value={key}>
-                      {r.label} · {r.dist}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setRole}
+                  options={Object.entries(sportCfg.roles).map(([key, r]) => ({
+                    value: key,
+                    label: r.label,
+                    icon: ROLE_ARCHETYPE_ICON[r.archetype],
+                    sublabel: r.dist,
+                  }))}
+                />
               </div>
             )}
             <p className="text-[11px] leading-relaxed text-zinc-600">{workload.desc}</p>
@@ -935,9 +956,13 @@ export function NutritionView({
                         <span className="mt-1"><Chevron open={open} /></span>
                       </button>
                       {open ? (
-                        <p id={detailId} className="px-4 pb-3.5 text-xs leading-relaxed text-zinc-400">
-                          {item.detail}
-                        </p>
+                        <div id={detailId} className="space-y-2 px-4 pb-3.5">
+                          <p className="text-xs leading-relaxed text-zinc-400">
+                            <span className="font-medium text-zinc-300">What it is: </span>
+                            {item.whatItIs}
+                          </p>
+                          <p className="text-xs leading-relaxed text-zinc-400">{item.detail}</p>
+                        </div>
                       ) : null}
                     </div>
                   );
