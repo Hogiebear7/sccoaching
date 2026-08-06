@@ -92,6 +92,11 @@ export interface ProfileRecord {
   // default midnight.
   theme?: string;
   onboardingCompleted: boolean;
+  // First-login dashboard walkthrough — separate from onboardingCompleted
+  // (which just marks the signup wizard as finished). Optional for backward
+  // compatibility; readers treat undefined as "not yet seen" (see db.ts
+  // normalization).
+  dashboardTourCompleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }

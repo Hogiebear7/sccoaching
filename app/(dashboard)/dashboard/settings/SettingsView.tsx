@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import type { MeasurementUnits, ProfileRecord } from "@/lib/profile-schema";
@@ -80,6 +81,8 @@ export function SettingsView({
   profile: ProfileRecord;
   membership: MembershipInfo;
 }) {
+  const router = useRouter();
+
   // ── Password reset ────────────────────────────────────────────────
   const [resetSending, setResetSending] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -99,6 +102,23 @@ export function SettingsView({
       setResetError("Something went wrong. Please try again.");
     } finally {
       setResetSending(false);
+    }
+  }
+
+  // ── Dashboard tour replay ─────────────────────────────────────────
+  const [tourReplaying, setTourReplaying] = useState(false);
+
+  async function handleReplayTour() {
+    setTourReplaying(true);
+    try {
+      await fetch("/api/profile/tour", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: false }),
+      });
+      router.push("/dashboard");
+    } catch {
+      setTourReplaying(false);
     }
   }
 
@@ -443,6 +463,29 @@ export function SettingsView({
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Help */}
+      <div>
+        <h2 className="label-caps mb-2.5">Help</h2>
+        <div className="surface-card px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-zinc-100">Dashboard walkthrough</p>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                The quick tour shown the first time you logged in.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleReplayTour}
+              disabled={tourReplaying}
+              className="rounded-lg border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {tourReplaying ? "Loading…" : "Replay"}
+            </button>
           </div>
         </div>
       </div>

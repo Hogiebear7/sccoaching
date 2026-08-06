@@ -856,6 +856,7 @@ function readDb(): Database {
       allergies: p.allergies ?? [],
       intolerancesOrMedical: p.intolerancesOrMedical ?? [],
       dietaryNotes: p.dietaryNotes ?? null,
+      dashboardTourCompleted: p.dashboardTourCompleted ?? false,
     })),
     resetTokens: parsed.resetTokens ?? [],
     programmes: parsed.programmes ?? [],

@@ -32,6 +32,7 @@ import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
 import { CountUp } from "@/components/ui/CountUp";
 import { ReadinessRing } from "@/components/ui/ReadinessRing";
 import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
+import { DashboardTour } from "@/components/dashboard/DashboardTour";
 
 function readinessStatus(score: number): string {
   if (score >= 80) return "Primed";
@@ -210,6 +211,8 @@ export default async function DashboardPage() {
   ];
 
   return (
+    <>
+    <DashboardTour initialCompleted={profile?.dashboardTourCompleted ?? true} />
     <section className="anim-rise space-y-8">
 
       {/* Immersive header. The decorative image sits on its own aria-hidden
@@ -241,7 +244,7 @@ export default async function DashboardPage() {
       {/* Hero: next session — the one intentional/primary card, marked with
           the accent bar so it reads as the page's main event, not an equal
           tile among many. */}
-      <div>
+      <div data-tour="next-session">
         <div className="mb-2.5 flex items-baseline justify-between">
           <div className="flex items-center gap-2">
             <h2 className="label-caps">Next Session</h2>
@@ -305,7 +308,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Readiness + key numbers */}
-      <div>
+      <div data-tour="readiness">
         <div className="mb-2.5 flex items-baseline justify-between">
           <h2 className="label-caps">Readiness</h2>
           <Link href="/dashboard/recovery" className="text-xs font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]">Recovery →</Link>
@@ -444,7 +447,7 @@ export default async function DashboardPage() {
       {/* Nutrition — promoted from the quick-actions grid to its own entry
           point (priority 4 in the dashboard brief), with real profile
           context where available rather than a generic hint. */}
-      <div>
+      <div data-tour="nutrition">
         <h2 className="label-caps mb-2.5">Nutrition</h2>
         <Link href="/dashboard/nutrition" className="surface-card hover-lift flex items-center gap-4 p-5">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10">
@@ -467,7 +470,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Status strip: membership + coach */}
-      <div>
+      <div data-tour="club">
         <h2 className="label-caps mb-2.5">Your Club</h2>
         <div className="surface-card divide-y divide-white/[0.05] overflow-hidden">
           <Link
@@ -510,7 +513,7 @@ export default async function DashboardPage() {
 
       {/* Quick actions — trimmed to two (see quickActions comment); deliberately
           not a larger grid of equal-weight tiles. */}
-      <div>
+      <div data-tour="quick-actions">
         <h2 className="label-caps mb-2.5">Quick Actions</h2>
         <div className="grid grid-cols-2 gap-2.5">
           {quickActions.map(({ href, icon, label, hint }) => (
@@ -530,5 +533,6 @@ export default async function DashboardPage() {
       </div>
 
     </section>
+    </>
   );
 }
