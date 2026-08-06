@@ -17,20 +17,17 @@ export const FOOD_CATEGORY_LABEL: Record<FoodCategoryType, string> = {
 function IconShape({ type }: { type: FoodCategoryType }) {
   switch (type) {
     case "protein":
-      // Amino-acid chain — three linked units, diet-neutral (works equally
-      // for meat, dairy, or plant protein sources like tofu and lentils).
+      // Athletic body silhouette — head, V-taper torso, arms, legs. Reads as
+      // "muscle/physique" rather than any one food source, so it stays
+      // diet-neutral across meat, dairy, and plant protein alike.
       return (
         <g>
-          <path
-            d="M13 35l7-7M28 20l7-7"
-            stroke="currentColor"
-            strokeWidth="4"
-            strokeLinecap="round"
-            fill="none"
-          />
-          <circle cx="10" cy="38" r="7" />
-          <circle cx="24" cy="24" r="7" />
-          <circle cx="38" cy="10" r="7" />
+          <circle cx="24" cy="8.5" r="5.5" />
+          <path d="M15 17c3-2 6-3 9-3s6 1 9 3c1 5 0 10-2 14H17c-2-4-3-9-2-14z" />
+          <path d="M15 17c-4 1-7 5-7 10 0 3 1 5 3 7l3-3c-1-1-2-3-2-5 0-3 1-5 3-6z" />
+          <path d="M33 17c4 1 7 5 7 10 0 3-1 5-3 7l-3-3c1-1 2-3 2-5 0-3-1-5-3-6z" />
+          <path d="M18 31c-1 4-1 8 0 11h5c0-4 0-8-1-11z" />
+          <path d="M30 31c1 4 1 8 0 11h-5c0-4 0-8 1-11z" />
         </g>
       );
     case "carb":
