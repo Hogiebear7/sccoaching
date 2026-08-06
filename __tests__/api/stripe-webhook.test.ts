@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SubscriptionRecord } from "@/lib/db";
 
 const {
   mockFindPurchaseByProviderOrderId,
@@ -34,7 +35,7 @@ const {
   mockSaveSubscription: vi.fn(),
   mockAppendPassLedgerEntry: vi.fn(),
   mockFindPassLedgerByPurchaseId: vi.fn(),
-  mockFindAllSubscriptions: vi.fn(() => []),
+  mockFindAllSubscriptions: vi.fn((): SubscriptionRecord[] => []),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -105,6 +106,8 @@ const SUBSCRIPTION = {
   sessionsUsedThisPeriod: 3,
   extraSessionGrants: [{ id: "g1", amount: 1, note: null, grantedByUserId: "s", createdAt: "x" }],
   periodLapsedNotifiedAt: null,
+  pausedUntil: null,
+  statusBeforePause: null,
   createdAt: "2026-07-01T00:00:00.000Z",
   updatedAt: "2026-07-01T00:00:00.000Z",
 };
