@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "seed": "node scripts/seed.js",
+    "seed:exercises": "node scripts/seed-exercise-library.mjs",
     "create:staff": "node scripts/create-staff.mjs",
     "delete:non-staff": "node scripts/delete-non-staff.mjs",
     "delete:members": "node scripts/delete-members.mjs",

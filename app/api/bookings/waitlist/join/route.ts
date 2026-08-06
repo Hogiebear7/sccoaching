@@ -18,6 +18,8 @@ import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
 import { isClassEligibleForPlan } from "@/lib/scheduling-status";
 import { verifySession } from "@/lib/session";
 
+const MAX_WAITLIST_SIZE = 2;
+
 export async function POST(request: NextRequest) {
   const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
 
@@ -123,6 +125,13 @@ export async function POST(request: NextRequest) {
   if (currentBookings + offeredCount < classRecord.capacity) {
     return NextResponse.json(
       { success: false, message: "This class still has space — book it directly instead." },
+      { status: 409 }
+    );
+  }
+
+  if (activeWaitlist.length >= MAX_WAITLIST_SIZE) {
+    return NextResponse.json(
+      { success: false, message: "This class's waitlist is full." },
       { status: 409 }
     );
   }

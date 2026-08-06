@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { ExerciseRecord } from "@/lib/db";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { ExerciseAutocomplete } from "./ExerciseAutocomplete";
 import { formatAsKg, formatAsMmSs, livePace, parseDuration, todayDateString } from "./formatters";
 
@@ -334,8 +335,15 @@ export function WorkoutLogForm({
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div>
                       <div className="mb-1.5 flex items-center justify-between gap-1">
-                        <label className="block text-xs font-medium text-foreground">
+                        <label className="flex items-center gap-1 text-xs font-medium text-foreground">
                           {row.unitMode === "time" ? "Time" : "Weight"}
+                          <InfoTooltip
+                            text={
+                              row.unitMode === "time"
+                                ? "How long you held or performed the exercise, e.g. a plank or a carry."
+                                : "The load you lifted. Type a number and it's saved as kg automatically."
+                            }
+                          />
                         </label>
                         <div className="flex gap-1">
                           <button
@@ -380,8 +388,9 @@ export function WorkoutLogForm({
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-foreground">
+                      <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-foreground">
                         Reps
+                        <InfoTooltip text="How many repetitions you completed per set." />
                       </label>
                       <input
                         type="number"
@@ -393,8 +402,9 @@ export function WorkoutLogForm({
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-foreground">
+                      <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-foreground">
                         Sets
+                        <InfoTooltip text="How many rounds of that rep count you did, e.g. 3 sets of 8 reps." />
                       </label>
                       <input
                         type="number"
@@ -406,8 +416,9 @@ export function WorkoutLogForm({
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-foreground">
+                      <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-foreground">
                         RIR <span className="font-normal text-muted-foreground">opt.</span>
+                        <InfoTooltip text="Reps In Reserve — how many more reps you could have done before failure. 0 means you hit failure, 5 means the set felt easy. Lower RIR = harder set." />
                       </label>
                       <input
                         type="number"
@@ -417,7 +428,6 @@ export function WorkoutLogForm({
                         onChange={(e) => updateRow(row.key, { rir: e.target.value })}
                         placeholder="e.g. 2"
                         aria-label="Reps in reserve"
-                        title="Reps in reserve — how many more reps you could have done"
                         className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
                       />
                     </div>
