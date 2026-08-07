@@ -6,8 +6,8 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 
 // Matches the signup form's requirement copy and the server-side check in
-// validatePasswordStrength (app/api/auth/signup/route.ts) — reset-password
-// enforces the same policy, not a weaker one.
+// validatePasswordStrength (lib/password.ts) — reset-password enforces the
+// same policy, not a weaker one.
 const PASSWORD_REQUIREMENTS_HINT =
   "Must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.";
 

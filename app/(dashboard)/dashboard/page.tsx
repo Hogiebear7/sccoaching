@@ -33,13 +33,7 @@ import { CountUp } from "@/components/ui/CountUp";
 import { ReadinessRing } from "@/components/ui/ReadinessRing";
 import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
 import { DashboardTour } from "@/components/dashboard/DashboardTour";
-
-function readinessStatus(score: number): string {
-  if (score >= 80) return "Primed";
-  if (score >= 60) return "Ready";
-  if (score >= 40) return "Steady";
-  return "Ease off";
-}
+import { readinessStatus } from "@/lib/dashboard-data";
 
 // Token-driven (not literal hues) so the wash recolors correctly per
 // palette/theme, same band language as ReadinessRing.

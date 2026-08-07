@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { consumeResetToken, updateUserPassword } from "@/lib/db";
-import { hashPassword } from "@/lib/password";
-import { validatePasswordStrength } from "@/app/api/auth/signup/route";
+import { hashPassword, validatePasswordStrength } from "@/lib/password";
 
 export async function POST(request: Request) {
   let body: unknown;

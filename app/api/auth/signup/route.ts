@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createUser, findUserByEmail, saveProfile, saveCycleSettings, saveCyclePrivacy } from "@/lib/db";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, validatePasswordStrength } from "@/lib/password";
 import { signSession } from "@/lib/session";
 import {
   isFemaleGender,
@@ -20,30 +20,6 @@ const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
 const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
 // Matches the format check already used in app/api/contact/route.ts.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export function validatePasswordStrength(password: string): string | null {
-  if (password.length < 8) {
-    return "Password must be at least 8 characters long.";
-  }
-
-  if (!/[A-Z]/.test(password)) {
-    return "Password must include at least one uppercase letter.";
-  }
-
-  if (!/[a-z]/.test(password)) {
-    return "Password must include at least one lowercase letter.";
-  }
-
-  if (!/[0-9]/.test(password)) {
-    return "Password must include at least one number.";
-  }
-
-  if (!/[^A-Za-z0-9]/.test(password)) {
-    return "Password must include at least one special character.";
-  }
-
-  return null;
-}
 
 export async function POST(request: Request) {
   let body: unknown;
