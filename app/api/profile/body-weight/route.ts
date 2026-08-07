@@ -15,6 +15,21 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+export async function GET(request: NextRequest) {
+  const userId = verifyRequestSession(request)?.userId ?? null;
+
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, message: "You must be signed in to view weight history." },
+      { status: 401 }
+    );
+  }
+
+  const logs = [...findBodyWeightLogsByUserId(userId)].sort((a, b) => a.date.localeCompare(b.date));
+
+  return NextResponse.json({ success: true, data: logs });
+}
+
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
 

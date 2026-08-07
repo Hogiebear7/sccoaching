@@ -203,6 +203,38 @@ export interface WorkoutTemplateRecord {
   updatedAt: string;
 }
 
+// ── Nutrition diary — member food logging against a staff-set target ───────
+// One target per member (overwritten on adjustment, not versioned — the
+// "since" date is just updatedAt); diary entries are the member's own
+// manually-logged meals, no external food database involved.
+export interface NutritionTargetRecord {
+  id: string;
+  userId: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  setByStaffId: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+
+export interface FoodEntryRecord {
+  id: string;
+  userId: string;
+  date: string;
+  mealType: MealType;
+  name: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  createdAt: string;
+}
+
 export interface AiMessageRecord {
   id: string;
   userId: string;
@@ -801,6 +833,8 @@ interface Database {
   programmes: ProgrammeRecord[];
   trainingPrograms: TrainingProgramRecord[];
   workoutTemplates: WorkoutTemplateRecord[];
+  nutritionTargets: NutritionTargetRecord[];
+  foodEntries: FoodEntryRecord[];
   workoutSessions: WorkoutSessionRecord[];
   exercises: ExerciseRecord[];
   aiMessages: AiMessageRecord[];
@@ -895,6 +929,8 @@ function readDb(): Database {
       programmes: [],
       trainingPrograms: [],
       workoutTemplates: [],
+      nutritionTargets: [],
+      foodEntries: [],
       workoutSessions: [],
       exercises: [],
       aiMessages: [],
@@ -964,6 +1000,8 @@ function readDb(): Database {
     programmes: parsed.programmes ?? [],
     trainingPrograms: parsed.trainingPrograms ?? [],
     workoutTemplates: parsed.workoutTemplates ?? [],
+    nutritionTargets: parsed.nutritionTargets ?? [],
+    foodEntries: parsed.foodEntries ?? [],
     workoutSessions: (parsed.workoutSessions ?? []).map((s) => ({
       ...s,
       exercises: s.exercises ?? [],
@@ -1328,6 +1366,40 @@ export function saveWorkoutTemplate(template: WorkoutTemplateRecord): void {
 export function deleteWorkoutTemplate(id: string): void {
   const db = readDb();
   db.workoutTemplates = db.workoutTemplates.filter((t) => t.id !== id);
+  writeDb(db);
+}
+
+export function findNutritionTargetByUserId(userId: string): NutritionTargetRecord | undefined {
+  return readDb().nutritionTargets.find((t) => t.userId === userId);
+}
+
+export function saveNutritionTarget(target: NutritionTargetRecord): void {
+  const db = readDb();
+  const index = db.nutritionTargets.findIndex((t) => t.userId === target.userId);
+  if (index === -1) db.nutritionTargets.push(target);
+  else db.nutritionTargets[index] = target;
+  writeDb(db);
+}
+
+export function findFoodEntriesByUserId(userId: string): FoodEntryRecord[] {
+  return readDb()
+    .foodEntries.filter((e) => e.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findFoodEntryById(id: string): FoodEntryRecord | undefined {
+  return readDb().foodEntries.find((e) => e.id === id);
+}
+
+export function saveFoodEntry(entry: FoodEntryRecord): void {
+  const db = readDb();
+  db.foodEntries.push(entry);
+  writeDb(db);
+}
+
+export function deleteFoodEntry(id: string): void {
+  const db = readDb();
+  db.foodEntries = db.foodEntries.filter((e) => e.id !== id);
   writeDb(db);
 }
 
