@@ -6,6 +6,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "./db";
+import type { DrinkSettings } from "./drink-settings";
 import { resolveCurrentWeightKg } from "./body-weight";
 import { resolveBookingsForUser } from "./bookings";
 import { computeRollingTrainingLoad, trainingLoadForLog } from "./recovery";
@@ -48,6 +49,11 @@ export interface NutritionData {
   aiNutritionCoachConfigured: boolean;
   initialAiNutritionMessages: NutritionAiMessageSummary[];
   nextSession: { title: string; date: string; category: string } | null;
+  // Cross-device Sports Performance Drink calculator settings (see
+  // lib/drink-settings.ts) — synced back via the existing
+  // /api/profile/drink-settings endpoint. Null until the member has ever
+  // used the calculator.
+  drinkSettings: DrinkSettings | null;
 }
 
 // Shared by the web Nutrition page (app/(dashboard)/dashboard/nutrition/
@@ -124,5 +130,6 @@ export function getNutritionData(userId: string | undefined): NutritionData | nu
     nextSession: nextBooking
       ? { title: nextBooking.title, date: nextBooking.date, category: nextBooking.category }
       : null,
+    drinkSettings: profile.drinkSettings ?? null,
   };
 }
