@@ -188,6 +188,21 @@ export interface TrainingProgramRecord {
   updatedAt: string;
 }
 
+// ── Workout templates — member-owned reusable workouts (the "Library"). A
+// member builds these themselves to start a familiar session quickly;
+// distinct from TrainingProgramRecord above, which is staff-assigned.
+// archivedAt !== null hides it from the Library but keeps it browsable in
+// the Archive screen rather than losing it outright.
+export interface WorkoutTemplateRecord {
+  id: string;
+  userId: string;
+  name: string;
+  exercises: PrescribedExercise[];
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AiMessageRecord {
   id: string;
   userId: string;
@@ -785,6 +800,7 @@ interface Database {
   resetTokens: ResetTokenRecord[];
   programmes: ProgrammeRecord[];
   trainingPrograms: TrainingProgramRecord[];
+  workoutTemplates: WorkoutTemplateRecord[];
   workoutSessions: WorkoutSessionRecord[];
   exercises: ExerciseRecord[];
   aiMessages: AiMessageRecord[];
@@ -878,6 +894,7 @@ function readDb(): Database {
       resetTokens: [],
       programmes: [],
       trainingPrograms: [],
+      workoutTemplates: [],
       workoutSessions: [],
       exercises: [],
       aiMessages: [],
@@ -946,6 +963,7 @@ function readDb(): Database {
     resetTokens: parsed.resetTokens ?? [],
     programmes: parsed.programmes ?? [],
     trainingPrograms: parsed.trainingPrograms ?? [],
+    workoutTemplates: parsed.workoutTemplates ?? [],
     workoutSessions: (parsed.workoutSessions ?? []).map((s) => ({
       ...s,
       exercises: s.exercises ?? [],
@@ -1286,6 +1304,30 @@ export function saveTrainingProgram(program: TrainingProgramRecord): void {
 export function deleteTrainingProgram(id: string): void {
   const db = readDb();
   db.trainingPrograms = db.trainingPrograms.filter((p) => p.id !== id);
+  writeDb(db);
+}
+
+export function findWorkoutTemplateById(id: string): WorkoutTemplateRecord | undefined {
+  return readDb().workoutTemplates.find((t) => t.id === id);
+}
+
+export function findWorkoutTemplatesByUserId(userId: string): WorkoutTemplateRecord[] {
+  return readDb()
+    .workoutTemplates.filter((t) => t.userId === userId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export function saveWorkoutTemplate(template: WorkoutTemplateRecord): void {
+  const db = readDb();
+  const index = db.workoutTemplates.findIndex((t) => t.id === template.id);
+  if (index === -1) db.workoutTemplates.push(template);
+  else db.workoutTemplates[index] = template;
+  writeDb(db);
+}
+
+export function deleteWorkoutTemplate(id: string): void {
+  const db = readDb();
+  db.workoutTemplates = db.workoutTemplates.filter((t) => t.id !== id);
   writeDb(db);
 }
 

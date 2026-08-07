@@ -34,7 +34,7 @@ function parsePrescribedSets(input: unknown): PrescribedSet[] | null {
   return sets.length > 0 ? sets : null;
 }
 
-function parsePrescribedExercises(input: unknown): PrescribedExercise[] {
+export function parsePrescribedExercises(input: unknown): PrescribedExercise[] {
   if (!Array.isArray(input)) return [];
 
   return input.flatMap((entry) => {
