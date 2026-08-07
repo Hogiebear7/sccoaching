@@ -1,4 +1,10 @@
-import { findUserById, findWorkoutSessionsByUserId } from "./db";
+import {
+  findExercises,
+  findUserById,
+  findWorkoutSessionsByUserId,
+  type WorkoutExerciseEntry,
+  type WorkoutRunEntry,
+} from "./db";
 import { computePersonalBests, type PersonalBest } from "./workouts";
 
 export interface WorkoutSessionSummary {
@@ -7,20 +13,30 @@ export interface WorkoutSessionSummary {
   title: string;
   durationMins: number | null;
   notes: string | null;
-  exerciseCount: number;
-  exerciseNames: string[];
+  exercises: WorkoutExerciseEntry[];
+  runs: WorkoutRunEntry[];
+}
+
+export interface ExerciseLibraryEntry {
+  id: string;
+  name: string;
+  section: string;
 }
 
 export interface WorkoutsData {
   sessions: WorkoutSessionSummary[];
   personalBests: PersonalBest[];
+  // Feeds the mobile logging form's exercise autocomplete (see
+  // app/(dashboard)/dashboard/workouts/shared/ExerciseAutocomplete.tsx for
+  // the web equivalent) and the trend chart's exercise picker.
+  exerciseLibrary: ExerciseLibraryEntry[];
 }
 
-// Mobile-first MVP of the Workouts tab: session history + personal bests
-// (read-only). The web WorkoutsView additionally has a full live logging
-// form (exercise autocomplete, set-level editor, trend charts, class-session
-// sync) — that's a separate, larger mobile build; this covers "review what
-// I've done" while that catches up.
+// Full session history (exercises + runs, not just names) so the mobile app
+// can compute personal bests, per-exercise trend charts, and render
+// per-set detail entirely client-side — same data the web app already
+// loads. Submitting new sessions goes through the existing
+// /api/workouts/create endpoint (already Bearer-compatible).
 export function getWorkoutsData(userId: string | undefined): WorkoutsData | null {
   const user = userId ? findUserById(userId) : undefined;
   if (!user) return null;
@@ -35,9 +51,10 @@ export function getWorkoutsData(userId: string | undefined): WorkoutsData | null
       title: s.title,
       durationMins: s.durationMins,
       notes: s.notes,
-      exerciseCount: s.exercises.length,
-      exerciseNames: s.exercises.map((e) => e.name),
+      exercises: s.exercises,
+      runs: s.runs,
     })),
     personalBests,
+    exerciseLibrary: findExercises().map((e) => ({ id: e.id, name: e.name, section: e.section })),
   };
 }
