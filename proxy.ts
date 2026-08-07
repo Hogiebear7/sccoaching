@@ -13,12 +13,16 @@ const GUEST_ONLY_PATHS = ["/login", "/signup"];
 // member/staff data (including fake revenue figures) with zero login wall.
 const BLOCKED_IN_PRODUCTION_PREFIXES = ["/app", "/admin", "/admin-mobile"];
 
-// CORS for the mobile API surface only. These routes are Bearer-token
-// authenticated (no cookies), so a wildcard origin carries none of the
-// CSRF risk a cookie-authenticated wildcard would — the mobile app (and
-// its web-preview target during development) is the only intended caller,
-// and a stolen token is the same risk regardless of origin restriction.
-function mobileCorsHeaders(): Record<string, string> {
+// CORS for the whole API surface. Most existing routes (bookings, recovery,
+// profile, staff/admin, etc.) accept a Bearer token via verifyRequestSession
+// (lib/mobile-auth.ts) as an alternative to the session cookie, so the
+// mobile app calls them directly at their normal paths, not just under
+// /api/mobile/*. A wildcard origin here carries none of the CSRF risk a
+// cookie-authenticated wildcard would: these responses never set
+// Access-Control-Allow-Credentials, so browsers refuse to attach cookies to
+// a cross-origin request regardless of the allowed origin — the only way in
+// is presenting a Bearer token, which is the same risk with or without CORS.
+function apiCorsHeaders(): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
@@ -29,12 +33,12 @@ function mobileCorsHeaders(): Record<string, string> {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/api/mobile/")) {
+  if (pathname.startsWith("/api/")) {
     if (request.method === "OPTIONS") {
-      return new NextResponse(null, { status: 204, headers: mobileCorsHeaders() });
+      return new NextResponse(null, { status: 204, headers: apiCorsHeaders() });
     }
     const response = NextResponse.next();
-    for (const [key, value] of Object.entries(mobileCorsHeaders())) {
+    for (const [key, value] of Object.entries(apiCorsHeaders())) {
       response.headers.set(key, value);
     }
     return response;
