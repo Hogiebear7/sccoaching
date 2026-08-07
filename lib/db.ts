@@ -562,6 +562,19 @@ export interface PushSubscriptionRecord {
   updatedAt: string;
 }
 
+// Native push (Expo push tokens — iOS/Android app), distinct from the web
+// app's browser Web Push subscriptions above. Both are fanned out to by
+// lib/push.ts's sendPush() so existing notification call sites (messages,
+// bookings, etc.) reach native app users with no changes.
+export interface ExpoPushTokenRecord {
+  id: string;
+  userId: string;
+  token: string;
+  deviceInfo: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type NotificationType =
   | "message"
   | "membership"
@@ -734,6 +747,7 @@ interface Database {
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
   pushSubscriptions: PushSubscriptionRecord[];
+  expoPushTokens: ExpoPushTokenRecord[];
   contactInquiries: ContactInquiryRecord[];
   // Optional-email toggles (singleton). Missing keys default to ON via readDb.
   emailSettings: TransactionalEmailSettings;
@@ -822,6 +836,7 @@ function readDb(): Database {
       cycleSettings: [],
       cyclePrivacyPreferences: [],
       pushSubscriptions: [],
+      expoPushTokens: [],
       contactInquiries: [],
       emailSettings: { ...DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS },
       financeSettings: { ...DEFAULT_FINANCE_SETTINGS },
@@ -931,6 +946,7 @@ function readDb(): Database {
       ...s,
       userAgent: s.userAgent ?? null,
     })),
+    expoPushTokens: parsed.expoPushTokens ?? [],
     contactInquiries: parsed.contactInquiries ?? [],
     // Merge over defaults so any missing (or future) key stays ON.
     emailSettings: { ...DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS, ...(parsed.emailSettings ?? {}) },
@@ -1069,7 +1085,7 @@ export function setUserArchived(userId: string, archived: boolean): boolean {
 const MEMBER_OWNED_COLLECTIONS = [
   "profiles", "resetTokens", "programmes", "workoutSessions", "aiMessages",
   "bodyWeightLogs", "bookings", "subscriptions", "recoveryLogs", "waitlistEntries",
-  "cycleSettings", "cyclePrivacyPreferences", "pushSubscriptions", "notifications",
+  "cycleSettings", "cyclePrivacyPreferences", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "coachNotes",
 ] as const;
 
@@ -1976,6 +1992,47 @@ export function deletePushSubscriptionByEndpoint(userId: string, endpoint: strin
   db.pushSubscriptions = db.pushSubscriptions.filter(
     (s) => !(s.userId === userId && s.endpoint === endpoint)
   );
+  writeDb(db);
+}
+
+// ─── Expo (native) push tokens ─────────────────────────────────────────────
+
+// Upsert by (userId, token): a device re-registering (e.g. after reinstall)
+// just refreshes updatedAt rather than inserting a duplicate row.
+export function saveExpoPushToken(record: ExpoPushTokenRecord): void {
+  const db = readDb();
+  const existing = db.expoPushTokens.find(
+    (t) => t.userId === record.userId && t.token === record.token
+  );
+  if (existing) {
+    existing.deviceInfo = record.deviceInfo;
+    existing.updatedAt = record.updatedAt;
+  } else {
+    db.expoPushTokens.push(record);
+  }
+  writeDb(db);
+}
+
+export function findExpoPushTokensByUserId(userId: string): ExpoPushTokenRecord[] {
+  const db = readDb();
+  return db.expoPushTokens.filter((t) => t.userId === userId);
+}
+
+// Scoped to userId so a user can only remove their own tokens (used by the
+// unregister-on-logout API route).
+export function deleteExpoPushToken(userId: string, token: string): void {
+  const db = readDb();
+  db.expoPushTokens = db.expoPushTokens.filter(
+    (t) => !(t.userId === userId && t.token === token)
+  );
+  writeDb(db);
+}
+
+// Unscoped — called from the send path when Expo reports a token as no
+// longer valid (DeviceNotRegistered), regardless of which user owns it.
+export function deleteExpoPushTokenByToken(token: string): void {
+  const db = readDb();
+  db.expoPushTokens = db.expoPushTokens.filter((t) => t.token !== token);
   writeDb(db);
 }
 

@@ -1,7 +1,9 @@
 import webpush from "web-push";
 
 import {
+  deleteExpoPushTokenByToken,
   deletePushSubscriptionByEndpoint,
+  findExpoPushTokensByUserId,
   findPushSubscriptionsByUserId,
 } from "./db";
 
@@ -26,17 +28,71 @@ export interface PushPayload {
   linkHref: string;
 }
 
-// Sends a push notification to every registered device for a user. Never
-// throws — per-subscription failures are logged and swallowed so push can
-// never block the calling flow. Expired subscriptions (HTTP 410/404) are
+const EXPO_PUSH_ENDPOINT = "https://exp.host/--/api/v2/push/send";
+
+interface ExpoPushTicket {
+  status: "ok" | "error";
+  message?: string;
+  details?: { error?: string };
+}
+
+// Sends to every Expo (native app) token registered for a user in one
+// batched request. Unlike web push, Expo's push API needs no server-side
+// keys — sending only requires the recipient's token. Tokens Expo reports
+// as no longer valid (DeviceNotRegistered — uninstalled app, etc.) are
+// deleted automatically.
+async function sendExpoPush(userId: string, payload: PushPayload): Promise<void> {
+  const tokens = findExpoPushTokensByUserId(userId);
+  if (tokens.length === 0) return;
+
+  const messages = tokens.map((t) => ({
+    to: t.token,
+    title: payload.title,
+    body: payload.body,
+    data: { linkHref: payload.linkHref },
+  }));
+
+  try {
+    const res = await fetch(EXPO_PUSH_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(messages),
+    });
+    const json = (await res.json().catch(() => null)) as { data?: ExpoPushTicket[] } | null;
+    const tickets = json?.data ?? [];
+
+    tickets.forEach((ticket, i) => {
+      const token = tokens[i]?.token;
+      if (!token) return;
+      if (ticket.status === "ok") {
+        console.log(`[push] sent (expo): ...${token.slice(-12)} → "${payload.title}"`);
+      } else if (ticket.details?.error === "DeviceNotRegistered") {
+        deleteExpoPushTokenByToken(token);
+        console.log(`[push] expo token expired, removed: ...${token.slice(-12)}`);
+      } else {
+        console.error(`[push] expo send failed: ...${token.slice(-12)}`, ticket.message ?? ticket);
+      }
+    });
+  } catch (err) {
+    console.error(`[push] expo request failed for user ${userId}`, err);
+  }
+}
+
+// Sends a push notification to every registered device for a user, across
+// both channels (web push + native Expo push). Never throws — per-channel
+// and per-subscription failures are logged and swallowed so push can never
+// block the calling flow. Expired web-push subscriptions (HTTP 410/404) are
 // deleted automatically.
 export async function sendPush(userId: string, payload: PushPayload): Promise<void> {
   if (process.env.PUSH_ENABLED === "false") {
     console.log(`[push] disabled (PUSH_ENABLED=false): "${payload.title}" → ${userId}`);
     return;
   }
+
+  await sendExpoPush(userId, payload);
+
   if (!configured) {
-    console.log(`[push] ${payload.title} → ${userId}`);
+    console.log(`[push] web push not configured, skipping: "${payload.title}" → ${userId}`);
     return;
   }
 
