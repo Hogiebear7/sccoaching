@@ -13,8 +13,32 @@ const GUEST_ONLY_PATHS = ["/login", "/signup"];
 // member/staff data (including fake revenue figures) with zero login wall.
 const BLOCKED_IN_PRODUCTION_PREFIXES = ["/app", "/admin", "/admin-mobile"];
 
+// CORS for the mobile API surface only. These routes are Bearer-token
+// authenticated (no cookies), so a wildcard origin carries none of the
+// CSRF risk a cookie-authenticated wildcard would — the mobile app (and
+// its web-preview target during development) is the only intended caller,
+// and a stolen token is the same risk regardless of origin restriction.
+function mobileCorsHeaders(): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith("/api/mobile/")) {
+    if (request.method === "OPTIONS") {
+      return new NextResponse(null, { status: 204, headers: mobileCorsHeaders() });
+    }
+    const response = NextResponse.next();
+    for (const [key, value] of Object.entries(mobileCorsHeaders())) {
+      response.headers.set(key, value);
+    }
+    return response;
+  }
 
   if (
     process.env.NODE_ENV === "production" &&
