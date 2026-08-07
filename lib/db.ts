@@ -60,6 +60,11 @@ export interface ExerciseRecord {
 
 // Snapshot stored inline on each session row so historical records remain
 // readable even if the library exercise is later renamed or deleted.
+// "standard" is the default/omitted case. The rest describe how a set (or a
+// whole exercise, when no per-set breakdown is given) was actually
+// performed — member self-logged, not prescribed.
+export type WorkoutSetType = "standard" | "dropset" | "myoset" | "failure" | "partial";
+
 export interface WorkoutExerciseEntry {
   exerciseId: string | null;
   name: string;
@@ -74,7 +79,14 @@ export interface WorkoutExerciseEntry {
   rir?: number | null;
   /** Per-set weight/reps when they differ between sets. Length matches the
       performed sets; null/absent = the shared weight/reps applied to all. */
-  setDetails?: { weight: string | null; reps: number | null }[] | null;
+  setDetails?: { weight: string | null; reps: number | null; setType?: WorkoutSetType | null }[] | null;
+  /** Applies when setDetails isn't used (or as this exercise's default set
+      type) — e.g. "this whole exercise was to failure". */
+  setType?: WorkoutSetType | null;
+  /** Exercises sharing the same non-null group id within one session were
+      performed back-to-back as a superset — member self-tagged, not a
+      separate record. Order within the session implies the pairing order. */
+  supersetGroup?: string | null;
   notes: string | null;
 }
 

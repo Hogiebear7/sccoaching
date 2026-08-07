@@ -1,4 +1,10 @@
-import type { WorkoutExerciseEntry } from "./db";
+import type { WorkoutExerciseEntry, WorkoutSetType } from "./db";
+
+const SET_TYPES: WorkoutSetType[] = ["standard", "dropset", "myoset", "failure", "partial"];
+
+function parseSetType(value: unknown): WorkoutSetType | null {
+  return typeof value === "string" && SET_TYPES.includes(value as WorkoutSetType) ? (value as WorkoutSetType) : null;
+}
 
 // Shared parser for exercise rows arriving from any client (member logging,
 // member same-day edits, staff class recording). Rows with an empty name are
@@ -28,9 +34,10 @@ export function parseExerciseEntries(exercises: unknown): WorkoutExerciseEntry[]
             return {
               weight: typeof s.weight === "string" && s.weight.trim() ? s.weight.trim() : null,
               reps: reps !== null && Number.isFinite(reps) && reps >= 0 ? Math.floor(reps) : null,
+              setType: parseSetType(s.setType),
             };
           })
-          .filter((s) => s.weight !== null || s.reps !== null)
+          .filter((s) => s.weight !== null || s.reps !== null || s.setType !== null)
       : [];
 
     return [
@@ -49,22 +56,38 @@ export function parseExerciseEntries(exercises: unknown): WorkoutExerciseEntry[]
             ? Math.round(rirRaw)
             : null,
         setDetails: setDetails.length > 0 ? setDetails : null,
+        setType: parseSetType(e.setType),
+        supersetGroup: typeof e.supersetGroup === "string" && e.supersetGroup.trim() ? e.supersetGroup.trim() : null,
         notes: typeof e.notes === "string" && e.notes.trim() ? e.notes.trim() : null,
       } satisfies WorkoutExerciseEntry,
     ];
   });
 }
 
+export const SET_TYPE_LABEL: Record<WorkoutSetType, string> = {
+  standard: "",
+  dropset: "dropset",
+  myoset: "myoset",
+  failure: "failure",
+  partial: "partials",
+};
+
 // Compact display for an exercise entry: per-set detail when present
-// ("60kg×8, 65kg×6"), otherwise the shared sets×reps @ weight form.
+// ("60kg×8, 65kg×6 (dropset)"), otherwise the shared sets×reps @ weight form.
 export function formatExerciseLoad(ex: WorkoutExerciseEntry): string {
   if (ex.setDetails && ex.setDetails.length > 0) {
     return ex.setDetails
       .map((s) => {
-        if (s.weight && s.reps !== null) return `${s.weight}×${s.reps}`;
-        if (s.weight) return `${s.weight}`;
-        if (s.reps !== null) return `×${s.reps}`;
-        return "—";
+        const load =
+          s.weight && s.reps !== null
+            ? `${s.weight}×${s.reps}`
+            : s.weight
+              ? `${s.weight}`
+              : s.reps !== null
+                ? `×${s.reps}`
+                : "—";
+        const typeLabel = s.setType ? SET_TYPE_LABEL[s.setType] : "";
+        return typeLabel ? `${load} (${typeLabel})` : load;
       })
       .join(", ");
   }
@@ -75,5 +98,6 @@ export function formatExerciseLoad(ex: WorkoutExerciseEntry): string {
   if (ex.weight) parts.push(`@ ${ex.weight}`);
   if (ex.rpe != null) parts.push(`RPE ${ex.rpe}`);
   if (ex.rir != null) parts.push(`RIR ${ex.rir}`);
+  if (ex.setType && SET_TYPE_LABEL[ex.setType]) parts.push(`(${SET_TYPE_LABEL[ex.setType]})`);
   return parts.join(" ");
 }

@@ -26,8 +26,8 @@ describe("parseExerciseEntries", () => {
     expect(parsed[0].name).toBe("Bench Press");
     expect(parsed[0].rpe).toBe(8.5); // rounded to nearest 0.5
     expect(parsed[0].setDetails).toEqual([
-      { weight: "60", reps: 8 },
-      { weight: "65", reps: 6 },
+      { weight: "60", reps: 8, setType: null },
+      { weight: "65", reps: 6, setType: null },
     ]);
   });
 
@@ -36,6 +36,30 @@ describe("parseExerciseEntries", () => {
     expect(parsed[0].rpe).toBeNull();
     expect(parsed[0].setDetails).toBeNull();
     expect(parsed[1].setDetails).toBeNull();
+  });
+
+  it("parses set type per exercise, per set, and a superset group; rejects unknown types", () => {
+    const parsed = parseExerciseEntries([
+      {
+        name: "Bench Press",
+        setType: "failure",
+        supersetGroup: "grp-1",
+        setDetails: [
+          { weight: "60", reps: 8, setType: "standard" },
+          { weight: "40", reps: 12, setType: "dropset" },
+        ],
+      },
+      { name: "Row", setType: "not-a-real-type", supersetGroup: "grp-1" },
+    ]);
+
+    expect(parsed[0].setType).toBe("failure");
+    expect(parsed[0].supersetGroup).toBe("grp-1");
+    expect(parsed[0].setDetails).toEqual([
+      { weight: "60", reps: 8, setType: "standard" },
+      { weight: "40", reps: 12, setType: "dropset" },
+    ]);
+    expect(parsed[1].setType).toBeNull(); // invalid value rejected, not passed through
+    expect(parsed[1].supersetGroup).toBe("grp-1");
   });
 });
 
@@ -68,6 +92,34 @@ describe("formatExerciseLoad", () => {
         notes: null,
       })
     ).toBe("3×8 @ 60 kg RPE 8");
+
+    expect(
+      formatExerciseLoad({
+        exerciseId: null,
+        name: "Bench",
+        weight: null,
+        reps: null,
+        sets: null,
+        setDetails: [
+          { weight: "60", reps: 8, setType: "standard" },
+          { weight: "40", reps: 20, setType: "dropset" },
+        ],
+        notes: null,
+      })
+    ).toBe("60×8, 40×20 (dropset)");
+
+    expect(
+      formatExerciseLoad({
+        exerciseId: null,
+        name: "Push-up",
+        weight: null,
+        reps: 15,
+        sets: 3,
+        setType: "failure",
+        setDetails: null,
+        notes: null,
+      })
+    ).toBe("3×15 (failure)");
   });
 });
 
