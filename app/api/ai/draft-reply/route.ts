@@ -3,11 +3,11 @@ import type { NextRequest } from "next/server";
 
 import { findMessagesByMemberId, findUserById } from "@/lib/db";
 import { draftReply, isAiConfigured } from "@/lib/ai";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
 
   if (!sessionUserId) {
     return NextResponse.json(

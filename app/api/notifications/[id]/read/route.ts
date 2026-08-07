@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findUserById, markNotificationRead } from "@/lib/db";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
 
   if (!sessionUserId) {
     return NextResponse.json({ success: false, message: "Unauthorised." }, { status: 401 });

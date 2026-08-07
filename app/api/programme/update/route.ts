@@ -10,7 +10,7 @@ import {
   type ProgrammeRecord,
   type ProgrammeStatus,
 } from "@/lib/db";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const PROGRAMME_STATUSES: ProgrammeStatus[] = ["active", "paused", "completed"];
 
@@ -28,7 +28,7 @@ function parseOptionalNonNegativeInt(
 }
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
 
   if (!userId) {
     return NextResponse.json(

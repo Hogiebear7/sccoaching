@@ -12,10 +12,10 @@ import {
 import { sendBookingCancellationEmail } from "@/lib/booking-emails";
 import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer, isCancellationEarly } from "@/lib/scheduling";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
 
   if (!userId) {
     return NextResponse.json(

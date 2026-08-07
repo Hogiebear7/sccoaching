@@ -8,11 +8,11 @@ import {
   saveSubscription,
   type SubscriptionRecord,
 } from "@/lib/db";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
 
   if (!sessionUserId) {
     return NextResponse.json(

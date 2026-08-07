@@ -3,14 +3,14 @@ import type { NextRequest } from "next/server";
 
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { normalizeDrinkSettings } from "@/lib/drink-settings";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // Members sync their own Sports Performance Drink calculator settings here
 // (fire-and-forget from the Nutrition tab). Everything is normalized
 // field-by-field before it touches the profile, so stored settings are
 // always valid regardless of what the client sends.
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
 
   if (!sessionUserId) {
     return NextResponse.json(

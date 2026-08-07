@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { isPaletteId, isThemeId } from "@/lib/palettes";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // The client downsizes photos to a small square JPEG before upload, so this
 // cap (~330KB of base64 ≈ 240KB binary) is generous headroom, not a target.
@@ -17,7 +17,7 @@ const AVATAR_DATA_URL_PATTERN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+
 // the profile photo. Both are optional per request; omitted fields are left
 // untouched. avatarDataUrl: null explicitly removes the photo.
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
   if (!user) {

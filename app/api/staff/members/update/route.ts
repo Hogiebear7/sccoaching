@@ -14,14 +14,14 @@ import {
   type PrimaryGoal,
 } from "@/lib/profile-schema";
 import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
 const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
 
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
 
   if (!sessionUserId) {
     return NextResponse.json(

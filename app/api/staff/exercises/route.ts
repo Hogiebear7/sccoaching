@@ -10,13 +10,13 @@ import {
   type ExerciseRecord,
   type ExerciseSection,
 } from "@/lib/db";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 const VALID_SECTIONS: ExerciseSection[] = ["upper_push", "upper_pull", "lower_push", "lower_pull", "core", "cardio"];
 
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
 
   if (!sessionUserId) {
     return NextResponse.json(

@@ -17,7 +17,7 @@ import { generateOccurrencesForSeries } from "@/lib/class-series";
 import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isFutureDateTime } from "@/lib/scheduling-status";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 function parseRequiredPositiveInt(
@@ -32,7 +32,7 @@ function parseRequiredPositiveInt(
 }
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
 
   if (!userId) {
     return NextResponse.json(

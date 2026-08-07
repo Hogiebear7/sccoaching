@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_TIMING_MINS = 10080; // 7 days
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
 
   if (!userId) {
     return NextResponse.json(

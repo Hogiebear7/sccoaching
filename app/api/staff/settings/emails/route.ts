@@ -8,14 +8,14 @@ import {
   TRANSACTIONAL_EMAIL_TYPES,
   type TransactionalEmailType,
 } from "@/lib/db";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 // Staff toggle for a single optional transactional email type. Guarded by the
 // operations capability (admin+). Billing/account-critical emails are not
 // represented here, so they can never be switched off through this surface.
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
   if (!user || !can(user.role, "operations.view")) {

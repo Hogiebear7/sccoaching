@@ -11,12 +11,12 @@ import {
   type BodyWeightLogRecord,
 } from "@/lib/db";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
 
   if (!userId) {
     return NextResponse.json(

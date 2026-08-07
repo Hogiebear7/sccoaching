@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import { findUserById } from "@/lib/db";
 import { runAllJobs } from "@/lib/jobs/runner";
 import { can } from "@/lib/permissions";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // Two ways to trigger a run:
 //   1. An external scheduler (Vercel Cron, GitHub Actions, system cron, a
@@ -27,7 +27,7 @@ function isAuthorizedCronRequest(request: NextRequest): boolean {
 }
 
 function isAuthorizedStaffRequest(request: NextRequest): boolean {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   if (!userId) return false;
 
   const user = findUserById(userId);

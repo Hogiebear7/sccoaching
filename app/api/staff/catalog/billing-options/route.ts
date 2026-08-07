@@ -10,13 +10,13 @@ import {
   type BillingType,
   type MembershipBillingOptionRecord,
 } from "@/lib/db";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 const BILLING_TYPES: BillingType[] = ["recurring", "one_time"];
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
   if (!user || !can(user.role, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Only staff can manage the catalog." }, { status: user ? 403 : 401 });

@@ -9,10 +9,10 @@ import {
   savePushSubscription,
   type PushSubscriptionRecord,
 } from "@/lib/db";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 function getSession(request: NextRequest): string | null {
-  return verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  return verifyRequestSession(request)?.userId ?? null;
 }
 
 export async function POST(request: NextRequest) {

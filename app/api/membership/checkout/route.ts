@@ -16,7 +16,7 @@ import {
 import { activeBillingProvider, createCatalogCheckout, isPendingCheckoutStale } from "@/lib/billing";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { isPurchaseCheckoutReusable } from "@/lib/payments";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // Catalog checkout: the member picked a billing option (a price) under a
 // package (the entitlement). Recurring → subscription checkout that the
@@ -24,7 +24,7 @@ import { verifySession } from "@/lib/session";
 // a pass-pack PurchaseRecord that the webhook credits by package. Entitlement
 // always comes from the package, never from the price.
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
   if (!user) {

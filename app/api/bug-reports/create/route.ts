@@ -5,13 +5,13 @@ import type { NextRequest } from "next/server";
 
 import { createBugReport, findUserById, type BugReportRecord } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_DESCRIPTION_LENGTH = 2000;
 const MAX_SCREENSHOTS = 3;
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
   if (!user) {

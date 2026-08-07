@@ -9,7 +9,7 @@ import {
   type RecoveryLogRecord,
 } from "@/lib/db";
 import { computeReadinessScore } from "@/lib/recovery";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 function parseRequiredRange(
   value: unknown,
@@ -53,7 +53,7 @@ function parseOptionalRange(
 }
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
 
   if (!userId) {
     return NextResponse.json(

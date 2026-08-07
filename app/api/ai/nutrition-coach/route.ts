@@ -16,7 +16,7 @@ import { normalizeDrinkSettings } from "@/lib/drink-settings";
 import { buildNutritionCoachContext } from "@/lib/ai-context";
 import { createNutritionCoachChatStream, isAiConfigured } from "@/lib/ai";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { EXERTION_LABEL, type Exertion } from "@/lib/nutrition";
 
 // Same spend/abuse guard shape as the general AI Coach, kept in its own key
@@ -33,7 +33,7 @@ const INTERRUPTED_NOTE =
 const VALID_EXERTIONS: Exertion[] = Object.keys(EXERTION_LABEL) as Exertion[];
 
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
 
   if (!sessionUserId) {
     return NextResponse.json(

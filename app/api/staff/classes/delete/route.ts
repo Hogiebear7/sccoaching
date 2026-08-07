@@ -18,7 +18,7 @@ import {
 } from "@/lib/db";
 import { reversePassConsumption } from "@/lib/payments";
 import { sendClassCancelledEmail } from "@/lib/booking-emails";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 // Deletes an upcoming class and unwinds every reservation against it.
@@ -27,7 +27,7 @@ import { can } from "@/lib/permissions";
 // a plan-allowance booking gets its monthly counter decremented. Past or
 // in-progress classes can't be deleted — attendance history must survive.
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
   if (!user) {

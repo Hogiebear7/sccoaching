@@ -16,12 +16,12 @@ import {
 } from "@/lib/db";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
 import { isClassEligibleForPlan } from "@/lib/scheduling-status";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_WAITLIST_SIZE = 2;
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
 
   if (!userId) {
     return NextResponse.json(

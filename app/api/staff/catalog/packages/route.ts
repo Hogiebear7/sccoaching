@@ -15,14 +15,14 @@ import {
 } from "@/lib/db";
 import { slugifyCatalog } from "@/lib/catalog";
 import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 const PACKAGE_TYPES: PackageType[] = ["membership", "pass", "top_up"];
 const ALLOWANCE_TYPES: SessionAllowanceType[] = ["unlimited", "fixed_count", "single_use"];
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
   if (!user || !can(user.role, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Only staff can manage the catalog." }, { status: user ? 403 : 401 });

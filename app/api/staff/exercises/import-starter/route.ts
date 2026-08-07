@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 
 import { findExercises, findUserById, saveExercise, type ExerciseRecord } from "@/lib/db";
 import { STARTER_EXERCISE_LIBRARY } from "@/lib/starter-exercise-library";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 // One-time bulk import for staff to seed an empty exercise library — same
@@ -13,7 +13,7 @@ import { can } from "@/lib/permissions";
 // name already present in the same section, so it's safe to press more than
 // once (e.g. after adding a few exercises by hand).
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
 
   if (!sessionUserId) {
     return NextResponse.json(

@@ -3,10 +3,10 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, findWaitlistEntryByClassAndUser, saveWaitlistEntry } from "@/lib/db";
 import { issueWaitlistOffer } from "@/lib/scheduling";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
 
   if (!userId) {
     return NextResponse.json(

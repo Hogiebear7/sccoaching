@@ -8,13 +8,13 @@ import {
   saveCycleSettings,
   saveProfile,
 } from "@/lib/db";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { CycleRegularity, CycleSettingsRecord } from "@/lib/profile-schema";
 
 const VALID_REGULARITIES: CycleRegularity[] = ["Regular", "Irregular", "Unsure"];
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : null;
 
   if (!user) {

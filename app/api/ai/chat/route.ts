@@ -18,7 +18,7 @@ import { normalizeDrinkSettings } from "@/lib/drink-settings";
 import { buildCoachingContext } from "@/lib/ai-context";
 import { createCoachChatStream, isAiConfigured } from "@/lib/ai";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // Spend/abuse guard: 20 messages per 5 minutes per member.
 const CHAT_RATE_LIMIT = 20;
@@ -31,7 +31,7 @@ const INTERRUPTED_NOTE =
   "\n\n[Connection interrupted — if this reply looks cut off, please send your message again.]";
 
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
 
   if (!sessionUserId) {
     return NextResponse.json(

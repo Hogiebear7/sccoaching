@@ -7,7 +7,7 @@ import {
   saveWorkoutSession,
 } from "@/lib/db";
 import { parseExerciseEntries } from "@/lib/workout-entries";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 function todayLocalISO(): string {
   const d = new Date();
@@ -22,7 +22,7 @@ function todayLocalISO(): string {
 // sessions are not editable here — this window exists specifically because
 // staff-entered numbers may need a same-day fix by the person who lifted.
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
   if (!user) {

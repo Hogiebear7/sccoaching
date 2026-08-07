@@ -9,7 +9,7 @@ import {
   type WorkoutSessionRecord,
 } from "@/lib/db";
 import { parseExerciseEntries } from "@/lib/workout-entries";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 function parseOptionalNonNegativeInt(
   value: unknown
@@ -25,7 +25,7 @@ function parseOptionalNonNegativeInt(
 }
 
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
 
   if (!userId) {
     return NextResponse.json(

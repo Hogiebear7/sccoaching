@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, type ExerciseSection } from "@/lib/db";
 import { AI_NOT_CONFIGURED_MESSAGE, generateExerciseContent, isAiConfigured } from "@/lib/ai";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 const SECTION_LABELS: Record<ExerciseSection, string> = {
@@ -18,7 +18,7 @@ const SECTION_LABELS: Record<ExerciseSection, string> = {
 // Drafts description + coaching cues for an exercise. Returns text for
 // staff to review and edit — nothing is written to the library here.
 export async function POST(request: NextRequest) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
   if (!user) {

@@ -14,7 +14,7 @@ import {
 } from "@/lib/db";
 import { syncClassWorkoutToAllBooked } from "@/lib/class-workout-sync";
 import { parseExerciseEntries } from "@/lib/workout-entries";
-import { verifySession } from "@/lib/session";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 // Staff record the workout for a class: a shared template (what the class
@@ -27,7 +27,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ classId: string }> }
 ) {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
   if (!user) {
