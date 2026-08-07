@@ -55,6 +55,7 @@ export type Capability =
   | "staffUsers.manage" // create/manage elevated users
   | "finance.view" // revenue figures, breakdowns, tax estimate — top role only
   | "reports.view" // membership + class reporting (no monetary figures)
+  | "programs.manage" // assign/edit member training programs (Workout A/B/C/D blocks)
   | "bugReports.manage"; // TRIAL-ONLY — triage trial-period bug reports, see docs/bug-reports.md
 
 // The MINIMUM role each capability requires. Because roles are hierarchical, a
@@ -80,6 +81,9 @@ const CAPABILITY_MIN_ROLE: Record<Capability, StaffRole> = {
   "finance.view": "admin_manager",
   // Membership/class counts, no money — same tier as Operations.
   "reports.view": "admin",
+  // Coaches build and assign the training programs they coach — same tier
+  // as classes.manage/exercises.manage.
+  "programs.manage": "coach",
   // All-hands triage during the trial period — same tier as classes.manage.
   "bugReports.manage": "coach",
 };

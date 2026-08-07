@@ -132,6 +132,62 @@ export interface ClassWorkoutRecord {
   updatedAt: string;
 }
 
+// ── Training programs — staff-assigned, MacroFactor-style day blocks ───────
+// A program is a named set of day templates (Workout A/B/C/D, rest days,
+// etc.) a coach assigns to one member. The member works through days in
+// order via currentDayIndex, which advances each time they mark the current
+// day complete — it does not lock to calendar dates, matching the reference
+// app's "just do the next one" model rather than a rigid weekly schedule.
+export type ProgramDayType = "workout" | "rest";
+export type TrainingProgramStatus = "active" | "archived";
+
+export interface PrescribedSet {
+  reps: string | null;
+  weight: string | null;
+  setType: WorkoutSetType | null;
+}
+
+export interface PrescribedExercise {
+  /** Stable within the program day — lets the member UI track per-exercise
+      completion without depending on array position. */
+  id: string;
+  exerciseId: string | null;
+  name: string;
+  muscleTags: string[];
+  targetSets: number | null;
+  /** e.g. "8-10" or "AMRAP" — free text since prescriptions aren't always a
+      single number. Used when sets (per-set breakdown) isn't given. */
+  targetReps: string | null;
+  targetWeight: string | null;
+  setType: WorkoutSetType | null;
+  sets: PrescribedSet[] | null;
+  /** Exercises sharing the same non-null group id within one day are
+      prescribed as a superset. */
+  supersetGroup: string | null;
+  notes: string | null;
+}
+
+export interface ProgramDayRecord {
+  id: string;
+  label: string;
+  type: ProgramDayType;
+  exercises: PrescribedExercise[];
+}
+
+export interface TrainingProgramRecord {
+  id: string;
+  userId: string;
+  name: string;
+  status: TrainingProgramStatus;
+  days: ProgramDayRecord[];
+  /** Index into days[] the member should do next. Advances (with wraparound)
+      each time the current day is marked complete. */
+  currentDayIndex: number;
+  createdByStaffId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AiMessageRecord {
   id: string;
   userId: string;
@@ -728,6 +784,7 @@ interface Database {
   profiles: ProfileRecord[];
   resetTokens: ResetTokenRecord[];
   programmes: ProgrammeRecord[];
+  trainingPrograms: TrainingProgramRecord[];
   workoutSessions: WorkoutSessionRecord[];
   exercises: ExerciseRecord[];
   aiMessages: AiMessageRecord[];
@@ -820,6 +877,7 @@ function readDb(): Database {
       profiles: [],
       resetTokens: [],
       programmes: [],
+      trainingPrograms: [],
       workoutSessions: [],
       exercises: [],
       aiMessages: [],
@@ -887,6 +945,7 @@ function readDb(): Database {
     })),
     resetTokens: parsed.resetTokens ?? [],
     programmes: parsed.programmes ?? [],
+    trainingPrograms: parsed.trainingPrograms ?? [],
     workoutSessions: (parsed.workoutSessions ?? []).map((s) => ({
       ...s,
       exercises: s.exercises ?? [],
@@ -1195,6 +1254,38 @@ export function saveProgramme(programme: ProgrammeRecord) {
     db.programmes[index] = programme;
   }
 
+  writeDb(db);
+}
+
+export function findTrainingProgramById(id: string): TrainingProgramRecord | undefined {
+  return readDb().trainingPrograms.find((p) => p.id === id);
+}
+
+export function findTrainingProgramsByUserId(userId: string): TrainingProgramRecord[] {
+  return readDb()
+    .trainingPrograms.filter((p) => p.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findActiveTrainingProgramByUserId(userId: string): TrainingProgramRecord | undefined {
+  return readDb().trainingPrograms.find((p) => p.userId === userId && p.status === "active");
+}
+
+export function findAllTrainingPrograms(): TrainingProgramRecord[] {
+  return [...readDb().trainingPrograms].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function saveTrainingProgram(program: TrainingProgramRecord): void {
+  const db = readDb();
+  const index = db.trainingPrograms.findIndex((p) => p.id === program.id);
+  if (index === -1) db.trainingPrograms.push(program);
+  else db.trainingPrograms[index] = program;
+  writeDb(db);
+}
+
+export function deleteTrainingProgram(id: string): void {
+  const db = readDb();
+  db.trainingPrograms = db.trainingPrograms.filter((p) => p.id !== id);
   writeDb(db);
 }
 
