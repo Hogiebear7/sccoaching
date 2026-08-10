@@ -233,6 +233,111 @@ export interface FoodEntryRecord {
   carbsG: number;
   fatG: number;
   createdAt: string;
+  /** Present when this entry was logged from the food catalog rather than
+      typed in free-hand — lets "log again" / History resolve back to the
+      source food and its per-100g nutrition rather than just the snapshot. */
+  foodId?: string | null;
+  foodDomain?: FoodDomain | null;
+  servingLabel?: string | null;
+  servingGrams?: number | null;
+  quantity?: number | null;
+}
+
+// ── Food catalog — normalizes every source (member-created, generic/
+// "common", vendor/"branded") into ONE internal schema so the app and its
+// API consumers never see a raw vendor payload. Nutrition is always stored
+// per 100g; a serving is just a labelled gram conversion layered on top, so
+// "log 1.5 servings" and "log 150g" both reduce to the same gram math.
+// "History" is deliberately NOT a stored domain here — it's a derived view
+// over a user's own FoodEntryRecord log (see getFoodHistory in
+// lib/food-catalog.ts) rather than a catalog record, matching how MacroFactor
+// treats recency as a ranking signal, not a food source.
+export type FoodDomain = "custom" | "common" | "branded";
+
+// Where a record's data actually came from — distinct from `domain` (which
+// UI group it renders in). A branded record can be admin-curated OR sourced
+// from Open Food Facts; a custom food is always user-authored.
+export type FoodProvenance = "user" | "open_food_facts" | "admin" | "usda_seed";
+
+export interface FoodServing {
+  label: string;
+  grams: number;
+}
+
+export interface FoodNutrition100g {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG: number | null;
+  sugarG: number | null;
+  sodiumMg: number | null;
+  saturatedFatG: number | null;
+}
+
+export interface FoodRecord {
+  id: string;
+  domain: FoodDomain;
+  name: string;
+  brandName: string | null;
+  barcode: string | null;
+  nutrition100g: FoodNutrition100g;
+  defaultServing: FoodServing;
+  servings: FoodServing[];
+  provenance: FoodProvenance;
+  /** External id this was normalized from — an Open Food Facts barcode/
+      product id, an admin user id, or null for plain user-authored foods. */
+  sourceRef: string | null;
+  verified: boolean;
+  /** Region scoping — Open Food Facts' own country-tag format (e.g.
+      "en:united-states") when sourced from OFF, ISO 3166-1 alpha-2 for
+      admin/manual entries, or null when the record isn't region-scoped.
+      Deliberately not normalized to one format — see docs/food-catalog.md. */
+  region: string | null;
+  /** Set only for domain "custom" — who owns/can edit this food. */
+  ownerUserId: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Last time this was (re)fetched from its external source — drives the
+      branded-cache staleness check; null for custom/common records. */
+  fetchedAt: string | null;
+}
+
+// A member flags a barcode/food that couldn't be found (barcode lookup
+// exhausted, or a bad search result) for staff review — the seed for keeping
+// the common/branded catalog honest over time.
+export type FoodModerationStatus = "open" | "resolved" | "dismissed";
+
+export interface FoodModerationRequest {
+  id: string;
+  userId: string;
+  barcode: string | null;
+  queryText: string | null;
+  note: string | null;
+  status: FoodModerationStatus;
+  resolvedFoodId: string | null;
+  resolvedByStaffId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Tracks a member's consent-gated request to publish their own custom food
+// to Open Food Facts. This repo has no OFF producer credentials, so the
+// actual submission call is not live — this just records consent + status
+// so the workflow is real and resumable once credentials exist.
+export type OffSubmissionStatus = "pending_consent" | "queued" | "submitted" | "failed";
+
+export interface FoodOffSubmissionRecord {
+  id: string;
+  userId: string;
+  customFoodId: string;
+  status: OffSubmissionStatus;
+  consentedAt: string | null;
+  submittedAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AiMessageRecord {
@@ -835,6 +940,11 @@ interface Database {
   workoutTemplates: WorkoutTemplateRecord[];
   nutritionTargets: NutritionTargetRecord[];
   foodEntries: FoodEntryRecord[];
+  customFoods: FoodRecord[];
+  commonFoods: FoodRecord[];
+  brandedFoods: FoodRecord[];
+  foodModerationRequests: FoodModerationRequest[];
+  foodOffSubmissions: FoodOffSubmissionRecord[];
   workoutSessions: WorkoutSessionRecord[];
   exercises: ExerciseRecord[];
   aiMessages: AiMessageRecord[];
@@ -931,6 +1041,11 @@ function readDb(): Database {
       workoutTemplates: [],
       nutritionTargets: [],
       foodEntries: [],
+      customFoods: [],
+      commonFoods: [],
+      brandedFoods: [],
+      foodModerationRequests: [],
+      foodOffSubmissions: [],
       workoutSessions: [],
       exercises: [],
       aiMessages: [],
@@ -1002,6 +1117,11 @@ function readDb(): Database {
     workoutTemplates: parsed.workoutTemplates ?? [],
     nutritionTargets: parsed.nutritionTargets ?? [],
     foodEntries: parsed.foodEntries ?? [],
+    customFoods: parsed.customFoods ?? [],
+    commonFoods: parsed.commonFoods ?? [],
+    brandedFoods: parsed.brandedFoods ?? [],
+    foodModerationRequests: parsed.foodModerationRequests ?? [],
+    foodOffSubmissions: parsed.foodOffSubmissions ?? [],
     workoutSessions: (parsed.workoutSessions ?? []).map((s) => ({
       ...s,
       exercises: s.exercises ?? [],
@@ -1400,6 +1520,96 @@ export function saveFoodEntry(entry: FoodEntryRecord): void {
 export function deleteFoodEntry(id: string): void {
   const db = readDb();
   db.foodEntries = db.foodEntries.filter((e) => e.id !== id);
+  writeDb(db);
+}
+
+// ── Food catalog CRUD — same shape across all three domains, so these are
+// generic over the collection rather than duplicated per domain.
+function foodCollection(db: Database, domain: FoodDomain): FoodRecord[] {
+  if (domain === "custom") return db.customFoods;
+  if (domain === "common") return db.commonFoods;
+  return db.brandedFoods;
+}
+
+function setFoodCollection(db: Database, domain: FoodDomain, records: FoodRecord[]): void {
+  if (domain === "custom") db.customFoods = records;
+  else if (domain === "common") db.commonFoods = records;
+  else db.brandedFoods = records;
+}
+
+export function findFoodById(domain: FoodDomain, id: string): FoodRecord | undefined {
+  return foodCollection(readDb(), domain).find((f) => f.id === id);
+}
+
+export function findFoodByIdAnyDomain(id: string): FoodRecord | undefined {
+  const db = readDb();
+  return db.customFoods.find((f) => f.id === id) ?? db.commonFoods.find((f) => f.id === id) ?? db.brandedFoods.find((f) => f.id === id);
+}
+
+export function findCustomFoodsByUserId(userId: string): FoodRecord[] {
+  return readDb().customFoods.filter((f) => f.ownerUserId === userId && !f.archivedAt);
+}
+
+export function findFoodByBarcode(domain: FoodDomain, barcode: string, ownerUserId?: string): FoodRecord | undefined {
+  const records = foodCollection(readDb(), domain);
+  return records.find((f) => f.barcode === barcode && !f.archivedAt && (domain !== "custom" || f.ownerUserId === ownerUserId));
+}
+
+export function findAllFoods(domain: FoodDomain): FoodRecord[] {
+  return foodCollection(readDb(), domain).filter((f) => !f.archivedAt);
+}
+
+export function saveFood(record: FoodRecord): void {
+  const db = readDb();
+  const collection = foodCollection(db, record.domain);
+  const index = collection.findIndex((f) => f.id === record.id);
+  if (index === -1) collection.push(record);
+  else collection[index] = record;
+  setFoodCollection(db, record.domain, collection);
+  writeDb(db);
+}
+
+export function deleteFood(domain: FoodDomain, id: string): void {
+  const db = readDb();
+  setFoodCollection(db, domain, foodCollection(db, domain).filter((f) => f.id !== id));
+  writeDb(db);
+}
+
+export function createFoodModerationRequest(request: FoodModerationRequest): void {
+  const db = readDb();
+  db.foodModerationRequests.push(request);
+  writeDb(db);
+}
+
+export function findAllFoodModerationRequests(): FoodModerationRequest[] {
+  return [...readDb().foodModerationRequests].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findFoodModerationRequestById(id: string): FoodModerationRequest | undefined {
+  return readDb().foodModerationRequests.find((r) => r.id === id);
+}
+
+export function saveFoodModerationRequest(request: FoodModerationRequest): void {
+  const db = readDb();
+  const index = db.foodModerationRequests.findIndex((r) => r.id === request.id);
+  if (index !== -1) db.foodModerationRequests[index] = request;
+  writeDb(db);
+}
+
+export function createFoodOffSubmission(record: FoodOffSubmissionRecord): void {
+  const db = readDb();
+  db.foodOffSubmissions.push(record);
+  writeDb(db);
+}
+
+export function findFoodOffSubmissionById(id: string): FoodOffSubmissionRecord | undefined {
+  return readDb().foodOffSubmissions.find((s) => s.id === id);
+}
+
+export function saveFoodOffSubmission(record: FoodOffSubmissionRecord): void {
+  const db = readDb();
+  const index = db.foodOffSubmissions.findIndex((s) => s.id === record.id);
+  if (index !== -1) db.foodOffSubmissions[index] = record;
   writeDb(db);
 }
 

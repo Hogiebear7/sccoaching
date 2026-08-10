@@ -57,6 +57,7 @@ export type Capability =
   | "reports.view" // membership + class reporting (no monetary figures)
   | "programs.manage" // assign/edit member training programs (Workout A/B/C/D blocks)
   | "nutrition.manage" // assign/edit member nutrition targets (calories/macros)
+  | "foodCatalog.manage" // moderate the shared common/branded food catalog
   | "bugReports.manage"; // TRIAL-ONLY — triage trial-period bug reports, see docs/bug-reports.md
 
 // The MINIMUM role each capability requires. Because roles are hierarchical, a
@@ -88,6 +89,9 @@ const CAPABILITY_MIN_ROLE: Record<Capability, StaffRole> = {
   // Coaches set/adjust the macro targets they coach a member toward — same
   // tier as programs.manage.
   "nutrition.manage": "coach",
+  // The common/branded food catalog is shared across every member, not one
+  // coach's own clients — same tier as catalog.manage (membership catalog).
+  "foodCatalog.manage": "admin",
   // All-hands triage during the trial period — same tier as classes.manage.
   "bugReports.manage": "coach",
 };

@@ -1,0 +1,247 @@
+import type { FoodDomain, FoodEntryRecord, FoodNutrition100g, FoodRecord, FoodServing } from "./db";
+import type { OpenFoodFactsProduct } from "./open-food-facts-client";
+
+// ── Barcode validation ──────────────────────────────────────────────────
+// UPC-A(12) / EAN-8 / EAN-13 / GTIN-14 — all are digit strings with a
+// trailing GS1 mod-10 check digit computed the same way regardless of
+// length, so one function covers all four.
+const BARCODE_LENGTHS = [8, 12, 13, 14];
+
+export function isBarcodeShaped(value: string): boolean {
+  return /^\d+$/.test(value) && BARCODE_LENGTHS.includes(value.length);
+}
+
+export function isValidGtinChecksum(code: string): boolean {
+  if (!/^\d+$/.test(code) || !BARCODE_LENGTHS.includes(code.length)) return false;
+  const digits = code.split("").map(Number);
+  const checkDigit = digits.pop() as number;
+  let sum = 0;
+  let weight = 3;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    sum += digits[i] * weight;
+    weight = weight === 3 ? 1 : 3;
+  }
+  const calculated = (10 - (sum % 10)) % 10;
+  return calculated === checkDigit;
+}
+
+// ── Typo-tolerant text matching ─────────────────────────────────────────
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      row.push(Math.min(row[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost));
+    }
+    prev = row;
+  }
+  return prev[b.length];
+}
+
+// 1 = identical, 0 = completely different.
+export function stringSimilarity(a: string, b: string): number {
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshtein(a, b) / maxLen;
+}
+
+// Higher is better; 0 means "not a match, exclude it". Deliberately a single
+// scoring function shared by every domain (custom/common/branded) and
+// history so ranking behaves identically everywhere — only the candidate
+// pool differs per group.
+const TYPO_TOLERANCE_THRESHOLD = 0.6;
+
+export function scoreFoodMatch(query: string, food: Pick<FoodRecord, "name" | "brandName" | "barcode">): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return 0;
+
+  if (food.barcode && food.barcode === query.trim()) return 1000;
+
+  const name = food.name.toLowerCase();
+  const brand = food.brandName?.toLowerCase() ?? "";
+  const combined = brand ? `${brand} ${name}` : name;
+
+  if (name === q) return 500;
+  if (name.startsWith(q)) return 300;
+  if (name.includes(q) || combined.includes(q)) return 200;
+
+  const similarity = Math.max(stringSimilarity(q, name), brand ? stringSimilarity(q, brand) : 0);
+  return similarity >= TYPO_TOLERANCE_THRESHOLD ? similarity * 150 : 0;
+}
+
+function rankByTextMatch(query: string, foods: FoodRecord[], limit: number): FoodRecord[] {
+  if (!query.trim()) return foods.slice(0, limit);
+  return foods
+    .map((f) => ({ f, score: scoreFoodMatch(query, f) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.f);
+}
+
+// ── History (derived, not a stored domain) ──────────────────────────────
+// Only entries that reference a resolvable catalog food can be "logged
+// again" with correct serving math — pure free-hand entries (no per-100g
+// basis) aren't eligible for the History group. This is a deliberate scope
+// line, not an oversight: see docs/food-catalog.md.
+export function getFoodHistory(
+  userEntries: FoodEntryRecord[],
+  resolveFood: (domain: FoodDomain, id: string) => FoodRecord | undefined,
+  query: string,
+  limit = 20
+): FoodRecord[] {
+  const mostRecentByFood = new Map<string, { food: FoodRecord; lastLoggedAt: string }>();
+
+  for (const entry of userEntries) {
+    if (!entry.foodId || !entry.foodDomain) continue;
+    const food = resolveFood(entry.foodDomain, entry.foodId);
+    if (!food || food.archivedAt) continue;
+    const existing = mostRecentByFood.get(food.id);
+    if (!existing || entry.createdAt > existing.lastLoggedAt) {
+      mostRecentByFood.set(food.id, { food, lastLoggedAt: entry.createdAt });
+    }
+  }
+
+  let list = [...mostRecentByFood.values()];
+  const q = query.trim();
+
+  if (q) {
+    list = list
+      .map((x) => ({ ...x, score: scoreFoodMatch(q, x.food) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || b.lastLoggedAt.localeCompare(a.lastLoggedAt));
+  } else {
+    list = list.sort((a, b) => b.lastLoggedAt.localeCompare(a.lastLoggedAt));
+  }
+
+  return list.slice(0, limit).map((x) => x.food);
+}
+
+// ── Grouped search ───────────────────────────────────────────────────────
+// Requirement: results grouped History → Custom → Common → Branded (fixed
+// section order, for the UI to render as sectioned lists); WITHIN each
+// section, ranked by the priority chain (exact barcode > exact/startsWith/
+// substring text > typo-tolerant fuzzy match), with History additionally
+// weighted by recency. An exact barcode hit floats to the top of whichever
+// section actually contains it — it isn't pulled into its own section,
+// since the dedicated barcode endpoint (not this one) is the primary path
+// for a literal scan.
+export interface FoodSearchGroups {
+  history: FoodRecord[];
+  custom: FoodRecord[];
+  common: FoodRecord[];
+  branded: FoodRecord[];
+}
+
+export function searchFoodCatalog(params: {
+  query: string;
+  userEntries: FoodEntryRecord[];
+  customFoods: FoodRecord[];
+  commonFoods: FoodRecord[];
+  brandedFoods: FoodRecord[];
+  resolveFood: (domain: FoodDomain, id: string) => FoodRecord | undefined;
+  limit?: number;
+}): FoodSearchGroups {
+  const { query, userEntries, customFoods, commonFoods, brandedFoods, resolveFood, limit = 20 } = params;
+
+  return {
+    history: getFoodHistory(userEntries, resolveFood, query, limit),
+    custom: rankByTextMatch(query, customFoods, limit),
+    common: rankByTextMatch(query, commonFoods, limit),
+    branded: rankByTextMatch(query, brandedFoods, limit),
+  };
+}
+
+// ── Serving / gram math ──────────────────────────────────────────────────
+// Canonical nutrition is always per 100g; a serving is just a labelled gram
+// conversion layered on top, so any serving × quantity reduces to the same
+// scaling math.
+export function gramsForServing(food: Pick<FoodRecord, "servings" | "defaultServing">, servingLabel: string | null, quantity: number): number {
+  const serving = servingLabel ? (food.servings.find((s) => s.label === servingLabel) ?? food.defaultServing) : food.defaultServing;
+  return serving.grams * Math.max(0, quantity);
+}
+
+function scaleOrNull(value: number | null, factor: number): number | null {
+  return value === null ? null : Math.round(value * factor * 10) / 10;
+}
+
+export function nutritionForGrams(n100: FoodNutrition100g, grams: number): FoodNutrition100g {
+  const factor = grams / 100;
+  return {
+    calories: Math.round(n100.calories * factor),
+    proteinG: scaleOrNull(n100.proteinG, factor) ?? 0,
+    carbsG: scaleOrNull(n100.carbsG, factor) ?? 0,
+    fatG: scaleOrNull(n100.fatG, factor) ?? 0,
+    fiberG: scaleOrNull(n100.fiberG, factor),
+    sugarG: scaleOrNull(n100.sugarG, factor),
+    sodiumMg: n100.sodiumMg === null ? null : Math.round(n100.sodiumMg * factor),
+    saturatedFatG: scaleOrNull(n100.saturatedFatG, factor),
+  };
+}
+
+// ── Open Food Facts normalization ───────────────────────────────────────
+// The ONLY place an OFF payload is read — everything past this function
+// deals exclusively in FoodRecord. serving_size is a free-text vendor
+// field ("30 g", "1 bar (40g)"); we only trust a leading "<number> g|ml"
+// pattern and treat ml ≈ g (fine for the liquids this covers — a stricter
+// density-aware conversion isn't worth it for a serving-size hint).
+function parseServingGrams(servingSize: string | undefined): number | null {
+  if (!servingSize) return null;
+  const match = servingSize.match(/([\d.]+)\s*(g|ml)\b/i);
+  if (!match) return null;
+  const value = parseFloat(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsProduct, barcode: string, id: string, now: string): FoodRecord {
+  const n = product.nutriments ?? {};
+  const servingGrams = parseServingGrams(product.serving_size);
+  const hundredGramServing: FoodServing = { label: "100g", grams: 100 };
+  const namedServing: FoodServing | null = servingGrams ? { label: product.serving_size!.trim(), grams: servingGrams } : null;
+  const servings = namedServing && namedServing.label !== hundredGramServing.label ? [namedServing, hundredGramServing] : [hundredGramServing];
+
+  return {
+    id,
+    domain: "branded",
+    name: product.product_name?.trim() || "Unknown product",
+    brandName: product.brands?.split(",")[0]?.trim() || null,
+    barcode,
+    nutrition100g: {
+      calories: n["energy-kcal_100g"] ?? 0,
+      proteinG: n.proteins_100g ?? 0,
+      carbsG: n.carbohydrates_100g ?? 0,
+      fatG: n.fat_100g ?? 0,
+      fiberG: n.fiber_100g ?? null,
+      sugarG: n.sugars_100g ?? null,
+      sodiumMg: n.sodium_100g !== undefined ? Math.round(n.sodium_100g * 1000) : null,
+      saturatedFatG: n["saturated-fat_100g"] ?? null,
+    },
+    defaultServing: namedServing ?? hundredGramServing,
+    servings,
+    provenance: "open_food_facts",
+    sourceRef: barcode,
+    verified: false,
+    region: product.countries_tags?.[0] ?? null,
+    ownerUserId: null,
+    archivedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    fetchedAt: now,
+  };
+}
+
+// Branded-cache staleness — a cached OFF record older than this is eligible
+// for the refresh job (scripts/refresh-branded-cache.mjs), not for eviction:
+// stale-but-present data still beats no data for the barcode/search paths.
+export const BRANDED_CACHE_STALE_DAYS = 30;
+
+export function isBrandedRecordStale(food: FoodRecord, now: Date = new Date()): boolean {
+  if (!food.fetchedAt) return true;
+  const ageMs = now.getTime() - new Date(food.fetchedAt).getTime();
+  return ageMs > BRANDED_CACHE_STALE_DAYS * 24 * 60 * 60 * 1000;
+}
