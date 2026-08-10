@@ -6,6 +6,7 @@ import { notifyLowPassBalanceJob } from "./notify-low-pass-balance";
 import { notifyLapsedMembershipsJob } from "./notify-lapsed-memberships";
 import { processWaitlistOffersJob } from "./process-waitlist-offers";
 import { purgeExpiredResetTokensJob } from "./purge-expired-reset-tokens";
+import { refreshBrandedFoodCacheJob } from "./refresh-branded-food-cache";
 import { resumePausedMembershipsJob } from "./resume-paused-memberships";
 import { sendClassRemindersJob } from "./send-class-reminders";
 import type { JobDefinition } from "./types";
@@ -15,7 +16,7 @@ import type { JobDefinition } from "./types";
 // 2. Waitlist offer processing (expire stale offers, cascade, narrow windows).
 // 3. Class reminders (reads effective bookings, not waitlist).
 // 4. Waitlist cleanup (purges terminal records for past classes).
-// 5. Storage hygiene.
+// 5. Storage hygiene / independent maintenance (order doesn't matter).
 export const ALL_JOBS: JobDefinition[] = [
   expireStaleCheckoutsJob,
   notifyLapsedMembershipsJob,
@@ -27,4 +28,5 @@ export const ALL_JOBS: JobDefinition[] = [
   sendClassRemindersJob,
   cleanupPastWaitlistsJob,
   purgeExpiredResetTokensJob,
+  refreshBrandedFoodCacheJob,
 ];
