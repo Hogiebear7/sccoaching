@@ -235,6 +235,78 @@ export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsProduct, bar
   };
 }
 
+// ── Custom food input validation ────────────────────────────────────────
+export interface ParsedCustomFoodInput {
+  name: string;
+  brandName: string | null;
+  barcode: string | null;
+  nutrition100g: FoodNutrition100g;
+  servings: FoodServing[];
+  defaultServing: FoodServing;
+}
+
+function nonNegativeNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+export function parseCustomFoodInput(body: Record<string, unknown>): { ok: true; value: ParsedCustomFoodInput } | { ok: false; message: string } {
+  const { name, brandName, barcode, nutrition100g, servings } = body;
+
+  if (typeof name !== "string" || !name.trim()) {
+    return { ok: false, message: "Food name is required." };
+  }
+
+  let cleanBarcode: string | null = null;
+  if (barcode !== undefined && barcode !== null && barcode !== "") {
+    if (typeof barcode !== "string" || !isBarcodeShaped(barcode.trim())) {
+      return { ok: false, message: "barcode must be a UPC/EAN/GTIN digit string (8, 12, 13, or 14 digits)." };
+    }
+    cleanBarcode = barcode.trim();
+  }
+
+  const n = (nutrition100g ?? {}) as Record<string, unknown>;
+  const calories = nonNegativeNumber(n.calories);
+  const proteinG = nonNegativeNumber(n.proteinG);
+  const carbsG = nonNegativeNumber(n.carbsG);
+  const fatG = nonNegativeNumber(n.fatG);
+  if (calories === null || proteinG === null || carbsG === null || fatG === null) {
+    return { ok: false, message: "nutrition100g.calories/proteinG/carbsG/fatG must be non-negative numbers." };
+  }
+
+  const parsedServings: FoodServing[] = Array.isArray(servings)
+    ? servings.flatMap((raw) => {
+        const rec = (raw ?? {}) as Record<string, unknown>;
+        const label = typeof rec.label === "string" && rec.label.trim() ? rec.label.trim().slice(0, 60) : null;
+        const grams = nonNegativeNumber(rec.grams);
+        return label && grams !== null && grams > 0 ? [{ label, grams }] : [];
+      })
+    : [];
+
+  const hundredGram: FoodServing = { label: "100g", grams: 100 };
+  const finalServings = parsedServings.some((s) => s.label === hundredGram.label) ? parsedServings : [...parsedServings, hundredGram];
+
+  return {
+    ok: true,
+    value: {
+      name: name.trim().slice(0, 120),
+      brandName: typeof brandName === "string" && brandName.trim() ? brandName.trim().slice(0, 80) : null,
+      barcode: cleanBarcode,
+      nutrition100g: {
+        calories,
+        proteinG,
+        carbsG,
+        fatG,
+        fiberG: nonNegativeNumber(n.fiberG),
+        sugarG: nonNegativeNumber(n.sugarG),
+        sodiumMg: nonNegativeNumber(n.sodiumMg),
+        saturatedFatG: nonNegativeNumber(n.saturatedFatG),
+      },
+      servings: finalServings,
+      defaultServing: finalServings[0],
+    },
+  };
+}
+
 // Branded-cache staleness — a cached OFF record older than this is eligible
 // for the refresh job (scripts/refresh-branded-cache.mjs), not for eviction:
 // stale-but-present data still beats no data for the barcode/search paths.
