@@ -489,21 +489,12 @@ environment):
 
 ### Production build blockers (app-wide, not food-catalog-specific)
 
-Found while auditing config for this pass — these block ANY EAS/TestFlight/
-Play build of `sc-coaching-mobile`, not just the camera flows, so they're
-flagged here rather than silently fixed (picking a wrong bundle identifier or
-package name is hard to undo once submitted to a store — that's a decision
-for whoever owns the App Store Connect / Play Console accounts, not something
-to guess a placeholder for):
-
-- **No `ios.bundleIdentifier` or `android.package` in `app.json`.** Both are
-  required for an EAS production build; Expo will refuse or fall back to an
-  auto-generated placeholder.
-- **No `eas.json`.** `eas build` works with defaults for a first dev-client
-  build, but a real TestFlight/Play submission profile needs one — Apple
-  Team ID and Play service-account credentials are needed to fill it in.
-- Not a blocker, just confirmed clean: no `ios.infoPlist` photo-library
-  permission is needed (the app never touches the photo library —
-  `expo-image-manipulator` reads/writes only its own cache URIs), and Android
-  needs no explicit `permissions` entry since the `expo-camera` config plugin
-  injects the `CAMERA` manifest permission automatically.
+Full build-readiness scaffolding, the identifier/account decision checklist,
+and the internal-testing runbook now live in
+`sc-coaching-mobile/docs/build-readiness.md` (a mobile-repo concern, kept
+there rather than duplicated here). Summary: `eas.json` and the camera
+plugin's mic-permission cleanup are done; `ios.bundleIdentifier` and
+`android.package` are still deliberately unset — those, plus the Apple/Google
+account setup and `eas init`, are decisions/actions only the app owner can
+make (a wrong bundle identifier is hard to undo once a store record exists
+under it, so a guessed placeholder would be riskier than no value at all).
