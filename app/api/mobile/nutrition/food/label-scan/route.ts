@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
 
   const result = await ocrProvider.extractNutritionLabel(imageBase64);
   if (!result.ok) {
+    console.error(`[food-catalog] OCR extraction failed for user ${user.id}: ${result.reason}`);
     return NextResponse.json({ success: false, code: "ocr_failed", message: result.reason }, { status: 502 });
   }
 

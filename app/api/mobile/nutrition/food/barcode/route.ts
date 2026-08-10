@@ -50,6 +50,12 @@ export async function GET(request: NextRequest) {
     saveFood(food);
     return NextResponse.json({ success: true, data: { found: true, food } });
   }
+  if (lookup.reason !== "not_found") {
+    // Distinguish "OFF is down/unreachable" from an honest miss — both fall
+    // through to the same label-scan hand-off for the member (correct UX
+    // either way), but only the former is worth a server-side log line.
+    console.warn(`[food-catalog] Open Food Facts lookup failed for barcode ${code}: ${lookup.reason}`);
+  }
 
   // 4. Not found anywhere — hand off to the label scan flow.
   return NextResponse.json({ success: true, data: { found: false, action: "open_label_scan" } });

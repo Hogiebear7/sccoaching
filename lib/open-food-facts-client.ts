@@ -109,8 +109,22 @@ const unconfiguredOffSubmissionProvider: OffSubmissionProvider = {
 // exist — every call site already goes through this single seam.
 export const offSubmissionProvider: OffSubmissionProvider = unconfiguredOffSubmissionProvider;
 
+let warnedAboutMisconfiguredFlag = false;
+
 // Both a config flag AND a configured provider must be true — belt-and-
 // braces so a stray env var alone can never cause a live external write.
+// If someone sets OFF_LIVE_WRITE_ENABLED=true without also wiring a real
+// provider, that's very likely a deploy mistake (the flag is a no-op, not
+// a crash) — surface it once in the server logs so it doesn't go unnoticed
+// silently forever, without spamming on every submission review.
 export function isOffLiveWriteEnabled(): boolean {
-  return process.env.OFF_LIVE_WRITE_ENABLED === "true" && offSubmissionProvider.configured;
+  const flagSet = process.env.OFF_LIVE_WRITE_ENABLED === "true";
+  if (flagSet && !offSubmissionProvider.configured && !warnedAboutMisconfiguredFlag) {
+    warnedAboutMisconfiguredFlag = true;
+    console.warn(
+      "[food-catalog] OFF_LIVE_WRITE_ENABLED=true but no OFF write provider is configured — live writes stay disabled. " +
+        "Implement OffSubmissionProvider and replace the offSubmissionProvider export in lib/open-food-facts-client.ts."
+    );
+  }
+  return flagSet && offSubmissionProvider.configured;
 }

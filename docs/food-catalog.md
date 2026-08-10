@@ -312,7 +312,9 @@ approve or reject each `pending_review` submission via
 - **`src/app/log-food.tsx`** — debounced (300ms) search box above the manual
   entry fields, rendering the four grouped sections with an inline loading
   spinner while searching. Tapping a result opens a serving card: a
-  serving-label chip row plus a `Stepper` (0.25–20, step 0.25) for quantity,
+  serving-label chip row plus a `Stepper` (0.5–20, step 0.5 — a 0.25 step was
+  tried first but hits a rounding artifact in the shared Stepper's
+  `toFixed(1)`, e.g. `1.25` displays as `1.3`) for quantity,
   showing the resulting total grams; changing either live-recomputes
   calories/macros via `nutritionForGrams(gramsForServing(...))` and fills the
   (still-editable) manual fields below, headed "REVIEW BEFORE LOGGING" (vs.
@@ -355,39 +357,114 @@ approve or reject each `pending_review` submission via
 - **`src/app/my-foods.tsx`** — list of the member's custom foods with a
   submission-status badge per row, linking into `custom-food.tsx` for
   edit/delete and a cloud-upload icon into `submit-food.tsx`.
+- **`src/components/nutrition/CameraPermissionGate.tsx`** — shared across
+  `barcode-scan.tsx` / `label-scan.tsx` / `submit-food.tsx`: `CameraPermissionDenied`
+  distinguishes "not asked yet / can re-prompt" from "permanently denied"
+  (`canAskAgain: false` — re-prompting silently no-ops on iOS once the user
+  has said no with "don't ask again"; the only way back is Settings, so that
+  state shows an "Open Settings" button via `Linking.openSettings()` instead
+  of a dead "Allow camera access" button). `CameraUnavailable` handles the
+  camera preview itself failing to start (`CameraView`'s `onMountError` —
+  hardware in use elsewhere, a device/emulator with no camera), offering a
+  manual-entry fallback rather than a blank/frozen preview.
+- **`src/lib/analytics.ts`** — see "Analytics / observability" below.
+- **`src/lib/submission-status.ts`** — single source of truth for submission
+  status label/color/detail copy, shared by `my-foods.tsx`'s badge and
+  `submit-food.tsx`'s status card (previously duplicated across both with
+  drift risk).
 - Camera access requires the `expo-camera` config plugin (`app.json`) and the
   `expo-camera` / `expo-image-manipulator` packages, added alongside this
   feature.
 
+## Analytics / observability
+
+No analytics vendor (PostHog/Amplitude/Segment/etc.) is wired up anywhere in
+either app — `src/lib/analytics.ts` establishes the pattern rather than
+following an existing one, deliberately mirroring the same "real interface,
+honest unconfigured default, single swap point" shape already used for
+`lib/ocr-provider.ts` and the OFF write provider: `trackEvent(event,
+properties?)` calls through to a pluggable `analyticsProvider`, whose default
+implementation only `console.log`s in `__DEV__` and no-ops in production.
+Swapping in a real vendor means implementing `AnalyticsProvider` and
+replacing the `analyticsProvider` export — every call site stays the same.
+`trackEvent` never throws, so instrumentation can't break the flow it's
+observing.
+
+Events wired: `food_search_started`, `food_search_result_selected`,
+`barcode_scan_started`, `barcode_scan_found`, `barcode_scan_not_found`,
+`label_scan_started`, `label_scan_manual_fallback`, `custom_food_created`,
+`food_submission_started`, `food_submission_eligible`, `food_submission_sent`,
+`food_submission_rejected` (fired client-side the first time the member sees
+their own submission come back as `rejected`) — plus a few additional
+error/diagnostic events not in the original spec but consistent with it:
+`barcode_scan_error`, `barcode_scan_camera_unavailable`,
+`label_scan_camera_unavailable`, `food_submission_camera_unavailable`.
+
+Backend-side, `console.warn`/`console.error` lines were added at the points
+most useful for debugging a live deployment without building a logging
+pipeline: an OFF barcode lookup that fails for a reason other than an honest
+"not found" (`app/api/mobile/nutrition/food/barcode/route.ts`), an OCR
+extraction failure once a real provider exists (`.../label-scan/route.ts` —
+currently unreachable since `ocrProvider.configured` is always false), an OFF
+live-write failure or misconfigured `OFF_LIVE_WRITE_ENABLED` flag
+(`.../staff/nutrition/submissions/review/route.ts` and
+`lib/open-food-facts-client.ts`, the latter warns once per process rather
+than on every request).
+
+## Staff review UI
+
+`/staff/nutrition-submissions` (gated by `foodCatalog.manage`, same as the
+moderation queue) is the first actual UI for the submission workflow — until
+this pass, staff could only act on it via raw API calls. Mirrors the
+bug-reports staff page pattern exactly: a server page
+(`app/(staff)/staff/nutrition-submissions/page.tsx`) fetches
+`findAllFoodSubmissions()` joined with each submission's `FoodRecord` and
+submitter info, and a client view (`NutritionSubmissionsView.tsx`) filters by
+pending/all/decided, shows per-100g-scaled nutrition, barcode, consent
+timestamp, and both photos as clickable thumbnails, and posts to the existing
+`submission/review` route with an optional note — surfaced back to the
+member on `submit-food.tsx` when a submission is `rejected` or `failed`.
+
 ## Real-device verification checklist
 
 Everything above has been verified in the Expo **web** preview — search
-grouping, serving math, diary logging, custom-food round trips, and the
-submission workflow's UI logic. Camera-dependent behavior (actual barcode
-decoding, actual photo capture, actual permission prompts) cannot be
-exercised in a web browser and needs a real device (TestFlight / Play
-internal testing) pass before shipping. Checklist:
+grouping, serving math, diary logging, custom-food round trips, the
+submission workflow's UI logic (including the eligibility/consent/photo
+states), and the staff review page. Camera-dependent behavior (actual
+barcode decoding, actual photo capture, actual permission prompts, actual
+camera-mount failures) cannot be exercised in a web browser and needs a real
+device (TestFlight / Play internal testing) pass before shipping. Checklist:
 
-- [ ] **Barcode scan success** — scan a real product barcode; confirms the
-      food, serving picker opens, calories match a known label.
-- [ ] **Barcode scan miss** — scan a barcode with no OFF match (or a
+- [ ] **Barcode scan — success path** — scan a real product barcode;
+      confirms the food, serving picker opens, calories match a known label,
+      and `barcode_scan_found` logs in dev.
+- [ ] **Barcode scan — miss path** — scan a barcode with no OFF match (or a
       hand-written test barcode); confirms it forwards to label-scan
-      automatically with the barcode carried through.
-- [ ] **Camera permission denied** — deny camera access on first prompt;
-      confirms the permission-gate screen renders (not a crash) and "enter
-      this food manually instead" reaches `custom-food.tsx` with the meal
-      context intact.
-- [ ] **Photo capture** — capture a nutrition label; confirms the image
-      compresses without hanging or crashing on both iOS and Android, and
-      the "Photo captured" confirmation stage renders before the fallback
-      form appears.
-- [ ] **Label-scan fallback → custom food → log** — full chain from a
-      barcode miss through to a logged diary entry; confirms the banner copy
-      reads as intentional, the captured photo chip appears, and the food
-      shows up correctly in the diary afterward.
-- [ ] **Submission photo capture** — from `submit-food.tsx`, capture a front
-      photo and a label photo independently; confirms both slots fill
-      correctly and don't overwrite each other.
+      automatically with the barcode carried through, and
+      `barcode_scan_not_found` logs.
+- [ ] **Permission denied path** — deny camera access on first prompt on
+      each of barcode-scan, label-scan, and submit-food's photo capture;
+      confirms `CameraPermissionDenied` renders (not a crash) and "enter this
+      food manually instead" reaches `custom-food.tsx` with context intact.
+      Then deny **permanently** ("don't ask again" on Android / repeated
+      denial on iOS) and confirm the button changes to "Open Settings" and
+      actually opens the OS settings screen for the app.
+- [ ] **Label-scan capture path** — capture a nutrition label; confirms the
+      image compresses without hanging or crashing on both iOS and Android,
+      the "Photo captured" confirmation stage renders, and
+      `label_scan_manual_fallback` logs (expected, since no OCR provider is
+      configured).
+- [ ] **Submission with photos path** — from `submit-food.tsx` on an
+      eligible food, capture a front photo and a label photo independently;
+      confirms both slots fill correctly without overwriting each other,
+      submission succeeds, and `food_submission_sent` logs with
+      `hasFrontPhoto`/`hasLabelPhoto` both true. Then check the photos render
+      as clickable thumbnails on `/staff/nutrition-submissions`.
+- [ ] **Cancellation / back-out path** — back out mid-capture on each camera
+      screen (hardware back on Android, swipe/gesture on iOS) and via the
+      in-app back button; confirms no stuck "capturing" state, no orphaned
+      camera session, and the previous screen's state (search query, meal
+      selection, in-progress form fields) is still intact on return.
 
 Known device-vs-web-preview risks to watch for (not verifiable from this
 environment):
@@ -405,3 +482,28 @@ environment):
   stored inline in `data/db.json` once submitted — fine at trial scale, but
   worth watching if submission volume grows before a real object-storage
   migration.
+- `onMountError` is real device territory only — there's no reliable way to
+  simulate a camera-hardware failure in the web preview, so
+  `CameraUnavailable`'s rendering has only been verified by code review, not
+  by actually triggering it.
+
+### Production build blockers (app-wide, not food-catalog-specific)
+
+Found while auditing config for this pass — these block ANY EAS/TestFlight/
+Play build of `sc-coaching-mobile`, not just the camera flows, so they're
+flagged here rather than silently fixed (picking a wrong bundle identifier or
+package name is hard to undo once submitted to a store — that's a decision
+for whoever owns the App Store Connect / Play Console accounts, not something
+to guess a placeholder for):
+
+- **No `ios.bundleIdentifier` or `android.package` in `app.json`.** Both are
+  required for an EAS production build; Expo will refuse or fall back to an
+  auto-generated placeholder.
+- **No `eas.json`.** `eas build` works with defaults for a first dev-client
+  build, but a real TestFlight/Play submission profile needs one — Apple
+  Team ID and Play service-account credentials are needed to fill it in.
+- Not a blocker, just confirmed clean: no `ios.infoPlist` photo-library
+  permission is needed (the app never touches the photo library —
+  `expo-image-manipulator` reads/writes only its own cache URIs), and Android
+  needs no explicit `permissions` entry since the `expo-camera` config plugin
+  injects the `CAMERA` manifest permission automatically.

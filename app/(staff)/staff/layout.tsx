@@ -25,6 +25,7 @@ const navItems: { label: string; href: string; capability: Capability }[] = [
   { label: "Staff users", href: "/staff/staff-users", capability: NAV_CAPABILITY["/staff/staff-users"] },
   { label: "Reports",     href: "/staff/reports",     capability: NAV_CAPABILITY["/staff/reports"] },
   { label: "Finances",    href: "/staff/finances",    capability: NAV_CAPABILITY["/staff/finances"] },
+  { label: "Food submissions", href: "/staff/nutrition-submissions", capability: NAV_CAPABILITY["/staff/nutrition-submissions"] },
   // TRIAL-ONLY — see docs/bug-reports.md.
   { label: "Bug reports", href: "/staff/bug-reports", capability: NAV_CAPABILITY["/staff/bug-reports"] },
 ];

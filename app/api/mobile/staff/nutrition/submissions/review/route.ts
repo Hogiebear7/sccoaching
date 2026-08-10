@@ -85,11 +85,16 @@ export async function POST(request: NextRequest) {
           labelPhotoUrl: existing.labelPhotoUrl,
         });
         const result = await offSubmissionProvider.submit(payload);
-        updated = result.ok
-          ? { ...updated, status: "submitted_to_open_food_facts", offProductId: result.offProductId, submittedAt: now, updatedAt: now }
-          : { ...updated, status: "failed", failureReason: result.reason, updatedAt: now };
+        if (result.ok) {
+          updated = { ...updated, status: "submitted_to_open_food_facts", offProductId: result.offProductId, submittedAt: now, updatedAt: now };
+        } else {
+          console.error(`[food-catalog] OFF live write failed for submission ${existing.id}: ${result.reason}`);
+          updated = { ...updated, status: "failed", failureReason: result.reason, updatedAt: now };
+        }
       } catch (err) {
-        updated = { ...updated, status: "failed", failureReason: err instanceof Error ? err.message : "Unknown error", updatedAt: now };
+        const message = err instanceof Error ? err.message : "Unknown error";
+        console.error(`[food-catalog] OFF live write threw for submission ${existing.id}: ${message}`);
+        updated = { ...updated, status: "failed", failureReason: message, updatedAt: now };
       }
     }
   }
