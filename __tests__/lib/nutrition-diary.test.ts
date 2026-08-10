@@ -4,11 +4,24 @@ import { parseFoodEntryInput, recentDistinctFoods, sumDailyTotals } from "@/lib/
 import type { FoodEntryRecord } from "@/lib/db";
 
 describe("parseFoodEntryInput", () => {
-  it("parses a valid entry, defaulting omitted macros to 0", () => {
+  it("parses a valid entry, defaulting omitted macros and catalog fields", () => {
     const result = parseFoodEntryInput({ date: "2026-08-07", mealType: "breakfast", name: " Oats ", calories: 350 });
     expect(result).toEqual({
       ok: true,
-      value: { date: "2026-08-07", mealType: "breakfast", name: "Oats", calories: 350, proteinG: 0, carbsG: 0, fatG: 0 },
+      value: {
+        date: "2026-08-07",
+        mealType: "breakfast",
+        name: "Oats",
+        calories: 350,
+        proteinG: 0,
+        carbsG: 0,
+        fatG: 0,
+        foodId: null,
+        foodDomain: null,
+        servingLabel: null,
+        servingGrams: null,
+        quantity: null,
+      },
     });
   });
 
@@ -17,6 +30,37 @@ describe("parseFoodEntryInput", () => {
     expect(parseFoodEntryInput({ date: "2026-08-07", mealType: "brunch", name: "Oats", calories: 100 }).ok).toBe(false);
     expect(parseFoodEntryInput({ date: "2026-08-07", mealType: "breakfast", name: "", calories: 100 }).ok).toBe(false);
     expect(parseFoodEntryInput({ date: "2026-08-07", mealType: "breakfast", name: "Oats", calories: -5 }).ok).toBe(false);
+  });
+
+  it("parses catalog-linked fields, preserving decimal quantity/servingGrams", () => {
+    const result = parseFoodEntryInput({
+      date: "2026-08-07",
+      mealType: "lunch",
+      name: "Banana",
+      calories: 133,
+      proteinG: 2,
+      carbsG: 35,
+      fatG: 0,
+      foodId: "food-1",
+      foodDomain: "common",
+      servingLabel: "1 medium (118g)",
+      servingGrams: 177,
+      quantity: 1.5,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.foodId).toBe("food-1");
+    expect(result.value.foodDomain).toBe("common");
+    expect(result.value.servingLabel).toBe("1 medium (118g)");
+    expect(result.value.servingGrams).toBe(177);
+    expect(result.value.quantity).toBe(1.5);
+  });
+
+  it("rejects an unknown foodDomain rather than passing it through", () => {
+    const result = parseFoodEntryInput({ date: "2026-08-07", mealType: "lunch", name: "X", calories: 1, foodDomain: "bogus" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.foodDomain).toBeNull();
   });
 });
 

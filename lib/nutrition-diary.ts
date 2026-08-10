@@ -1,4 +1,6 @@
-import type { FoodEntryRecord, MealType } from "./db";
+import type { FoodDomain, FoodEntryRecord, MealType } from "./db";
+
+const FOOD_DOMAINS: FoodDomain[] = ["custom", "common", "branded"];
 
 export const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
@@ -10,6 +12,12 @@ function nonNegativeNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
 }
 
+// Unlike nonNegativeNumber, doesn't round — quantity ("1.5 servings") and
+// servingGrams need decimal precision preserved.
+function nonNegativeDecimal(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 export interface ParsedFoodEntryInput {
   date: string;
   mealType: MealType;
@@ -18,12 +26,24 @@ export interface ParsedFoodEntryInput {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  foodId: string | null;
+  foodDomain: FoodDomain | null;
+  servingLabel: string | null;
+  servingGrams: number | null;
+  quantity: number | null;
 }
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// foodId/foodDomain/servingLabel/servingGrams/quantity are optional —
+// present when the entry came from the food catalog (search/barcode/quick-
+// add), absent for a hand-typed entry. The client is trusted to have
+// already computed calories/macros for the chosen serving × quantity (the
+// same gramsForServing/nutritionForGrams math in lib/food-catalog.ts); this
+// endpoint stores the snapshot rather than recomputing it, so a later edit
+// to the catalog food's nutrition never silently rewrites history.
 export function parseFoodEntryInput(body: Record<string, unknown>): { ok: true; value: ParsedFoodEntryInput } | { ok: false; message: string } {
-  const { date, mealType, name, calories, proteinG, carbsG, fatG } = body;
+  const { date, mealType, name, calories, proteinG, carbsG, fatG, foodId, foodDomain, servingLabel, servingGrams, quantity } = body;
 
   if (typeof date !== "string" || !ISO_DATE_RE.test(date)) {
     return { ok: false, message: "Date must be a valid YYYY-MM-DD string." };
@@ -40,6 +60,8 @@ export function parseFoodEntryInput(body: Record<string, unknown>): { ok: true; 
     return { ok: false, message: "Calories must be a non-negative number." };
   }
 
+  const parsedFoodDomain = typeof foodDomain === "string" && FOOD_DOMAINS.includes(foodDomain as FoodDomain) ? (foodDomain as FoodDomain) : null;
+
   return {
     ok: true,
     value: {
@@ -50,6 +72,11 @@ export function parseFoodEntryInput(body: Record<string, unknown>): { ok: true; 
       proteinG: nonNegativeNumber(proteinG) ?? 0,
       carbsG: nonNegativeNumber(carbsG) ?? 0,
       fatG: nonNegativeNumber(fatG) ?? 0,
+      foodId: typeof foodId === "string" && foodId.trim() ? foodId.trim() : null,
+      foodDomain: parsedFoodDomain,
+      servingLabel: typeof servingLabel === "string" && servingLabel.trim() ? servingLabel.trim() : null,
+      servingGrams: nonNegativeDecimal(servingGrams),
+      quantity: nonNegativeDecimal(quantity),
     },
   };
 }
