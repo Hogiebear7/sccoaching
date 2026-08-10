@@ -39,10 +39,16 @@ workflow. Everything downstream of ingestion deals in one normalized
   label-scan route returns `501 { code: "ocr_not_configured" }`. The contract
   (request/response shape, image validation, heuristic text parser) is real
   and ready for a provider to be wired in.
-- **OFF submission is consent-gated and stops at "queued."** No code path
-  actually writes to Open Food Facts — that needs OFF producer credentials
-  this repo doesn't have. The state machine (`pending_consent` → `queued`) is
-  real and resumable once credentials exist.
+- **OFF submission is eligibility-gated, opt-in, and reviewed before any live
+  write.** A custom food only becomes `eligible_for_submission` once it has a
+  brand name and barcode (name/serving/macros are already required to create
+  a custom food at all — see `lib/food-submission.ts`). Submitting requires
+  explicit consent and lands at `pending_review`; a staff member approves or
+  rejects it. Approval only attempts a live Open Food Facts write if
+  `isOffLiveWriteEnabled()` is true — which requires both an env flag and a
+  configured provider, neither of which exist in this repo. Otherwise the
+  record simply stays `approved`. The workflow is real and resumable, not
+  simulated — see "Food submission workflow" below.
 
 ## Database schema (`lib/db.ts`)
 
@@ -73,10 +79,13 @@ interface FoodModerationRequest {
   createdAt: string; updatedAt: string;
 }
 
-type OffSubmissionStatus = "pending_consent" | "queued" | "submitted" | "failed";
-interface FoodOffSubmissionRecord {
-  id: string; userId: string; customFoodId: string; status: OffSubmissionStatus;
-  consentedAt: string | null; submittedAt: string | null; failureReason: string | null;
+type FoodSubmissionStatus = "pending_review" | "approved" | "rejected" | "submitted_to_open_food_facts" | "failed";
+interface FoodSubmissionRecord {
+  id: string; userId: string; customFoodId: string; status: FoodSubmissionStatus;
+  consentGiven: boolean; consentedAt: string | null;
+  frontPhotoUrl: string | null; labelPhotoUrl: string | null;   // optional, inline data URLs
+  reviewedByStaffId: string | null; reviewedAt: string | null; reviewNote: string | null;
+  offProductId: string | null; submittedAt: string | null; failureReason: string | null;
   createdAt: string; updatedAt: string;
 }
 ```
@@ -86,11 +95,14 @@ interface FoodOffSubmissionRecord {
 entries.
 
 Stored in three `Database` collections: `customFoods`, `commonFoods`,
-`brandedFoods`, plus `foodModerationRequests` and `foodOffSubmissions`. CRUD
+`brandedFoods`, plus `foodModerationRequests` and `foodSubmissions`. CRUD
 lives in `lib/db.ts`: `findFoodById`, `findFoodByIdAnyDomain`,
 `findCustomFoodsByUserId`, `findFoodByBarcode(domain, barcode, ownerUserId?)`,
 `findAllFoods(domain)`, `saveFood`, `deleteFood`, plus matching CRUD for
-moderation requests and OFF submissions.
+moderation requests (`findAllFoodModerationRequests`, etc.) and submissions
+(`findFoodSubmissionById`, `findFoodSubmissionsByUserId`,
+`findFoodSubmissionByCustomFoodId`, `findAllFoodSubmissions`,
+`saveFoodSubmission`, `createFoodSubmission`).
 
 ## Core library (`lib/food-catalog.ts`)
 
@@ -138,17 +150,19 @@ All routes are under `/api/mobile/nutrition/food/`, member-authenticated via
 | `custom/delete` | POST | Hard delete, ownership-checked |
 | `label-scan` | POST | Label-scan contract (see below) |
 | `report-missing` | POST | Create a `FoodModerationRequest` |
-| `off-submission/request` | POST | Create an OFF submission at `pending_consent` (requires the custom food to have a barcode) |
-| `off-submission/consent` | POST | Flip `pending_consent` → `queued`, set `consentedAt` |
+| `submission/create` | POST | Submit a custom food for public review (see below) |
+| `submission/mine` | GET | List the member's own submissions |
 
-Staff routes under `/api/mobile/staff/nutrition/moderation/`, gated by
+Staff routes under `/api/mobile/staff/nutrition/`, gated by
 `can(role, "foodCatalog.manage")` (admin tier — the shared catalog affects
 every member, not one coach's own clients):
 
 | Route | Method | Purpose |
 |---|---|---|
-| `` (root) | GET | List moderation requests |
-| `resolve` | POST | `{ id, status: "resolved" \| "dismissed", resolvedFoodId? }` |
+| `moderation` | GET | List moderation requests |
+| `moderation/resolve` | POST | `{ id, status: "resolved" \| "dismissed", resolvedFoodId? }` |
+| `submissions` | GET | List all food submissions |
+| `submissions/review` | POST | `{ id, decision: "approved" \| "rejected", note? }` (see below) |
 
 ### Barcode lookup (`GET /barcode?code=`)
 
@@ -186,6 +200,73 @@ of the branded cache and live OFF) — this is what requirement #4 ("future
 scans of that barcode should resolve to the user's custom food first") maps
 to structurally.
 
+### Food submission workflow
+
+Custom foods are **private by default**. A member can opt in to sharing one
+publicly via Open Food Facts, but only once it clears eligibility:
+
+```ts
+getFoodSubmissionEligibility(food) → { eligibility: "private_only" | "eligible_for_submission", missingFields: string[] }
+```
+(`lib/food-submission.ts`, ported to mobile in `src/lib/queries/food-catalog.ts`
+as the same pure function so the UI never claims a food is eligible when the
+backend would reject it.) A food is only eligible when it's a **custom**
+food (common/branded are already public) with a **brand name** and
+**barcode** set — name, serving size, and calories/protein/carbs/fat are
+already required to create a custom food at all, so those can't be missing.
+
+`POST submission/create` — body `{ customFoodId, consent: true,
+frontPhotoUrl?, labelPhotoUrl? }` (photos are optional inline data URLs,
+capped at 3MB, validated the same way as bug-report screenshots via
+`isValidImageDataUrl()`). Rejects if the food isn't eligible, if consent
+isn't explicitly `true`, or if a submission for that food is already
+in flight (`pending_review` / `approved` / `submitted_to_open_food_facts`) —
+a `rejected` or `failed` prior attempt can be resubmitted. Creates a
+`FoodSubmissionRecord` at `status: "pending_review"`.
+
+Status lifecycle:
+
+```
+pending_review → approved → submitted_to_open_food_facts   (live write succeeds, config-gated)
+               ↘ approved → failed                          (live write attempted, fails)
+               ↘ approved                                   (live write disabled — terminal in this deployment)
+               ↘ rejected                                    (staff declines)
+```
+
+`POST staff/nutrition/submissions/review` (`{ id, decision, note? }`) is the
+only place a submission moves out of `pending_review`. Rejecting just records
+the decision. Approving calls `isOffLiveWriteEnabled()` first — false in
+this deployment, so the record stays `approved`; a future deployment with
+real credentials would additionally attempt `offSubmissionProvider.submit()`
+and move to `submitted_to_open_food_facts` or `failed` based on the result.
+There is **no cron job draining `approved` submissions** — that's a
+deliberate TODO boundary, not an oversight; wiring one up only makes sense
+once there's a real provider for it to call.
+
+### Open Food Facts write-prep
+
+`lib/open-food-facts-client.ts` also exports the write side, mirroring the
+`lib/ocr-provider.ts` pattern exactly — a real interface, a default
+implementation that honestly reports itself unconfigured, and a config flag
+so a future deployment can flip live writes on without touching any call
+site:
+
+```ts
+interface OffSubmissionProvider {
+  configured: boolean;
+  submit(payload: OffWriteSubmission): Promise<{ ok: true; offProductId: string } | { ok: false; reason: string }>;
+}
+export const offSubmissionProvider: OffSubmissionProvider; // configured: false
+export function isOffLiveWriteEnabled(): boolean;          // requires OFF_LIVE_WRITE_ENABLED=true AND a configured provider
+```
+
+`lib/food-submission.ts`'s `mapFoodToOffSubmissionPayload(food, photos?)` is
+the pure mapping from our normalized `FoodRecord` to that write shape —
+network-free, so it's testable independent of whether a provider exists.
+To go live: implement a real `OffSubmissionProvider` (OFF's producer API
+needs org credentials), swap the `offSubmissionProvider` export, and set
+`OFF_LIVE_WRITE_ENABLED=true`. No route or mobile screen needs to change.
+
 ## Ingestion jobs
 
 - **`scripts/seed-common-foods.mjs`** — one-off seed script, same
@@ -200,50 +281,127 @@ to structurally.
 
 ## Admin moderation structure
 
-A member hits "report missing food" (search/barcode dead end) →
-`FoodModerationRequest` created at `status: "open"`. Staff with
-`foodCatalog.manage` review the queue and either:
+Two independent staff queues, both gated by `foodCatalog.manage` (admin
+tier) and both currently web-only — no staff *mobile* screen exists for
+either, consistent with this app's convention that deep admin tooling (see
+Finances, Reports) lives on the web staff app, not native mobile.
 
-- resolve it by pointing at a `FoodRecord` they've since added
-  (`resolvedFoodId` + `resolvedByStaffId` set, `status: "resolved"`), or
-- dismiss it (`status: "dismissed"`).
+**Missing-food reports** — a member hits a search/barcode dead end and taps
+"let us know this food is missing" → `FoodModerationRequest` created at
+`status: "open"`. Staff resolve it by pointing at a `FoodRecord` they've
+since added (`resolvedFoodId` + `resolvedByStaffId` set, `status:
+"resolved"`), or dismiss it (`status: "dismissed"`).
 
-Separately, a member can request their own custom food be submitted to Open
-Food Facts (`off-submission/request` → `off-submission/consent`). This is
-independent of moderation — it's member-initiated and requires explicit
-consent before a (currently unbuilt) submission job would drain the
-`queued` state.
+**Food submissions** — independent of moderation; a member opts in to
+publish their own custom food (see "Food submission workflow" above). Staff
+approve or reject each `pending_review` submission via
+`staff/nutrition/submissions/review`.
 
 ## Mobile integration (`sc-coaching-mobile`)
 
 - **`src/lib/queries/food-catalog.ts`** — mirrors `FoodRecord` and the two
-  gram-math functions exactly; exposes `useFoodSearch`, `lookupBarcode`,
+  gram-math functions exactly, plus `getFoodSubmissionEligibility()` mirrored
+  from `lib/food-submission.ts`; exposes `useFoodSearch`, `lookupBarcode`,
   `useMyCustomFoods`, `useCreateCustomFood`, `useUpdateCustomFood`,
   `useDeleteCustomFood`, `useLabelScan`, `useReportMissingFood`,
-  `useRequestOffSubmission`, `useConsentOffSubmission`.
+  `useMySubmissions`, `useCreateSubmission`.
+- **`src/lib/draft-photo-cache.ts`** — a tiny in-memory (not persisted)
+  map from a just-created custom food's id to a label photo captured during
+  label-scan, so `submit-food.tsx` can offer that same photo again instead of
+  asking the member to capture it twice. Session-only by design.
 - **`src/app/log-food.tsx`** — debounced (300ms) search box above the manual
-  entry fields, rendering the four grouped sections. Tapping a result shows a
-  serving-label chip row + quantity input; changing either live-recomputes
+  entry fields, rendering the four grouped sections with an inline loading
+  spinner while searching. Tapping a result opens a serving card: a
+  serving-label chip row plus a `Stepper` (0.25–20, step 0.25) for quantity,
+  showing the resulting total grams; changing either live-recomputes
   calories/macros via `nutritionForGrams(gramsForServing(...))` and fills the
-  (still-editable) manual fields. Manual entry remains available as a
-  fallback. A returning food (from barcode-scan or a newly-created custom
-  food) arrives back via a `foodJson` route param and is applied the same way
-  as a tapped search result.
+  (still-editable) manual fields below, headed "REVIEW BEFORE LOGGING" (vs.
+  "OR LOG MANUALLY" when nothing's selected, so the two modes read as
+  distinct sections). A food that arrived via barcode-scan or a freshly
+  created custom food shows a "Found it — review the serving below"
+  confirmation. Logging shows a brief full-screen "Logged to {meal}"
+  confirmation before returning to the diary. A no-results search offers
+  "let us know this food is missing" inline. Manual entry remains available
+  as a fallback throughout.
 - **`src/app/barcode-scan.tsx`** — `expo-camera`'s `CameraView` with
   `onBarcodeScanned`; on a scan, calls `lookupBarcode()` and either routes
   back to `log-food` with the found food, or forwards to `label-scan` with
-  the barcode carried over.
+  the barcode carried over. The permission-denied state also offers "enter
+  this food manually instead" rather than dead-ending.
 - **`src/app/label-scan.tsx`** — captures a photo, downsamples it via
   `expo-image-manipulator` (1000px wide, JPEG q0.5) to stay under the label
-  route's size cap, calls `useLabelScan()`. Since OCR is unconfigured, this
-  currently always falls back to `custom-food` with just the barcode carried
-  over (a real provider's extracted fields would prefill the same form).
+  route's size cap, then shows a "Photo captured" confirmation stage while
+  `useLabelScan()` runs. Since OCR is unconfigured, this almost always falls
+  back to `custom-food` — framed as the honest, intentional MVP path (not an
+  error) via `prefillSource: "label_scan_fallback"` copy, distinct from the
+  (currently unreachable) `"label_scan_ocr"` copy for when a real OCR
+  provider extracts fields. Either way the captured photo itself is carried
+  forward as `capturedLabelPhoto`, so it isn't wasted even without OCR.
 - **`src/app/custom-food.tsx`** — create/edit form. Collects nutrition **per
   serving** (what's printed on a label) rather than per 100g, and derives the
   canonical per-100g figures on submit — editing an existing food reverses
   this using the food's own `defaultServing` so the form round-trips exactly.
-- **`src/app/my-foods.tsx`** — list of the member's custom foods, linking
-  into `custom-food.tsx` for edit/delete.
+  Shows a banner keyed to `prefillSource` when arriving from label-scan, and
+  a "label photo attached" chip when a `capturedLabelPhoto` param is present
+  (cached via `draft-photo-cache.ts` on save for reuse in `submit-food.tsx`).
+  An editing food shows a "Share this food publicly" link into `submit-food.tsx`.
+- **`src/app/submit-food.tsx`** — the submission draft/review screen. Shows
+  an eligibility checklist (with an "edit this food" link back if fields are
+  missing), an explicit consent checkbox, optional front/label photo capture
+  (reusing the same `expo-camera` capture pattern as label-scan, prefilling
+  the label slot from the draft-photo cache when available), and the current
+  submission status if one already exists (in review / approved / rejected /
+  published / failed) with resubmission allowed once terminal.
+- **`src/app/my-foods.tsx`** — list of the member's custom foods with a
+  submission-status badge per row, linking into `custom-food.tsx` for
+  edit/delete and a cloud-upload icon into `submit-food.tsx`.
 - Camera access requires the `expo-camera` config plugin (`app.json`) and the
   `expo-camera` / `expo-image-manipulator` packages, added alongside this
   feature.
+
+## Real-device verification checklist
+
+Everything above has been verified in the Expo **web** preview — search
+grouping, serving math, diary logging, custom-food round trips, and the
+submission workflow's UI logic. Camera-dependent behavior (actual barcode
+decoding, actual photo capture, actual permission prompts) cannot be
+exercised in a web browser and needs a real device (TestFlight / Play
+internal testing) pass before shipping. Checklist:
+
+- [ ] **Barcode scan success** — scan a real product barcode; confirms the
+      food, serving picker opens, calories match a known label.
+- [ ] **Barcode scan miss** — scan a barcode with no OFF match (or a
+      hand-written test barcode); confirms it forwards to label-scan
+      automatically with the barcode carried through.
+- [ ] **Camera permission denied** — deny camera access on first prompt;
+      confirms the permission-gate screen renders (not a crash) and "enter
+      this food manually instead" reaches `custom-food.tsx` with the meal
+      context intact.
+- [ ] **Photo capture** — capture a nutrition label; confirms the image
+      compresses without hanging or crashing on both iOS and Android, and
+      the "Photo captured" confirmation stage renders before the fallback
+      form appears.
+- [ ] **Label-scan fallback → custom food → log** — full chain from a
+      barcode miss through to a logged diary entry; confirms the banner copy
+      reads as intentional, the captured photo chip appears, and the food
+      shows up correctly in the diary afterward.
+- [ ] **Submission photo capture** — from `submit-food.tsx`, capture a front
+      photo and a label photo independently; confirms both slots fill
+      correctly and don't overwrite each other.
+
+Known device-vs-web-preview risks to watch for (not verifiable from this
+environment):
+
+- `expo-camera`'s `CameraView` behaves differently across iOS/Android for
+  autofocus and barcode-scan responsiveness — the web preview uses a stub and
+  proves nothing about scan reliability.
+- The `expo-camera` config plugin (`app.json`) requires a native rebuild
+  (`expo prebuild` / a new development build or EAS build) to take effect —
+  simply reloading Metro is not enough once the plugin config changes.
+- `expo-image-manipulator`'s `manipulateAsync` is deprecated upstream in
+  favor of a context-based API; it still works but should be revisited if
+  the SDK is upgraded past what's pinned in `package.json`.
+- Large captured photos (front + label, up to ~3MB each as data URLs) are
+  stored inline in `data/db.json` once submitted — fine at trial scale, but
+  worth watching if submission volume grows before a real object-storage
+  migration.

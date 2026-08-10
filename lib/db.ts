@@ -322,18 +322,35 @@ export interface FoodModerationRequest {
   updatedAt: string;
 }
 
-// Tracks a member's consent-gated request to publish their own custom food
-// to Open Food Facts. This repo has no OFF producer credentials, so the
-// actual submission call is not live — this just records consent + status
-// so the workflow is real and resumable once credentials exist.
-export type OffSubmissionStatus = "pending_consent" | "queued" | "submitted" | "failed";
+// Tracks a member's opt-in request to publish their own custom food
+// publicly via Open Food Facts. Only created once a food passes eligibility
+// (lib/food-submission.ts) and the member has explicitly consented — goes
+// through internal staff review before any live OFF write is attempted.
+// This repo has no OFF producer credentials, so "approved" is currently the
+// terminal state in practice; "submitted_to_open_food_facts"/"failed" are
+// real outcomes of a live write that only fire when isOffLiveWriteEnabled()
+// is true (see lib/open-food-facts-client.ts) — the workflow is real and
+// resumable once credentials exist, not simulated.
+export type FoodSubmissionStatus =
+  | "pending_review"
+  | "approved"
+  | "rejected"
+  | "submitted_to_open_food_facts"
+  | "failed";
 
-export interface FoodOffSubmissionRecord {
+export interface FoodSubmissionRecord {
   id: string;
   userId: string;
   customFoodId: string;
-  status: OffSubmissionStatus;
+  status: FoodSubmissionStatus;
+  consentGiven: boolean;
   consentedAt: string | null;
+  frontPhotoUrl: string | null;
+  labelPhotoUrl: string | null;
+  reviewedByStaffId: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  offProductId: string | null;
   submittedAt: string | null;
   failureReason: string | null;
   createdAt: string;
@@ -944,7 +961,7 @@ interface Database {
   commonFoods: FoodRecord[];
   brandedFoods: FoodRecord[];
   foodModerationRequests: FoodModerationRequest[];
-  foodOffSubmissions: FoodOffSubmissionRecord[];
+  foodSubmissions: FoodSubmissionRecord[];
   workoutSessions: WorkoutSessionRecord[];
   exercises: ExerciseRecord[];
   aiMessages: AiMessageRecord[];
@@ -1045,7 +1062,7 @@ function readDb(): Database {
       commonFoods: [],
       brandedFoods: [],
       foodModerationRequests: [],
-      foodOffSubmissions: [],
+      foodSubmissions: [],
       workoutSessions: [],
       exercises: [],
       aiMessages: [],
@@ -1121,7 +1138,7 @@ function readDb(): Database {
     commonFoods: parsed.commonFoods ?? [],
     brandedFoods: parsed.brandedFoods ?? [],
     foodModerationRequests: parsed.foodModerationRequests ?? [],
-    foodOffSubmissions: parsed.foodOffSubmissions ?? [],
+    foodSubmissions: parsed.foodSubmissions ?? [],
     workoutSessions: (parsed.workoutSessions ?? []).map((s) => ({
       ...s,
       exercises: s.exercises ?? [],
@@ -1596,20 +1613,38 @@ export function saveFoodModerationRequest(request: FoodModerationRequest): void 
   writeDb(db);
 }
 
-export function createFoodOffSubmission(record: FoodOffSubmissionRecord): void {
+export function createFoodSubmission(record: FoodSubmissionRecord): void {
   const db = readDb();
-  db.foodOffSubmissions.push(record);
+  db.foodSubmissions.push(record);
   writeDb(db);
 }
 
-export function findFoodOffSubmissionById(id: string): FoodOffSubmissionRecord | undefined {
-  return readDb().foodOffSubmissions.find((s) => s.id === id);
+export function findFoodSubmissionById(id: string): FoodSubmissionRecord | undefined {
+  return readDb().foodSubmissions.find((s) => s.id === id);
 }
 
-export function saveFoodOffSubmission(record: FoodOffSubmissionRecord): void {
+export function findFoodSubmissionsByUserId(userId: string): FoodSubmissionRecord[] {
+  return readDb()
+    .foodSubmissions.filter((s) => s.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findFoodSubmissionByCustomFoodId(customFoodId: string): FoodSubmissionRecord | undefined {
+  // A custom food can only have one active submission at a time — the
+  // create route enforces this; callers use it to show "already submitted".
+  return readDb()
+    .foodSubmissions.filter((s) => s.customFoodId === customFoodId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+}
+
+export function findAllFoodSubmissions(): FoodSubmissionRecord[] {
+  return [...readDb().foodSubmissions].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function saveFoodSubmission(record: FoodSubmissionRecord): void {
   const db = readDb();
-  const index = db.foodOffSubmissions.findIndex((s) => s.id === record.id);
-  if (index !== -1) db.foodOffSubmissions[index] = record;
+  const index = db.foodSubmissions.findIndex((s) => s.id === record.id);
+  if (index !== -1) db.foodSubmissions[index] = record;
   writeDb(db);
 }
 

@@ -61,3 +61,56 @@ export async function lookupOpenFoodFactsByBarcode(barcode: string): Promise<Ope
 
   return { ok: true, product: body.product };
 }
+
+// ── Write provider (submission workflow) ─────────────────────────────────
+//
+// Open Food Facts' write API needs producer/org credentials this repo
+// doesn't have — same pattern as lib/ocr-provider.ts: a real interface, a
+// default implementation that honestly reports itself unconfigured, and a
+// config flag so a future deployment can flip live writes on without
+// touching any call site. Every caller must check isOffLiveWriteEnabled()
+// before treating a "submitted" outcome as reachable.
+
+export interface OffWriteSubmission {
+  barcode: string;
+  name: string;
+  brandName: string;
+  servingLabel: string;
+  servingGrams: number;
+  nutrition100g: {
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    fiberG: number | null;
+    sugarG: number | null;
+    sodiumMg: number | null;
+    saturatedFatG: number | null;
+  };
+  frontPhotoUrl: string | null;
+  labelPhotoUrl: string | null;
+}
+
+export type OffWriteResult = { ok: true; offProductId: string } | { ok: false; reason: string };
+
+export interface OffSubmissionProvider {
+  configured: boolean;
+  submit(payload: OffWriteSubmission): Promise<OffWriteResult>;
+}
+
+const unconfiguredOffSubmissionProvider: OffSubmissionProvider = {
+  configured: false,
+  async submit() {
+    return { ok: false, reason: "off_write_not_configured" };
+  },
+};
+
+// Swap this export for a real implementation once OFF producer credentials
+// exist — every call site already goes through this single seam.
+export const offSubmissionProvider: OffSubmissionProvider = unconfiguredOffSubmissionProvider;
+
+// Both a config flag AND a configured provider must be true — belt-and-
+// braces so a stray env var alone can never cause a live external write.
+export function isOffLiveWriteEnabled(): boolean {
+  return process.env.OFF_LIVE_WRITE_ENABLED === "true" && offSubmissionProvider.configured;
+}
