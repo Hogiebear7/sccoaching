@@ -1,5 +1,6 @@
 import {
   findBookingsByUserId,
+  findCoachNoteByUserId,
   findMembers,
   findProfileByUserId,
   findSubscriptionByUserId,
@@ -50,6 +51,9 @@ export interface StaffMemberDetail extends StaffMemberSummary {
   totalSessionsLogged: number;
   totalBookings: number;
   lastSessionDate: string | null;
+  // Internal, staff-only — never shown to the member. Edited via the
+  // existing /api/staff/members/notes route (members.edit, coach-tier).
+  coachNotes: string | null;
 }
 
 export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
@@ -79,5 +83,6 @@ export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
     totalSessionsLogged: sessions.length,
     totalBookings: bookings.length,
     lastSessionDate: lastSession?.date ?? null,
+    coachNotes: findCoachNoteByUserId(member.id)?.notes ?? null,
   };
 }

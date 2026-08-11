@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { createUser, findUserByEmail, saveProfile } from "@/lib/db";
+import { createUser, findUserByEmail, saveProfile, saveCycleSettings, saveCyclePrivacy } from "@/lib/db";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
 import { signSession } from "@/lib/session";
 import {
   isFemaleGender,
   shouldShowSportPlayed,
+  type CyclePrivacyPreferencesRecord,
+  type CycleRegularity,
+  type CycleSettingsRecord,
   type Gender,
   type PrimaryGoal,
   type ProfileRecord,
@@ -18,12 +21,11 @@ const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Condensed mobile signup: exactly the fields ProfileRecord requires
-// (see app/api/auth/signup/route.ts for the full web wizard). Everything
-// the web wizard additionally collects (dietary, cycle tracking, palette/
-// theme, additional info, current weight) gets the same safe defaults
-// unconfigured web signups would get, and stays fully editable afterwards
-// from Settings — nothing here is a one-way door.
+// Mirrors app/api/auth/signup/route.ts field-for-field — the mobile signup
+// wizard collects the same questions as the web one (see (auth)/signup/page.tsx),
+// so this accepts the same optional profile/dietary/cycle payload. The only
+// intentional gap is theme/palette: mobile has one fixed navy/gold design,
+// so those always take the server default rather than a client choice.
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -32,8 +34,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { email, password, fullName, phone, dateOfBirth, gender, primaryGoal, sportPlayed } =
-    (body ?? {}) as Record<string, unknown>;
+  const {
+    email,
+    password,
+    fullName,
+    phone,
+    dateOfBirth,
+    gender,
+    primaryGoal,
+    sportPlayed,
+    currentWeightKg,
+    additionalInfo,
+    dietaryPreference,
+    allergies,
+    intolerancesOrMedical,
+    dietaryNotes,
+    cycleTrackingEnabled,
+    menopauseSupportEnabled,
+    lastPeriodStartDate,
+    averageCycleLengthDays,
+    periodLengthDays,
+    regularity,
+    privateNotes,
+    shareCurrentPhaseWithCoach,
+    shareExactDatesWithCoach,
+    shareNotesWithCoach,
+  } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password.trim()) {
     return NextResponse.json({ success: false, message: "Email and password are required." }, { status: 400 });
@@ -87,11 +113,20 @@ export async function POST(request: Request) {
     );
   }
 
+  const weightValue =
+    typeof currentWeightKg === "string" && currentWeightKg.trim() !== "" ? Number(currentWeightKg) : null;
+
   const passwordHash = hashPassword(password);
   const user = createUser(email, passwordHash);
   const cycleEligible = isFemaleGender(genderValue);
   const now = new Date().toISOString();
-  const dietary = sanitizeDietaryFields({});
+
+  const dietary = sanitizeDietaryFields({
+    dietaryPreference,
+    allergies,
+    intolerancesOrMedical,
+    dietaryNotes,
+  });
 
   const profile: ProfileRecord = {
     userId: user.id,
@@ -102,8 +137,8 @@ export async function POST(request: Request) {
     gender: genderValue,
     primaryGoal: primaryGoalValue,
     sportPlayed: sportPlayedValue || null,
-    currentWeightKg: null,
-    additionalInfo: null,
+    currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
+    additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
     dietaryPreference: dietary.dietaryPreference,
     allergies: dietary.allergies,
     intolerancesOrMedical: dietary.intolerancesOrMedical,
@@ -111,8 +146,8 @@ export async function POST(request: Request) {
     palette: DEFAULT_PALETTE,
     theme: DEFAULT_THEME,
     cycleTrackingEligible: cycleEligible,
-    cycleTrackingEnabled: false,
-    menopauseSupportEnabled: false,
+    cycleTrackingEnabled: cycleEligible ? Boolean(cycleTrackingEnabled) : false,
+    menopauseSupportEnabled: Boolean(menopauseSupportEnabled),
     reminderTimingsMins: null,
     emailNotificationsEnabled: true,
     pushNotificationsEnabled: false,
@@ -123,6 +158,39 @@ export async function POST(request: Request) {
   };
 
   saveProfile(profile);
+
+  if (cycleEligible && Boolean(cycleTrackingEnabled)) {
+    const VALID_REGULARITIES = ["Regular", "Irregular", "Unsure"];
+    const cycleSettings: CycleSettingsRecord = {
+      userId: user.id,
+      lastPeriodStartDate:
+        typeof lastPeriodStartDate === "string" && lastPeriodStartDate.trim() ? lastPeriodStartDate.trim() : null,
+      averageCycleLengthDays:
+        typeof averageCycleLengthDays === "string" && averageCycleLengthDays.trim() !== ""
+          ? Number(averageCycleLengthDays)
+          : null,
+      periodLengthDays:
+        typeof periodLengthDays === "string" && periodLengthDays.trim() !== "" ? Number(periodLengthDays) : null,
+      regularity:
+        typeof regularity === "string" && VALID_REGULARITIES.includes(regularity)
+          ? (regularity as CycleRegularity)
+          : null,
+      privateNotes: typeof privateNotes === "string" && privateNotes.trim() ? privateNotes.trim() : null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    saveCycleSettings(cycleSettings);
+
+    const cyclePrivacy: CyclePrivacyPreferencesRecord = {
+      userId: user.id,
+      shareCurrentPhaseWithCoach: Boolean(shareCurrentPhaseWithCoach),
+      shareExactDatesWithCoach: Boolean(shareExactDatesWithCoach),
+      shareNotesWithCoach: Boolean(shareNotesWithCoach),
+      createdAt: now,
+      updatedAt: now,
+    };
+    saveCyclePrivacy(cyclePrivacy);
+  }
 
   const token = signSession({ userId: user.id });
 

@@ -208,6 +208,8 @@ export default function SignupPage() {
     if (currentStep === 0) {
       if (!values.email.trim()) {
         nextErrors.email = "Email is required.";
+      } else if (!EMAIL_RE.test(values.email.trim())) {
+        nextErrors.email = "Enter a valid email address.";
       } else if (emailStatus === "taken") {
         nextErrors.email = "This email already has an account.";
       }

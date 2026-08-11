@@ -8,7 +8,7 @@ import {
 } from "./db";
 import { resolveCurrentWeightKg } from "./body-weight";
 import { buildMemberStatsData, sumStatsInRange, type MemberStatTotals } from "./member-stats";
-import type { DietaryPreference, Gender, PrimaryGoal } from "./profile-schema";
+import type { DietaryPreference, Gender, MeasurementUnits, PrimaryGoal } from "./profile-schema";
 
 export interface ProfileData {
   email: string;
@@ -21,8 +21,18 @@ export interface ProfileData {
   additionalInfo: string | null;
   currentWeightKg: number | null;
   dietaryPreference: DietaryPreference;
+  allergies: string[];
+  intolerancesOrMedical: string[];
+  dietaryNotes: string | null;
   pushNotificationsEnabled: boolean;
   emailNotificationsEnabled: boolean;
+  reminderTimingsMins: number[] | null;
+  preferredUnits: MeasurementUnits;
+  avatarDataUrl: string | null;
+  // Gates whether the client shows a "Cycle Tracking" entry point at all —
+  // mirrors the web nav's same check. See app/api/mobile/cycle/route.ts for
+  // the actual cycle data once a member navigates in.
+  cycleTrackingEligible: boolean;
   // All-time only — the web app's date-range picker on stats is deliberately
   // not replicated on mobile; see app/(dashboard)/dashboard/profile/
   // ProfileStatsCard.tsx for the full version.
@@ -61,8 +71,15 @@ export function getProfileData(userId: string | undefined): ProfileData | null {
     additionalInfo: profile.additionalInfo,
     currentWeightKg: resolveCurrentWeightKg(profile.currentWeightKg, bodyWeightLogs),
     dietaryPreference: profile.dietaryPreference ?? "standard",
+    allergies: profile.allergies ?? [],
+    intolerancesOrMedical: profile.intolerancesOrMedical ?? [],
+    dietaryNotes: profile.dietaryNotes ?? null,
     pushNotificationsEnabled: profile.pushNotificationsEnabled,
     emailNotificationsEnabled: profile.emailNotificationsEnabled,
+    reminderTimingsMins: profile.reminderTimingsMins ?? null,
+    preferredUnits: profile.preferredUnits ?? "metric",
+    avatarDataUrl: profile.avatarDataUrl ?? null,
+    cycleTrackingEligible: profile.cycleTrackingEligible,
     allTimeStats: sumStatsInRange(statsData, null, null),
   };
 }

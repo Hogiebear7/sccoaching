@@ -46,7 +46,13 @@ export interface ScheduleUpcomingBooking {
   date: string;
   startTime: string;
   durationMins: number;
+  attended: boolean;
 }
+
+// Past bookings carry the same shape as upcoming ones — `attended` only
+// becomes meaningful once the class has happened, but keeping one shape
+// means the mobile client can render both with one row component.
+export type SchedulePastBooking = ScheduleUpcomingBooking;
 
 export interface ScheduleData {
   classes: ScheduleClass[];
@@ -55,6 +61,7 @@ export interface ScheduleData {
   remainingSessions: number | null;
   noActiveMembership: boolean;
   upcomingBookings: ScheduleUpcomingBooking[];
+  pastBookings: SchedulePastBooking[];
   cancellationCutoffHours: number;
 }
 
@@ -87,6 +94,21 @@ export function getScheduleData(userId: string | undefined): ScheduleData | null
       date: b.date,
       startTime: b.startTime,
       durationMins: b.durationMins,
+      attended: b.attended,
+    }));
+
+  const pastBookings: SchedulePastBooking[] = resolvedBookings
+    .filter((b) => b.isPast)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))
+    .map((b) => ({
+      bookingId: b.bookingId,
+      classId: b.classId,
+      title: b.title,
+      category: b.category,
+      date: b.date,
+      startTime: b.startTime,
+      durationMins: b.durationMins,
+      attended: b.attended,
     }));
 
   const classes: ScheduleClass[] = findClasses()
@@ -149,6 +171,7 @@ export function getScheduleData(userId: string | undefined): ScheduleData | null
     remainingSessions: remaining,
     noActiveMembership,
     upcomingBookings,
+    pastBookings,
     cancellationCutoffHours: getCancellationCutoffHours(),
   };
 }
