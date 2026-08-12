@@ -47,6 +47,7 @@ export function WorkoutsView({
 }) {
   const router = useRouter();
   const [editingClassSessionId, setEditingClassSessionId] = useState<string | null>(null);
+  const [editingSelfSessionId, setEditingSelfSessionId] = useState<string | null>(null);
   const [heroTab, setHeroTab] = useState<"plan" | "log">("plan");
   const todayISO = todayDateString();
 
@@ -280,6 +281,15 @@ export function WorkoutsView({
                           Edit (today only)
                         </button>
                       ) : null}
+                      {!session.classId && editingSelfSessionId !== session.id ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditingSelfSessionId(session.id)}
+                          className="text-[11px] font-medium text-primary transition hover:text-[var(--primary-hover)]"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
                     </div>
                     <h4 className="mt-1 text-base font-semibold">{session.title}</h4>
                     {editingClassSessionId === session.id ? (
@@ -291,6 +301,18 @@ export function WorkoutsView({
                         }}
                         onCancel={() => setEditingClassSessionId(null)}
                       />
+                    ) : null}
+                    {editingSelfSessionId === session.id ? (
+                      <div className="mt-3">
+                        <WorkoutLogForm
+                          key={session.id}
+                          exercises={exercises}
+                          editingSession={session}
+                          containerClassName="rounded-lg border border-border bg-secondary/10 p-4"
+                          onSaved={() => setEditingSelfSessionId(null)}
+                          onCancelEdit={() => setEditingSelfSessionId(null)}
+                        />
+                      </div>
                     ) : null}
                     {session.notes && <p className="mt-2 text-sm text-muted-foreground">{session.notes}</p>}
                     {(session.exercises.length > 0 || session.runs.length > 0) && (

@@ -15,6 +15,10 @@ export interface WorkoutSessionSummary {
   notes: string | null;
   exercises: WorkoutExerciseEntry[];
   runs: WorkoutRunEntry[];
+  /** Set when synced from a class — self-logged edits go through
+      /api/workouts/edit, class-synced sessions through their own
+      same-day correction path (see WorkoutSessionRecord). */
+  classId: string | null;
 }
 
 export interface ExerciseLibraryEntry {
@@ -53,6 +57,7 @@ export function getWorkoutsData(userId: string | undefined): WorkoutsData | null
       notes: s.notes,
       exercises: s.exercises,
       runs: s.runs,
+      classId: s.classId ?? null,
     })),
     personalBests,
     exerciseLibrary: findExercises().map((e) => ({ id: e.id, name: e.name, section: e.section })),

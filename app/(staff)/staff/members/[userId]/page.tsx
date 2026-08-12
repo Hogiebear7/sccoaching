@@ -293,6 +293,7 @@ export default async function StaffMemberDetailPage({
                   <CyclePhaseCard
                     phaseEstimate={phaseEstimate}
                     periodLengthDays={cycleSettings?.periodLengthDays ?? null}
+                    revealExactPosition={cyclePrivacy.shareExactDatesWithCoach}
                   />
                 ) : (
                   <CycleInfoRow label="Approx. cycle day" value="Not enough data to estimate" />

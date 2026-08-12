@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
-import type { ExerciseRecord } from "@/lib/db";
+import type { ExerciseRecord, WorkoutSessionRecord } from "@/lib/db";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { ExerciseAutocomplete } from "./ExerciseAutocomplete";
-import { formatAsKg, formatAsMmSs, livePace, parseDuration, todayDateString } from "./formatters";
+import { formatAsKg, formatAsMmSs, formatDuration, livePace, parseDuration, todayDateString } from "./formatters";
 
 // --- Types ---
 
@@ -73,6 +73,46 @@ function newRunRow(): RunRow {
   return { key: crypto.randomUUID(), distance: "", distanceUnit: "km", duration: "", reps: "", sets: "", notes: "" };
 }
 
+function sessionToFormValues(session: WorkoutSessionRecord): WorkoutFormValues {
+  return {
+    title: session.title,
+    date: session.date,
+    durationMins: session.durationMins != null ? String(session.durationMins) : "",
+    notes: session.notes ?? "",
+  };
+}
+
+function sessionToExerciseRows(session: WorkoutSessionRecord): ExerciseRow[] {
+  return session.exercises.map((ex) => ({
+    key: crypto.randomUUID(),
+    exerciseId: ex.exerciseId,
+    name: ex.name,
+    weight: ex.weight ?? "",
+    reps: ex.reps != null ? String(ex.reps) : "",
+    sets: ex.sets != null ? String(ex.sets) : "",
+    notes: ex.notes ?? "",
+    rir: ex.rir != null ? String(ex.rir) : "",
+    setRows: (ex.setDetails ?? []).map((sd) => ({
+      key: crypto.randomUUID(),
+      weight: sd.weight ?? "",
+      reps: sd.reps != null ? String(sd.reps) : "",
+    })),
+    unitMode: "weight",
+  }));
+}
+
+function sessionToRunRows(session: WorkoutSessionRecord): RunRow[] {
+  return session.runs.map((r) => ({
+    key: crypto.randomUUID(),
+    distance: r.distance != null ? String(r.distance) : "",
+    distanceUnit: "km",
+    duration: r.durationSecs != null ? formatDuration(r.durationSecs) : "",
+    reps: r.reps != null ? String(r.reps) : "",
+    sets: r.sets != null ? String(r.sets) : "",
+    notes: r.notes ?? "",
+  }));
+}
+
 // The one workout-logging implementation, rendered identically by both view
 // variants. Variants only vary the surrounding surface classes via
 // `containerClassName` — the state, validation, and submit flow (POST
@@ -80,19 +120,38 @@ function newRunRow(): RunRow {
 export function WorkoutLogForm({
   exercises,
   containerClassName = "surface-card p-5",
+  editingSession,
+  onSaved,
+  onCancelEdit,
 }: {
   exercises: ExerciseRecord[];
   containerClassName?: string;
+  /** When set, the form edits this existing self-logged session instead of
+      creating a new one. Render with a `key={editingSession.id}` from the
+      caller so switching which session is being edited remounts the form
+      with fresh initial state rather than merging into stale rows. */
+  editingSession?: WorkoutSessionRecord;
+  /** Called after a successful edit save (not fired for create). */
+  onSaved?: () => void;
+  /** Called when the user backs out of editing without saving. */
+  onCancelEdit?: () => void;
 }) {
   const router = useRouter();
+  const isEditing = !!editingSession;
 
-  const [values, setValues] = useState<WorkoutFormValues>(() => emptyFormValues());
+  const [values, setValues] = useState<WorkoutFormValues>(() =>
+    editingSession ? sessionToFormValues(editingSession) : emptyFormValues()
+  );
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [exerciseRows, setExerciseRows] = useState<ExerciseRow[]>([]);
-  const [runRows, setRunRows] = useState<RunRow[]>([]);
+  const [exerciseRows, setExerciseRows] = useState<ExerciseRow[]>(() =>
+    editingSession ? sessionToExerciseRows(editingSession) : []
+  );
+  const [runRows, setRunRows] = useState<RunRow[]>(() =>
+    editingSession ? sessionToRunRows(editingSession) : []
+  );
 
   function handleTextChange(
     key: keyof WorkoutFormValues,
@@ -174,16 +233,28 @@ export function WorkoutLogForm({
     }));
 
     try {
-      const res = await fetch("/api/workouts/create", {
+      const res = await fetch(isEditing ? "/api/workouts/edit" : "/api/workouts/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, exercises: exercisesToSend, runs: runsToSend }),
+        body: JSON.stringify({
+          ...(isEditing ? { id: editingSession.id } : {}),
+          ...values,
+          exercises: exercisesToSend,
+          runs: runsToSend,
+        }),
       });
 
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setFormError(data?.message ?? "Could not log workout. Please try again.");
+        setFormError(data?.message ?? "Could not save workout. Please try again.");
+        return;
+      }
+
+      router.refresh();
+
+      if (isEditing) {
+        onSaved?.();
         return;
       }
 
@@ -191,7 +262,6 @@ export function WorkoutLogForm({
       setValues(emptyFormValues());
       setExerciseRows([]);
       setRunRows([]);
-      router.refresh();
     } catch {
       setFormError("Something went wrong. Please try again.");
     } finally {
@@ -201,7 +271,7 @@ export function WorkoutLogForm({
 
   return (
     <form onSubmit={handleSubmit} className={containerClassName}>
-      <p className="mb-4 label-caps">Log a workout</p>
+      <p className="mb-4 label-caps">{isEditing ? "Edit workout" : "Log a workout"}</p>
 
       {formError && (
         <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -640,13 +710,22 @@ export function WorkoutLogForm({
         )}
       </div>
 
-      <div className="mt-6 flex justify-end border-t border-border pt-4">
+      <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4">
+        {isEditing ? (
+          <button
+            type="button"
+            onClick={onCancelEdit}
+            className="rounded-lg border border-border px-5 py-2 text-sm font-medium text-foreground transition hover:border-primary hover:text-primary"
+          >
+            Cancel
+          </button>
+        ) : null}
         <button
           type="submit"
           disabled={isSubmitting}
           className="btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting ? "Saving…" : "Log workout"}
+          {isSubmitting ? "Saving…" : isEditing ? "Save changes" : "Log workout"}
         </button>
       </div>
     </form>
