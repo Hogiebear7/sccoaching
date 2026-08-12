@@ -1,13 +1,20 @@
 import {
   findBookingsByUserId,
+  findClassById,
   findCoachNoteByUserId,
   findMembers,
   findProfileByUserId,
+  findRecoveryLogsByUserId,
   findSubscriptionByUserId,
   findUserById,
   findWorkoutSessionsByUserId,
 } from "./db";
 import { resolveSubscriptionEntitlement } from "./membership-entitlement";
+import {
+  computePersonalBests,
+  findPersonalBestByKeywords,
+  TRACKED_PERSONAL_BEST_EXERCISES,
+} from "./workouts";
 
 export interface StaffMemberSummary {
   userId: string;
@@ -43,6 +50,20 @@ export function getStaffMembersData(): StaffMemberSummary[] {
   });
 }
 
+export interface StaffMemberBookingSummary {
+  bookingId: string;
+  title: string;
+  date: string;
+  startTime: string;
+  durationMins: number;
+}
+
+export interface StaffMemberPersonalBest {
+  label: string;
+  heaviestWeight: { weightStr: string; reps: number | null; date: string } | null;
+  highestReps: { reps: number; date: string } | null;
+}
+
 export interface StaffMemberDetail extends StaffMemberSummary {
   dateOfBirth: string | null;
   primaryGoal: string;
@@ -54,6 +75,10 @@ export interface StaffMemberDetail extends StaffMemberSummary {
   // Internal, staff-only — never shown to the member. Edited via the
   // existing /api/staff/members/notes route (members.edit, coach-tier).
   coachNotes: string | null;
+  latestReadinessScore: number | null;
+  personalBests: StaffMemberPersonalBest[];
+  upcomingBookings: StaffMemberBookingSummary[];
+  pastBookings: StaffMemberBookingSummary[];
 }
 
 export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
@@ -66,6 +91,45 @@ export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
   const sessions = findWorkoutSessionsByUserId(member.id);
   const bookings = findBookingsByUserId(member.id);
   const lastSession = [...sessions].sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
+
+  const recoveryLogs = findRecoveryLogsByUserId(member.id);
+  const latestReadinessScore = recoveryLogs[0]?.readinessScore ?? null;
+
+  const allPersonalBests = computePersonalBests(sessions);
+  const personalBests: StaffMemberPersonalBest[] = TRACKED_PERSONAL_BEST_EXERCISES.map(({ label, keywords }) => {
+    const best = findPersonalBestByKeywords(allPersonalBests, keywords);
+    return {
+      label,
+      heaviestWeight: best?.heaviestWeight
+        ? { weightStr: best.heaviestWeight.weightStr, reps: best.heaviestWeight.reps, date: best.heaviestWeight.date }
+        : null,
+      highestReps: best?.highestReps ? { reps: best.highestReps.reps, date: best.highestReps.date } : null,
+    };
+  });
+
+  const now = Date.now();
+  const resolvedBookings = bookings
+    .map((booking) => {
+      const classRecord = findClassById(booking.classId);
+      if (!classRecord) return null;
+      return {
+        bookingId: booking.id,
+        title: classRecord.title,
+        date: classRecord.date,
+        startTime: classRecord.startTime,
+        durationMins: classRecord.durationMins,
+        isPast: new Date(`${classRecord.date}T${classRecord.startTime}`).getTime() < now,
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => b !== null);
+
+  const upcomingBookings = resolvedBookings
+    .filter((b) => !b.isPast)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+  const pastBookings = resolvedBookings
+    .filter((b) => b.isPast)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))
+    .slice(0, 10);
 
   return {
     userId: member.id,
@@ -84,5 +148,9 @@ export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
     totalBookings: bookings.length,
     lastSessionDate: lastSession?.date ?? null,
     coachNotes: findCoachNoteByUserId(member.id)?.notes ?? null,
+    latestReadinessScore,
+    personalBests,
+    upcomingBookings,
+    pastBookings,
   };
 }
