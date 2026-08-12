@@ -185,6 +185,22 @@ function sodiumBadgeClass(badge: "below" | "optimal" | "high"): string {
   return "border-white/[0.1] bg-white/[0.04] text-zinc-400";
 }
 
+// This badge reads the TOTAL sodium in the mixed bottle against a practical
+// 300–900 mg target band, derived from the sweat rate + conditions settings
+// above — not a warning about something being wrong with the recipe. The
+// explainer exists because "below recommended range" reads alarming and
+// members have asked whether they should add extra salt themselves (they
+// shouldn't — adjusting sweat rate/conditions is the right lever).
+function sodiumExplainer(badge: "below" | "optimal" | "high"): string {
+  if (badge === "optimal") {
+    return "Sodium sits in the target range for your sweat rate and conditions — no changes needed.";
+  }
+  if (badge === "high") {
+    return "Your sweat rate and conditions call for a stronger mix — expected on hot, high-sweat days. If it tastes too salty, add plain water alongside the bottle rather than diluting the mix itself.";
+  }
+  return "This just means today's settings (lower sweat rate or cooler conditions) call for a lighter mix. It's not a sign to add extra salt yourself — if it doesn't match how you're training, adjust Sweat rate or Conditions above.";
+}
+
 function Segmented<T extends string | number>({
   options,
   value,
@@ -888,6 +904,7 @@ export function NutritionView({
                   : "Below recommended range"}
               </span>
             </div>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-500">{sodiumExplainer(drink.sodiumBadge)}</p>
 
             <p className="label-caps mb-2 mt-4 text-[10px]">Drinking plan</p>
             <p className="mb-2.5 text-xs leading-relaxed text-zinc-400">
