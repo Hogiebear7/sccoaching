@@ -67,6 +67,10 @@ export async function POST(request: NextRequest) {
     primaryGoal,
     sportPlayed,
     additionalInfo,
+    emergencyContactName,
+    emergencyContactPhone,
+    emergencyContact2Name,
+    emergencyContact2Phone,
     dietaryPreference,
     allergies,
     intolerancesOrMedical,
@@ -162,6 +166,17 @@ export async function POST(request: NextRequest) {
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: syncedWeight,
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
+    // Required at signup, but editing an existing profile shouldn't be
+    // blocked on backfilling this — omitting it here just clears it back
+    // to null rather than erroring, same treatment as sportPlayed/notes.
+    emergencyContactName:
+      typeof emergencyContactName === "string" && emergencyContactName.trim() ? emergencyContactName.trim() : null,
+    emergencyContactPhone:
+      typeof emergencyContactPhone === "string" && emergencyContactPhone.trim() ? emergencyContactPhone.trim() : null,
+    emergencyContact2Name:
+      typeof emergencyContact2Name === "string" && emergencyContact2Name.trim() ? emergencyContact2Name.trim() : null,
+    emergencyContact2Phone:
+      typeof emergencyContact2Phone === "string" && emergencyContact2Phone.trim() ? emergencyContact2Phone.trim() : null,
     dietaryPreference: dietary.dietaryPreference,
     allergies: dietary.allergies,
     intolerancesOrMedical: dietary.intolerancesOrMedical,

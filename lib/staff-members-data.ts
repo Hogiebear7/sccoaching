@@ -68,6 +68,10 @@ export interface StaffMemberDetail extends StaffMemberSummary {
   dateOfBirth: string | null;
   primaryGoal: string;
   sportPlayed: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  emergencyContact2Name: string | null;
+  emergencyContact2Phone: string | null;
   currentPeriodEnd: string | null;
   totalSessionsLogged: number;
   totalBookings: number;
@@ -143,6 +147,10 @@ export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
     dateOfBirth: profile?.dateOfBirth ?? null,
     primaryGoal: profile?.primaryGoal ?? "General Health",
     sportPlayed: profile?.sportPlayed ?? null,
+    emergencyContactName: profile?.emergencyContactName ?? null,
+    emergencyContactPhone: profile?.emergencyContactPhone ?? null,
+    emergencyContact2Name: profile?.emergencyContact2Name ?? null,
+    emergencyContact2Phone: profile?.emergencyContact2Phone ?? null,
     currentPeriodEnd: sub?.currentPeriodEnd ?? null,
     totalSessionsLogged: sessions.length,
     totalBookings: bookings.length,

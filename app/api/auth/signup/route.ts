@@ -44,6 +44,10 @@ export async function POST(request: Request) {
     sportPlayed,
     currentWeightKg,
     additionalInfo,
+    emergencyContactName,
+    emergencyContactPhone,
+    emergencyContact2Name,
+    emergencyContact2Phone,
     dietaryPreference,
     allergies,
     intolerancesOrMedical,
@@ -95,6 +99,20 @@ export async function POST(request: Request) {
   if (typeof phone !== "string" || !phone.trim()) {
     return NextResponse.json(
       { success: false, message: "Phone number is required." },
+      { status: 400 }
+    );
+  }
+
+  if (typeof emergencyContactName !== "string" || !emergencyContactName.trim()) {
+    return NextResponse.json(
+      { success: false, message: "Emergency contact name is required." },
+      { status: 400 }
+    );
+  }
+
+  if (typeof emergencyContactPhone !== "string" || !emergencyContactPhone.trim()) {
+    return NextResponse.json(
+      { success: false, message: "Emergency contact phone number is required." },
       { status: 400 }
     );
   }
@@ -186,6 +204,12 @@ export async function POST(request: Request) {
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
+    emergencyContactName: (emergencyContactName as string).trim(),
+    emergencyContactPhone: (emergencyContactPhone as string).trim(),
+    emergencyContact2Name:
+      typeof emergencyContact2Name === "string" && emergencyContact2Name.trim() ? emergencyContact2Name.trim() : null,
+    emergencyContact2Phone:
+      typeof emergencyContact2Phone === "string" && emergencyContact2Phone.trim() ? emergencyContact2Phone.trim() : null,
     dietaryPreference: dietary.dietaryPreference,
     allergies: dietary.allergies,
     intolerancesOrMedical: dietary.intolerancesOrMedical,

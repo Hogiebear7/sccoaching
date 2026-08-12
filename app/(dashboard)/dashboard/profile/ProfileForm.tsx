@@ -187,6 +187,10 @@ type ProfileFormValues = {
   primaryGoal: PrimaryGoal | "";
   sportPlayed: string;
   additionalInfo: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContact2Name: string;
+  emergencyContact2Phone: string;
   dietaryPreference: DietaryPreference | "";
   allergies: string[];
   intolerancesOrMedical: string[];
@@ -204,6 +208,10 @@ function toFormValues(profile: ProfileRecord): ProfileFormValues {
     primaryGoal: profile.primaryGoal,
     sportPlayed: profile.sportPlayed ?? "",
     additionalInfo: profile.additionalInfo ?? "",
+    emergencyContactName: profile.emergencyContactName ?? "",
+    emergencyContactPhone: profile.emergencyContactPhone ?? "",
+    emergencyContact2Name: profile.emergencyContact2Name ?? "",
+    emergencyContact2Phone: profile.emergencyContact2Phone ?? "",
     dietaryPreference: profile.dietaryPreference ?? "standard",
     allergies: profile.allergies ?? [],
     intolerancesOrMedical: profile.intolerancesOrMedical ?? [],
@@ -485,6 +493,58 @@ export function ProfileForm({
                 />
               </FormField>
             </div>
+
+            <div className="md:col-span-2 mt-2 border-t border-white/[0.06] pt-4">
+              <p className="label-caps">In case of emergency</p>
+            </div>
+
+            <FormField label="Emergency contact name" error={errors.emergencyContactName}>
+              <input
+                type="text"
+                value={values.emergencyContactName}
+                onChange={(e) => handleTextChange("emergencyContactName", e)}
+                className={inputClass(errors.emergencyContactName)}
+                placeholder="e.g. Jane Smith"
+              />
+            </FormField>
+
+            <FormField label="Emergency contact phone" error={errors.emergencyContactPhone}>
+              <input
+                type="tel"
+                value={values.emergencyContactPhone}
+                onChange={(e) => handleTextChange("emergencyContactPhone", e)}
+                className={inputClass(errors.emergencyContactPhone)}
+                placeholder="+353 83 123 4567"
+              />
+            </FormField>
+
+            <FormField
+              label={
+                <>
+                  Second emergency contact name{" "}
+                  <span className="text-xs font-normal text-muted-foreground">optional</span>
+                </>
+              }
+              error={errors.emergencyContact2Name}
+            >
+              <input
+                type="text"
+                value={values.emergencyContact2Name}
+                onChange={(e) => handleTextChange("emergencyContact2Name", e)}
+                className={inputClass(errors.emergencyContact2Name)}
+                placeholder="e.g. John Smith"
+              />
+            </FormField>
+
+            <FormField label="Second emergency contact phone" error={errors.emergencyContact2Phone}>
+              <input
+                type="tel"
+                value={values.emergencyContact2Phone}
+                onChange={(e) => handleTextChange("emergencyContact2Phone", e)}
+                className={inputClass(errors.emergencyContact2Phone)}
+                placeholder="+353 83 123 4567"
+              />
+            </FormField>
           </div>
         </div>
 

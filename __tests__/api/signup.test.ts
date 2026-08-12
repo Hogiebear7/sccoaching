@@ -29,6 +29,8 @@ const VALID_PAYLOAD = {
   primaryGoal: "General Health",
   currentWeightKg: "65",
   additionalInfo: "",
+  emergencyContactName: "Jane Athlete",
+  emergencyContactPhone: "555-0199",
   cycleTrackingEnabled: true,
 };
 

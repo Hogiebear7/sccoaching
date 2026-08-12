@@ -67,6 +67,10 @@ export async function POST(request: NextRequest) {
     sportPlayed,
     currentWeightKg,
     additionalInfo,
+    emergencyContactName,
+    emergencyContactPhone,
+    emergencyContact2Name,
+    emergencyContact2Phone,
     programmeEnabled,
   } = (body ?? {}) as Record<string, unknown>;
 
@@ -184,6 +188,22 @@ export async function POST(request: NextRequest) {
     currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
     additionalInfo:
       typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
+    emergencyContactName:
+      typeof emergencyContactName === "string" && emergencyContactName.trim()
+        ? emergencyContactName.trim()
+        : null,
+    emergencyContactPhone:
+      typeof emergencyContactPhone === "string" && emergencyContactPhone.trim()
+        ? emergencyContactPhone.trim()
+        : null,
+    emergencyContact2Name:
+      typeof emergencyContact2Name === "string" && emergencyContact2Name.trim()
+        ? emergencyContact2Name.trim()
+        : null,
+    emergencyContact2Phone:
+      typeof emergencyContact2Phone === "string" && emergencyContact2Phone.trim()
+        ? emergencyContact2Phone.trim()
+        : null,
     programmeEnabled: programmeEnabled === true,
     cycleTrackingEligible: cycleEligible,
     cycleTrackingEnabled: cycleEligible ? existingProfile.cycleTrackingEnabled : false,

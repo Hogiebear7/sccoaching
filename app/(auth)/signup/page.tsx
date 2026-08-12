@@ -148,6 +148,11 @@ export default function SignupPage() {
         sportPlayed: sportVisible ? values.sportPlayed || "—" : "Not applicable",
         currentWeightKg: values.currentWeightKg || "—",
         additionalInfo: values.additionalInfo || "—",
+        emergencyContactName: values.emergencyContactName || "—",
+        emergencyContactPhone: values.emergencyContactPhone || "—",
+        emergencyContact2: values.emergencyContact2Name.trim()
+          ? `${values.emergencyContact2Name} — ${values.emergencyContact2Phone || "—"}`
+          : "—",
       },
       cycle: cycleEligible
         ? {
@@ -241,6 +246,16 @@ export default function SignupPage() {
       }
 
       if (!values.gender) nextErrors.gender = "Please select a gender.";
+
+      if (!values.emergencyContactName.trim()) {
+        nextErrors.emergencyContactName = "Emergency contact name is required.";
+      }
+      if (!values.emergencyContactPhone.trim()) {
+        nextErrors.emergencyContactPhone = "Emergency contact phone number is required.";
+      }
+      if (values.emergencyContact2Name.trim() && !values.emergencyContact2Phone.trim()) {
+        nextErrors.emergencyContact2Phone = "Enter a phone number for the second contact, or clear their name.";
+      }
     }
 
     if (currentStep === 2) {
@@ -571,6 +586,75 @@ export default function SignupPage() {
                       ))}
                     </select>
                   </FormField>
+
+                  <div className="pt-2">
+                    <p className="text-sm font-semibold text-zinc-50">In case of emergency</p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Who should we contact if something happens to you during a session?
+                    </p>
+                  </div>
+
+                  <FormField
+                    label="Emergency contact name"
+                    id="signup-ice-name"
+                    error={errors.emergencyContactName}
+                  >
+                    <input
+                      id="signup-ice-name"
+                      type="text"
+                      value={values.emergencyContactName}
+                      onChange={(e) => handleTextChange("emergencyContactName", e)}
+                      className={inputClass(errors.emergencyContactName)}
+                      placeholder="e.g. Jane Smith"
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Emergency contact phone"
+                    id="signup-ice-phone"
+                    error={errors.emergencyContactPhone}
+                  >
+                    <input
+                      id="signup-ice-phone"
+                      type="tel"
+                      value={values.emergencyContactPhone}
+                      onChange={(e) => handleTextChange("emergencyContactPhone", e)}
+                      className={inputClass(errors.emergencyContactPhone)}
+                      placeholder="+353 83 123 4567"
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Second emergency contact name — optional"
+                    id="signup-ice2-name"
+                    error={errors.emergencyContact2Name}
+                  >
+                    <input
+                      id="signup-ice2-name"
+                      type="text"
+                      value={values.emergencyContact2Name}
+                      onChange={(e) => handleTextChange("emergencyContact2Name", e)}
+                      className={inputClass(errors.emergencyContact2Name)}
+                      placeholder="e.g. John Smith"
+                    />
+                  </FormField>
+
+                  {values.emergencyContact2Name.trim() ? (
+                    <FormField
+                      label="Second emergency contact phone"
+                      id="signup-ice2-phone"
+                      error={errors.emergencyContact2Phone}
+                    >
+                      <input
+                        id="signup-ice2-phone"
+                        type="tel"
+                        value={values.emergencyContact2Phone}
+                        onChange={(e) => handleTextChange("emergencyContact2Phone", e)}
+                        className={inputClass(errors.emergencyContact2Phone)}
+                        placeholder="+353 83 123 4567"
+                      />
+                    </FormField>
+                  ) : null}
                 </fieldset>
               )}
 
@@ -976,6 +1060,14 @@ export default function SignupPage() {
                     <ReviewRow
                       label="Additional info"
                       value={reviewData.profile.additionalInfo}
+                    />
+                    <ReviewRow
+                      label="Emergency contact"
+                      value={`${reviewData.profile.emergencyContactName} — ${reviewData.profile.emergencyContactPhone}`}
+                    />
+                    <ReviewRow
+                      label="Second emergency contact"
+                      value={reviewData.profile.emergencyContact2}
                     />
                   </ReviewCard>
 

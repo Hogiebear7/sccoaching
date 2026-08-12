@@ -19,6 +19,10 @@ export interface ProfileData {
   primaryGoal: PrimaryGoal;
   sportPlayed: string | null;
   additionalInfo: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  emergencyContact2Name: string | null;
+  emergencyContact2Phone: string | null;
   currentWeightKg: number | null;
   dietaryPreference: DietaryPreference;
   allergies: string[];
@@ -69,6 +73,10 @@ export function getProfileData(userId: string | undefined): ProfileData | null {
     primaryGoal: profile.primaryGoal,
     sportPlayed: profile.sportPlayed,
     additionalInfo: profile.additionalInfo,
+    emergencyContactName: profile.emergencyContactName ?? null,
+    emergencyContactPhone: profile.emergencyContactPhone ?? null,
+    emergencyContact2Name: profile.emergencyContact2Name ?? null,
+    emergencyContact2Phone: profile.emergencyContact2Phone ?? null,
     currentWeightKg: resolveCurrentWeightKg(profile.currentWeightKg, bodyWeightLogs),
     dietaryPreference: profile.dietaryPreference ?? "standard",
     allergies: profile.allergies ?? [],

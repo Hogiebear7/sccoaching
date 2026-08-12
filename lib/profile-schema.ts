@@ -53,6 +53,15 @@ export interface ProfileRecord {
   sportPlayed: string | null;
   currentWeightKg: number | null;
   additionalInfo: string | null;
+  // In-case-of-emergency contact — collected at signup, editable from
+  // Profile, visible to staff on the member detail page. The second
+  // contact is entirely optional; the first is asked for but stored as
+  // nullable like other pre-existing-record-compatible fields (see db.ts
+  // normalization) rather than enforced at the type level.
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  emergencyContact2Name: string | null;
+  emergencyContact2Phone: string | null;
   cycleTrackingEligible: boolean;
   cycleTrackingEnabled: boolean;
   menopauseSupportEnabled: boolean;
@@ -145,6 +154,12 @@ export interface SignupProfileValues {
   sportPlayed: string;
   currentWeightKg: string;
   additionalInfo: string;
+  // In-case-of-emergency contact. Name + phone are asked for; the second
+  // contact is fully optional.
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContact2Name: string;
+  emergencyContact2Phone: string;
   // Dietary requirements — all optional at signup.
   dietaryPreference: DietaryPreference | "";
   allergies: string[];
@@ -186,6 +201,10 @@ export const DEFAULT_SIGNUP_VALUES: SignupFormValues = {
   sportPlayed: "",
   currentWeightKg: "",
   additionalInfo: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  emergencyContact2Name: "",
+  emergencyContact2Phone: "",
   dietaryPreference: "",
   allergies: [],
   intolerancesOrMedical: [],
