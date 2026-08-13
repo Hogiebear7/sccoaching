@@ -28,7 +28,7 @@ jobs:
             echo "::error::PROD_URL and/or CRON_SECRET repository secrets are not set. See .github/workflows/housekeeping.yml for setup."
             exit 1
           fi
-          status=$(curl -sS -o response.json -w "%{http_code}" -X POST \
+          status=$(curl -sS -o response.json -w "%{http_code}" -X POST --max-time 180 \
             "${{ secrets.PROD_URL }}/api/cron/run" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
           echo "HTTP status: $status"

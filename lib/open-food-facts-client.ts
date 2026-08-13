@@ -38,6 +38,11 @@ export async function lookupOpenFoodFactsByBarcode(barcode: string): Promise<Ope
   try {
     res = await fetch(`${OFF_BASE_URL}/product/${encodeURIComponent(barcode)}.json`, {
       headers: { "User-Agent": OFF_USER_AGENT },
+      // Without this, a slow/hanging OFF response blocks the caller
+      // indefinitely — refresh-branded-food-cache calls this in a loop of
+      // up to 25 barcodes per housekeeping run, so one stuck request stalls
+      // the whole cron job (and the GitHub Actions curl call behind it).
+      signal: AbortSignal.timeout(10_000),
     });
   } catch {
     return { ok: false, reason: "network_error" };
