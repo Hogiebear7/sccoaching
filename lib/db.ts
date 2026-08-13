@@ -1946,6 +1946,22 @@ export function saveRecoveryLog(log: RecoveryLogRecord) {
   writeDb(db);
 }
 
+// The readiness trend chart only ever looks back 14 days, so anything older
+// than that is dead weight with no UI that reads it — this keeps
+// recoveryLogs from growing forever with rows nothing displays.
+export function purgeOldRecoveryLogs(olderThanDays: number): number {
+  const db = readDb();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - olderThanDays);
+  const cutoffISO = cutoff.toISOString().slice(0, 10);
+  const before = db.recoveryLogs.length;
+
+  db.recoveryLogs = db.recoveryLogs.filter((log) => log.date >= cutoffISO);
+
+  writeDb(db);
+  return before - db.recoveryLogs.length;
+}
+
 export function findMessagesByMemberId(memberId: string): MessageRecord[] {
   const db = readDb();
   return db.messages

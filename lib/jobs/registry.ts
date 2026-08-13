@@ -6,6 +6,7 @@ import { notifyLowPassBalanceJob } from "./notify-low-pass-balance";
 import { notifyLapsedMembershipsJob } from "./notify-lapsed-memberships";
 import { processWaitlistOffersJob } from "./process-waitlist-offers";
 import { purgeExpiredResetTokensJob } from "./purge-expired-reset-tokens";
+import { purgeOldRecoveryLogsJob } from "./purge-old-recovery-logs";
 import { refreshBrandedFoodCacheJob } from "./refresh-branded-food-cache";
 import { resumePausedMembershipsJob } from "./resume-paused-memberships";
 import { sendClassRemindersJob } from "./send-class-reminders";
@@ -28,5 +29,6 @@ export const ALL_JOBS: JobDefinition[] = [
   sendClassRemindersJob,
   cleanupPastWaitlistsJob,
   purgeExpiredResetTokensJob,
+  purgeOldRecoveryLogsJob,
   refreshBrandedFoodCacheJob,
 ];
