@@ -821,7 +821,8 @@ export type NotificationType =
   | "class_reminder"
   | "cancellation"
   | "waitlist_offer"
-  | "waitlist_timeout";
+  | "waitlist_timeout"
+  | "readiness_alert";
 
 export interface NotificationRecord {
   id: string;
@@ -951,6 +952,20 @@ export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
   taxRatePercent: null,
 };
 
+// Staff-configured settings for alerting a coach before a session when a
+// member's readiness score comes in low (singleton). Off by default — a
+// gym that never checks it shouldn't start silently paging staff.
+export interface ReadinessAlertSettings {
+  enabled: boolean;
+  /** 0-100 — a readiness score strictly below this triggers the alert. */
+  threshold: number;
+}
+
+export const DEFAULT_READINESS_ALERT_SETTINGS: ReadinessAlertSettings = {
+  enabled: false,
+  threshold: 50,
+};
+
 interface Database {
   users: StoredUser[];
   profiles: ProfileRecord[];
@@ -1001,6 +1016,7 @@ interface Database {
   // Optional-email toggles (singleton). Missing keys default to ON via readDb.
   emailSettings: TransactionalEmailSettings;
   financeSettings: FinanceSettings;
+  readinessAlertSettings: ReadinessAlertSettings;
   // TRIAL-ONLY — see BugReportRecord above and docs/bug-reports.md.
   bugReports: BugReportRecord[];
 }
@@ -1098,6 +1114,7 @@ function readDb(): Database {
       contactInquiries: [],
       emailSettings: { ...DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS },
       financeSettings: { ...DEFAULT_FINANCE_SETTINGS },
+      readinessAlertSettings: { ...DEFAULT_READINESS_ALERT_SETTINGS },
       bugReports: [],
     };
   }
@@ -1222,6 +1239,7 @@ function readDb(): Database {
     // Merge over defaults so any missing (or future) key stays ON.
     emailSettings: { ...DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS, ...(parsed.emailSettings ?? {}) },
     financeSettings: { ...DEFAULT_FINANCE_SETTINGS, ...(parsed.financeSettings ?? {}) },
+    readinessAlertSettings: { ...DEFAULT_READINESS_ALERT_SETTINGS, ...(parsed.readinessAlertSettings ?? {}) },
     bugReports: parsed.bugReports ?? [],
   };
 }
@@ -2230,6 +2248,16 @@ export function getFinanceSettings(): FinanceSettings {
 export function saveFinanceSettings(settings: FinanceSettings): void {
   const db = readDb();
   db.financeSettings = settings;
+  writeDb(db);
+}
+
+export function getReadinessAlertSettings(): ReadinessAlertSettings {
+  return readDb().readinessAlertSettings;
+}
+
+export function saveReadinessAlertSettings(settings: ReadinessAlertSettings): void {
+  const db = readDb();
+  db.readinessAlertSettings = settings;
   writeDb(db);
 }
 

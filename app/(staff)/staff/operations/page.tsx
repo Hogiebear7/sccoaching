@@ -4,6 +4,7 @@ import {
   findClassCategories,
   findDeletedCategoryLabels,
   findRecentJobRuns,
+  getReadinessAlertSettings,
   getTransactionalEmailSettings,
 } from "@/lib/db";
 import { requireStaffPage } from "@/lib/staff-auth";
@@ -35,6 +36,7 @@ export default async function StaffOperationsPage() {
       deletedLabels={deletedLabels}
       classTypes={classTypes}
       emailSettings={getTransactionalEmailSettings()}
+      readinessAlertSettings={getReadinessAlertSettings()}
     />
   );
 }

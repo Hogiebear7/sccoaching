@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import type {
   ClassCategoryRecord,
   JobRunRecord,
+  ReadinessAlertSettings,
   TransactionalEmailSettings,
   TransactionalEmailType,
 } from "@/lib/db";
@@ -46,6 +47,7 @@ export function OperationsView({
   deletedLabels,
   classTypes,
   emailSettings,
+  readinessAlertSettings,
 }: {
   members: MemberOperationalSummary[];
   classes: ClassPressureSummary[];
@@ -54,6 +56,7 @@ export function OperationsView({
   deletedLabels: Record<string, string>;
   classTypes: ClassTypeRow[];
   emailSettings: TransactionalEmailSettings;
+  readinessAlertSettings: ReadinessAlertSettings;
 }) {
   const router = useRouter();
   const [isRunning, setIsRunning] = useState(false);
@@ -193,6 +196,9 @@ export function OperationsView({
 
       {/* Transactional email toggles */}
       <EmailSettingsManager settings={emailSettings} />
+
+      {/* Readiness alert threshold */}
+      <ReadinessAlertSettingsManager settings={readinessAlertSettings} />
 
       {/* Upcoming classes — condensed month calendar instead of a flat list */}
       <OperationsCalendar classes={classes} categories={categories} deletedLabels={deletedLabels} />
@@ -489,6 +495,116 @@ function EmailSettingsManager({ settings }: { settings: TransactionalEmailSettin
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function ReadinessAlertSettingsManager({ settings }: { settings: ReadinessAlertSettings }) {
+  const router = useRouter();
+  const [enabled, setEnabled] = useState(settings.enabled);
+  const [threshold, setThreshold] = useState(String(settings.threshold));
+  const [busy, setBusy] = useState(false);
+  const [banner, setBanner] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function save(next: { enabled: boolean; threshold: number }) {
+    setBusy(true);
+    setBanner(null);
+    try {
+      const res = await fetch("/api/staff/settings/readiness-alert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setBanner({ ok: false, message: data?.message ?? "Something went wrong." });
+        return;
+      }
+      setBanner({ ok: true, message: data?.message ?? "Saved." });
+      router.refresh();
+    } catch {
+      setBanner({ ok: false, message: "Something went wrong. Please try again." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleToggle(next: boolean) {
+    setEnabled(next);
+    const parsedThreshold = Number(threshold);
+    save({ enabled: next, threshold: Number.isFinite(parsedThreshold) ? parsedThreshold : settings.threshold });
+  }
+
+  function handleThresholdBlur() {
+    const parsed = Number(threshold);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      setThreshold(String(settings.threshold));
+      return;
+    }
+    save({ enabled, threshold: parsed });
+  }
+
+  return (
+    <div className="panel p-6">
+      <h3 className="text-lg font-semibold">Readiness alerts</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        When a member logs a readiness score below this threshold, every staff account gets
+        notified so their session can be adjusted ahead of time.
+      </p>
+
+      {banner ? (
+        <p
+          className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
+            banner.ok
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-destructive/30 bg-destructive/10 text-destructive"
+          }`}
+        >
+          {banner.message}
+        </p>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 py-1">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">Alert staff on low readiness</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Off by default.</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label="Alert staff on low readiness"
+          disabled={busy}
+          onClick={() => handleToggle(!enabled)}
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${
+            enabled ? "bg-primary" : "bg-muted"
+          }`}
+        >
+          <span
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+              enabled ? "translate-x-5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+
+      <div className="mt-3 flex items-center gap-3">
+        <label htmlFor="readiness-threshold" className="text-sm font-medium text-foreground">
+          Threshold
+        </label>
+        <input
+          id="readiness-threshold"
+          type="number"
+          min={0}
+          max={100}
+          value={threshold}
+          onChange={(e) => setThreshold(e.target.value)}
+          onBlur={handleThresholdBlur}
+          disabled={busy || !enabled}
+          className="w-20 rounded-lg border border-border bg-input px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+        />
+        <span className="text-xs text-muted-foreground">out of 100 — scores below this alert staff.</span>
       </div>
     </div>
   );

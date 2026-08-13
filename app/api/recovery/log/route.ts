@@ -3,13 +3,19 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  createNotification,
+  findNotificationByDedupeKey,
+  findProfileByUserId,
   findRecoveryLogByUserIdAndDate,
+  findStaffUsers,
   findUserById,
+  getReadinessAlertSettings,
   saveRecoveryLog,
   type RecoveryLogRecord,
 } from "@/lib/db";
 import { computeReadinessScore } from "@/lib/recovery";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { sendPush } from "@/lib/push";
 
 function parseRequiredRange(
   value: unknown,
@@ -179,9 +185,46 @@ export async function POST(request: NextRequest) {
   };
 
   saveRecoveryLog(log);
+  notifyStaffIfReadinessLow(user.id, trimmedDate, readinessScore);
 
   return NextResponse.json(
     { success: true, message: existingLog ? "Recovery log updated." : "Recovery log saved." },
     { status: existingLog ? 200 : 201 }
   );
+}
+
+// Alerts every staff user once per member per day when readiness comes in
+// below the configured threshold, so a coach can adjust that day's plan
+// before the member's next session rather than finding out mid-workout.
+function notifyStaffIfReadinessLow(memberId: string, date: string, readinessScore: number): void {
+  const settings = getReadinessAlertSettings();
+  if (!settings.enabled || readinessScore >= settings.threshold) return;
+
+  const profile = findProfileByUserId(memberId);
+  const memberName = profile?.fullName || profile?.email || "A member";
+  const dedupeKey = `readiness-low:${memberId}:${date}`;
+
+  for (const staff of findStaffUsers()) {
+    if (staff.archivedAt) continue;
+    if (findNotificationByDedupeKey(staff.id, dedupeKey)) continue;
+
+    const notification = {
+      id: randomUUID(),
+      userId: staff.id,
+      type: "readiness_alert" as const,
+      title: `Low readiness: ${memberName}`,
+      body: `${memberName} logged a readiness score of ${readinessScore}/100 today — below the ${settings.threshold} alert threshold. Consider adjusting today's session.`,
+      readAt: null,
+      linkHref: `/staff/members/${memberId}`,
+      dedupeKey,
+      createdAt: new Date().toISOString(),
+    };
+
+    createNotification(notification);
+    void sendPush(staff.id, {
+      title: notification.title,
+      body: notification.body,
+      linkHref: notification.linkHref,
+    });
+  }
 }
