@@ -62,6 +62,11 @@ export interface ProfileRecord {
   emergencyContactPhone: string | null;
   emergencyContact2Name: string | null;
   emergencyContact2Phone: string | null;
+  // Up to 5 exercise names the member has chosen to feature on their
+  // Personal Bests card (Workouts tab), in the order they picked them.
+  // Synced from mobile via /api/profile/pinned-exercises. Optional/null for
+  // records created before this field existed (see db.ts normalization).
+  pinnedExercises?: string[] | null;
   cycleTrackingEligible: boolean;
   cycleTrackingEnabled: boolean;
   menopauseSupportEnabled: boolean;

@@ -1151,6 +1151,7 @@ function readDb(): Database {
       emergencyContactPhone: p.emergencyContactPhone ?? null,
       emergencyContact2Name: p.emergencyContact2Name ?? null,
       emergencyContact2Phone: p.emergencyContact2Phone ?? null,
+      pinnedExercises: p.pinnedExercises ?? null,
     })),
     resetTokens: parsed.resetTokens ?? [],
     programmes: parsed.programmes ?? [],

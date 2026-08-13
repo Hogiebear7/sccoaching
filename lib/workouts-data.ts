@@ -1,5 +1,6 @@
 import {
   findExercises,
+  findProfileByUserId,
   findUserById,
   findWorkoutSessionsByUserId,
   type WorkoutExerciseEntry,
@@ -34,6 +35,10 @@ export interface WorkoutsData {
   // app/(dashboard)/dashboard/workouts/shared/ExerciseAutocomplete.tsx for
   // the web equivalent) and the trend chart's exercise picker.
   exerciseLibrary: ExerciseLibraryEntry[];
+  // Up to 5 exercise names the member chose to feature on their Personal
+  // Bests card, in pick order — see /api/profile/pinned-exercises. Empty
+  // until the member curates their own list.
+  pinnedExercises: string[];
 }
 
 // Full session history (exercises + runs, not just names) so the mobile app
@@ -47,6 +52,7 @@ export function getWorkoutsData(userId: string | undefined): WorkoutsData | null
 
   const sessions = findWorkoutSessionsByUserId(user.id);
   const personalBests = computePersonalBests(sessions);
+  const profile = findProfileByUserId(user.id);
 
   return {
     sessions: sessions.map((s) => ({
@@ -61,5 +67,6 @@ export function getWorkoutsData(userId: string | undefined): WorkoutsData | null
     })),
     personalBests,
     exerciseLibrary: findExercises().map((e) => ({ id: e.id, name: e.name, section: e.section })),
+    pinnedExercises: profile?.pinnedExercises ?? [],
   };
 }
