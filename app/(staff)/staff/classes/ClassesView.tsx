@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { ClassCategory, ClassCategoryRecord, ClassRecord, ClassSeriesRecord } from "@/lib/db";
@@ -113,6 +113,7 @@ export function ClassesView({
   coaches: { userId: string; label: string }[];
 }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [values, setValues] = useState<ClassFormValues>(() =>
     emptyFormValues(categories[0]?.slug ?? "")
@@ -133,6 +134,7 @@ export function ClassesView({
   const [attendanceUpdatingId, setAttendanceUpdatingId] = useState<string | null>(null);
   const [showUpcoming, setShowUpcoming] = useState(true);
   const [showPast, setShowPast] = useState(false);
+  const [showRepeating, setShowRepeating] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -301,6 +303,7 @@ export function ClassesView({
     setErrors({});
     setFormError(null);
     setSuccessMessage(null);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function cancelEdit() {
@@ -472,6 +475,7 @@ export function ClassesView({
 
       {/* Create / edit form */}
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         className="panel rounded-3xl p-6"
       >
@@ -761,19 +765,23 @@ export function ClassesView({
 
       {/* Recurring series — the schedules that generate upcoming classes */}
       {activeSeries.length > 0 ? (
-        <div className="panel p-6">
-          <h3 className="text-lg font-semibold">Repeating classes</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
+        <CollapsibleSection
+          title="Repeating classes"
+          count={activeSeries.length}
+          isOpen={showRepeating}
+          onToggle={() => setShowRepeating((v) => !v)}
+        >
+          <p className="text-xs text-muted-foreground">
             These schedules add sessions automatically, 4 weeks ahead. Stopping one keeps
             sessions people have booked; unbooked upcoming sessions are removed.
           </p>
           {seriesError ? (
-            <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{seriesError}</p>
+            <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{seriesError}</p>
           ) : null}
           {seriesMessage ? (
-            <p className="mt-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">{seriesMessage}</p>
+            <p className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">{seriesMessage}</p>
           ) : null}
-          <div className="mt-4 space-y-2">
+          <div className="space-y-2">
             {activeSeries.map((sr) => (
               <div key={sr.id} className="flex flex-wrap items-center justify-between gap-2 well p-3">
                 <div>
@@ -818,7 +826,7 @@ export function ClassesView({
               </div>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       ) : null}
       {/* List / Calendar toggle */}
       <div className="flex gap-2">
@@ -862,6 +870,11 @@ export function ClassesView({
           categories={categories}
           deletedLabels={deletedLabels}
           coaches={coaches}
+          renderActions={(classId) => {
+            const classRecord = classes.find((c) => c.id === classId);
+            if (!classRecord) return null;
+            return renderClassActions(classRecord, true);
+          }}
         />
       ) : (
         <>
@@ -921,10 +934,72 @@ export function ClassesView({
     </div>
   );
 
-  function renderClassCard(classRecord: ClassWithRoster, canDelete: boolean) {
+  function renderClassActions(classRecord: ClassWithRoster, canDelete: boolean) {
     const isConfirmingDelete = confirmDeleteId === classRecord.id;
     const isDeleting = deletingId === classRecord.id;
 
+    return (
+      <>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Link
+            href={`/staff/classes/${classRecord.id}/workout`}
+            className="rounded-xl border border-primary/30 px-3 py-1 text-xs font-medium text-primary transition hover:border-primary/60"
+          >
+            Workout
+          </Link>
+          <button
+            type="button"
+            onClick={() => startEdit(classRecord)}
+            className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
+          >
+            Edit
+          </button>
+          {canDelete && !isConfirmingDelete ? (
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmDeleteId(classRecord.id);
+                setDeleteError(null);
+                setDeleteMessage(null);
+              }}
+              className="rounded-xl border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60"
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
+        {canDelete && isConfirmingDelete ? (
+          <div className="flex flex-col items-start gap-1.5 sm:items-end">
+            <p className="text-[11px] text-muted-foreground sm:text-right">
+              {classRecord.bookedCount > 0
+                ? `Cancels ${classRecord.bookedCount} booking${classRecord.bookedCount === 1 ? "" : "s"} and returns each member's class pass.`
+                : "This can't be undone."}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleDelete(classRecord.id)}
+                disabled={isDeleting}
+                className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeleting ? "Deleting…" : "Confirm delete"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                disabled={isDeleting}
+                className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Keep class
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
+  }
+
+  function renderClassCard(classRecord: ClassWithRoster, canDelete: boolean) {
     return (
       <div key={classRecord.id} className="well p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -953,61 +1028,7 @@ export function ClassesView({
                 ? ` · ${classRecord.waitlist.length} waitlisted`
                 : ""}
             </span>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Link
-                href={`/staff/classes/${classRecord.id}/workout`}
-                className="rounded-xl border border-primary/30 px-3 py-1 text-xs font-medium text-primary transition hover:border-primary/60"
-              >
-                Workout
-              </Link>
-              <button
-                type="button"
-                onClick={() => startEdit(classRecord)}
-                className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
-              >
-                Edit
-              </button>
-              {canDelete && !isConfirmingDelete ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfirmDeleteId(classRecord.id);
-                    setDeleteError(null);
-                    setDeleteMessage(null);
-                  }}
-                  className="rounded-xl border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60"
-                >
-                  Delete
-                </button>
-              ) : null}
-            </div>
-            {canDelete && isConfirmingDelete ? (
-              <div className="flex flex-col items-start gap-1.5 sm:items-end">
-                <p className="text-[11px] text-muted-foreground sm:text-right">
-                  {classRecord.bookedCount > 0
-                    ? `Cancels ${classRecord.bookedCount} booking${classRecord.bookedCount === 1 ? "" : "s"} and returns each member's class pass.`
-                    : "This can't be undone."}
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(classRecord.id)}
-                    disabled={isDeleting}
-                    className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isDeleting ? "Deleting…" : "Confirm delete"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteId(null)}
-                    disabled={isDeleting}
-                    className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Keep class
-                  </button>
-                </div>
-              </div>
-            ) : null}
+            {renderClassActions(classRecord, canDelete)}
           </div>
         </div>
 

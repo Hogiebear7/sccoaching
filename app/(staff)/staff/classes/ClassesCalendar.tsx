@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import type { ClassCategoryRecord } from "@/lib/db";
 import { classCategoryLabel } from "@/lib/scheduling-status";
@@ -35,11 +36,13 @@ export function ClassesCalendar({
   categories,
   deletedLabels,
   coaches,
+  renderActions,
 }: {
   classes: CalendarClass[];
   categories: ClassCategoryRecord[];
   deletedLabels: Record<string, string>;
   coaches: { userId: string; label: string }[];
+  renderActions?: (classId: string) => ReactNode;
 }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -195,16 +198,19 @@ export function ClassesCalendar({
         ) : (
           <div className="mt-3 space-y-2">
             {selectedClasses.map((c) => (
-              <div key={c.id} className="well flex flex-wrap items-center justify-between gap-2 p-3">
+              <div key={c.id} className="well flex flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-sm font-medium">{c.title}</p>
                   <p className="text-xs text-muted-foreground">
                     {c.startTime} · {classCategoryLabel(categories, c.category, deletedLabels)} · {c.coachLabel}
                   </p>
                 </div>
-                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                  {c.bookedCount} of {c.capacity} booked
-                </span>
+                <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+                  <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+                    {c.bookedCount} of {c.capacity} booked
+                  </span>
+                  {renderActions ? renderActions(c.id) : null}
+                </div>
               </div>
             ))}
           </div>
