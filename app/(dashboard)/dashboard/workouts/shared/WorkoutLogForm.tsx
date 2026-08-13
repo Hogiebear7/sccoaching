@@ -38,6 +38,11 @@ type ExerciseRow = {
       blur ("60" → "60 kg" vs "130" → "1:30"). The stored value is always
       just the same free-text `weight` field either way. */
   unitMode: "weight" | "time";
+  /** "ST1", "ST2", etc. — exercises sharing a label were performed
+      back-to-back as a superset. null = not part of one. */
+  supersetGroup: string | null;
+  /** Reps/weight performed per side (unilateral exercise). */
+  perSide: boolean;
 };
 
 type RunRow = {
@@ -66,7 +71,20 @@ function newRow(): ExerciseRow {
     rir: "",
     setRows: [],
     unitMode: "weight",
+    supersetGroup: null,
+    perSide: false,
   };
+}
+
+// Computes the next unused "ST<n>" label given the groups already assigned
+// in this session, so "+ New superset" always offers the next free slot.
+function nextSupersetLabel(rows: ExerciseRow[]): string {
+  let max = 0;
+  for (const row of rows) {
+    const match = row.supersetGroup?.match(/^ST(\d+)$/);
+    if (match) max = Math.max(max, parseInt(match[1], 10));
+  }
+  return `ST${max + 1}`;
 }
 
 function newRunRow(): RunRow {
@@ -98,6 +116,8 @@ function sessionToExerciseRows(session: WorkoutSessionRecord): ExerciseRow[] {
       reps: sd.reps != null ? String(sd.reps) : "",
     })),
     unitMode: "weight",
+    supersetGroup: ex.supersetGroup ?? null,
+    perSide: ex.perSide ?? false,
   }));
 }
 
@@ -214,6 +234,8 @@ export function WorkoutLogForm({
             weight: sr.weight.trim() || null,
             reps: sr.reps.trim() ? parseInt(sr.reps, 10) : null,
           })),
+        supersetGroup: row.supersetGroup,
+        perSide: row.perSide,
         notes: row.notes.trim() || null,
       }));
 
@@ -402,6 +424,35 @@ export function WorkoutLogForm({
                     />
                   </div>
 
+                  <div>
+                    <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-foreground">
+                      Superset <span className="font-normal text-muted-foreground">opt.</span>
+                      <InfoTooltip text="Group exercises performed back-to-back with no rest between them. They'll show together as ST1, ST2, etc." />
+                    </label>
+                    <select
+                      value={row.supersetGroup ?? ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === "__new__") {
+                          updateRow(row.key, { supersetGroup: nextSupersetLabel(exerciseRows) });
+                        } else {
+                          updateRow(row.key, { supersetGroup: value || null });
+                        }
+                      }}
+                      className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+                    >
+                      <option value="">Not part of a superset</option>
+                      {Array.from(
+                        new Set(exerciseRows.map((r) => r.supersetGroup).filter((g): g is string => !!g))
+                      ).map((group) => (
+                        <option key={group} value={group}>
+                          {group}
+                        </option>
+                      ))}
+                      <option value="__new__">+ New superset</option>
+                    </select>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div>
                       <div className="mb-1.5 flex items-center justify-between gap-1">
@@ -458,10 +509,21 @@ export function WorkoutLogForm({
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-foreground">
-                        Reps
-                        <InfoTooltip text="How many repetitions you completed per set." />
-                      </label>
+                      <div className="mb-1.5 flex items-center justify-between gap-1">
+                        <label className="flex items-center gap-1 text-xs font-medium text-foreground">
+                          Reps
+                          <InfoTooltip text="How many repetitions you completed per set." />
+                        </label>
+                        <label className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={row.perSide}
+                            onChange={(e) => updateRow(row.key, { perSide: e.target.checked })}
+                            className="h-3 w-3 rounded border-border"
+                          />
+                          per side
+                        </label>
+                      </div>
                       <input
                         type="number"
                         min={0}

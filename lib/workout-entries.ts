@@ -58,6 +58,7 @@ export function parseExerciseEntries(exercises: unknown): WorkoutExerciseEntry[]
         setDetails: setDetails.length > 0 ? setDetails : null,
         setType: parseSetType(e.setType),
         supersetGroup: typeof e.supersetGroup === "string" && e.supersetGroup.trim() ? e.supersetGroup.trim() : null,
+        perSide: e.perSide === true,
         notes: typeof e.notes === "string" && e.notes.trim() ? e.notes.trim() : null,
       } satisfies WorkoutExerciseEntry,
     ];
@@ -75,16 +76,17 @@ export const SET_TYPE_LABEL: Record<WorkoutSetType, string> = {
 // Compact display for an exercise entry: per-set detail when present
 // ("60kg×8, 65kg×6 (dropset)"), otherwise the shared sets×reps @ weight form.
 export function formatExerciseLoad(ex: WorkoutExerciseEntry): string {
+  const perSideSuffix = ex.perSide ? "/side" : "";
   if (ex.setDetails && ex.setDetails.length > 0) {
     return ex.setDetails
       .map((s) => {
         const load =
           s.weight && s.reps !== null
-            ? `${s.weight}×${s.reps}`
+            ? `${s.weight}×${s.reps}${perSideSuffix}`
             : s.weight
               ? `${s.weight}`
               : s.reps !== null
-                ? `×${s.reps}`
+                ? `×${s.reps}${perSideSuffix}`
                 : "—";
         const typeLabel = s.setType ? SET_TYPE_LABEL[s.setType] : "";
         return typeLabel ? `${load} (${typeLabel})` : load;
@@ -92,9 +94,9 @@ export function formatExerciseLoad(ex: WorkoutExerciseEntry): string {
       .join(", ");
   }
   const parts: string[] = [];
-  if (ex.sets !== null && ex.reps !== null) parts.push(`${ex.sets}×${ex.reps}`);
+  if (ex.sets !== null && ex.reps !== null) parts.push(`${ex.sets}×${ex.reps}${perSideSuffix}`);
   else if (ex.sets !== null) parts.push(`${ex.sets} sets`);
-  else if (ex.reps !== null) parts.push(`${ex.reps} reps`);
+  else if (ex.reps !== null) parts.push(`${ex.reps} reps${perSideSuffix}`);
   if (ex.weight) parts.push(`@ ${ex.weight}`);
   if (ex.rpe != null) parts.push(`RPE ${ex.rpe}`);
   if (ex.rir != null) parts.push(`RIR ${ex.rir}`);

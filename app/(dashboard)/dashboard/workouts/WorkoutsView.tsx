@@ -323,6 +323,11 @@ export function WorkoutsView({
                           return (
                             <div key={i} className="flex items-baseline gap-2 text-sm">
                               {section && <MuscleMap section={section} className="h-4 w-3 shrink-0 self-center" />}
+                              {ex.supersetGroup && (
+                                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                  {ex.supersetGroup}
+                                </span>
+                              )}
                               <span className="font-medium text-foreground">{ex.name}</span>
                               {load && <span className="text-xs text-muted-foreground">{load}</span>}
                             </div>

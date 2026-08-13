@@ -87,6 +87,9 @@ export interface WorkoutExerciseEntry {
       performed back-to-back as a superset — member self-tagged, not a
       separate record. Order within the session implies the pairing order. */
   supersetGroup?: string | null;
+  /** True when reps/weight were performed per side (unilateral exercise —
+      e.g. single-arm row), rather than combined across both sides. */
+  perSide?: boolean | null;
   notes: string | null;
 }
 
