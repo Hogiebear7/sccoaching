@@ -16,7 +16,7 @@ Fill in **Owner** and **Evidence of completion** as each item is done.
 | ☐ | Deploy to production | | |
 | ☐ | Register live Stripe webhook: `https://<domain>/api/stripe/webhook`, subscribed to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted` | | |
 | ☐ | Copy the webhook signing secret into `STRIPE_WEBHOOK_SECRET`, redeploy/restart | | |
-| ☐ | Configure external scheduler: `POST /api/cron/run` hourly, header `Authorization: Bearer <CRON_SECRET>` | | |
+| ☐ | Set `PROD_URL` + `CRON_SECRET` repo secrets so `.github/workflows/housekeeping.yml` can call `POST /api/cron/run` (runs every 15 min already, no extra scheduler needed) | | |
 | ☐ | Clean up demo/seed accounts (section 6) | | |
 | ☐ | Confirm or replace placeholder content (section 5) | | |
 | ☐ | Run the launch-day smoke test (section 2) | | |

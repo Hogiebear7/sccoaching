@@ -64,11 +64,18 @@ A `vercel.json` is already checked in, configured to call
    the reactive paths (retry-on-stale-checkout in the UI,
    promotion-on-cancellation) still cover the time-sensitive parts in the
    meantime.
-3. **Not on Vercel?** Anything that can make an authenticated HTTP request
-   on a schedule works — a GitHub Actions workflow with a `schedule:`
-   trigger calling `curl -X POST https://<host>/api/cron/run -H "Authorization: Bearer $CRON_SECRET"`,
-   a system cron entry, or a different host's native cron/scheduled-task
-   feature.
+3. **Not on Vercel?** `.github/workflows/housekeeping.yml` already does this
+   — it runs every 15 minutes and calls
+   `curl -X POST $PROD_URL/api/cron/run -H "Authorization: Bearer $CRON_SECRET"`.
+   It needs two repository secrets set once, in GitHub under Settings >
+   Secrets and variables > Actions:
+   - `PROD_URL` — the production origin, e.g. `https://your-domain.com`
+     (no trailing slash).
+   - `CRON_SECRET` — must match the `CRON_SECRET` env var set on the
+     Hostinger deployment itself (step 1 above); the workflow doesn't set
+     that half, only reads it.
+   Any other scheduler works too (system cron, a different host's native
+   scheduled-task feature) if GitHub Actions isn't preferred.
 4. **Manual testing locally** — with the dev server running:
    ```bash
    curl -X POST http://localhost:3000/api/cron/run \

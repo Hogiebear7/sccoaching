@@ -1,0 +1,39 @@
+name: Housekeeping cron
+
+# Triggers the app's own job runner (lib/jobs/*.ts via app/api/cron/run)
+# on a schedule, since the production host (Hostinger) has no built-in
+# scheduler of its own. See docs/scheduler.md for the full picture.
+#
+# Requires two repository secrets (Settings > Secrets and variables >
+# Actions), set once:
+#   PROD_URL     e.g. https://your-domain.com (no trailing slash)
+#   CRON_SECRET  must match the CRON_SECRET env var set on the Hostinger
+#                deployment itself — this workflow does not set that part.
+
+on:
+  schedule:
+    # Every 15 minutes, matching vercel.json's cadence (the fastest class
+    # reminder window is 60 minutes out, with a 4-hour staleness cutoff —
+    # 15 minutes keeps sends comfortably prompt without hammering the host).
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run-housekeeping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/run
+        run: |
+          if [ -z "${{ secrets.PROD_URL }}" ] || [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "::error::PROD_URL and/or CRON_SECRET repository secrets are not set. See .github/workflows/housekeeping.yml for setup."
+            exit 1
+          fi
+          status=$(curl -sS -o response.json -w "%{http_code}" -X POST \
+            "${{ secrets.PROD_URL }}/api/cron/run" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          echo "HTTP status: $status"
+          cat response.json
+          if [ "$status" -ge 300 ]; then
+            echo "::error::Housekeeping run failed with HTTP $status"
+            exit 1
+          fi

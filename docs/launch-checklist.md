@@ -31,12 +31,13 @@ in the codebase blocks them.
 
 ## 3. Cron / background jobs
 
-- ☐ Set `CRON_SECRET` (generate like `SESSION_SECRET`).
-- ☐ Configure the external scheduler to call
+- ☐ Set `CRON_SECRET` (generate like `SESSION_SECRET`) as an env var on the
+  Hostinger deployment.
+- ☐ `.github/workflows/housekeeping.yml` already calls
   `POST https://<domain>/api/cron/run` with
-  `Authorization: Bearer <CRON_SECRET>` — hourly is sufficient for every
-  current job (checkout expiry, lapse + pass-expiry notices, waitlist
-  offers, class reminders, cleanup). See `docs/scheduler.md`.
+  `Authorization: Bearer <CRON_SECRET>` every 15 minutes — just set the
+  `PROD_URL` and `CRON_SECRET` repository secrets in GitHub (Settings >
+  Secrets and variables > Actions) to activate it. See `docs/scheduler.md`.
 - Verified code-side: with no/incorrect secret the endpoint returns 401;
   staff sessions can always trigger a manual run from Staff → Operations.
 
