@@ -1,5 +1,5 @@
 import type { ProfileRecord, TrainingDayOfWeek, WeeklyTrainingScheduleRecord } from "./profile-schema";
-import type { RecoveryLogRecord, WorkoutSessionRecord } from "./db";
+import type { NutritionTargetMode, RecoveryLogRecord, WorkoutSessionRecord } from "./db";
 import type { DrinkSettings } from "./drink-settings";
 import type { ResolvedBooking } from "./bookings";
 import {
@@ -8,9 +8,7 @@ import {
   drinkDurationInfo,
   EXERTION_LABEL,
   exertionFromDayLoad,
-  fuelBandForLoad,
   goalBiasFromPrimaryGoal,
-  macroTargets,
   RUN_EFFORTS,
   sodiumTargetPerLitre,
   SPORT_DATA,
@@ -18,6 +16,7 @@ import {
   type Exertion,
   type FuelDay,
 } from "./nutrition";
+import { getResolvedNutritionTarget } from "./nutrition-target-data";
 import { excludedAllergensFor, recommendFoods } from "./nutrition-recommendations";
 import {
   ALLERGEN_OPTIONS,
@@ -385,11 +384,13 @@ function buildWeeklyTrainingPatternLines(schedule: WeeklyTrainingScheduleRecord 
 }
 
 export interface NutritionCoachContextDisplay {
-  fuelDay: FuelDay;
-  fuelDayLabel: string;
-  carbGramsDay: number;
-  proteinGramsDay: number;
-  fatGramsDay: number;
+  targetMode: NutritionTargetMode;
+  fuelDay: FuelDay | null;
+  fuelDayLabel: string | null;
+  calories: number | null;
+  carbGramsDay: number | null;
+  proteinGramsDay: number | null;
+  fatGramsDay: number | null;
   weekBand: LoadBand;
   weekBandLabel: string;
   nextSession: { title: string; date: string; category: string } | null;
@@ -423,11 +424,17 @@ export function buildNutritionCoachContext(input: NutritionCoachContextInput): N
   const yesterdayExertion = exertionFromDayLoad(dayLoadFor(isoDaysAgo(1)));
   const todayExertion = exertionFromDayLoad(dayLoadFor(todayISO));
   const load = weightedThreeDayLoad(yesterdayExertion, todayExertion, tomorrow);
-  const band = fuelBandForLoad(load);
 
-  const bodyWeightKg = profile.currentWeightKg ?? 75;
+  // The actual calorie/macro target — adaptive TDEE once there's enough
+  // weight+diary history, cold-start estimate otherwise, or the coach's
+  // manual/disabled override. Computed independently of the load/band
+  // above (it derives its own day-by-day load from Recovery logs + the
+  // weekly training pattern) so it always matches what the Nutrition tab
+  // and Week/Day screens show — this is the single source of truth for
+  // "today's target", not a recomputation from the load line above.
+  const resolvedTarget = getResolvedNutritionTarget(profile.userId, todayISO, todayISO);
   const goalBias = goalBiasFromPrimaryGoal(profile.primaryGoal);
-  const macros = macroTargets(bodyWeightKg, band, goalBias);
+  const bodyWeightKg = resolvedTarget?.bodyWeightKg ?? profile.currentWeightKg ?? 75;
 
   const rolling = computeRollingTrainingLoad(recoveryLogs);
   const weekBand = classifyLoad(rolling.sevenDaySum, rolling.daysWithLoad);
@@ -463,13 +470,37 @@ export function buildNutritionCoachContext(input: NutritionCoachContextInput): N
   lines.push(`- 7-day training load band (from Recovery logs): ${LOAD_BAND_LABEL[weekBand]}`);
 
   lines.push("");
-  lines.push("## Today's fuel day and macro targets (already computed by the app — cite exactly, never recompute)");
-  lines.push(`- Fuel day: ${band.label} — ${band.emphasis}`);
-  lines.push(`- Carbs: ${macros.carbGramsDay} g (${macros.carbGkg} g/kg)`);
-  lines.push(`- Protein: ${macros.proteinGramsDay} g (${macros.proteinGkg} g/kg)`);
-  lines.push(`- Fat: ${macros.fatGramsDay} g (${macros.fatGkg} g/kg)`);
-  if (goalBias !== "maintain") {
-    lines.push(`- Carb target is adjusted for their ${profile.primaryGoal.toLowerCase()} goal.`);
+  if (resolvedTarget?.mode === "disabled") {
+    lines.push("## Daily calorie/macro target — turned off for this member");
+    lines.push(
+      "- Their coach has disabled automatic targets. Don't state or imply a calorie/macro number — talk qualitatively about fuelling instead."
+    );
+  } else if (resolvedTarget?.mode === "manual" && resolvedTarget.calories !== null) {
+    lines.push("## Daily calorie/macro target — set by their coach (already computed — cite exactly, never recompute)");
+    lines.push(`- Calories: ${resolvedTarget.calories} kcal`);
+    lines.push(`- Protein: ${resolvedTarget.proteinG} g`);
+    lines.push(`- Carbs: ${resolvedTarget.carbsG} g`);
+    lines.push(`- Fat: ${resolvedTarget.fatG} g`);
+    if (resolvedTarget.notes) lines.push(`- Coach's note: ${resolvedTarget.notes}`);
+  } else if (resolvedTarget?.mode === "auto" && resolvedTarget.calories !== null) {
+    lines.push("## Today's calorie/macro target — app-estimated (already computed — cite exactly, never recompute)");
+    lines.push(`- Fuel day: ${resolvedTarget.fuelDayLabel}`);
+    lines.push(
+      `- Calories: ${resolvedTarget.calories} kcal (${
+        resolvedTarget.source === "adaptive"
+          ? "learned from their logged weight + food trend"
+          : "estimated from bodyweight and training load — refines automatically as they log more weigh-ins and meals"
+      })`
+    );
+    lines.push(`- Protein: ${resolvedTarget.proteinG} g`);
+    lines.push(`- Carbs: ${resolvedTarget.carbsG} g`);
+    lines.push(`- Fat: ${resolvedTarget.fatG} g`);
+    if (goalBias !== "maintain") {
+      lines.push(`- Adjusted for their ${profile.primaryGoal.toLowerCase()} goal.`);
+    }
+  } else {
+    lines.push("## Daily calorie/macro target — not available yet");
+    lines.push("- No weight on file, so a target can't be computed. Suggest they log their weight in Profile.");
   }
 
   lines.push("");
@@ -494,11 +525,13 @@ export function buildNutritionCoachContext(input: NutritionCoachContextInput): N
   return {
     text: lines.join("\n"),
     display: {
-      fuelDay: band.day,
-      fuelDayLabel: band.label,
-      carbGramsDay: macros.carbGramsDay,
-      proteinGramsDay: macros.proteinGramsDay,
-      fatGramsDay: macros.fatGramsDay,
+      targetMode: resolvedTarget?.mode ?? "auto",
+      fuelDay: resolvedTarget?.fuelDay as FuelDay | null,
+      fuelDayLabel: resolvedTarget?.fuelDayLabel ?? null,
+      calories: resolvedTarget?.calories ?? null,
+      carbGramsDay: resolvedTarget?.carbsG ?? null,
+      proteinGramsDay: resolvedTarget?.proteinG ?? null,
+      fatGramsDay: resolvedTarget?.fatG ?? null,
       weekBand,
       weekBandLabel: LOAD_BAND_LABEL[weekBand],
       nextSession: nextBooking

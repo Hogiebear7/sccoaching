@@ -207,17 +207,30 @@ export interface WorkoutTemplateRecord {
   updatedAt: string;
 }
 
-// ── Nutrition diary — member food logging against a staff-set target ───────
+// ── Nutrition diary — member food logging against a target ─────────────────
 // One target per member (overwritten on adjustment, not versioned — the
 // "since" date is just updatedAt); diary entries are the member's own
 // manually-logged meals, no external food database involved.
+//
+// mode governs where calories/proteinG/carbsG/fatG come from:
+//  - "manual": the numbers on this record are the target, staff-set.
+//  - "disabled": no target shown to the member at all; numbers are ignored.
+//  - "auto": numbers are ignored — the target is computed fresh by
+//    lib/nutrition-target-data.ts (adaptive TDEE or cold-start estimate).
+// No record at all for a member also means "auto" — it's the default for
+// everyone until a coach explicitly overrides or disables it. mode is
+// optional so pre-existing records (all staff-set before this field
+// existed) read as "manual" (see normalization below).
+export type NutritionTargetMode = "auto" | "manual" | "disabled";
+
 export interface NutritionTargetRecord {
   id: string;
   userId: string;
-  calories: number;
-  proteinG: number;
-  carbsG: number;
-  fatG: number;
+  mode?: NutritionTargetMode;
+  calories: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
   setByStaffId: string;
   notes: string | null;
   createdAt: string;
@@ -1160,7 +1173,10 @@ function readDb(): Database {
     programmes: parsed.programmes ?? [],
     trainingPrograms: parsed.trainingPrograms ?? [],
     workoutTemplates: parsed.workoutTemplates ?? [],
-    nutritionTargets: parsed.nutritionTargets ?? [],
+    // Every pre-existing record was an explicit staff-set target — default
+    // to "manual" on read so its calories/macros keep meaning what they
+    // always meant (see NutritionTargetRecord for the mode contract).
+    nutritionTargets: (parsed.nutritionTargets ?? []).map((t) => ({ ...t, mode: t.mode ?? "manual" })),
     foodEntries: parsed.foodEntries ?? [],
     customFoods: parsed.customFoods ?? [],
     commonFoods: parsed.commonFoods ?? [],

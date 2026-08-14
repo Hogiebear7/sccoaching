@@ -2,13 +2,21 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findNutritionTargetByUserId, findUserById, saveNutritionTarget, type NutritionTargetRecord } from "@/lib/db";
+import {
+  findNutritionTargetByUserId,
+  findUserById,
+  saveNutritionTarget,
+  type NutritionTargetMode,
+  type NutritionTargetRecord,
+} from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
 function positiveInt(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
 }
+
+const MODES: NutritionTargetMode[] = ["auto", "manual", "disabled"];
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
@@ -28,7 +36,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { userId, calories, proteinG, carbsG, fatG, notes } = (body ?? {}) as Record<string, unknown>;
+  const { userId, mode: rawMode, calories, proteinG, carbsG, fatG, notes } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof userId !== "string" || !userId.trim()) {
     return NextResponse.json({ success: false, message: "A member must be selected." }, { status: 400 });
@@ -38,12 +46,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
 
-  const cals = positiveInt(calories);
-  const protein = positiveInt(proteinG);
-  const carbs = positiveInt(carbsG);
-  const fat = positiveInt(fatG);
-  if (cals === null || protein === null || carbs === null || fat === null) {
-    return NextResponse.json({ success: false, message: "Calories and macros must be non-negative numbers." }, { status: 400 });
+  const mode: NutritionTargetMode = typeof rawMode === "string" && MODES.includes(rawMode as NutritionTargetMode)
+    ? (rawMode as NutritionTargetMode)
+    : "manual"; // back-compat: callers that never send mode are the old manual-only form
+
+  let cals: number | null = null;
+  let protein: number | null = null;
+  let carbs: number | null = null;
+  let fat: number | null = null;
+
+  if (mode === "manual") {
+    cals = positiveInt(calories);
+    protein = positiveInt(proteinG);
+    carbs = positiveInt(carbsG);
+    fat = positiveInt(fatG);
+    if (cals === null || protein === null || carbs === null || fat === null) {
+      return NextResponse.json({ success: false, message: "Calories and macros must be non-negative numbers." }, { status: 400 });
+    }
   }
 
   const existing = findNutritionTargetByUserId(member.id);
@@ -51,6 +70,7 @@ export async function POST(request: NextRequest) {
   const target: NutritionTargetRecord = {
     id: existing?.id ?? randomUUID(),
     userId: member.id,
+    mode,
     calories: cals,
     proteinG: protein,
     carbsG: carbs,

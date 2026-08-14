@@ -275,7 +275,7 @@ export function NutritionAiCoach({
 
         {context && (
           <div className="relative mt-3 flex flex-wrap items-center gap-1.5">
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(context.fuelDay)}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(context.fuelDay ?? undefined)}`}>
               Today · {context.fuelDayLabel}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 tabular-nums">

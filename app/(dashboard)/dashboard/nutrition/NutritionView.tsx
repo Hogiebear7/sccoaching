@@ -398,8 +398,13 @@ export function NutritionView({
   // inputs (see app/api/ai/nutrition-coach/route.ts), so correctness never
   // depends on this object either — it's display-only.
   const nutritionCoachContext: NutritionCoachContextDisplay = {
+    // This panel's own quick client-side estimate, kept separate from the
+    // adaptive engine (lib/nutrition-target.ts) that now drives the mobile
+    // Day/Week views and the AI's real grounding — see the comment above.
+    targetMode: "auto",
     fuelDay: band.day,
     fuelDayLabel: band.label,
+    calories: macros.carbGramsDay * 4 + macros.proteinGramsDay * 4 + macros.fatGramsDay * 9,
     carbGramsDay: macros.carbGramsDay,
     proteinGramsDay: macros.proteinGramsDay,
     fatGramsDay: macros.fatGramsDay,
