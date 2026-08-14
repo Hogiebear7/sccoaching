@@ -76,12 +76,21 @@ export const sendClassRemindersJob: JobDefinition = {
           day: "numeric",
         });
 
+        // Label the ACTUAL time remaining at send time, not the configured
+        // threshold (timingMins) that triggered this reminder. If the job
+        // falls behind schedule (a delayed cron tick, host downtime) and
+        // catches up on a reminder within the staleness window, the real
+        // gap to class start can be much smaller than timingMins implies —
+        // e.g. a "3 hours" threshold firing late, 20 minutes before class.
+        // Rounding to the nearest minute keeps a same-minute send at "0
+        // minutes" rather than negative/zero-labeled oddities.
+        const actualLeadMins = Math.max(0, Math.round((classMs - now) / 60_000));
         const leadLabel =
-          timingMins >= 60 && timingMins % 60 === 0
-            ? `${timingMins / 60} hour${timingMins / 60 === 1 ? "" : "s"}`
-            : timingMins >= 60
-            ? `${Math.floor(timingMins / 60)}h ${timingMins % 60}m`
-            : `${timingMins} minutes`;
+          actualLeadMins >= 60 && actualLeadMins % 60 === 0
+            ? `${actualLeadMins / 60} hour${actualLeadMins / 60 === 1 ? "" : "s"}`
+            : actualLeadMins >= 60
+            ? `${Math.floor(actualLeadMins / 60)}h ${actualLeadMins % 60}m`
+            : `${actualLeadMins} minutes`;
 
         const notification: NotificationRecord = {
           id: randomUUID(),
