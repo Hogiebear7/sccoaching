@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import { hasActiveMembership } from "@/lib/membership";
 import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
+import { resolvePendingCancellationCreditsForClass } from "@/lib/cancellation-credits";
 import { syncClassWorkoutToMember } from "@/lib/class-workout-sync";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
@@ -199,6 +200,17 @@ export async function POST(request: NextRequest) {
   };
 
   createBooking(booking);
+
+  // This offer being accepted may itself be the refill for a late
+  // cancellation (the common case: someone cancels late, this offer goes
+  // out as a direct result, they accept) — or an earlier still-pending one
+  // if there's more than one outstanding for this class. Either way,
+  // restore whichever is oldest now that a spot has genuinely been filled.
+  try {
+    resolvePendingCancellationCreditsForClass(entry.classId);
+  } catch {
+    // Must never block this member's own booking from completing.
+  }
 
   // If staff already prepared a workout for this class, it shows up in the
   // member's Workouts tab immediately — no need to wait for check-in.

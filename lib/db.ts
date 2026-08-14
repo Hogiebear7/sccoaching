@@ -760,6 +760,27 @@ export interface PassLedgerEntryRecord {
   createdAt: string;
 }
 
+// A late cancellation (within the cancellation cutoff) forfeits the
+// member's credit by default — but if the vacated spot gets filled before
+// the class starts (a waitlist offer is accepted, or someone else books
+// directly), the credit is restored after all. One record per late
+// cancellation; "pending" until either resolved by a refill or left
+// forfeited (the class starting with it still pending — no state change
+// needed there, since forfeiture was already the default at cancel time).
+export type PendingCancellationCreditStatus = "pending" | "refilled";
+
+export interface PendingCancellationCreditRecord {
+  id: string;
+  classId: string;
+  userId: string;
+  /** The now-deleted booking this credit came from — kept for audit context only. */
+  bookingId: string;
+  creditSource: "pass" | "subscription";
+  status: PendingCancellationCreditStatus;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
 export interface RecoveryLogRecord {
   id: string;
   userId: string;
@@ -836,7 +857,8 @@ export type NotificationType =
   | "cancellation"
   | "waitlist_offer"
   | "waitlist_timeout"
-  | "readiness_alert";
+  | "readiness_alert"
+  | "cancellation_credit_restored";
 
 export interface NotificationRecord {
   id: string;
@@ -1015,6 +1037,7 @@ interface Database {
   purchases: PurchaseRecord[];
   paymentEvents: PaymentEventRecord[];
   passLedger: PassLedgerEntryRecord[];
+  pendingCancellationCredits: PendingCancellationCreditRecord[];
   recoveryLogs: RecoveryLogRecord[];
   messages: MessageRecord[];
   notifications: NotificationRecord[];
@@ -1115,6 +1138,7 @@ function readDb(): Database {
       purchases: [],
       paymentEvents: [],
       passLedger: [],
+      pendingCancellationCredits: [],
       recoveryLogs: [],
       messages: [],
       notifications: [],
@@ -1230,6 +1254,7 @@ function readDb(): Database {
       ...e,
       bookingId: e.bookingId ?? null,
     })),
+    pendingCancellationCredits: parsed.pendingCancellationCredits ?? [],
     recoveryLogs: (parsed.recoveryLogs ?? []).map(normalizeRecoveryScale),
     messages: (parsed.messages ?? []).map((m) => ({ ...m, readAt: m.readAt ?? null })),
     notifications: (parsed.notifications ?? []).map((n) => ({
@@ -1396,7 +1421,7 @@ const MEMBER_OWNED_COLLECTIONS = [
   "profiles", "resetTokens", "programmes", "workoutSessions", "aiMessages",
   "bodyWeightLogs", "bookings", "subscriptions", "recoveryLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pushSubscriptions", "expoPushTokens", "notifications",
-  "purchases", "passLedger", "coachNotes", "weeklyTrainingSchedules",
+  "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
 ] as const;
 
 // PERMANENT, irreversible deletion of a user and every record they own. This is
@@ -1711,6 +1736,12 @@ export function saveWorkoutSession(session: WorkoutSessionRecord) {
     db.workoutSessions[index] = session;
   }
 
+  writeDb(db);
+}
+
+export function deleteWorkoutSession(id: string): void {
+  const db = readDb();
+  db.workoutSessions = db.workoutSessions.filter((s) => s.id !== id);
   writeDb(db);
 }
 
@@ -2743,6 +2774,29 @@ export function findPassLedgerByPurchaseId(purchaseId: string): PassLedgerEntryR
 
 export function findPassLedgerByBookingId(bookingId: string): PassLedgerEntryRecord[] {
   return readDb().passLedger.filter((e) => e.bookingId === bookingId);
+}
+
+export function createPendingCancellationCredit(record: PendingCancellationCreditRecord): void {
+  const db = readDb();
+  db.pendingCancellationCredits.push(record);
+  writeDb(db);
+}
+
+// Oldest-first, "pending" only — FIFO matches how the waitlist/booking queue
+// itself is ordered, so the earliest unresolved late cancellation for a
+// class is the one credited when a spot for it gets filled.
+export function findPendingCancellationCreditsByClassId(classId: string): PendingCancellationCreditRecord[] {
+  return readDb()
+    .pendingCancellationCredits.filter((r) => r.classId === classId && r.status === "pending")
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function savePendingCancellationCredit(record: PendingCancellationCreditRecord): void {
+  const db = readDb();
+  const index = db.pendingCancellationCredits.findIndex((r) => r.id === record.id);
+  if (index === -1) db.pendingCancellationCredits.push(record);
+  else db.pendingCancellationCredits[index] = record;
+  writeDb(db);
 }
 
 export function findPurchaseByProviderPaymentRef(ref: string): PurchaseRecord | undefined {

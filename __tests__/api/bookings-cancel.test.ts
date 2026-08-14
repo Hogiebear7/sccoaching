@@ -14,6 +14,7 @@ const {
   mockIsCancellationEarly,
   mockAppendPassLedgerEntry,
   mockFindPassLedgerByBookingId,
+  mockCreatePendingCancellationCredit,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindBookingById: vi.fn(),
@@ -25,6 +26,7 @@ const {
   mockIsCancellationEarly: vi.fn(),
   mockAppendPassLedgerEntry: vi.fn(),
   mockFindPassLedgerByBookingId: vi.fn(),
+  mockCreatePendingCancellationCredit: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -44,6 +46,9 @@ vi.mock("@/lib/db", () => ({
   findPassLedgerByPurchaseId: vi.fn(() => []),
   findClassPassProductById: vi.fn(),
   savePurchase: vi.fn(),
+  // Late-cancellation credit tracking (lib/cancellation-credits.ts) — these
+  // tests only exercise the "forfeit" side, never the refill/resolve side.
+  createPendingCancellationCredit: mockCreatePendingCancellationCredit,
 }));
 
 vi.mock("@/lib/scheduling", () => ({
@@ -115,6 +120,7 @@ describe("POST /api/bookings/cancel", () => {
     mockAppendPassLedgerEntry.mockReset();
     mockFindPassLedgerByBookingId.mockReset();
     mockFindPassLedgerByBookingId.mockReturnValue([]);
+    mockCreatePendingCancellationCredit.mockReset();
     mockFindUserById.mockReturnValue(MEMBER_USER);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
     mockIsCancellationEarly.mockReturnValue(true);
@@ -236,7 +242,7 @@ describe("POST /api/bookings/cancel", () => {
     expect(mockSaveSubscription).not.toHaveBeenCalled();
   });
 
-  it("does not restore the session when cancelling inside the cutoff", async () => {
+  it("does not restore the session when cancelling inside the cutoff, but tracks it as reversible", async () => {
     mockFindBookingById.mockReturnValue(SOME_BOOKING);
     mockFindClassById.mockReturnValue(FUTURE_CLASS);
     mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
@@ -248,9 +254,28 @@ describe("POST /api/bookings/cancel", () => {
 
     expect(res.status).toBe(200);
     expect(data.sessionRestored).toBe(false);
-    expect(data.message).toMatch(/not restored/i);
+    expect(data.message).toMatch(/isn't restored for now/i);
     expect(mockSaveSubscription).not.toHaveBeenCalled();
     expect(mockDeleteBooking).toHaveBeenCalledWith("booking-1");
+    // The forfeiture is tracked as reversible — subscription source, since
+    // no pass was consumed for this booking (mockFindPassLedgerByBookingId
+    // defaults to an empty array).
+    expect(mockCreatePendingCancellationCredit).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: MEMBER_USER.id, classId: "class-1", bookingId: "booking-1", creditSource: "subscription", status: "pending" })
+    );
+  });
+
+  it("does not track a reversible credit when nothing was actually consumed", async () => {
+    mockFindBookingById.mockReturnValue(SOME_BOOKING);
+    mockFindClassById.mockReturnValue(FUTURE_CLASS);
+    mockFindSubscriptionByUserId.mockReturnValue(undefined);
+    mockIsCancellationEarly.mockReturnValue(false);
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
+
+    expect(res.status).toBe(200);
+    expect(mockCreatePendingCancellationCredit).not.toHaveBeenCalled();
   });
 
   it("never goes below zero sessions used when restoring", async () => {

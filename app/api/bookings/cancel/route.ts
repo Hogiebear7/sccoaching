@@ -10,6 +10,7 @@ import {
   saveSubscription,
 } from "@/lib/db";
 import { sendBookingCancellationEmail } from "@/lib/booking-emails";
+import { creditSourceForBooking, trackLateCancellationCredit } from "@/lib/cancellation-credits";
 import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer, isCancellationEarly } from "@/lib/scheduling";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
 
   const classRecord = findClassById(booking.classId);
   let sessionRestored = false;
+  let creditPending = false;
 
   if (classRecord) {
     const classDateTime = new Date(`${classRecord.date}T${classRecord.startTime}`);
@@ -85,7 +87,9 @@ export async function POST(request: NextRequest) {
     if (isCancellationEarly(classDateTime)) {
       // Same cancellation-window rule for both pools. If this booking spent
       // a purchased pass, return that pass (once); otherwise refund the
-      // monthly counter as before. Late cancellations keep either consumed.
+      // monthly counter as before. Late cancellations keep either consumed
+      // — unless the vacated spot gets filled before the class starts, see
+      // trackLateCancellationCredit below.
       if (reversePassConsumption(bookingId)) {
         sessionRestored = true;
       } else {
@@ -99,6 +103,18 @@ export async function POST(request: NextRequest) {
           });
           sessionRestored = true;
         }
+      }
+    } else {
+      // Late cancellation — forfeit by default, but track it as reversible:
+      // if a waitlisted member accepts the offer this cancellation triggers
+      // below (or anyone else books the now-open spot before the class
+      // starts), the credit comes back. Skipped when nothing was actually
+      // consumed for this booking (e.g. a staff-side booking with no
+      // subscription) — nothing to potentially restore.
+      const creditSource = creditSourceForBooking(bookingId, user.id);
+      if (creditSource) {
+        trackLateCancellationCredit({ classId: classRecord.id, userId: user.id, bookingId, creditSource });
+        creditPending = true;
       }
     }
   }
@@ -119,9 +135,11 @@ export async function POST(request: NextRequest) {
 
   const message = sessionRestored
     ? "Booking cancelled. Your session credit was restored."
-    : classRecord
-      ? "Booking cancelled. This was within the cancellation window, so the session was not restored."
-      : "Booking cancelled.";
+    : creditPending
+      ? "Booking cancelled. This was within the cancellation window, so your credit isn't restored for now — but if someone else takes the spot before the class starts, it will be."
+      : classRecord
+        ? "Booking cancelled. This was within the cancellation window, so the session was not restored."
+        : "Booking cancelled.";
 
   return NextResponse.json({ success: true, sessionRestored, message }, { status: 200 });
 }

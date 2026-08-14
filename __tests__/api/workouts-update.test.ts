@@ -61,7 +61,7 @@ const VALID_BODY = {
   exercises: [{ name: "Back Squat", weight: "82.5", reps: 5, sets: 5, rpe: 9 }],
 };
 
-describe("POST /api/workouts/update (same-day class correction)", () => {
+describe("POST /api/workouts/update (class workout correction)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindUserById.mockReturnValue(MEMBER);
@@ -82,15 +82,15 @@ describe("POST /api/workouts/update (same-day class correction)", () => {
     expect(saved.id).toBe("session-1");
   });
 
-  it("refuses once the calendar day has passed", async () => {
+  it("still lets the member correct a class workout well after the class day — coaches don't always fill in weights promptly", async () => {
     mockFindWorkoutSessionById.mockReturnValue(classSession({ date: "2026-07-01" }));
 
     const res = await callUpdate(VALID_BODY, signSession({ userId: MEMBER.id }));
     const data = await res.json();
 
-    expect(res.status).toBe(403);
-    expect(data.message).toContain("edit window has closed");
-    expect(mockSaveWorkoutSession).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(data.message).toBe("Workout updated.");
+    expect(mockSaveWorkoutSession).toHaveBeenCalled();
   });
 
   it("refuses non-class sessions and other members' sessions", async () => {

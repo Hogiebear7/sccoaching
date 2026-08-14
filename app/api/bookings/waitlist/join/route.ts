@@ -129,7 +129,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (activeWaitlist.length >= MAX_WAITLIST_SIZE) {
+  // A live offer means one of the waitlist's members isn't really "waiting"
+  // anymore — they're about to either take the freed class spot for good or
+  // bounce back to queued if they don't respond in time. Either way, a full
+  // waitlist gets one bonus slot per open offer, so someone can queue up now
+  // instead of being blocked until that offer resolves.
+  const maxWaitlistSize = MAX_WAITLIST_SIZE + offeredCount;
+
+  if (activeWaitlist.length >= maxWaitlistSize) {
     return NextResponse.json(
       { success: false, message: "This class's waitlist is full." },
       { status: 409 }

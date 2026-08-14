@@ -9,18 +9,14 @@ import {
 import { parseExerciseEntries } from "@/lib/workout-entries";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
-function todayLocalISO(): string {
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
-
-// Limited member correction for class-synced workouts: editable until the
-// end of the class's calendar day, read-only afterwards (staff can always
-// change it by re-syncing from the class workout screen). Self-logged
-// sessions are not editable here — this window exists specifically because
-// staff-entered numbers may need a same-day fix by the person who lifted.
+// Member correction for class-synced workouts: coaches often don't get
+// around to filling in weights/adjustments for everyone in a class, so
+// members can correct their own exercises/notes here at any time (not just
+// same-day — coaches don't always fill these in promptly). Self-logged
+// sessions are not editable here; those use /api/workouts/edit instead.
+// Staff can always overwrite by re-syncing from the class workout screen —
+// see lib/class-workout-sync.ts's "existing wins" merge, which means a
+// member's own edits are never silently clobbered by a staff re-sync either.
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
@@ -64,16 +60,6 @@ export async function POST(request: NextRequest) {
   if (!session.classId) {
     return NextResponse.json(
       { success: false, message: "Only class workouts can be corrected here." },
-      { status: 403 }
-    );
-  }
-
-  if (session.date !== todayLocalISO()) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "The edit window has closed — class workouts are read-only after the day of the class. Ask a coach to correct it.",
-      },
       { status: 403 }
     );
   }

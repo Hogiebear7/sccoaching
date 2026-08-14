@@ -18,6 +18,7 @@ import {
 } from "@/lib/db";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
 import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
+import { resolvePendingCancellationCreditsForClass } from "@/lib/cancellation-credits";
 import { syncClassWorkoutToMember } from "@/lib/class-workout-sync";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
@@ -170,6 +171,15 @@ export async function POST(request: NextRequest) {
   };
 
   createBooking(booking);
+
+  // This booking may be filling a spot vacated by someone else's late
+  // cancellation — if so, restore their credit now that it's genuinely
+  // been refilled. Unrelated to this booker's own payment below.
+  try {
+    resolvePendingCancellationCreditsForClass(classId);
+  } catch {
+    // Must never block this member's own booking from completing.
+  }
 
   // If staff already prepared a workout for this class, it shows up in the
   // member's Workouts tab immediately — no need to wait for check-in.

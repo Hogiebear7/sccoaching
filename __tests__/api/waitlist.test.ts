@@ -192,6 +192,42 @@ describe("POST /api/bookings/waitlist/join", () => {
     expect(mockCreateWaitlistEntry).toHaveBeenCalledTimes(1);
     expect(mockCreateWaitlistEntry.mock.calls[0][0].userId).toBe(MEMBER_USER.id);
   });
+
+  it("rejects joining a waitlist that's at capacity with no live offers", async () => {
+    mockFindClassById.mockReturnValue(FULL_CLASS);
+    mockFindBookingsByClassId.mockReturnValue([{ id: "b1", classId: "class-1", userId: "other", attendedAt: null, createdAt: "now" }]);
+    mockFindWaitlistEntriesByClassId.mockReturnValue([
+      { id: "wl-1", classId: "class-1", userId: "other-1", offerState: "queued", createdAt: "now" },
+      { id: "wl-2", classId: "class-1", userId: "other-2", offerState: "queued", createdAt: "now" },
+    ]);
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    const res = await callJoin({ classId: "class-1" }, cookie);
+    const data = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(data.message).toMatch(/waitlist is full/i);
+    expect(mockCreateWaitlistEntry).not.toHaveBeenCalled();
+  });
+
+  it("allows a bonus join when the full waitlist has a live offer out", async () => {
+    mockFindClassById.mockReturnValue(FULL_CLASS);
+    mockFindBookingsByClassId.mockReturnValue([{ id: "b1", classId: "class-1", userId: "other", attendedAt: null, createdAt: "now" }]);
+    // The waitlist is nominally "full" (2 entries), but #1 is no longer
+    // really queued — they have a live offer, so a 3rd person can join.
+    mockFindWaitlistEntriesByClassId.mockReturnValue([
+      { id: "wl-1", classId: "class-1", userId: "other-1", offerState: "offered", createdAt: "now" },
+      { id: "wl-2", classId: "class-1", userId: "other-2", offerState: "queued", createdAt: "now" },
+    ]);
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    const res = await callJoin({ classId: "class-1" }, cookie);
+    const data = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(data.success).toBe(true);
+    expect(mockCreateWaitlistEntry).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("POST /api/bookings/waitlist/leave", () => {
