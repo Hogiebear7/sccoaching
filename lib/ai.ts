@@ -362,3 +362,142 @@ Category: ${input.sectionLabel}`,
 
   return parseExerciseContentResponse(textFromMessage(message));
 }
+
+// ── Photo-to-meal suggestions ──────────────────────────────────────────
+// A member shows ingredients they have (photo and/or typed list) and gets
+// back meal/snack ideas makeable from them. This is the first place in the
+// codebase that sends an image to the model — images elsewhere (avatars,
+// class covers) are stored/served as data URLs but never analyzed by AI.
+// One-shot, no chat history, strict-JSON output parsed defensively since
+// (unlike the coach chat replies) the client renders structured fields.
+
+const MEAL_SUGGEST_SYSTEM_PROMPT = `You are a meal-idea generator for S&C Performance Coaching, a strength & conditioning gym app. A member shows you ingredients they have on hand — a photo, a typed list, or both — and you suggest meals or snacks they could make right now.
+
+Grounding rules — strict:
+- Only suggest meals/snacks makeable from the ingredients shown/listed, plus common pantry staples (salt, pepper, cooking oil, basic dried herbs/spices, water) which you may assume are available even if not shown.
+- A "Dietary requirements" block follows. NEVER suggest a meal containing an excluded ingredient or violating a listed allergy or intolerance/medical condition. Treat any stated dietary preference (vegan, vegetarian, pescetarian) as a strict filter, not a suggestion.
+- Macro estimates are a rough single-serving ballpark for a suggestion tool, not a food-logging scale — give realistic non-zero numbers unless the item is genuinely calorie-free (e.g. black coffee, water).
+- If the photo is blurry, too dark, or doesn't clearly show food, do your best with what's visible; only return an empty list if truly nothing food-related is identifiable.
+
+Reply with ONLY a JSON array — no prose before or after, no markdown code fence. 2-4 suggestions, most realistic/appealing first. Each item exactly this shape:
+{"title": string, "description": string (one plain, appetizing sentence — no marketing language), "ingredientsUsed": string[] (drawn from what was shown/listed), "estimatedCalories": number, "estimatedProteinG": number, "estimatedCarbsG": number, "estimatedFatG": number, "crossSuggestion": string|null (one sentence naming ONE additional ingredient that would unlock a genuinely different extra meal idea — null if nothing sensible to add)}
+
+If nothing food-related is identifiable in the photo or text, reply with exactly: []`;
+
+export interface MealSuggestion {
+  title: string;
+  description: string;
+  ingredientsUsed: string[];
+  estimatedCalories: number;
+  estimatedProteinG: number;
+  estimatedCarbsG: number;
+  estimatedFatG: number;
+  crossSuggestion: string | null;
+}
+
+// Exported for tests. Defensive against the model returning malformed JSON,
+// wrong field types, or a code fence despite the prompt saying not to —
+// every field is validated/coerced rather than trusted.
+export function parseMealSuggestions(text: string): MealSuggestion[] {
+  const trimmed = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  if (!trimmed) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  function num(value: unknown): number {
+    return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+  }
+
+  return parsed
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({
+      title: typeof item.title === "string" && item.title.trim() ? item.title.trim().slice(0, 100) : "Suggestion",
+      description: typeof item.description === "string" ? item.description.trim().slice(0, 300) : "",
+      ingredientsUsed: Array.isArray(item.ingredientsUsed)
+        ? item.ingredientsUsed.filter((s): s is string => typeof s === "string" && s.trim().length > 0).slice(0, 15)
+        : [],
+      estimatedCalories: num(item.estimatedCalories),
+      estimatedProteinG: num(item.estimatedProteinG),
+      estimatedCarbsG: num(item.estimatedCarbsG),
+      estimatedFatG: num(item.estimatedFatG),
+      crossSuggestion:
+        typeof item.crossSuggestion === "string" && item.crossSuggestion.trim()
+          ? item.crossSuggestion.trim().slice(0, 200)
+          : null,
+    }))
+    .slice(0, 4);
+}
+
+type MealSuggestContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/webp"; data: string } };
+
+function mediaTypeFromDataUrl(dataUrl: string): "image/jpeg" | "image/png" | "image/webp" | null {
+  const match = dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,/);
+  return match ? (match[1] as "image/jpeg" | "image/png" | "image/webp") : null;
+}
+
+export interface MealSuggestRequest {
+  /** Full data URL (already validated by the caller with isValidImageDataUrl). */
+  imageDataUrl?: string | null;
+  ingredientsText?: string | null;
+  /** buildDietaryContextBlock(profile) — same allergy/preference grounding
+      the coach and nutrition coach prompts use. */
+  dietaryContext: string;
+}
+
+export async function generateMealSuggestions(request: MealSuggestRequest): Promise<MealSuggestion[]> {
+  if (!isAiConfigured()) {
+    throw new Error(AI_NOT_CONFIGURED_MESSAGE);
+  }
+
+  const client = getClient();
+  const content: MealSuggestContentBlock[] = [];
+
+  if (request.imageDataUrl) {
+    const mediaType = mediaTypeFromDataUrl(request.imageDataUrl);
+    if (mediaType) {
+      const base64Data = request.imageDataUrl.slice(request.imageDataUrl.indexOf(",") + 1);
+      content.push({ type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } });
+    }
+  }
+
+  const instructionParts: string[] = [];
+  if (request.ingredientsText?.trim()) {
+    instructionParts.push(`Ingredients the member typed: ${request.ingredientsText.trim()}`);
+  }
+  instructionParts.push(
+    request.imageDataUrl && request.ingredientsText?.trim()
+      ? "Suggest meals from the photographed ingredients and the typed list together."
+      : request.imageDataUrl
+        ? "Suggest meals from the photographed ingredients."
+        : "Suggest meals from the typed ingredient list."
+  );
+  content.push({ type: "text", text: instructionParts.join("\n\n") });
+
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 2000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: [
+      { type: "text", text: MEAL_SUGGEST_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      { type: "text", text: `Dietary requirements:\n\n${request.dietaryContext}` },
+    ],
+    messages: [{ role: "user", content }],
+  });
+
+  return parseMealSuggestions(textFromMessage(message));
+}
