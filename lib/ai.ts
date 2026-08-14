@@ -501,3 +501,104 @@ export async function generateMealSuggestions(request: MealSuggestRequest): Prom
 
   return parseMealSuggestions(textFromMessage(message));
 }
+
+// ── Photo food identification ────────────────────────────────────────────
+// A member photographs food to log it directly — a single item (a banana),
+// a full plate with several distinct foods, or a printed nutrition facts
+// label (the fallback when a barcode scan misses). One model call handles
+// all three: it reads a label exactly when one is shown, otherwise
+// identifies and estimates each distinct food item visible. Same one-shot,
+// strict-JSON, defensively-parsed shape as generateMealSuggestions above.
+
+const FOOD_PHOTO_SYSTEM_PROMPT = `You are a food-photo identification tool for S&C Performance Coaching, a strength & conditioning gym app. A member photographs food to log it — a single item (a banana, a protein bar), a full meal with several distinct foods, or a printed nutrition facts label — and you identify what's there and its nutrition.
+
+Grounding rules — strict:
+- If the photo clearly shows a printed nutrition facts/information panel, READ the exact printed values rather than estimating — use the stated per-serving values (convert from per-100g if that's what's printed, using the panel's own stated serving size). Use the product/brand name if visible on the packaging. Set source to "label".
+- Otherwise, identify each distinct food item visible. A plate with several foods is usually several items, not one combined item — e.g. "Grilled chicken breast", "White rice", "Steamed broccoli" as three separate entries. Estimate a realistic serving size and its macros for what's actually shown. Set source to "estimate".
+- Give realistic non-zero numbers for anything genuinely caloric — these are a visual best-guess for a logging tool, not a lab measurement, but a rough estimate beats a zero.
+- Return at most 8 items. If the photo is blurry, too dark, or genuinely shows nothing food/label-related, return an empty array — never invent a plausible-sounding food that isn't actually shown.
+
+Reply with ONLY a JSON array — no prose before or after, no markdown code fence. Each item exactly this shape:
+{"name": string, "servingDescription": string (e.g. "1 medium (about 118g)", "150g", "1 bar (60g)"), "calories": number, "proteinG": number, "carbsG": number, "fatG": number, "source": "label"|"estimate"}
+
+If nothing identifiable, reply with exactly: []`;
+
+export interface IdentifiedFoodItem {
+  name: string;
+  servingDescription: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  source: "label" | "estimate";
+}
+
+// Exported for tests. Same defensive-coercion discipline as
+// parseMealSuggestions — every field validated/coerced, never trusted.
+export function parseIdentifiedFoodItems(text: string): IdentifiedFoodItem[] {
+  const trimmed = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  if (!trimmed) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  function num(value: unknown): number {
+    return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+  }
+
+  return parsed
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({
+      name: typeof item.name === "string" && item.name.trim() ? item.name.trim().slice(0, 100) : "Unknown food",
+      servingDescription: typeof item.servingDescription === "string" ? item.servingDescription.trim().slice(0, 100) : "",
+      calories: num(item.calories),
+      proteinG: num(item.proteinG),
+      carbsG: num(item.carbsG),
+      fatG: num(item.fatG),
+      source: (item.source === "label" ? "label" : "estimate") as "label" | "estimate",
+    }))
+    .slice(0, 8);
+}
+
+export interface FoodPhotoIdentifyRequest {
+  /** Full data URL (already validated by the caller with isValidImageDataUrl). */
+  imageDataUrl: string;
+}
+
+export async function identifyFoodPhoto(request: FoodPhotoIdentifyRequest): Promise<IdentifiedFoodItem[]> {
+  if (!isAiConfigured()) {
+    throw new Error(AI_NOT_CONFIGURED_MESSAGE);
+  }
+
+  const mediaType = mediaTypeFromDataUrl(request.imageDataUrl);
+  if (!mediaType) return [];
+
+  const base64Data = request.imageDataUrl.slice(request.imageDataUrl.indexOf(",") + 1);
+  const content: MealSuggestContentBlock[] = [
+    { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
+    { type: "text", text: "Identify the food (or read the nutrition label) in this photo." },
+  ];
+
+  const client = getClient();
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 2000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: [{ type: "text", text: FOOD_PHOTO_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content }],
+  });
+
+  return parseIdentifiedFoodItems(textFromMessage(message));
+}

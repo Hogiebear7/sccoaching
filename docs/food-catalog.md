@@ -1,10 +1,11 @@
 # Food catalog — schema, API, and mobile integration
 
 A MacroFactor-style food logging system: grouped search (History / Custom /
-Common / Branded), barcode scanning with an Open Food Facts fallback, a
-label-scan contract for future OCR, and a moderation + OFF-submission
-workflow. Everything downstream of ingestion deals in one normalized
-`FoodRecord` shape — no route or component ever touches a raw vendor payload.
+Common / Branded), barcode scanning with an Open Food Facts fallback, an
+AI-vision photo-scan route that identifies food (or reads a nutrition label)
+from a photo, and a moderation + OFF-submission workflow. Everything
+downstream of ingestion deals in one normalized `FoodRecord` shape — no
+route or component ever touches a raw vendor payload.
 
 ## Design decisions
 
@@ -33,12 +34,15 @@ workflow. Everything downstream of ingestion deals in one normalized
   the calories/macros computed at log time, plus optional
   `foodId`/`foodDomain`/`servingLabel`/`servingGrams`/`quantity`. Editing a
   catalog food's nutrition later never rewrites historical diary entries.
-- **OCR is a pluggable, currently-unconfigured adapter.** No OCR vendor
-  credentials exist in this repo. `lib/ocr-provider.ts` defines the contract;
-  the shipped implementation always returns `configured: false`, and the
-  label-scan route returns `501 { code: "ocr_not_configured" }`. The contract
-  (request/response shape, image validation, heuristic text parser) is real
-  and ready for a provider to be wired in.
+- **Photo scanning is AI vision, not a dedicated OCR vendor.** The
+  label-scan route (`app/api/mobile/nutrition/food/label-scan`) sends the
+  photo to `identifyFoodPhoto()` in `lib/ai.ts` — the same Anthropic client
+  every other AI feature uses (reuses `ANTHROPIC_API_KEY`, no separate
+  credentials). One model call handles both cases: reading a printed
+  nutrition label exactly when one is shown, or identifying and estimating
+  each distinct food item otherwise (a plate can return several items).
+  Returns `{success:false, configured:false}` (503) if no API key is set,
+  matching the meal-suggest route's pattern.
 - **OFF submission is eligibility-gated, opt-in, and reviewed before any live
   write.** A custom food only becomes `eligible_for_submission` once it has a
   brand name and barcode (name/serving/macros are already required to create
@@ -179,16 +183,22 @@ Four-step order, per requirement #2:
 
 Accepts `{ imageBase64: <data URL> }`, validated by
 `isValidImageDataUrl()` (`lib/image-upload.ts`) with a 3MB cap
-(`MAX_LABEL_IMAGE_LENGTH`). Calls `ocrProvider.extract()`. In the current,
-unconfigured state this always returns:
+(`MAX_PHOTO_IMAGE_LENGTH`). Rate-limited per user
+(`ai-food-photo-scan:<userId>`, own namespace). If `isAiConfigured()` is
+false, returns `{ success: false, configured: false }` with HTTP 503 —
+same pattern as `/meal-suggest`. Otherwise calls `identifyFoodPhoto()`
+(`lib/ai.ts`) and returns:
 
 ```json
-{ "success": false, "code": "ocr_not_configured", "message": "..." }
+{ "success": true, "configured": true, "items": [
+  { "name": "Banana", "servingDescription": "1 medium (about 118g)", "calories": 105, "proteinG": 1, "carbsG": 27, "fatG": 0, "source": "estimate" }
+] }
 ```
-with HTTP 501. `lib/ocr-provider.ts` also exports a standalone
-`parseNutritionLabelText(rawText)` — a heuristic regex extractor for
-calories/protein/carbs/fat/fiber/sugar/saturated-fat/sodium/serving-size —
-ready for a real provider's `extract()` to call once one is wired in.
+`source` is `"label"` when the photo showed a printed nutrition panel (exact
+printed values) or `"estimate"` when the model identified and estimated a
+real food item — a plate can return several items in one call. An empty
+`items` array means nothing food/label-related was identifiable in the
+photo; the mobile app falls back to manual entry in that case.
 
 ### Custom foods
 
