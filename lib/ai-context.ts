@@ -1,4 +1,4 @@
-import type { ProfileRecord } from "./profile-schema";
+import type { ProfileRecord, TrainingDayOfWeek, WeeklyTrainingScheduleRecord } from "./profile-schema";
 import type { RecoveryLogRecord, WorkoutSessionRecord } from "./db";
 import type { DrinkSettings } from "./drink-settings";
 import type { ResolvedBooking } from "./bookings";
@@ -342,6 +342,46 @@ export interface NutritionCoachContextInput {
       accepts — lets the Nutrition Coach explain the member's actual
       match-day drink plan when asked. */
   drinkSettings?: DrinkSettings | null;
+  /** The member's self-reported recurring weekly training pattern (see
+      /api/mobile/weekly-training) — captures load from activities outside
+      the gym (sport practice, running club) that never touches logged
+      workout data, so the coach can ground fuelling advice on days it
+      would otherwise have no signal for. */
+  weeklyTrainingSchedule?: WeeklyTrainingScheduleRecord | null;
+}
+
+const WEEKDAY_ORDER: TrainingDayOfWeek[] = [1, 2, 3, 4, 5, 6, 0];
+const WEEKDAY_LABEL: Record<TrainingDayOfWeek, string> = {
+  0: "Sunday",
+  1: "Monday",
+  2: "Tuesday",
+  3: "Wednesday",
+  4: "Thursday",
+  5: "Friday",
+  6: "Saturday",
+};
+
+function buildWeeklyTrainingPatternLines(schedule: WeeklyTrainingScheduleRecord | null | undefined): string[] {
+  const lines: string[] = ["## Typical weekly training pattern (member's own self-reported plan, not logged data)"];
+
+  if (!schedule || schedule.sessions.length === 0) {
+    lines.push("- Not set up yet. Don't assume rest days — if it's relevant, suggest they add their weekly pattern in the app.");
+    return lines;
+  }
+
+  for (const day of WEEKDAY_ORDER) {
+    const sessions = schedule.sessions.filter((s) => s.dayOfWeek === day);
+    if (sessions.length === 0) continue;
+    const parts = sessions.map((s) => {
+      const bits = [s.label];
+      if (s.timeOfDay) bits.push(s.timeOfDay);
+      if (s.intensity) bits.push(`${s.intensity} intensity`);
+      return bits.join(", ");
+    });
+    lines.push(`- ${WEEKDAY_LABEL[day]}: ${parts.join(" · ")}`);
+  }
+
+  return lines;
 }
 
 export interface NutritionCoachContextDisplay {
@@ -442,6 +482,9 @@ export function buildNutritionCoachContext(input: NutritionCoachContextInput): N
   } else {
     lines.push("- No upcoming class booked. Base next-session guidance on their stated plan for tomorrow above.");
   }
+
+  lines.push("");
+  lines.push(...buildWeeklyTrainingPatternLines(input.weeklyTrainingSchedule));
 
   if (input.drinkSettings) {
     lines.push("");

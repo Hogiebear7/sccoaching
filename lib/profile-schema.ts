@@ -135,6 +135,33 @@ export interface CyclePrivacyPreferencesRecord {
   updatedAt: string;
 }
 
+// A member's recurring weekly training pattern — the sport/gym/other
+// sessions they typically do on each day, distinct from a structured
+// TrainingProgram (workout-by-workout plan) and from Schedule bookings
+// (specific dated classes). Exists so non-gym training load (a football
+// practice, a running club) is visible to the nutrition AI coach and to
+// staff, since it never otherwise touches the app's workout-logging data.
+export type TrainingDayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6; // matches Date#getDay(), 0 = Sunday
+export type TrainingActivityType = "gym" | "sport" | "cardio" | "rest" | "other";
+export type TrainingTimeOfDay = "morning" | "afternoon" | "evening";
+export type TrainingIntensity = "light" | "moderate" | "heavy";
+
+export interface WeeklyTrainingSession {
+  id: string;
+  dayOfWeek: TrainingDayOfWeek;
+  label: string;
+  activityType: TrainingActivityType;
+  timeOfDay: TrainingTimeOfDay | null;
+  intensity: TrainingIntensity | null;
+  notes: string | null;
+}
+
+export interface WeeklyTrainingScheduleRecord {
+  userId: string;
+  sessions: WeeklyTrainingSession[];
+  updatedAt: string;
+}
+
 export interface CycleLogEntryRecord {
   id: string;
   userId: string;

@@ -8,6 +8,7 @@ import type {
   ProfileRecord,
   UserRecord,
   UserRole,
+  WeeklyTrainingScheduleRecord,
 } from "@/lib/profile-schema";
 import { isStaffRole } from "@/lib/permissions";
 import { getConfiguredDataDir } from "@/lib/app-config";
@@ -1010,6 +1011,7 @@ interface Database {
   revenueEvents: RevenueEventRecord[];
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
+  weeklyTrainingSchedules: WeeklyTrainingScheduleRecord[];
   pushSubscriptions: PushSubscriptionRecord[];
   expoPushTokens: ExpoPushTokenRecord[];
   contactInquiries: ContactInquiryRecord[];
@@ -1109,6 +1111,7 @@ function readDb(): Database {
       revenueEvents: [],
       cycleSettings: [],
       cyclePrivacyPreferences: [],
+      weeklyTrainingSchedules: [],
       pushSubscriptions: [],
       expoPushTokens: [],
       contactInquiries: [],
@@ -1231,6 +1234,7 @@ function readDb(): Database {
     revenueEvents: parsed.revenueEvents ?? [],
     cycleSettings: parsed.cycleSettings ?? [],
     cyclePrivacyPreferences: parsed.cyclePrivacyPreferences ?? [],
+    weeklyTrainingSchedules: parsed.weeklyTrainingSchedules ?? [],
     pushSubscriptions: (parsed.pushSubscriptions ?? []).map((s) => ({
       ...s,
       userAgent: s.userAgent ?? null,
@@ -1376,7 +1380,7 @@ const MEMBER_OWNED_COLLECTIONS = [
   "profiles", "resetTokens", "programmes", "workoutSessions", "aiMessages",
   "bodyWeightLogs", "bookings", "subscriptions", "recoveryLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pushSubscriptions", "expoPushTokens", "notifications",
-  "purchases", "passLedger", "coachNotes",
+  "purchases", "passLedger", "coachNotes", "weeklyTrainingSchedules",
 ] as const;
 
 // PERMANENT, irreversible deletion of a user and every record they own. This is
@@ -2323,6 +2327,22 @@ export function saveCycleSettings(settings: CycleSettingsRecord) {
     db.cycleSettings.push(settings);
   } else {
     db.cycleSettings[index] = settings;
+  }
+  writeDb(db);
+}
+
+export function findWeeklyTrainingScheduleByUserId(userId: string): WeeklyTrainingScheduleRecord | undefined {
+  const db = readDb();
+  return db.weeklyTrainingSchedules.find((s) => s.userId === userId);
+}
+
+export function saveWeeklyTrainingSchedule(schedule: WeeklyTrainingScheduleRecord) {
+  const db = readDb();
+  const index = db.weeklyTrainingSchedules.findIndex((s) => s.userId === schedule.userId);
+  if (index === -1) {
+    db.weeklyTrainingSchedules.push(schedule);
+  } else {
+    db.weeklyTrainingSchedules[index] = schedule;
   }
   writeDb(db);
 }

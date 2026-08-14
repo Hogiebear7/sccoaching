@@ -7,9 +7,11 @@ import {
   findRecoveryLogsByUserId,
   findSubscriptionByUserId,
   findUserById,
+  findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "./db";
 import { resolveSubscriptionEntitlement } from "./membership-entitlement";
+import type { WeeklyTrainingScheduleRecord } from "./profile-schema";
 import {
   computePersonalBests,
   findPersonalBestByKeywords,
@@ -83,6 +85,7 @@ export interface StaffMemberDetail extends StaffMemberSummary {
   personalBests: StaffMemberPersonalBest[];
   upcomingBookings: StaffMemberBookingSummary[];
   pastBookings: StaffMemberBookingSummary[];
+  weeklyTrainingSchedule: WeeklyTrainingScheduleRecord | null;
 }
 
 export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
@@ -160,5 +163,6 @@ export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
     personalBests,
     upcomingBookings,
     pastBookings,
+    weeklyTrainingSchedule: findWeeklyTrainingScheduleByUserId(member.id) ?? null,
   };
 }

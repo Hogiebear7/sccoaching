@@ -9,6 +9,7 @@ import {
   findProfileByUserId,
   findRecoveryLogsByUserId,
   findUserById,
+  findWeeklyTrainingScheduleByUserId,
   type AiMessageRecord,
 } from "@/lib/db";
 import { resolveBookingsForUser } from "@/lib/bookings";
@@ -133,6 +134,7 @@ export async function POST(request: NextRequest) {
     tomorrow: cleanTomorrow,
     upcomingBookings: resolveBookingsForUser(user.id),
     drinkSettings: cleanDrinkSettings ?? profile.drinkSettings ?? null,
+    weeklyTrainingSchedule: findWeeklyTrainingScheduleByUserId(user.id) ?? null,
   });
 
   // Last 20 messages on THIS channel only — the general AI Coach thread
