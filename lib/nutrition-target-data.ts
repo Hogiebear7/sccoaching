@@ -60,10 +60,19 @@ function exertionForDate(dateISO: string, recoveryLogs: RecoveryLogRecord[], ses
   return exertionFromWeeklySessions(sessions, weekdayOf(dateISO));
 }
 
-function loadForDate(dateISO: string, recoveryLogs: RecoveryLogRecord[], sessions: WeeklyTrainingSession[]): number {
+// tomorrowOverride lets a caller preview "what if tomorrow is a match" (the
+// web dashboard's Yesterday/Today/Tomorrow picker) without touching the
+// member's actual Weekly Training pattern — see resolveTargetForDate, which
+// only ever passes one in for the real current date.
+function loadForDate(
+  dateISO: string,
+  recoveryLogs: RecoveryLogRecord[],
+  sessions: WeeklyTrainingSession[],
+  tomorrowOverride?: Exertion
+): number {
   const yesterday = exertionForDate(isoDaysFrom(dateISO, -1), recoveryLogs, sessions);
   const today = exertionForDate(dateISO, recoveryLogs, sessions);
-  const tomorrow = exertionForDate(isoDaysFrom(dateISO, 1), recoveryLogs, sessions);
+  const tomorrow = tomorrowOverride ?? exertionForDate(isoDaysFrom(dateISO, 1), recoveryLogs, sessions);
   return weightedThreeDayLoad(yesterday, today, tomorrow);
 }
 
@@ -168,6 +177,8 @@ interface ResolveContext {
   sessions: WeeklyTrainingSession[];
   tdee: TdeeEstimate | null;
   foodEntries: { date: string; calories: number }[];
+  /** Only ever applied to dateISO === todayISO — see loadForDate. */
+  tomorrowOverride?: Exertion;
 }
 
 function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNutritionTarget {
@@ -189,7 +200,12 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
         : 0;
   }
 
-  const load = loadForDate(dateISO, ctx.recoveryLogs, ctx.sessions);
+  const load = loadForDate(
+    dateISO,
+    ctx.recoveryLogs,
+    ctx.sessions,
+    dateISO === ctx.todayISO ? ctx.tomorrowOverride : undefined
+  );
   const target = computeDailyTarget({
     bodyWeightKg: ctx.bodyWeightKg,
     gender: ctx.gender,
@@ -204,7 +220,7 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
   return autoResult(dateISO, target, ctx.bodyWeightKg);
 }
 
-function buildContext(userId: string, todayISO: string): ResolveContext | null {
+function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exertion): ResolveContext | null {
   const profile = findProfileByUserId(userId);
   if (!profile) return null;
 
@@ -234,6 +250,7 @@ function buildContext(userId: string, todayISO: string): ResolveContext | null {
     sessions: schedule?.sessions ?? [],
     tdee,
     foodEntries,
+    tomorrowOverride,
   };
 }
 
@@ -244,10 +261,11 @@ function buildContext(userId: string, todayISO: string): ResolveContext | null {
 export function getResolvedNutritionTarget(
   userId: string,
   dateISO?: string,
-  todayISO?: string
+  todayISO?: string,
+  tomorrowOverride?: Exertion
 ): ResolvedNutritionTarget | null {
   const effectiveToday = todayISO ?? new Date().toISOString().slice(0, 10);
-  const ctx = buildContext(userId, effectiveToday);
+  const ctx = buildContext(userId, effectiveToday, tomorrowOverride);
   if (!ctx) return null;
   return resolveTargetForDate(ctx, dateISO ?? effectiveToday);
 }
@@ -261,10 +279,11 @@ export interface ResolvedWeek {
 export function getResolvedNutritionTargetsForWeek(
   userId: string,
   anyDateInWeekISO?: string,
-  todayISO?: string
+  todayISO?: string,
+  tomorrowOverride?: Exertion
 ): ResolvedWeek | null {
   const effectiveToday = todayISO ?? new Date().toISOString().slice(0, 10);
-  const ctx = buildContext(userId, effectiveToday);
+  const ctx = buildContext(userId, effectiveToday, tomorrowOverride);
   if (!ctx) return null;
 
   const weekStart = mondayOfWeek(anyDateInWeekISO ?? effectiveToday);

@@ -15,13 +15,10 @@ import {
   drinkDurationInfo,
   drinkWorkload,
   EXERTION_LABEL,
-  fuelBandForLoad,
-  macroTargets,
   ROLE_ARCHETYPE_ICON,
   RUN_EFFORTS,
   sodiumTargetPerLitre,
   SPORT_DATA,
-  weightedThreeDayLoad,
   type Exertion,
   type RunEffort,
   type SportId,
@@ -33,6 +30,7 @@ import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
 import { FOOD_ITEM_EMOJI, type FoodRecommendations } from "@/lib/nutrition-recommendations";
 import type { AiMessageRecord } from "@/lib/db";
 import type { NutritionCoachContextDisplay } from "@/lib/ai-context";
+import type { ResolvedNutritionTarget } from "@/lib/nutrition-target-data";
 import { FoodCategoryIcon } from "@/components/graphics/FoodCategoryIcon";
 import { IconBadge } from "@/components/graphics/IconBadge";
 import { IconSelect } from "@/components/ui/IconSelect";
@@ -179,6 +177,19 @@ function fuelChipClass(day: string): string {
   return "border-white/[0.1] bg-white/[0.04] text-zinc-300";
 }
 
+function targetSourceLine(target: ResolvedNutritionTarget | null): string {
+  if (!target || target.mode === "disabled") {
+    return "Automatic targets are turned off for this member — logging still works.";
+  }
+  if (target.mode === "manual") {
+    return "Set by their coach — this member's target doesn't vary day to day.";
+  }
+  if (target.calories === null) return "No weight on file yet, so a target can't be calculated.";
+  return target.source === "adaptive"
+    ? "Learned from their logged weight and food trend — refines automatically as they keep logging."
+    : "Estimated from bodyweight and training load — sharpens once there's enough weight and food history to learn a real trend from.";
+}
+
 function sodiumBadgeClass(badge: "below" | "optimal" | "high"): string {
   if (badge === "optimal") return "border-[var(--success)]/25 bg-[var(--success-weak)] text-[var(--success)]";
   if (badge === "high") return "border-[var(--warning)]/25 bg-[var(--warning-weak)] text-[var(--warning)]";
@@ -245,6 +256,7 @@ function Segmented<T extends string | number>({
 // Dietary exclusions stay visible in the main flow, never behind a
 // collapsed control — that information is safety-relevant.
 export function NutritionView({
+  resolvedTarget,
   bodyWeightKg,
   goalBias,
   primaryGoal,
@@ -262,6 +274,7 @@ export function NutritionView({
   initialAiNutritionMessages,
   nextSession,
 }: {
+  resolvedTarget: ResolvedNutritionTarget | null;
   bodyWeightKg: number | null;
   goalBias: WeightGoalBias;
   primaryGoal: string;
@@ -280,6 +293,35 @@ export function NutritionView({
   nextSession: { title: string; date: string; category: string } | null;
 }) {
   const [tomorrow, setTomorrow] = useState<Exertion>("medium");
+  const [liveTarget, setLiveTarget] = useState(resolvedTarget);
+  const [targetRefetching, setTargetRefetching] = useState(false);
+  // The initial resolvedTarget prop is already computed with tomorrow =
+  // "medium" (this state's default) server-side, so the first effect run
+  // would just refetch an identical result — skip it, same pattern as the
+  // drink-settings sync below.
+  const skipFirstTargetFetch = useRef(true);
+  useEffect(() => {
+    if (skipFirstTargetFetch.current) {
+      skipFirstTargetFetch.current = false;
+      return;
+    }
+    let cancelled = false;
+    setTargetRefetching(true);
+    fetch(`/api/nutrition/target?tomorrow=${tomorrow}`)
+      .then((res) => res.json())
+      .then((json: { success: boolean; data: ResolvedNutritionTarget | null }) => {
+        if (!cancelled && json.success) setLiveTarget(json.data);
+      })
+      .catch(() => {
+        // Offline or server hiccup — keep showing the last-known target.
+      })
+      .finally(() => {
+        if (!cancelled) setTargetRefetching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tomorrow]);
   const [aiCoachOpen, setAiCoachOpen] = useState(false);
   const [aiCoachPrefill, setAiCoachPrefill] = useState<string | null>(null);
   const [bottleMl, setBottleMl] = useState<(typeof BOTTLE_OPTIONS)[number]>(1000);
@@ -385,29 +427,24 @@ export function NutritionView({
   }, []);
 
   const weight = bodyWeightKg ?? 75;
-
-  const load = weightedThreeDayLoad(yesterdayExertion, todayExertion, tomorrow);
-  const band = fuelBandForLoad(load);
-  const macros = macroTargets(weight, band, goalBias);
   const weekBand = classifyLoad(sevenDayLoad, daysWithLoad);
 
-  // Built from the same live values driving the hero above (not a separate
-  // fetch), so the AI Nutrition Coach's context chips update instantly when
-  // "tomorrow" changes — never a stale server snapshot. The actual grounding
-  // text sent to the model is rebuilt server-side per message from the same
-  // inputs (see app/api/ai/nutrition-coach/route.ts), so correctness never
-  // depends on this object either — it's display-only.
+  const hasTarget = liveTarget && liveTarget.mode !== "disabled" && liveTarget.calories !== null;
+  const targetBodyWeightKg = liveTarget?.bodyWeightKg ?? weight;
+
+  // Same resolver the mobile Day/Week views and the AI coach's real
+  // grounding use (lib/nutrition-target-data.ts) — refetched live as
+  // "tomorrow" changes below, so this is never a stale/separately-computed
+  // snapshot. The AI's own grounding text is still rebuilt server-side per
+  // message from the same inputs; this object is display-only for the chips.
   const nutritionCoachContext: NutritionCoachContextDisplay = {
-    // This panel's own quick client-side estimate, kept separate from the
-    // adaptive engine (lib/nutrition-target.ts) that now drives the mobile
-    // Day/Week views and the AI's real grounding — see the comment above.
-    targetMode: "auto",
-    fuelDay: band.day,
-    fuelDayLabel: band.label,
-    calories: macros.carbGramsDay * 4 + macros.proteinGramsDay * 4 + macros.fatGramsDay * 9,
-    carbGramsDay: macros.carbGramsDay,
-    proteinGramsDay: macros.proteinGramsDay,
-    fatGramsDay: macros.fatGramsDay,
+    targetMode: liveTarget?.mode ?? "auto",
+    fuelDay: (liveTarget?.fuelDay as NutritionCoachContextDisplay["fuelDay"]) ?? null,
+    fuelDayLabel: liveTarget?.fuelDayLabel ?? null,
+    calories: liveTarget?.calories ?? null,
+    carbGramsDay: liveTarget?.carbsG ?? null,
+    proteinGramsDay: liveTarget?.proteinG ?? null,
+    fatGramsDay: liveTarget?.fatG ?? null,
     weekBand,
     weekBandLabel: LOAD_BAND_LABEL[weekBand],
     nextSession,
@@ -508,62 +545,72 @@ export function NutritionView({
             style={{ background: "radial-gradient(70% 100% at 25% 0%, color-mix(in oklch, var(--gold) 8%, transparent), transparent)" }}
           />
           <div className="relative flex flex-wrap items-center justify-between gap-2">
-            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(band.day)}`}>
-              {band.label}
+            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(liveTarget?.fuelDay ?? "")}`}>
+              {liveTarget?.fuelDayLabel ?? (liveTarget?.mode === "manual" ? "Coach-set target" : liveTarget?.mode === "disabled" ? "Target off" : "Fuel target")}
             </span>
-            <span className="text-xs text-zinc-500 tabular-nums">Weighted 3-day load {load.toFixed(2)}</span>
+            {targetRefetching && <span className="text-xs text-zinc-500">Updating…</span>}
           </div>
-          <p className="relative mt-3 text-sm leading-relaxed text-zinc-300">{band.emphasis}</p>
+          <p className="relative mt-3 text-sm leading-relaxed text-zinc-300">{targetSourceLine(liveTarget)}</p>
 
-          <div className="relative mt-5 grid grid-cols-3 divide-x divide-white/[0.08] rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
-            <div className="px-3 py-3.5 text-center sm:px-4">
-              <div className="flex justify-center">
-                <IconBadge tone="gold" size="sm">
-                  <FoodCategoryIcon type="carb" />
-                </IconBadge>
+          {hasTarget ? (
+            <>
+              <div className="relative mt-5 grid grid-cols-3 divide-x divide-white/[0.08] rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+                <div className="px-3 py-3.5 text-center sm:px-4">
+                  <div className="flex justify-center">
+                    <IconBadge tone="gold" size="sm">
+                      <FoodCategoryIcon type="carb" />
+                    </IconBadge>
+                  </div>
+                  <p className="label-caps mt-1.5 text-[9px]">Carbs</p>
+                  <p className="text-display mt-1 text-[24px] leading-none text-gold tabular-nums">
+                    {liveTarget!.carbsG}
+                    <span className="text-xs text-zinc-500"> g</span>
+                  </p>
+                  <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{(liveTarget!.carbsG! / targetBodyWeightKg).toFixed(1)} g/kg</p>
+                </div>
+                <div className="px-3 py-3.5 text-center sm:px-4">
+                  <div className="flex justify-center">
+                    <IconBadge tone="neutral" size="sm">
+                      <FoodCategoryIcon type="protein" />
+                    </IconBadge>
+                  </div>
+                  <p className="label-caps mt-1.5 text-[9px]">Protein</p>
+                  <p className="text-display mt-1 text-[24px] leading-none text-zinc-50 tabular-nums">
+                    {liveTarget!.proteinG}
+                    <span className="text-xs text-zinc-500"> g</span>
+                  </p>
+                  <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{(liveTarget!.proteinG! / targetBodyWeightKg).toFixed(1)} g/kg</p>
+                </div>
+                <div className="px-3 py-3.5 text-center sm:px-4">
+                  <div className="flex justify-center">
+                    <IconBadge tone="neutral" size="sm">
+                      <FoodCategoryIcon type="fat" />
+                    </IconBadge>
+                  </div>
+                  <p className="label-caps mt-1.5 text-[9px]">Fat</p>
+                  <p className="text-display mt-1 text-[24px] leading-none text-zinc-50 tabular-nums">
+                    {liveTarget!.fatG}
+                    <span className="text-xs text-zinc-500"> g</span>
+                  </p>
+                  <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{(liveTarget!.fatG! / targetBodyWeightKg).toFixed(1)} g/kg</p>
+                </div>
               </div>
-              <p className="label-caps mt-1.5 text-[9px]">Carbs</p>
-              <p className="text-display mt-1 text-[24px] leading-none text-gold tabular-nums">
-                {macros.carbGramsDay}
-                <span className="text-xs text-zinc-500"> g</span>
+              <p className="relative mt-2 text-[11px] leading-relaxed text-zinc-600">
+                {liveTarget!.calories} kcal total at {targetBodyWeightKg} kg
+                {liveTarget?.mode === "auto" && goalBias !== "maintain" ? ` (adjusted for your ${primaryGoal.toLowerCase()} goal)` : ""}.
               </p>
-              <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{macros.carbGkg.toFixed(1)} g/kg</p>
-            </div>
-            <div className="px-3 py-3.5 text-center sm:px-4">
-              <div className="flex justify-center">
-                <IconBadge tone="neutral" size="sm">
-                  <FoodCategoryIcon type="protein" />
-                </IconBadge>
-              </div>
-              <p className="label-caps mt-1.5 text-[9px]">Protein</p>
-              <p className="text-display mt-1 text-[24px] leading-none text-zinc-50 tabular-nums">
-                {macros.proteinGramsDay}
-                <span className="text-xs text-zinc-500"> g</span>
-              </p>
-              <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{macros.proteinGkg.toFixed(1)} g/kg</p>
-            </div>
-            <div className="px-3 py-3.5 text-center sm:px-4">
-              <div className="flex justify-center">
-                <IconBadge tone="neutral" size="sm">
-                  <FoodCategoryIcon type="fat" />
-                </IconBadge>
-              </div>
-              <p className="label-caps mt-1.5 text-[9px]">Fat</p>
-              <p className="text-display mt-1 text-[24px] leading-none text-zinc-50 tabular-nums">
-                {macros.fatGramsDay}
-                <span className="text-xs text-zinc-500"> g</span>
-              </p>
-              <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{macros.fatGkg.toFixed(1)} g/kg</p>
-            </div>
-          </div>
-          <p className="relative mt-2 text-[11px] leading-relaxed text-zinc-600">
-            {bodyWeightKg !== null ? `At ${weight} kg. ` : "Using 75 kg — add your weight in Profile. "}
-            Carbs move with training load
-            {goalBias !== "maintain" ? ` (adjusted for your ${primaryGoal.toLowerCase()} goal)` : ""}; protein and fat stay steady.
-          </p>
+            </>
+          ) : liveTarget?.mode !== "disabled" ? (
+            <p className="relative mt-4 text-[13px] leading-relaxed text-zinc-500">
+              Add your weight in Profile so we can calculate your target.
+            </p>
+          ) : null}
         </div>
 
-        {/* Yesterday / today / tomorrow — the inputs that drive the numbers above */}
+        {/* Yesterday / today / tomorrow — only meaningful in Auto mode, where
+            they drive the numbers above; Manual/Disabled targets don't vary
+            by day so the picker has nothing to preview. */}
+        {liveTarget?.mode === "auto" && (
         <div className="border-b border-white/[0.06] p-5 sm:p-6">
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-2.5">
@@ -593,6 +640,7 @@ export function NutritionView({
             />
           </div>
         </div>
+        )}
 
         {/* Food ideas — concrete follow-through on the targets above.
             Exclusions stay in plain view, never behind a collapsed control. */}

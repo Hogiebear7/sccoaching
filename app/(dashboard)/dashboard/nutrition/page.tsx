@@ -19,6 +19,7 @@ import {
   INTOLERANCE_OPTIONS,
 } from "@/lib/profile-options";
 import { isAiConfigured } from "@/lib/ai";
+import { getResolvedNutritionTarget } from "@/lib/nutrition-target-data";
 import { verifySession } from "@/lib/session";
 import { NutritionView } from "./NutritionView";
 
@@ -105,8 +106,15 @@ export default async function NutritionPage() {
       .filter((b) => !b.isPast)
       .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`))[0] ?? null;
 
+  // "medium" matches NutritionView's default Tomorrow picker state, so the
+  // first client render (before the member touches the picker) shows
+  // numbers consistent with what's selected — see the picker's live-refetch
+  // effect for what happens once they change it.
+  const resolvedTarget = getResolvedNutritionTarget(user.id, todayISO, todayISO, "medium");
+
   return (
     <NutritionView
+      resolvedTarget={resolvedTarget}
       bodyWeightKg={resolveCurrentWeightKg(
         profile.currentWeightKg,
         findBodyWeightLogsByUserId(user.id)
