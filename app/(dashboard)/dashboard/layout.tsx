@@ -16,6 +16,7 @@ type DashboardLayoutProps = {
 const TRAINING_NAV_ITEMS = [
   { label: "Overview", href: "/dashboard" },
   { label: "Workouts", href: "/dashboard/workouts" },
+  { label: "Exercise Library", href: "/dashboard/exercise-library" },
   { label: "Recovery", href: "/dashboard/recovery" },
   { label: "Nutrition", href: "/dashboard/nutrition" },
 ];

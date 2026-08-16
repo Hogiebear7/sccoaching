@@ -41,6 +41,11 @@ yarn-error.log*
 # local JSON data store
 /data
 
+# exercise-library import staging (source packs/media — not checked in),
+# but keep the README documenting the expected directory shape.
+/import-data/*
+!/import-data/README.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

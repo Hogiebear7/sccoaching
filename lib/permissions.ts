@@ -109,6 +109,7 @@ export const NAV_CAPABILITY: Record<string, Capability> = {
   "/staff/messages": "members.view",
   "/staff/catalog": "catalog.manage",
   "/staff/exercises": "exercises.manage",
+  "/staff/exercise-library": "exercises.manage",
   "/staff/staff-users": "staffUsers.manage",
   "/staff/finances": "finance.view",
   "/staff/reports": "reports.view",

@@ -143,6 +143,7 @@ export function WorkoutLogForm({
   editingSession,
   onSaved,
   onCancelEdit,
+  initialExerciseName,
 }: {
   exercises: ExerciseRecord[];
   containerClassName?: string;
@@ -155,6 +156,10 @@ export function WorkoutLogForm({
   onSaved?: () => void;
   /** Called when the user backs out of editing without saving. */
   onCancelEdit?: () => void;
+  /** Seeds a single pre-named blank exercise row (e.g. arriving from the
+      Exercise Library's "Log this exercise" link) — ignored when editing an
+      existing session. */
+  initialExerciseName?: string;
 }) {
   const router = useRouter();
   const isEditing = !!editingSession;
@@ -166,9 +171,11 @@ export function WorkoutLogForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [exerciseRows, setExerciseRows] = useState<ExerciseRow[]>(() =>
-    editingSession ? sessionToExerciseRows(editingSession) : []
-  );
+  const [exerciseRows, setExerciseRows] = useState<ExerciseRow[]>(() => {
+    if (editingSession) return sessionToExerciseRows(editingSession);
+    if (initialExerciseName) return [{ ...newRow(), name: initialExerciseName }];
+    return [];
+  });
   const [runRows, setRunRows] = useState<RunRow[]>(() =>
     editingSession ? sessionToRunRows(editingSession) : []
   );

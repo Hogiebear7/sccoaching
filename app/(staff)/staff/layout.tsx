@@ -22,6 +22,7 @@ const navItems: { label: string; href: string; capability: Capability }[] = [
   { label: "Messages",    href: "/staff/messages",    capability: NAV_CAPABILITY["/staff/messages"] },
   { label: "Membership/Class Options", href: "/staff/catalog", capability: NAV_CAPABILITY["/staff/catalog"] },
   { label: "Exercises",   href: "/staff/exercises",   capability: NAV_CAPABILITY["/staff/exercises"] },
+  { label: "Exercise Library", href: "/staff/exercise-library", capability: NAV_CAPABILITY["/staff/exercise-library"] },
   { label: "Staff users", href: "/staff/staff-users", capability: NAV_CAPABILITY["/staff/staff-users"] },
   { label: "Reports",     href: "/staff/reports",     capability: NAV_CAPABILITY["/staff/reports"] },
   { label: "Finances",    href: "/staff/finances",    capability: NAV_CAPABILITY["/staff/finances"] },

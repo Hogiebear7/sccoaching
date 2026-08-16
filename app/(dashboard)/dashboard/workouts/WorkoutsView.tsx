@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import type { ExerciseRecord, WorkoutSessionRecord } from "@/lib/db";
@@ -46,9 +46,15 @@ export function WorkoutsView({
   helperContext: HelperContext;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Arriving from the Exercise Library's "Log this exercise" link
+  // (?logExercise=<name>) — jump straight to the Log tab with that exercise
+  // pre-named in a blank row, read once on mount rather than reacted to on
+  // every param change.
+  const [initialExerciseName] = useState(() => searchParams.get("logExercise")?.trim() || undefined);
   const [editingClassSessionId, setEditingClassSessionId] = useState<string | null>(null);
   const [editingSelfSessionId, setEditingSelfSessionId] = useState<string | null>(null);
-  const [heroTab, setHeroTab] = useState<"plan" | "log">("plan");
+  const [heroTab, setHeroTab] = useState<"plan" | "log">(initialExerciseName ? "log" : "plan");
   const todayISO = todayDateString();
 
   // Logged exercises link to the library via exerciseId when the member
@@ -142,7 +148,7 @@ export function WorkoutsView({
           <WorkoutHelper sessions={sessions} context={helperContext} />
         </div>
         <div className={heroTab === "log" ? "" : "hidden"}>
-          <WorkoutLogForm exercises={exercises} />
+          <WorkoutLogForm exercises={exercises} initialExerciseName={initialExerciseName} />
         </div>
       </div>
 
