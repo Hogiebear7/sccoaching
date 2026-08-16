@@ -57,6 +57,11 @@ async function sendExpoPush(userId: string, payload: PushPayload): Promise<void>
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(messages),
+      // Unbounded before this: a single stalled request here had nothing to
+      // cut it off, and since sendPush is called sequentially per user
+      // across several housekeeping jobs, one hang could block the entire
+      // cron run past its own external timeout.
+      signal: AbortSignal.timeout(10_000),
     });
     const json = (await res.json().catch(() => null)) as { data?: ExpoPushTicket[] } | null;
     const tickets = json?.data ?? [];
@@ -110,7 +115,8 @@ export async function sendPush(userId: string, payload: PushPayload): Promise<vo
     try {
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        data
+        data,
+        { timeout: 10_000 }
       );
       console.log(`[push] sent: ...${shortEndpoint} → "${payload.title}"`);
     } catch (err: unknown) {
