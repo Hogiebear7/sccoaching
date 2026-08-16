@@ -7,7 +7,12 @@ import type { JobDefinition } from "./types";
 // upstream eventually reach members without needing a fresh scan. Capped
 // per run so this stays a light, frequent job rather than a slow bulk
 // re-crawl — admin-curated and already-fresh records are left alone.
-const MAX_REFRESHED_PER_RUN = 25;
+// Each lookup has its own 10s cap (lib/open-food-facts-client.ts), so the
+// cap here also bounds this job's worst case (10s * MAX) well under the
+// housekeeping cron's overall request ceiling — this job runs last, after
+// every time-sensitive reminder job, but a slow run here still shouldn't
+// be able to push the whole workflow past its timeout.
+const MAX_REFRESHED_PER_RUN = 10;
 
 export const refreshBrandedFoodCacheJob: JobDefinition = {
   name: "refresh-branded-food-cache",
