@@ -1177,6 +1177,7 @@ function readDb(): Database {
       emailNotificationsEnabled: p.emailNotificationsEnabled ?? true,
       pushNotificationsEnabled: p.pushNotificationsEnabled ?? false,
       preferredUnits: p.preferredUnits ?? "metric",
+      restTimerSeconds: p.restTimerSeconds ?? 90,
       programmeEnabled: p.programmeEnabled ?? false,
       drinkSettings: p.drinkSettings ?? null,
       drinkSettingsUpdatedAt: p.drinkSettingsUpdatedAt ?? null,

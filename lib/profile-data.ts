@@ -32,6 +32,7 @@ export interface ProfileData {
   emailNotificationsEnabled: boolean;
   reminderTimingsMins: number[] | null;
   preferredUnits: MeasurementUnits;
+  restTimerSeconds: number;
   avatarDataUrl: string | null;
   // Gates whether the client shows a "Cycle Tracking" entry point at all —
   // mirrors the web nav's same check. See app/api/mobile/cycle/route.ts for
@@ -86,6 +87,7 @@ export function getProfileData(userId: string | undefined): ProfileData | null {
     emailNotificationsEnabled: profile.emailNotificationsEnabled,
     reminderTimingsMins: profile.reminderTimingsMins ?? null,
     preferredUnits: profile.preferredUnits ?? "metric",
+    restTimerSeconds: profile.restTimerSeconds ?? 90,
     avatarDataUrl: profile.avatarDataUrl ?? null,
     cycleTrackingEligible: profile.cycleTrackingEligible,
     allTimeStats: sumStatsInRange(statsData, null, null),

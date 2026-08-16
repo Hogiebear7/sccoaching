@@ -76,6 +76,12 @@ export interface ProfileRecord {
   // Optional so records created before this field existed stay valid;
   // readers should treat null/undefined as "metric" (see db.ts normalization).
   preferredUnits?: MeasurementUnits;
+  // How long the automatic rest timer counts down for after a set is marked
+  // complete during workout logging (Workouts tab), in seconds. Also used as
+  // the default when a member manually opens the rest timer. Optional for
+  // backward compatibility; readers treat undefined as 90 (see db.ts
+  // normalization).
+  restTimerSeconds?: number;
   // Programme tab access — off by default, enabled per member by staff.
   // Optional for the same backwards-compatibility reason; treat undefined
   // as false (see db.ts normalization).
