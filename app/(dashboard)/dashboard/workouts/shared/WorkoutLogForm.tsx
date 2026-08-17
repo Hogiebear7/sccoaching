@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { ExerciseRecord, WorkoutSessionRecord } from "@/lib/db";
@@ -176,6 +177,22 @@ export function WorkoutLogForm({
     if (initialExerciseName) return [{ ...newRow(), name: initialExerciseName }];
     return [];
   });
+
+  // Lightweight name -> slug index for the (separate, Supabase-backed)
+  // Exercise Library — lets a row whose typed name matches an approved
+  // library exercise link straight to its GIF/instructions. Fetched once;
+  // a failed/empty fetch just means no rows get a link, never an error the
+  // member sees, since this is a nice-to-have on top of logging.
+  const [libraryIndex, setLibraryIndex] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    fetch("/api/exercise-library/names")
+      .then((r) => r.json())
+      .then((data) => {
+        const items: { name: string; slug: string }[] = data?.items ?? [];
+        setLibraryIndex(new Map(items.map((i) => [i.name.trim().toLowerCase(), i.slug])));
+      })
+      .catch(() => {});
+  }, []);
   const [runRows, setRunRows] = useState<RunRow[]>(() =>
     editingSession ? sessionToRunRows(editingSession) : []
   );
@@ -429,6 +446,16 @@ export function WorkoutLogForm({
                       value={row.name}
                       onChange={(name, exerciseId) => updateRow(row.key, { name, exerciseId })}
                     />
+                    {libraryIndex.get(row.name.trim().toLowerCase()) ? (
+                      <Link
+                        href={`/dashboard/exercise-library/${libraryIndex.get(row.name.trim().toLowerCase())}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      >
+                        View demonstration ↗
+                      </Link>
+                    ) : null}
                   </div>
 
                   <div>
