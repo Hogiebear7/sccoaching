@@ -34,6 +34,15 @@ export function ExerciseMediaSlot({
   const hue = hueFor(seed);
   const showPlaceholder = !gifUrl || errored;
 
+  // A fast/cached image can finish loading before this onLoad handler is
+  // even attached — the load event only fires once, so React never hears
+  // about it and the skeleton sticks around forever over a fully-loaded
+  // image. The ref callback runs right after mount, so checking
+  // `complete` there catches that race onLoad alone misses.
+  function checkAlreadyLoaded(img: HTMLImageElement | null) {
+    if (img?.complete && img.naturalWidth > 0) setLoaded(true);
+  }
+
   return (
     <div className={`relative overflow-hidden ${className ?? ""}`}>
       {!showPlaceholder ? (
@@ -41,6 +50,7 @@ export function ExerciseMediaSlot({
           {!loaded ? <div className="skeleton absolute inset-0" /> : null}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
+            ref={checkAlreadyLoaded}
             src={gifUrl}
             alt={`${name} demonstration`}
             className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
