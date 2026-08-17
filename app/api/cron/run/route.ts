@@ -35,15 +35,53 @@ function isAuthorizedStaffRequest(request: NextRequest): boolean {
   return !!user && !user.archivedAt && can(user.role, "operations.view");
 }
 
+// Independent of runAllJobs' own internal deadline (lib/jobs/runner.ts) —
+// this is a second, outer backstop so a bug in that internal accounting (or
+// anything else on this path that isn't a job at all) still can't leave the
+// caller's request hanging past its own timeout with zero response. GitHub
+// Actions' curl caps at 180s; this returns well before that either way.
+const ROUTE_HARD_DEADLINE_MS = 160_000;
+
+async function runWithHardDeadline(trigger: "cron" | "manual") {
+  return Promise.race([
+    runAllJobs(trigger).then((outcomes) => ({ timedOut: false as const, outcomes })),
+    new Promise<{ timedOut: true }>((resolve) => {
+      setTimeout(() => resolve({ timedOut: true }), ROUTE_HARD_DEADLINE_MS);
+    }),
+  ]);
+}
+
 export async function GET(request: NextRequest) {
   if (isAuthorizedCronRequest(request)) {
-    const outcomes = await runAllJobs("cron");
-    return NextResponse.json({ success: true, trigger: "cron", outcomes }, { status: 200 });
+    const result = await runWithHardDeadline("cron");
+    if (result.timedOut) {
+      return NextResponse.json(
+        {
+          success: false,
+          trigger: "cron",
+          message:
+            "Housekeeping run exceeded its hard time limit — it may still be finishing in the background. Check /staff/operations for what actually completed.",
+        },
+        { status: 200 }
+      );
+    }
+    return NextResponse.json({ success: true, trigger: "cron", outcomes: result.outcomes }, { status: 200 });
   }
 
   if (isAuthorizedStaffRequest(request)) {
-    const outcomes = await runAllJobs("manual");
-    return NextResponse.json({ success: true, trigger: "manual", outcomes }, { status: 200 });
+    const result = await runWithHardDeadline("manual");
+    if (result.timedOut) {
+      return NextResponse.json(
+        {
+          success: false,
+          trigger: "manual",
+          message:
+            "Housekeeping run exceeded its hard time limit — it may still be finishing in the background. Check /staff/operations for what actually completed.",
+        },
+        { status: 200 }
+      );
+    }
+    return NextResponse.json({ success: true, trigger: "manual", outcomes: result.outcomes }, { status: 200 });
   }
 
   return NextResponse.json(

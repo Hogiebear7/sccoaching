@@ -33,17 +33,29 @@ export type OpenFoodFactsLookupResult =
 
 // GET /api/v2/product/{barcode}.json — status 0 means the barcode isn't in
 // OFF's database (a normal, expected outcome, not an error).
+const LOOKUP_TIMEOUT_MS = 10_000;
+
 export async function lookupOpenFoodFactsByBarcode(barcode: string): Promise<OpenFoodFactsLookupResult> {
   let res: Response;
   try {
-    res = await fetch(`${OFF_BASE_URL}/product/${encodeURIComponent(barcode)}.json`, {
-      headers: { "User-Agent": OFF_USER_AGENT },
-      // Without this, a slow/hanging OFF response blocks the caller
-      // indefinitely — refresh-branded-food-cache calls this in a loop of
-      // up to 25 barcodes per housekeeping run, so one stuck request stalls
-      // the whole cron job (and the GitHub Actions curl call behind it).
-      signal: AbortSignal.timeout(10_000),
-    });
+    // AbortSignal.timeout is the primary cap on the fetch itself, but a
+    // production hang (see git history on this file — a stuck lookup here
+    // once stalled the whole housekeeping cron job past GitHub Actions'
+    // curl timeout, with the response never coming back at all) means that
+    // alone isn't proven reliable on every runtime. Racing it against an
+    // independent setTimeout is redundant on a host where AbortSignal.timeout
+    // works correctly, but guarantees this function still returns control to
+    // its caller within LOOKUP_TIMEOUT_MS even if the signal doesn't actually
+    // abort the underlying connection.
+    res = await Promise.race([
+      fetch(`${OFF_BASE_URL}/product/${encodeURIComponent(barcode)}.json`, {
+        headers: { "User-Agent": OFF_USER_AGENT },
+        signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("lookup timed out")), LOOKUP_TIMEOUT_MS);
+      }),
+    ]);
   } catch {
     return { ok: false, reason: "network_error" };
   }
