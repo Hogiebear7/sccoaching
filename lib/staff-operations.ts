@@ -12,6 +12,7 @@ import {
   type SubscriptionStatus,
 } from "@/lib/db";
 import { isPendingCheckoutStale } from "@/lib/billing";
+import { classStartMs } from "@/lib/class-time";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { remainingSessions } from "@/lib/scheduling-status";
 
@@ -96,7 +97,7 @@ export function buildUpcomingClassPressureSummaries(): ClassPressureSummary[] {
   const now = Date.now();
 
   return findClasses()
-    .filter((classRecord) => new Date(`${classRecord.date}T${classRecord.startTime}`).getTime() >= now)
+    .filter((classRecord) => classStartMs(classRecord.date, classRecord.startTime) >= now)
     .map((classRecord) => {
       const bookedCount = findBookingsByClassId(classRecord.id).length;
       const waitlistCount = findWaitlistEntriesByClassId(classRecord.id).length;

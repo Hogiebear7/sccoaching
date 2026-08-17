@@ -11,6 +11,7 @@ import {
   findWaitlistEntriesByClassId,
   type ClassCategoryRecord,
 } from "./db";
+import { classStartMs } from "@/lib/class-time";
 import { resolveBookingsForUser } from "./bookings";
 import { hasActiveMembership, membershipIsRequired } from "./membership";
 import { getCancellationCutoffHours } from "./scheduling";
@@ -112,7 +113,7 @@ export function getScheduleData(userId: string | undefined): ScheduleData | null
     }));
 
   const classes: ScheduleClass[] = findClasses()
-    .filter((classRecord) => new Date(`${classRecord.date}T${classRecord.startTime}`).getTime() >= now)
+    .filter((classRecord) => classStartMs(classRecord.date, classRecord.startTime) >= now)
     .map((classRecord) => {
       const bookedCount = findBookingsByClassId(classRecord.id).length;
       const isBookedByMe = myBookedClassIds.has(classRecord.id);

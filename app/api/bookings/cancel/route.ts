@@ -10,6 +10,7 @@ import {
   saveSubscription,
 } from "@/lib/db";
 import { sendBookingCancellationEmail } from "@/lib/booking-emails";
+import { classStartDate } from "@/lib/class-time";
 import { creditSourceForBooking, trackLateCancellationCredit } from "@/lib/cancellation-credits";
 import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer, isCancellationEarly } from "@/lib/scheduling";
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
   let creditPending = false;
 
   if (classRecord) {
-    const classDateTime = new Date(`${classRecord.date}T${classRecord.startTime}`);
+    const classDateTime = classStartDate(classRecord.date, classRecord.startTime);
 
     if (classDateTime.getTime() < Date.now()) {
       return NextResponse.json(

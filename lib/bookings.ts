@@ -1,3 +1,4 @@
+import { classStartDate } from "@/lib/class-time";
 import { findBookingsByUserId, findClassById, findUserById } from "./db";
 import { isCancellationEarly } from "./scheduling";
 
@@ -31,7 +32,7 @@ export function resolveBookingsForUser(userId: string, now: number = Date.now())
       const classRecord = findClassById(booking.classId);
       if (!classRecord) return null;
 
-      const classDateTime = new Date(`${classRecord.date}T${classRecord.startTime}`);
+      const classDateTime = classStartDate(classRecord.date, classRecord.startTime);
 
       return {
         bookingId: booking.id,

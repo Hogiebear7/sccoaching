@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { classStartMs, currentHourInGymTimeZone, gymLocalDateString } from "@/lib/class-time";
+
 const {
   mockFindClassById,
   mockFindBookingsByClassId,
@@ -151,10 +153,12 @@ describe("computeOfferWindowMs", () => {
   // Pinned to a daytime hour (outside the 8pm-10am quiet-hours extension)
   // so these cases exercise the plain proximity tiers deterministically,
   // regardless of what time the test suite actually runs.
+  // Dublin-local, not server-local — the point of this whole test file is
+  // Dublin-time correctness, so "9pm" should mean 9pm Dublin regardless of
+  // what timezone the test runner itself happens to be in.
   function atHour(hour: number): number {
-    const d = new Date();
-    d.setHours(hour, 0, 0, 0);
-    return d.getTime();
+    const hh = String(hour).padStart(2, "0");
+    return classStartMs(gymLocalDateString(new Date()), `${hh}:00`);
   }
 
   it("returns 3 hours when class is between 90 min and 2 days away", async () => {
@@ -191,8 +195,8 @@ describe("computeOfferWindowMs", () => {
     const classMs = now + 24 * 60 * 60 * 1000; // 1 day away — base window would be 3hr
     const windowMs = computeOfferWindowMs(classMs, now);
     const expiresAt = new Date(now + windowMs);
-    expect(expiresAt.getHours()).toBe(10);
-    expect(expiresAt.getDate()).toBe(new Date(now).getDate() + 1);
+    expect(currentHourInGymTimeZone(expiresAt)).toBe(10);
+    expect(gymLocalDateString(expiresAt)).toBe(gymLocalDateString(new Date(now + 24 * 60 * 60 * 1000)));
   });
 
   it("extends the window to 10am the same morning when issued just after midnight", async () => {
@@ -201,8 +205,8 @@ describe("computeOfferWindowMs", () => {
     const classMs = now + 24 * 60 * 60 * 1000; // 1 day away — base window would be 3hr
     const windowMs = computeOfferWindowMs(classMs, now);
     const expiresAt = new Date(now + windowMs);
-    expect(expiresAt.getHours()).toBe(10);
-    expect(expiresAt.getDate()).toBe(new Date(now).getDate());
+    expect(currentHourInGymTimeZone(expiresAt)).toBe(10);
+    expect(gymLocalDateString(expiresAt)).toBe(gymLocalDateString(new Date(now)));
   });
 
   it("a far-out class offered at night is extended at least to the 12hr floor (may land after 10am)", async () => {

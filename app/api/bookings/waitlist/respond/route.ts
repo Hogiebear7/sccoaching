@@ -13,6 +13,7 @@ import {
   saveWaitlistEntry,
   type BookingRecord,
 } from "@/lib/db";
+import { classStartDate } from "@/lib/class-time";
 import { hasActiveMembership } from "@/lib/membership";
 import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
 import { resolvePendingCancellationCreditsForClass } from "@/lib/cancellation-credits";
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const classDateTime = new Date(`${classRecord.date}T${classRecord.startTime}`);
+  const classDateTime = classStartDate(classRecord.date, classRecord.startTime);
   if (classDateTime.getTime() < Date.now()) {
     saveWaitlistEntry({ ...entry, offerState: "expired", resolvedAt: now });
     return NextResponse.json(

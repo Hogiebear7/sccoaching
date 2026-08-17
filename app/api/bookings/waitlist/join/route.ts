@@ -14,6 +14,7 @@ import {
   findWaitlistEntryByClassAndUser,
   type WaitlistEntryRecord,
 } from "@/lib/db";
+import { classStartDate } from "@/lib/class-time";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
 import { isClassEligibleForPlan } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const classDateTime = new Date(`${classRecord.date}T${classRecord.startTime}`);
+  const classDateTime = classStartDate(classRecord.date, classRecord.startTime);
 
   if (classDateTime.getTime() < Date.now()) {
     return NextResponse.json(

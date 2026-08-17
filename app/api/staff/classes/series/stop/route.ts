@@ -11,6 +11,7 @@ import {
   findUserById,
   saveClassSeries,
 } from "@/lib/db";
+import { classStartMs } from "@/lib/class-time";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -82,8 +83,7 @@ export async function POST(request: NextRequest) {
   let keptBooked = 0;
 
   for (const occurrence of findClassesBySeriesId(series.id)) {
-    const startsInFuture =
-      new Date(`${occurrence.date}T${occurrence.startTime}`).getTime() > now.getTime();
+    const startsInFuture = classStartMs(occurrence.date, occurrence.startTime) > now.getTime();
     if (!startsInFuture) continue;
 
     if (findBookingsByClassId(occurrence.id).length > 0) {

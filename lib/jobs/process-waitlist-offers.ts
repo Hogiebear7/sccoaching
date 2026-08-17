@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 
+import { classStartMs } from "@/lib/class-time";
 import {
   createNotification,
   findAllWaitlistEntries,
@@ -42,10 +43,7 @@ export const processWaitlistOffersJob: JobDefinition = {
         continue;
       }
 
-      const [h, m] = classRecord.startTime.split(":").map(Number);
-      const classDate = new Date(classRecord.date);
-      classDate.setHours(h, m, 0, 0);
-      const classMs = classDate.getTime();
+      const classMs = classStartMs(classRecord.date, classRecord.startTime);
 
       // Class has already started — expire without cascading.
       if (classMs <= now) {

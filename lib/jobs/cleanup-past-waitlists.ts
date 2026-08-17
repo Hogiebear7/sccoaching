@@ -1,3 +1,4 @@
+import { classStartMs } from "@/lib/class-time";
 import { findAllWaitlistEntries, findClassById, deleteWaitlistEntry } from "@/lib/db";
 import type { JobDefinition } from "./types";
 
@@ -17,7 +18,7 @@ export const cleanupPastWaitlistsJob: JobDefinition = {
       const classRecord = findClassById(entry.classId);
 
       const classHasPassed =
-        !classRecord || new Date(`${classRecord.date}T${classRecord.startTime}`).getTime() < now;
+        !classRecord || classStartMs(classRecord.date, classRecord.startTime) < now;
 
       if (!classHasPassed) continue;
 

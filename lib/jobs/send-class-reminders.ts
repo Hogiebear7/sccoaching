@@ -9,6 +9,7 @@ import {
   isTransactionalEmailEnabled,
   type NotificationRecord,
 } from "@/lib/db";
+import { classStartMs } from "@/lib/class-time";
 import { sendEmail } from "@/lib/email";
 import { classReminderEmail } from "@/lib/email-templates";
 import { sendPush } from "@/lib/push";
@@ -20,13 +21,6 @@ const DEFAULT_REMINDER_TIMINGS_MINS = [1440, 360, 180, 60];
 // are considered stale and skipped. Prevents late-delivery spam when the job
 // runs infrequently and multiple reminder windows have already passed.
 const MAX_STALE_MS = 4 * 60 * 60 * 1000; // 4 hours
-
-function classDateTimeMs(date: string, startTime: string): number {
-  const [h, m] = startTime.split(":").map(Number);
-  const dt = new Date(date);
-  dt.setHours(h, m, 0, 0);
-  return dt.getTime();
-}
 
 export const sendClassRemindersJob: JobDefinition = {
   name: "send-class-reminders",
@@ -43,7 +37,7 @@ export const sendClassRemindersJob: JobDefinition = {
     const upcomingBookings = bookings.filter((b) => {
       const cls = findClassById(b.classId);
       if (!cls) return false;
-      return classDateTimeMs(cls.date, cls.startTime) > now;
+      return classStartMs(cls.date, cls.startTime) > now;
     });
 
     let sent = 0;
@@ -52,7 +46,7 @@ export const sendClassRemindersJob: JobDefinition = {
       const cls = findClassById(booking.classId);
       if (!cls) continue;
 
-      const classMs = classDateTimeMs(cls.date, cls.startTime);
+      const classMs = classStartMs(cls.date, cls.startTime);
       const profile = findProfileByUserId(booking.userId);
       const effectiveTimings =
         profile?.reminderTimingsMins ?? DEFAULT_REMINDER_TIMINGS_MINS;

@@ -10,6 +10,7 @@ import {
   findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "./db";
+import { classStartMs } from "@/lib/class-time";
 import { resolveSubscriptionEntitlement } from "./membership-entitlement";
 import type { WeeklyTrainingScheduleRecord } from "./profile-schema";
 import {
@@ -125,7 +126,7 @@ export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
         date: classRecord.date,
         startTime: classRecord.startTime,
         durationMins: classRecord.durationMins,
-        isPast: new Date(`${classRecord.date}T${classRecord.startTime}`).getTime() < now,
+        isPast: classStartMs(classRecord.date, classRecord.startTime) < now,
       };
     })
     .filter((b): b is NonNullable<typeof b> => b !== null);

@@ -1,6 +1,7 @@
 import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { randomUUID } from "crypto";
 
+import { classStartMs, currentHourInGymTimeZone, nextGymLocalHourMs } from "@/lib/class-time";
 import {
   createNotification,
   findBookingsByClassId,
@@ -39,13 +40,6 @@ export function isCancellationEarly(classDateTime: Date): boolean {
   return classDateTime.getTime() - Date.now() > cutoffMs;
 }
 
-function classDateTimeMs(date: string, startTime: string): number {
-  const [h, m] = startTime.split(":").map(Number);
-  const dt = new Date(date);
-  dt.setHours(h, m, 0, 0);
-  return dt.getTime();
-}
-
 const TWO_DAYS_MS     = 2 * 24 * 60 * 60 * 1000;
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const THREE_HOURS_MS  = 3 * 60 * 60 * 1000;
@@ -54,21 +48,13 @@ const THIRTY_MINS_MS  = 30 * 60 * 1000;
 
 // Offers issued between 8pm and 10am get their window extended so they
 // don't quietly expire overnight — nobody should lose a spot because they
-// were asleep when it came in.
+// were asleep when it came in. "8pm/10am" means Dublin time, the gym's own
+// business hours, not the server's.
 const QUIET_HOURS_START_HOUR = 20; // 8pm
 const QUIET_HOURS_END_HOUR = 10; // 10am
 
 function isQuietHour(hour: number): boolean {
   return hour >= QUIET_HOURS_START_HOUR || hour < QUIET_HOURS_END_HOUR;
-}
-
-// The next 10am, local time — same day if `at` is still in the pre-10am leg
-// of quiet hours, otherwise the following morning.
-function nextQuietHoursEndMs(at: Date): number {
-  const end = new Date(at);
-  end.setHours(QUIET_HOURS_END_HOUR, 0, 0, 0);
-  if (end.getTime() <= at.getTime()) end.setDate(end.getDate() + 1);
-  return end.getTime();
 }
 
 // Returns the offer response window (in ms) based on how far the class is:
@@ -93,9 +79,9 @@ export function computeOfferWindowMs(classMs: number, nowMs: number): number {
       : NINETY_MINS_MS;
 
   const now = new Date(nowMs);
-  if (!isQuietHour(now.getHours())) return baseWindowMs;
+  if (!isQuietHour(currentHourInGymTimeZone(now))) return baseWindowMs;
 
-  const extendedWindowMs = nextQuietHoursEndMs(now) - nowMs;
+  const extendedWindowMs = nextGymLocalHourMs(now, QUIET_HOURS_END_HOUR) - nowMs;
   return Math.min(Math.max(baseWindowMs, extendedWindowMs), timeUntilClass);
 }
 
@@ -111,7 +97,7 @@ export function issueWaitlistOffer(classId: string): void {
   const classRecord = findClassById(classId);
   if (!classRecord) return;
 
-  const classMs = classDateTimeMs(classRecord.date, classRecord.startTime);
+  const classMs = classStartMs(classRecord.date, classRecord.startTime);
   const now = Date.now();
 
   if (classMs <= now) return; // class has started — nothing to offer

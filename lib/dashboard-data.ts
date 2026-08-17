@@ -11,6 +11,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "./db";
+import { classStartMs } from "@/lib/class-time";
 import { estimatePhase } from "./cycle-phase";
 import { isPeriodLapsed, SUBSCRIPTION_STATUS_LABEL } from "./membership-status";
 import { readinessDelta, readinessSeries, weeklyTrainingSummary } from "./progress";
@@ -139,7 +140,7 @@ export function getDashboardData(userId: string | undefined): DashboardData | nu
     .flatMap((b) => {
       const c = findClassById(b.classId);
       if (!c) return [];
-      if (new Date(`${c.date}T${c.startTime}`).getTime() < now) return [];
+      if (classStartMs(c.date, c.startTime) < now) return [];
       return [c];
     })
     .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`))[0] ?? null;

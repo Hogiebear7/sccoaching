@@ -16,6 +16,7 @@ import {
   saveClassSeries,
   saveSubscription,
 } from "@/lib/db";
+import { classStartMs } from "@/lib/class-time";
 import { reversePassConsumption } from "@/lib/payments";
 import { sendClassCancelledEmail } from "@/lib/booking-emails";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -73,9 +74,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const classStart = new Date(`${classRecord.date}T${classRecord.startTime}`);
+  const classStart = classStartMs(classRecord.date, classRecord.startTime);
 
-  if (classStart.getTime() <= Date.now()) {
+  if (classStart <= Date.now()) {
     return NextResponse.json(
       {
         success: false,
