@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { findUserById } from "@/lib/db";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow, mapMediaRow } from "@/lib/exercise-library/mappers";
+import { signMediaUrls } from "@/lib/exercise-library/media-urls";
 import { verifySession } from "@/lib/session";
 import { ExerciseDetailView } from "./ExerciseDetailView";
 
@@ -60,10 +61,14 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
     return refs.map((ref) => ({ ...ref, slug: slugBySourceId.get(ref.id) ?? null }));
   }
 
+  const media = (mediaRows ?? []).map(mapMediaRow);
+  const signedUrls = await signMediaUrls(client, media.map((m) => m.storagePath));
+  for (const m of media) m.url = signedUrls.get(m.storagePath) ?? m.url;
+
   return (
     <ExerciseDetailView
       exercise={exercise}
-      media={(mediaRows ?? []).map(mapMediaRow)}
+      media={media}
       favorited={!!favoriteRow}
       related={{
         similarExercises: withSlugs("similarExercises"),

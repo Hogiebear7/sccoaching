@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow, mapMediaRow } from "@/lib/exercise-library/mappers";
+import { signMediaUrls } from "@/lib/exercise-library/media-urls";
 import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
@@ -67,10 +68,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return refs.map((ref) => ({ ...ref, slug: slugBySourceId.get(ref.id) ?? null }));
   }
 
+  const media = (mediaRows ?? []).map(mapMediaRow);
+  const signedUrls = await signMediaUrls(client, media.map((m) => m.storagePath));
+  for (const m of media) m.url = signedUrls.get(m.storagePath) ?? m.url;
+
   return NextResponse.json({
     success: true,
     exercise,
-    media: (mediaRows ?? []).map(mapMediaRow),
+    media,
     favorited: !!favoriteRow,
     related: {
       similarExercises: withSlugs("similarExercises"),

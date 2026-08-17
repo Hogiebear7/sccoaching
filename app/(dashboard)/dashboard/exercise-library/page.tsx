@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { findUserById } from "@/lib/db";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
+import { signMediaUrls } from "@/lib/exercise-library/media-urls";
 import { verifySession } from "@/lib/session";
 import { ExerciseLibraryView } from "./ExerciseLibraryView";
 
@@ -29,12 +30,16 @@ export default async function DashboardExerciseLibraryPage() {
     client.from("exercises").select("*").eq("approved", true).order("name", { ascending: true }).limit(1000),
     // Thumbnail resolution only — the detail page fetches its own larger
     // variant on demand rather than shipping every resolution to the list.
-    client.from("exercise_media").select("exercise_id, url, resolution").eq("resolution", "180"),
+    client.from("exercise_media").select("exercise_id, storage_path, resolution").eq("resolution", "180"),
     client.from("exercise_favorites").select("exercise_id").eq("user_id", user.id),
   ]);
 
   const exercises = (exerciseRows ?? []).map(mapExerciseRow);
-  const thumbByExerciseId = new Map((mediaRows ?? []).map((r) => [r.exercise_id as string, r.url as string]));
+  const thumbRows = mediaRows ?? [];
+  const signedThumbUrls = await signMediaUrls(client, thumbRows.map((r) => r.storage_path as string));
+  const thumbByExerciseId = new Map(
+    thumbRows.map((r) => [r.exercise_id as string, signedThumbUrls.get(r.storage_path as string) ?? null])
+  );
   const favoriteIds = new Set((favoriteRows ?? []).map((r) => r.exercise_id as string));
 
   const items = exercises.map((e) => ({
