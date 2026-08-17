@@ -75,6 +75,16 @@ function scanSourcePack(dir: string): { exercises: ScannedExercise[]; exerciseLi
   return { exercises, exerciseListCount };
 }
 
+// Source packs vary in casing (some all-lowercase, like ExerciseDB's) —
+// title-case on import so the display name is consistent regardless of
+// source. Matches Postgres's initcap() behavior (used for the one-off
+// backfill of exercises imported before this existed): capitalize the
+// first letter of every run of letters, lowercase the rest — hyphens,
+// slashes, and parens act as natural word boundaries without special-casing.
+function titleCase(s: string): string {
+  return s.replace(/[a-zA-Z]+/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
+}
+
 // Pure mapping — exported for unit testing without touching Supabase.
 export function mapSourceFileToRecord(
   raw: SourceExerciseFile,
@@ -85,7 +95,7 @@ export function mapSourceFileToRecord(
   return {
     source,
     sourceId: raw.id,
-    name: raw.name.trim(),
+    name: titleCase(raw.name.trim()),
     aliases: [],
     bodyPart: norm(raw.bodyPart),
     targetMuscle: norm(raw.target),
