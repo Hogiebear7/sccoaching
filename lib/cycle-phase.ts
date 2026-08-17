@@ -83,7 +83,11 @@ export function estimatePhase(
   lastPeriodStartDate: string | null,
   averageCycleLengthDays: number | null,
   periodLengthDays: number | null,
-  regularity: CycleRegularity | null
+  regularity: CycleRegularity | null,
+  /** YYYY-MM-DD to estimate the phase as of — defaults to today. Pass a past
+      workout's date to see what phase the member was likely in that day,
+      rather than where they are now. */
+  asOfDateISO?: string
 ): PhaseEstimate {
   if (!lastPeriodStartDate || !averageCycleLengthDays || averageCycleLengthDays < 14) {
     return {
@@ -103,11 +107,15 @@ export function estimatePhase(
   // Parse date without timezone shift
   const [y, m, d] = lastPeriodStartDate.split("-").map(Number);
   const lastPeriod = new Date(y, m - 1, d);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  let asOf = new Date();
+  if (asOfDateISO) {
+    const [ay, am, ad] = asOfDateISO.split("-").map(Number);
+    if (ay && am && ad) asOf = new Date(ay, am - 1, ad);
+  }
+  asOf.setHours(0, 0, 0, 0);
 
   const daysSince = Math.floor(
-    (today.getTime() - lastPeriod.getTime()) / (1000 * 60 * 60 * 24)
+    (asOf.getTime() - lastPeriod.getTime()) / (1000 * 60 * 60 * 24)
   );
 
   if (daysSince < 0) {

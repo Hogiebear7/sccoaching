@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
   saveWorkoutSession(session);
 
   return NextResponse.json(
-    { success: true, message: "Workout logged." },
+    { success: true, message: "Workout logged.", id: session.id },
     { status: 201 }
   );
 }

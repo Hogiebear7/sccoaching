@@ -123,6 +123,13 @@ export interface WorkoutSessionRecord {
       Feeds the workout review and the AI report. */
   sessionRpe?: number | null;
   feelingNotes?: string | null;
+  /** Cached AI-generated session review paragraph (lib/workout-review.ts +
+      generateWorkoutReview) — generated once on first request, not
+      regenerated on every fetch. Cleared implicitly by never being set;
+      there's no invalidation since the underlying session data driving it
+      doesn't change after logging. */
+  reviewText?: string | null;
+  reviewGeneratedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

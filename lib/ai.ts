@@ -23,6 +23,7 @@ import {
   findRecoveryLogsByUserId,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
+import { formatWorkoutReviewContext, type WorkoutReviewData } from "@/lib/workout-review";
 
 export function isAiConfigured(): boolean {
   return Boolean(getConfiguredAnthropicApiKey());
@@ -601,4 +602,41 @@ export async function identifyFoodPhoto(request: FoodPhotoIdentifyRequest): Prom
   });
 
   return parseIdentifiedFoodItems(textFromMessage(message));
+}
+
+const WORKOUT_REVIEW_SYSTEM_PROMPT = `You write a short, member-facing review of a single workout session they just logged, read right after they finish training.
+
+Grounding rules — these are strict:
+- A "Session data" block follows this prompt. It is the ONLY source of facts. Never invent weights, reps, RPE, sleep, cycle, or nutrition numbers not in it.
+- When a section of data is missing (no recovery log, no cycle tracking, no food logged), say so plainly rather than guessing or padding around the gap.
+- Reason about mismatches, don't just restate numbers: a low RPE with volume above their recent average suggests they had more in the tank; a high RPE with volume below average is worth flagging as a possible fatigue, sleep, or stress signal rather than a bad session; cycle phase and recovery data are context for WHY performance may have shifted, not a diagnosis. Never make medical claims — frame cycle-phase and recovery observations as gentle, non-clinical context ("might explain", "worth noting"), never as certainty.
+- If nutrition was logged, note whether they were close to target; if not logged, say fueling can't be assessed rather than assuming they under-ate.
+
+Write 2-4 short sentences, second person ("you"), warm and direct like a coach who actually looked at the numbers — not clinical, not generic hype. No headers, no bullet points, no sign-off.`;
+
+// Single-shot narrative synthesis for the post-workout "session review" —
+// pairs with the deterministic comparison stats the mobile screen shows
+// directly (lib/workout-review.ts builds both from the same WorkoutReviewData
+// so the AI paragraph can't say anything the member can't already see in the
+// numbers next to it).
+export async function generateWorkoutReview(data: WorkoutReviewData): Promise<string> {
+  if (!isAiConfigured()) return AI_NOT_CONFIGURED_MESSAGE;
+
+  const client = getClient();
+  const sessionContext = formatWorkoutReviewContext(data);
+
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 1000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: [
+      { type: "text", text: WORKOUT_REVIEW_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      { type: "text", text: `Session data:\n\n${sessionContext}` },
+    ],
+    messages: [{ role: "user", content: "Write my review for this session." }],
+  });
+
+  const text = textFromMessage(message).trim();
+  return text || "Nothing notable to add beyond the numbers above.";
 }
