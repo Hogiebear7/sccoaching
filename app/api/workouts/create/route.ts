@@ -24,6 +24,13 @@ function parseOptionalNonNegativeInt(
   return { ok: true, value: parsed };
 }
 
+function parseOptionalRpe(value: unknown): { ok: true; value: number | null } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== "number" || !Number.isFinite(value)) return { ok: false };
+  if (value < 1 || value > 10) return { ok: false };
+  return { ok: true, value };
+}
+
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
 
@@ -54,7 +61,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { title, date, durationMins, notes, exercises, runs } = (body ?? {}) as Record<string, unknown>;
+  const { title, date, durationMins, notes, exercises, runs, sessionRpe, feelingNotes } = (body ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   if (typeof title !== "string" || !title.trim()) {
     return NextResponse.json(
@@ -75,6 +85,15 @@ export async function POST(request: NextRequest) {
   if (!durationResult.ok) {
     return NextResponse.json(
       { success: false, message: "Duration must be a whole number." },
+      { status: 400 }
+    );
+  }
+
+  const rpeResult = parseOptionalRpe(sessionRpe);
+
+  if (!rpeResult.ok) {
+    return NextResponse.json(
+      { success: false, message: "Session RPE must be between 1 and 10." },
       { status: 400 }
     );
   }
@@ -124,6 +143,8 @@ export async function POST(request: NextRequest) {
     notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
     exercises: parsedExercises,
     runs: parsedRuns,
+    sessionRpe: rpeResult.value,
+    feelingNotes: typeof feelingNotes === "string" && feelingNotes.trim() ? feelingNotes.trim() : null,
     createdAt: now,
     updatedAt: now,
   };

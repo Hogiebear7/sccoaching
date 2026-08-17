@@ -24,6 +24,13 @@ function parseOptionalNonNegativeInt(
   return { ok: true, value: parsed };
 }
 
+function parseOptionalRpe(value: unknown): { ok: true; value: number | null } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== "number" || !Number.isFinite(value)) return { ok: false };
+  if (value < 1 || value > 10) return { ok: false };
+  return { ok: true, value };
+}
+
 // General edit for a member's own previously logged, self-logged workout —
 // any date, not just today. Mirrors /api/workouts/create's parsing so the
 // same log form can submit here in edit mode. Class-synced sessions (see
@@ -52,7 +59,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { id, title, date, durationMins, notes, exercises, runs } = (body ?? {}) as Record<
+  const { id, title, date, durationMins, notes, exercises, runs, sessionRpe, feelingNotes } = (body ?? {}) as Record<
     string,
     unknown
   >;
@@ -106,6 +113,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // sessionRpe/feelingNotes come only from the post-workout "How did that
+  // feel?" prompt on the log form, not this edit path's own fields — if the
+  // request doesn't include them, keep whatever was already recorded rather
+  // than wiping it out.
+  let updatedSessionRpe = existing.sessionRpe ?? null;
+  if (sessionRpe !== undefined) {
+    const rpeResult = parseOptionalRpe(sessionRpe);
+    if (!rpeResult.ok) {
+      return NextResponse.json(
+        { success: false, message: "Session RPE must be between 1 and 10." },
+        { status: 400 }
+      );
+    }
+    updatedSessionRpe = rpeResult.value;
+  }
+  const updatedFeelingNotes =
+    typeof feelingNotes === "string" ? (feelingNotes.trim() ? feelingNotes.trim() : null) : existing.feelingNotes ?? null;
+
   const parsedExercises = parseExerciseEntries(exercises);
 
   const parsedRuns: WorkoutRunEntry[] = Array.isArray(runs)
@@ -145,6 +170,8 @@ export async function POST(request: NextRequest) {
     notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
     exercises: parsedExercises,
     runs: parsedRuns,
+    sessionRpe: updatedSessionRpe,
+    feelingNotes: updatedFeelingNotes,
     updatedAt: new Date().toISOString(),
   };
 

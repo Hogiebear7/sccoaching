@@ -118,6 +118,11 @@ export interface WorkoutSessionRecord {
   classId?: string | null;
   /** Staff member who recorded/synced the class result. */
   recordedByStaffId?: string | null;
+  /** Overall session RPE (1-10) and free-text notes from the post-workout
+      "How did that feel?" prompt — distinct from any per-exercise rir/rpe.
+      Feeds the workout review and the AI report. */
+  sessionRpe?: number | null;
+  feelingNotes?: string | null;
   createdAt: string;
   updatedAt: string;
 }
