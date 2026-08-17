@@ -62,7 +62,11 @@ export async function GET(request: NextRequest) {
           message:
             "Housekeeping run exceeded its hard time limit — it may still be finishing in the background. Check /staff/operations for what actually completed.",
         },
-        { status: 200 }
+        // Deliberately non-2xx: housekeeping.yml's `$status -ge 300` check
+        // is the failure-email alerting for this endpoint. A 200 here would
+        // read as a clean success and silently drop that alert on exactly
+        // the run that most needs someone to notice.
+        { status: 503 }
       );
     }
     return NextResponse.json({ success: true, trigger: "cron", outcomes: result.outcomes }, { status: 200 });
@@ -78,7 +82,11 @@ export async function GET(request: NextRequest) {
           message:
             "Housekeeping run exceeded its hard time limit — it may still be finishing in the background. Check /staff/operations for what actually completed.",
         },
-        { status: 200 }
+        // Deliberately non-2xx: housekeeping.yml's `$status -ge 300` check
+        // is the failure-email alerting for this endpoint. A 200 here would
+        // read as a clean success and silently drop that alert on exactly
+        // the run that most needs someone to notice.
+        { status: 503 }
       );
     }
     return NextResponse.json({ success: true, trigger: "manual", outcomes: result.outcomes }, { status: 200 });
