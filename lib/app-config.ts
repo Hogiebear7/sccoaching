@@ -19,6 +19,7 @@ interface AppConfig {
   resendApiKey?: string;
   emailFrom?: string;
   contactNotifyEmail?: string;
+  supabaseServiceRoleKey?: string;
 }
 
 let cached: AppConfig | null = null;
@@ -47,6 +48,7 @@ function loadAppConfig(): AppConfig {
     if (key === "resendApiKey") config.resendApiKey = value;
     if (key === "emailFrom") config.emailFrom = value;
     if (key === "contactNotifyEmail") config.contactNotifyEmail = value;
+    if (key === "supabaseServiceRoleKey") config.supabaseServiceRoleKey = value;
   }
 
   cached = config;
@@ -87,4 +89,8 @@ export function getConfiguredEmailFrom(): string | undefined {
 
 export function getConfiguredContactNotifyEmail(): string | undefined {
   return process.env.CONTACT_NOTIFY_EMAIL?.trim() || loadAppConfig().contactNotifyEmail;
+}
+
+export function getConfiguredSupabaseServiceRoleKey(): string | undefined {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || loadAppConfig().supabaseServiceRoleKey;
 }
