@@ -17,6 +17,9 @@ const MAX_REFRESHED_PER_RUN = 10;
 export const refreshBrandedFoodCacheJob: JobDefinition = {
   name: "refresh-branded-food-cache",
   description: "Re-fetches stale Open Food Facts-sourced branded food records from the live API.",
+  // The only job with a legitimate worst case (MAX_REFRESHED_PER_RUN * OFF's
+  // own 10s per-lookup cap) longer than the runner's 15s default.
+  timeoutMs: 120_000,
   async run() {
     const stale = findAllFoods("branded")
       .filter((f) => f.provenance === "open_food_facts" && f.barcode && isBrandedRecordStale(f))

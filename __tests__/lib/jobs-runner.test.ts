@@ -57,6 +57,21 @@ describe("runJob", () => {
     expect(saved.status).toBe("error");
     expect(saved.trigger).toBe("cron");
   });
+
+  it("times out a job that never resolves instead of hanging forever", async () => {
+    const { runJob } = await import("@/lib/jobs/runner");
+
+    const hangingJob = {
+      name: "hanging-job",
+      description: "Never resolves.",
+      run: () => new Promise<string>(() => {}),
+    };
+
+    const outcome = await runJob(hangingJob, "cron", 10);
+
+    expect(outcome.status).toBe("error");
+    expect(outcome.summary).toBe("Timed out after 0s.");
+  });
 });
 
 describe("runAllJobs", () => {

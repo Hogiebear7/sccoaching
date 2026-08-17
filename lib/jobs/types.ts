@@ -8,6 +8,10 @@ export interface JobDefinition {
   name: string;
   description: string;
   run: () => Promise<string>;
+  // Overrides the runner's default per-job timeout (see lib/jobs/runner.ts)
+  // — only needed by a job that legitimately does real external I/O with a
+  // worst case longer than that default (e.g. refresh-branded-food-cache).
+  timeoutMs?: number;
 }
 
 export interface JobOutcome {
