@@ -25,7 +25,12 @@ export async function GET(request: NextRequest) {
   const client = getExerciseLibraryClient();
   let query = client.from("exercises").select("*").eq("approved", true).order("name", { ascending: true }).limit(500);
 
-  if (q) query = query.or(`name.ilike.%${q}%,aliases.cs.{${q}}`);
+  // Strips characters that are structurally significant in PostgREST's
+  // filter grammar (,()."*%{}) before it reaches the .or() string below —
+  // exercise names/aliases are plain text, so this costs nothing for a
+  // real search while stopping a query string from reshaping the filter.
+  const safeQ = q?.replace(/[,()."*%{}]/g, "").trim();
+  if (safeQ) query = query.or(`name.ilike.%${safeQ}%,aliases.cs.{${safeQ}}`);
   if (bodyPart) query = query.eq("body_part", bodyPart);
   if (equipment) query = query.eq("equipment", equipment);
   if (category) query = query.eq("category", category);
