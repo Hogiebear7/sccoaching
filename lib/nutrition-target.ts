@@ -310,6 +310,11 @@ export interface DailyTarget extends DailyMacros {
   fuelDay: FuelDay;
   fuelDayLabel: string;
   source: "adaptive" | "estimated";
+  /** Estimated total calories burned this day, before any goal-driven
+      deficit/surplus is applied to the eating target — i.e. expenditure,
+      not intake. Surfaced for hydration (1ml of water per kcal expended is
+      the rule of thumb this app uses), not shown as an eating target. */
+  expenditureKcal: number;
 }
 
 export function computeDailyTarget(input: DailyTargetInput): DailyTarget {
@@ -331,5 +336,6 @@ export function computeDailyTarget(input: DailyTargetInput): DailyTarget {
     fuelDay: band.day,
     fuelDayLabel: band.label,
     source: input.tdee !== null ? "adaptive" : "estimated",
+    expenditureKcal: Math.round(baseKcal),
   };
 }

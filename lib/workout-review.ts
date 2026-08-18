@@ -3,6 +3,7 @@ import {
   findFoodEntriesByUserId,
   findProfileByUserId,
   findRecoveryLogByUserIdAndDate,
+  findWaterLogByUserIdAndDate,
   findWorkoutSessionsByUserId,
   normalizeRecoveryScale,
   type RecoveryLogRecord,
@@ -53,12 +54,18 @@ export interface NutritionCompliance {
   actualProteinG: number | null;
 }
 
+export interface HydrationCompliance {
+  targetMl: number | null;
+  loggedMl: number;
+}
+
 export interface WorkoutReviewData {
   session: WorkoutSessionRecord;
   comparison: SessionComparison;
   recovery: RecoveryLogRecord | null;
   cyclePhase: PhaseEstimate | null;
   nutrition: NutritionCompliance | null;
+  hydration: HydrationCompliance | null;
 }
 
 function average(values: number[]): number | null {
@@ -122,7 +129,11 @@ export function buildWorkoutReviewData(userId: string, session: WorkoutSessionRe
       }
     : null;
 
-  return { session, comparison, recovery, cyclePhase, nutrition };
+  const hydration: HydrationCompliance | null = target
+    ? { targetMl: target.expenditureKcal, loggedMl: findWaterLogByUserIdAndDate(userId, session.date)?.ml ?? 0 }
+    : null;
+
+  return { session, comparison, recovery, cyclePhase, nutrition, hydration };
 }
 
 // Plain-text grounding block for the AI call — every fact here is one the
@@ -171,6 +182,12 @@ export function formatWorkoutReviewContext(data: WorkoutReviewData): string {
     } else {
       lines.push(`No food logged for this date, so how well they fueled can't be assessed.`);
     }
+  }
+
+  if (data.hydration && data.hydration.targetMl !== null) {
+    lines.push(
+      `Hydration logged this date: ${data.hydration.loggedMl}ml, vs. a target of ${data.hydration.targetMl}ml (1ml per estimated kcal expended).`
+    );
   }
 
   return lines.join("\n");

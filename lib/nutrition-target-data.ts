@@ -99,6 +99,11 @@ export interface ResolvedNutritionTarget {
       resolveCurrentWeightKg) — surfaced so callers that cite it in text
       (the AI coach) always match what the target math actually used. */
   bodyWeightKg: number | null;
+  /** Estimated calories burned this day (pre-goal-adjustment expenditure) —
+      only populated in auto mode with enough data to estimate; null for
+      manual/disabled/cold-start-empty results. Drives the hydration target
+      (1ml water per kcal expended). */
+  expenditureKcal: number | null;
 }
 
 function disabledResult(dateISO: string, notes: string | null, bodyWeightKg: number | null): ResolvedNutritionTarget {
@@ -114,6 +119,7 @@ function disabledResult(dateISO: string, notes: string | null, bodyWeightKg: num
     source: null,
     notes,
     bodyWeightKg,
+    expenditureKcal: null,
   };
 }
 
@@ -130,6 +136,7 @@ function manualResult(dateISO: string, record: NutritionTargetRecord, bodyWeight
     source: "manual",
     notes: record.notes,
     bodyWeightKg,
+    expenditureKcal: null,
   };
 }
 
@@ -146,6 +153,7 @@ function emptyAutoResult(dateISO: string): ResolvedNutritionTarget {
     source: null,
     notes: null,
     bodyWeightKg: null,
+    expenditureKcal: null,
   };
 }
 
@@ -162,6 +170,7 @@ function autoResult(dateISO: string, target: DailyTarget, bodyWeightKg: number):
     source: target.source,
     notes: null,
     bodyWeightKg,
+    expenditureKcal: target.expenditureKcal,
   };
 }
 

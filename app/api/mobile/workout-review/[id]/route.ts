@@ -40,6 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       recovery: reviewData.recovery,
       cyclePhase: reviewData.cyclePhase,
       nutrition: reviewData.nutrition,
+      hydration: reviewData.hydration,
       reviewText,
     },
   });

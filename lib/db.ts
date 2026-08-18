@@ -816,6 +816,19 @@ export interface RecoveryLogRecord {
   updatedAt: string;
 }
 
+// One row per member per date, ml accumulated across the day's quick-adds —
+// mirrors RecoveryLogRecord's date-keyed upsert pattern (findByUserIdAndDate
+// + save-replaces-existing-for-that-date), not a running log of individual
+// drinks.
+export interface WaterLogRecord {
+  id: string;
+  userId: string;
+  date: string;
+  ml: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MessageRecord {
   id: string;
   memberId: string;
@@ -1051,6 +1064,7 @@ interface Database {
   passLedger: PassLedgerEntryRecord[];
   pendingCancellationCredits: PendingCancellationCreditRecord[];
   recoveryLogs: RecoveryLogRecord[];
+  waterLogs: WaterLogRecord[];
   messages: MessageRecord[];
   notifications: NotificationRecord[];
   waitlistEntries: WaitlistEntryRecord[];
@@ -1152,6 +1166,7 @@ function readDb(): Database {
       passLedger: [],
       pendingCancellationCredits: [],
       recoveryLogs: [],
+      waterLogs: [],
       messages: [],
       notifications: [],
       waitlistEntries: [],
@@ -1269,6 +1284,7 @@ function readDb(): Database {
     })),
     pendingCancellationCredits: parsed.pendingCancellationCredits ?? [],
     recoveryLogs: (parsed.recoveryLogs ?? []).map(normalizeRecoveryScale),
+    waterLogs: parsed.waterLogs ?? [],
     messages: (parsed.messages ?? []).map((m) => ({ ...m, readAt: m.readAt ?? null })),
     notifications: (parsed.notifications ?? []).map((n) => ({
       ...n,
@@ -2006,6 +2022,24 @@ export function saveRecoveryLog(log: RecoveryLogRecord) {
     db.recoveryLogs.push(log);
   } else {
     db.recoveryLogs[index] = log;
+  }
+
+  writeDb(db);
+}
+
+export function findWaterLogByUserIdAndDate(userId: string, date: string): WaterLogRecord | undefined {
+  const db = readDb();
+  return db.waterLogs.find((log) => log.userId === userId && log.date === date);
+}
+
+export function saveWaterLog(log: WaterLogRecord) {
+  const db = readDb();
+  const index = db.waterLogs.findIndex((l) => l.userId === log.userId && l.date === log.date);
+
+  if (index === -1) {
+    db.waterLogs.push(log);
+  } else {
+    db.waterLogs[index] = log;
   }
 
   writeDb(db);
