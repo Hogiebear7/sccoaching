@@ -1048,6 +1048,7 @@ interface Database {
   classes: ClassRecord[];
   classSeries: ClassSeriesRecord[];
   classWorkouts: ClassWorkoutRecord[];
+  classWorkoutTemplates: ClassWorkoutTemplateRecord[];
   classCategories: ClassCategoryRecord[];
   // slug → display name for categories that have been deleted. Populated by
   // deleteClassCategory so historical class/plan records still render a
@@ -1153,6 +1154,7 @@ function readDb(): Database {
       classes: [],
       classSeries: [],
       classWorkouts: [],
+      classWorkoutTemplates: [],
       classCategories: DEFAULT_CLASS_CATEGORIES,
       deletedCategoryLabels: {},
       bookings: [],
@@ -1246,6 +1248,10 @@ function readDb(): Database {
     classes: (parsed.classes ?? []).map((c) => ({ ...c, category: c.category ?? "general", imageUrl: c.imageUrl ?? null, imageAlt: c.imageAlt ?? null })),
     classSeries: parsed.classSeries ?? [],
     classWorkouts: parsed.classWorkouts ?? [],
+    classWorkoutTemplates: (parsed.classWorkoutTemplates ?? []).map((t) => ({
+      ...t,
+      exercises: (t.exercises ?? []).map((e) => ({ ...e, supersetGroup: e.supersetGroup ?? null })),
+    })),
     // Seed built-in categories if the DB predates this field.
     // One-way migration: rows with isActive === false (previously archived) are
     // treated as deleted so they no longer appear in selection UIs.
@@ -2487,6 +2493,60 @@ export function saveExercise(exercise: ExerciseRecord) {
 export function deleteExercise(id: string) {
   const db = readDb();
   db.exercises = db.exercises.filter((e) => e.id !== id);
+  writeDb(db);
+}
+
+// A reusable class workout — built once, assigned to one or more class
+// categories, and loaded into a specific class's ClassWorkoutRecord from
+// there (see /api/staff/classes/[classId]/workout). Distinct from
+// ClassWorkoutRecord itself, which is the actual content for one dated
+// class occurrence.
+export interface ClassWorkoutTemplateExercise {
+  exerciseId: string | null;
+  name: string;
+  weight: string;
+  reps: number | null;
+  sets: number | null;
+  /** "ST1", "ST2", etc — exercises sharing a label are a superset, done
+      back-to-back as one station. null = not part of one. */
+  supersetGroup: string | null;
+}
+
+export interface ClassWorkoutTemplateRecord {
+  id: string;
+  name: string;
+  categories: ClassCategory[];
+  exercises: ClassWorkoutTemplateExercise[];
+  notes: string | null;
+  createdByStaffId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function findClassWorkoutTemplates(): ClassWorkoutTemplateRecord[] {
+  const db = readDb();
+  return [...db.classWorkoutTemplates].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function findClassWorkoutTemplateById(id: string): ClassWorkoutTemplateRecord | undefined {
+  const db = readDb();
+  return db.classWorkoutTemplates.find((t) => t.id === id);
+}
+
+export function saveClassWorkoutTemplate(template: ClassWorkoutTemplateRecord) {
+  const db = readDb();
+  const index = db.classWorkoutTemplates.findIndex((t) => t.id === template.id);
+  if (index === -1) {
+    db.classWorkoutTemplates.push(template);
+  } else {
+    db.classWorkoutTemplates[index] = template;
+  }
+  writeDb(db);
+}
+
+export function deleteClassWorkoutTemplate(id: string) {
+  const db = readDb();
+  db.classWorkoutTemplates = db.classWorkoutTemplates.filter((t) => t.id !== id);
   writeDb(db);
 }
 

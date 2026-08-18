@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 const navItems: { label: string; href: string; capability: Capability }[] = [
   { label: "Operations",  href: "/staff/operations",  capability: NAV_CAPABILITY["/staff/operations"] },
   { label: "Classes",     href: "/staff/classes",     capability: NAV_CAPABILITY["/staff/classes"] },
+  { label: "Workouts",    href: "/staff/workouts",    capability: NAV_CAPABILITY["/staff/workouts"] },
   { label: "Members",     href: "/staff/members",     capability: NAV_CAPABILITY["/staff/members"] },
   { label: "Messages",    href: "/staff/messages",    capability: NAV_CAPABILITY["/staff/messages"] },
   { label: "Membership/Class Options", href: "/staff/catalog", capability: NAV_CAPABILITY["/staff/catalog"] },

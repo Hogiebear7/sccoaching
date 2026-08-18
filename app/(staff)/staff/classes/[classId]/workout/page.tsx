@@ -5,6 +5,7 @@ import {
   findBookingsByClassId,
   findClassById,
   findClassWorkoutByClassId,
+  findClassWorkoutTemplates,
   findExercises,
   findProfileByUserId,
   findUserById,
@@ -51,6 +52,8 @@ export default async function StaffClassWorkoutPage({
       };
     });
 
+  const templates = findClassWorkoutTemplates().filter((t) => t.categories.includes(classRecord.category));
+
   return (
     <ClassWorkoutView
       classId={classRecord.id}
@@ -60,6 +63,7 @@ export default async function StaffClassWorkoutPage({
       existingWorkout={findClassWorkoutByClassId(classRecord.id) ?? null}
       checkedIn={checkedIn}
       libraryExercises={findExercises()}
+      templates={templates}
     />
   );
 }

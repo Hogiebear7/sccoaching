@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import type { ClassWorkoutRecord, ExerciseRecord, WorkoutExerciseEntry } from "@/lib/db";
+import type {
+  ClassWorkoutRecord,
+  ClassWorkoutTemplateRecord,
+  ExerciseRecord,
+  WorkoutExerciseEntry,
+} from "@/lib/db";
 import { formatFriendlyClassDate } from "@/lib/dates";
 
 type TemplateRow = {
@@ -14,7 +19,27 @@ type TemplateRow = {
   weight: string;
   reps: string;
   sets: string;
+  supersetGroup: string;
 };
+
+// Groups rows sharing a non-empty station label together, wherever they fall
+// in the list — matches the member app's ST1/ST2 station grouping.
+function groupRows(rows: TemplateRow[]): { key: string; label: string | null; rows: TemplateRow[] }[] {
+  const groups: { key: string; label: string | null; rows: TemplateRow[] }[] = [];
+  const labelIndex = new Map<string, number>();
+  for (const row of rows) {
+    const label = row.supersetGroup.trim() || null;
+    if (label && labelIndex.has(label)) {
+      groups[labelIndex.get(label)!].rows.push(row);
+    } else if (label) {
+      labelIndex.set(label, groups.length);
+      groups.push({ key: `group-${label}`, label, rows: [row] });
+    } else {
+      groups.push({ key: row.key, label: null, rows: [row] });
+    }
+  }
+  return groups;
+}
 
 type MemberRow = {
   key: string;
@@ -41,11 +66,25 @@ function rowsFromEntries(entries: WorkoutExerciseEntry[] | null): TemplateRow[] 
     weight: e.weight ?? "",
     reps: e.reps === null ? "" : String(e.reps),
     sets: e.sets === null ? "" : String(e.sets),
+    supersetGroup: e.supersetGroup ?? "",
+  }));
+}
+
+function rowsFromLibraryTemplate(template: ClassWorkoutTemplateRecord): TemplateRow[] {
+  if (template.exercises.length === 0) return [newTemplateRow()];
+  return template.exercises.map((e) => ({
+    key: crypto.randomUUID(),
+    exerciseId: e.exerciseId,
+    name: e.name,
+    weight: e.weight,
+    reps: e.reps === null ? "" : String(e.reps),
+    sets: e.sets === null ? "" : String(e.sets),
+    supersetGroup: e.supersetGroup ?? "",
   }));
 }
 
 function newTemplateRow(): TemplateRow {
-  return { key: crypto.randomUUID(), exerciseId: null, name: "", weight: "", reps: "", sets: "" };
+  return { key: crypto.randomUUID(), exerciseId: null, name: "", weight: "", reps: "", sets: "", supersetGroup: "" };
 }
 
 // Member rows mirror the template's exercises by index; staff only adjust
@@ -77,6 +116,7 @@ export function ClassWorkoutView({
   existingWorkout,
   checkedIn,
   libraryExercises,
+  templates,
 }: {
   classId: string;
   classTitle: string;
@@ -85,11 +125,13 @@ export function ClassWorkoutView({
   existingWorkout: ClassWorkoutRecord | null;
   checkedIn: CheckedInMember[];
   libraryExercises: ExerciseRecord[];
+  templates: ClassWorkoutTemplateRecord[];
 }) {
   const router = useRouter();
   const [template, setTemplate] = useState<TemplateRow[]>(() =>
     rowsFromEntries(existingWorkout?.exercises ?? null)
   );
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [workoutNotes, setWorkoutNotes] = useState(existingWorkout?.notes ?? "");
   const [memberRows, setMemberRows] = useState<Record<string, MemberRow[]>>({});
   const [memberNotes, setMemberNotes] = useState<Record<string, string>>(() =>
@@ -102,6 +144,14 @@ export function ClassWorkoutView({
 
   function updateTemplate(key: string, patch: Partial<TemplateRow>) {
     setTemplate((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+    setMessage(null);
+  }
+
+  function loadTemplate(templateId: string) {
+    setSelectedTemplateId(templateId);
+    const found = templates.find((t) => t.id === templateId);
+    if (!found) return;
+    setTemplate(rowsFromLibraryTemplate(found));
     setMessage(null);
   }
 
@@ -147,6 +197,7 @@ export function ClassWorkoutView({
             weight: r.weight,
             reps: r.reps.trim() ? Number(r.reps) : null,
             sets: r.sets.trim() ? Number(r.sets) : null,
+            supersetGroup: r.supersetGroup.trim() || null,
           })),
           results,
         }),
@@ -200,36 +251,47 @@ export function ClassWorkoutView({
       <div className="panel p-5">
         <h3 className="text-base font-semibold">Workout</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          The shared plan — default weight/reps/sets prefill each member&apos;s row.
+          The shared plan — default weight/reps/sets prefill each member&apos;s row. Give two or
+          more exercises the same station label (e.g. ST1) to group them as a superset.
         </p>
 
+        {templates.length > 0 ? (
+          <div className="mt-3">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Load from template</label>
+            <select
+              value={selectedTemplateId}
+              onChange={(e) => loadTemplate(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">Choose a template…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+
         <div className="mt-4 space-y-3">
-          {template.map((row) => (
-            <div key={row.key} className="well space-y-2 p-3">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  list="library-exercises"
-                  value={row.name}
-                  onChange={(e) => updateTemplate(row.key, { name: e.target.value, exerciseId: null })}
-                  placeholder="Exercise (e.g. Back Squat)"
-                  className={inputCls}
-                />
-                <button
-                  type="button"
-                  onClick={() => setTemplate((prev) => prev.filter((r) => r.key !== row.key))}
-                  className="shrink-0 rounded-lg border border-border px-2.5 py-2 text-xs text-muted-foreground transition hover:border-destructive/50 hover:text-destructive"
-                >
-                  Remove
-                </button>
+          {groupRows(template).map((group) =>
+            group.rows.length > 1 ? (
+              <div key={group.key} className="rounded-xl border border-teal-600/40 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-teal-300">{group.label}</p>
+                <div className="space-y-3">
+                  {group.rows.map((row, i) => (
+                    <div key={row.key} className={i > 0 ? "border-t border-border/60 pt-3" : ""}>
+                      <TemplateRowFields row={row} inputCls={inputCls} onChange={(patch) => updateTemplate(row.key, patch)} onRemove={() => setTemplate((prev) => prev.filter((r) => r.key !== row.key))} />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <input type="text" value={row.weight} onChange={(e) => updateTemplate(row.key, { weight: e.target.value })} placeholder="Weight" aria-label="Default weight" className={inputCls} />
-                <input type="number" min={0} value={row.reps} onChange={(e) => updateTemplate(row.key, { reps: e.target.value })} placeholder="Reps" aria-label="Default reps" className={inputCls} />
-                <input type="number" min={0} value={row.sets} onChange={(e) => updateTemplate(row.key, { sets: e.target.value })} placeholder="Sets" aria-label="Default sets" className={inputCls} />
+            ) : (
+              <div key={group.key} className="well space-y-2 p-3">
+                <TemplateRowFields row={group.rows[0]} inputCls={inputCls} onChange={(patch) => updateTemplate(group.rows[0].key, patch)} onRemove={() => setTemplate((prev) => prev.filter((r) => r.key !== group.rows[0].key))} />
               </div>
-            </div>
-          ))}
+            )
+          )}
         </div>
 
         <datalist id="library-exercises">
@@ -327,5 +389,45 @@ export function ClassWorkoutView({
         </button>
       </div>
     </section>
+  );
+}
+
+function TemplateRowFields({
+  row,
+  inputCls,
+  onChange,
+  onRemove,
+}: {
+  row: TemplateRow;
+  inputCls: string;
+  onChange: (patch: Partial<TemplateRow>) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          list="library-exercises"
+          value={row.name}
+          onChange={(e) => onChange({ name: e.target.value, exerciseId: null })}
+          placeholder="Exercise (e.g. Back Squat)"
+          className={inputCls}
+        />
+        <button
+          type="button"
+          onClick={onRemove}
+          className="shrink-0 rounded-lg border border-border px-2.5 py-2 text-xs text-muted-foreground transition hover:border-destructive/50 hover:text-destructive"
+        >
+          Remove
+        </button>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        <input type="text" value={row.weight} onChange={(e) => onChange({ weight: e.target.value })} placeholder="Weight" aria-label="Default weight" className={inputCls} />
+        <input type="number" min={0} value={row.reps} onChange={(e) => onChange({ reps: e.target.value })} placeholder="Reps" aria-label="Default reps" className={inputCls} />
+        <input type="number" min={0} value={row.sets} onChange={(e) => onChange({ sets: e.target.value })} placeholder="Sets" aria-label="Default sets" className={inputCls} />
+        <input type="text" value={row.supersetGroup} onChange={(e) => onChange({ supersetGroup: e.target.value })} placeholder="Station (e.g. ST1)" aria-label="Superset station label" className={inputCls} />
+      </div>
+    </div>
   );
 }
