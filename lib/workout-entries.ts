@@ -1,6 +1,6 @@
 import type { WorkoutExerciseEntry, WorkoutSetType } from "./db";
 
-const SET_TYPES: WorkoutSetType[] = ["standard", "dropset", "myoset", "failure", "partial"];
+const SET_TYPES: WorkoutSetType[] = ["standard", "warmup", "dropset", "myoset", "failure", "partial"];
 
 function parseSetType(value: unknown): WorkoutSetType | null {
   return typeof value === "string" && SET_TYPES.includes(value as WorkoutSetType) ? (value as WorkoutSetType) : null;
@@ -67,6 +67,7 @@ export function parseExerciseEntries(exercises: unknown): WorkoutExerciseEntry[]
 
 export const SET_TYPE_LABEL: Record<WorkoutSetType, string> = {
   standard: "",
+  warmup: "warm-up",
   dropset: "dropset",
   myoset: "myoset",
   failure: "failure",

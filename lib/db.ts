@@ -64,7 +64,7 @@ export interface ExerciseRecord {
 // "standard" is the default/omitted case. The rest describe how a set (or a
 // whole exercise, when no per-set breakdown is given) was actually
 // performed — member self-logged, not prescribed.
-export type WorkoutSetType = "standard" | "dropset" | "myoset" | "failure" | "partial";
+export type WorkoutSetType = "standard" | "warmup" | "dropset" | "myoset" | "failure" | "partial";
 
 export interface WorkoutExerciseEntry {
   exerciseId: string | null;

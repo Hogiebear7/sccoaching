@@ -14,7 +14,7 @@ import {
   type WorkoutSetType,
 } from "./db";
 
-const SET_TYPES: WorkoutSetType[] = ["standard", "dropset", "myoset", "failure", "partial"];
+const SET_TYPES: WorkoutSetType[] = ["standard", "warmup", "dropset", "myoset", "failure", "partial"];
 const DAY_TYPES: ProgramDayType[] = ["workout", "rest"];
 
 function parseSetType(value: unknown): WorkoutSetType | null {
