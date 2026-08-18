@@ -197,6 +197,7 @@ export async function POST(request: NextRequest) {
     classId: entry.classId,
     userId: user.id,
     attendedAt: null,
+    noShowProcessedAt: null,
     createdAt: now,
   };
 

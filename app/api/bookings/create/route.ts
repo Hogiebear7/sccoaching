@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
     classId,
     userId: user.id,
     attendedAt: null,
+    noShowProcessedAt: null,
     createdAt: new Date().toISOString(),
   };
 

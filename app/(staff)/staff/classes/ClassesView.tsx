@@ -132,6 +132,9 @@ export function ClassesView({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [attendanceUpdatingId, setAttendanceUpdatingId] = useState<string | null>(null);
+  const [confirmRemoveBookingId, setConfirmRemoveBookingId] = useState<string | null>(null);
+  const [removingBookingId, setRemovingBookingId] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [showUpcoming, setShowUpcoming] = useState(true);
   const [showPast, setShowPast] = useState(false);
   const [showRepeating, setShowRepeating] = useState(false);
@@ -251,6 +254,29 @@ export function ClassesView({
       if (res.ok) router.refresh();
     } finally {
       setAttendanceUpdatingId(null);
+    }
+  }
+
+  async function handleRemoveBooking(bookingId: string) {
+    setRemovingBookingId(bookingId);
+    setRemoveError(null);
+    try {
+      const res = await fetch("/api/staff/bookings/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setRemoveError(data?.message ?? "Could not remove this member.");
+        return;
+      }
+      setConfirmRemoveBookingId(null);
+      router.refresh();
+    } catch {
+      setRemoveError("Something went wrong. Please try again.");
+    } finally {
+      setRemovingBookingId(null);
     }
   }
 
@@ -1037,6 +1063,11 @@ export function ClassesView({
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     Booked members
                   </p>
+                  {removeError ? (
+                    <p className="mt-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      {removeError}
+                    </p>
+                  ) : null}
                   {classRecord.roster.length === 0 ? (
                     <p className="mt-2 text-sm text-muted-foreground">No members booked yet.</p>
                   ) : (
@@ -1044,40 +1075,82 @@ export function ClassesView({
                       {classRecord.roster.map((member) => {
                         const attended = member.attendedAt !== null;
                         const isUpdating = attendanceUpdatingId === member.bookingId;
+                        const isConfirmingRemove = confirmRemoveBookingId === member.bookingId;
+                        const isRemoving = removingBookingId === member.bookingId;
 
                         return (
                           <li
                             key={member.userId}
-                            className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                            className="flex flex-col gap-1.5 border-b border-border/50 pb-2 text-sm last:border-b-0 last:pb-0"
                           >
-                            <div>
-                              <Link
-                                href={`/staff/members/${member.userId}`}
-                                className="text-gold transition hover:text-gold/80"
-                              >
-                                {member.fullName ?? member.email}
-                              </Link>
-                              <span className="text-muted-foreground"> · {member.email}</span>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <Link
+                                  href={`/staff/members/${member.userId}`}
+                                  className="text-gold transition hover:text-gold/80"
+                                >
+                                  {member.fullName ?? member.email}
+                                </Link>
+                                <span className="text-muted-foreground"> · {member.email}</span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleAttendance(member.bookingId, !attended)
+                                  }
+                                  disabled={isUpdating}
+                                  className={`rounded-full px-3 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    attended
+                                      ? "bg-primary/15 text-primary hover:bg-primary/25"
+                                      : "border border-border text-foreground hover:bg-accent"
+                                  }`}
+                                >
+                                  {isUpdating
+                                    ? "Updating…"
+                                    : attended
+                                    ? "Attended"
+                                    : "Mark attended"}
+                                </button>
+                                {!isConfirmingRemove ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setConfirmRemoveBookingId(member.bookingId);
+                                      setRemoveError(null);
+                                    }}
+                                    className="rounded-full border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60"
+                                  >
+                                    Remove
+                                  </button>
+                                ) : null}
+                              </div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleToggleAttendance(member.bookingId, !attended)
-                              }
-                              disabled={isUpdating}
-                              className={`rounded-full px-3 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                                attended
-                                  ? "bg-primary/15 text-primary hover:bg-primary/25"
-                                  : "border border-border text-foreground hover:bg-accent"
-                              }`}
-                            >
-                              {isUpdating
-                                ? "Updating…"
-                                : attended
-                                ? "Attended"
-                                : "Mark attended"}
-                            </button>
+                            {isConfirmingRemove ? (
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <p className="mr-auto text-[11px] text-muted-foreground">
+                                  Removes their booking and returns their credit.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveBooking(member.bookingId)}
+                                  disabled={isRemoving}
+                                  className="rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {isRemoving ? "Removing…" : "Confirm remove"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmRemoveBookingId(null)}
+                                  disabled={isRemoving}
+                                  className="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : null}
                           </li>
                         );
                       })}

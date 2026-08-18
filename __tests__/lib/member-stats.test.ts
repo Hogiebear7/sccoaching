@@ -96,6 +96,7 @@ describe("buildMemberStatsData", () => {
     classId: "c1",
     userId: "u1",
     attendedAt: null,
+    noShowProcessedAt: null,
     createdAt: "x",
     ...overrides,
   });

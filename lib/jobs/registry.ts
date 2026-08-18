@@ -1,4 +1,5 @@
 import { cleanupPastWaitlistsJob } from "./cleanup-past-waitlists";
+import { detectNoShowsJob } from "./detect-no-shows";
 import { expireStaleCheckoutsJob } from "./expire-stale-checkouts";
 import { generateClassSeriesJob } from "./generate-class-series";
 import { notifyExpiringPassesJob } from "./notify-expiring-passes";
@@ -16,8 +17,9 @@ import type { JobDefinition } from "./types";
 // 1. Billing transitions (subscriptions must be current before other jobs read them).
 // 2. Waitlist offer processing (expire stale offers, cascade, narrow windows).
 // 3. Class reminders (reads effective bookings, not waitlist).
-// 4. Waitlist cleanup (purges terminal records for past classes).
-// 5. Storage hygiene / independent maintenance (order doesn't matter).
+// 4. No-show detection (reads bookings for classes that have already ended).
+// 5. Waitlist cleanup (purges terminal records for past classes).
+// 6. Storage hygiene / independent maintenance (order doesn't matter).
 export const ALL_JOBS: JobDefinition[] = [
   expireStaleCheckoutsJob,
   notifyLapsedMembershipsJob,
@@ -27,6 +29,7 @@ export const ALL_JOBS: JobDefinition[] = [
   generateClassSeriesJob,
   processWaitlistOffersJob,
   sendClassRemindersJob,
+  detectNoShowsJob,
   cleanupPastWaitlistsJob,
   purgeExpiredResetTokensJob,
   purgeOldRecoveryLogsJob,

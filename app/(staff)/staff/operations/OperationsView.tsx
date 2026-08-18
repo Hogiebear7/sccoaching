@@ -411,6 +411,11 @@ const EMAIL_TOGGLES: { type: TransactionalEmailType; label: string; description:
     label: "Class reminder",
     description: "Sent ahead of a booked class. In-app reminders are unaffected.",
   },
+  {
+    type: "noShow",
+    label: "Missed class",
+    description: "Sent an hour after class end if a booked member was never checked in.",
+  },
 ];
 
 function EmailSettingsManager({ settings }: { settings: TransactionalEmailSettings }) {

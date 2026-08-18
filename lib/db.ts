@@ -490,7 +490,39 @@ export interface BookingRecord {
   classId: string;
   userId: string;
   attendedAt: string | null;
+  // Set once the no-show detection job has evaluated this booking (whether
+  // or not it turned out to be a no-show) — the idempotency guard that
+  // stops a re-run from notifying the same missed class twice.
+  noShowProcessedAt: string | null;
   createdAt: string;
+}
+
+// One row per detected no-show: a booking nobody checked in for, more than
+// an hour after the class ended. monthKey ("YYYY-MM", from the class's
+// calendar date) is what the miss-count/watchlist rules key off — a
+// calendar-month reset, not a billing-cycle one (see docs discussion).
+export interface NoShowRecord {
+  id: string;
+  classId: string;
+  userId: string;
+  classTitle: string;
+  classDate: string;
+  monthKey: string;
+  createdAt: string;
+}
+
+// Staff-only flag: created once a member's no-show count for a calendar
+// month reaches 2. Coaches can delete an entry (e.g. the member had a
+// legitimate reason) — deleting it does not un-count the underlying
+// NoShowRecords, and a later third miss in the same month does not
+// recreate it, since the entry is only ever created on the miss that
+// first crosses the threshold, not recomputed from live counts each run.
+export interface WatchlistEntryRecord {
+  id: string;
+  userId: string;
+  monthKey: string;
+  missCount: number;
+  addedAt: string;
 }
 
 // FIFO queue for a full class. Position is implied by createdAt order.
@@ -883,7 +915,8 @@ export type NotificationType =
   | "waitlist_offer"
   | "waitlist_timeout"
   | "readiness_alert"
-  | "cancellation_credit_restored";
+  | "cancellation_credit_restored"
+  | "no_show";
 
 export interface NotificationRecord {
   id: string;
@@ -962,13 +995,15 @@ export type TransactionalEmailType =
   | "bookingConfirmation"
   | "bookingCancellation"
   | "classCancelled"
-  | "classReminder";
+  | "classReminder"
+  | "noShow";
 
 export const TRANSACTIONAL_EMAIL_TYPES: TransactionalEmailType[] = [
   "bookingConfirmation",
   "bookingCancellation",
   "classCancelled",
   "classReminder",
+  "noShow",
 ];
 
 export type TransactionalEmailSettings = Record<TransactionalEmailType, boolean>;
@@ -979,6 +1014,7 @@ export const DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS: TransactionalEmailSettings = 
   bookingCancellation: true,
   classCancelled: true,
   classReminder: true,
+  noShow: true,
 };
 
 // ── TRIAL-ONLY: bug reporting ───────────────────────────────────────────
@@ -1055,6 +1091,8 @@ interface Database {
   // human-readable label rather than a raw slug.
   deletedCategoryLabels: Record<string, string>;
   bookings: BookingRecord[];
+  noShows: NoShowRecord[];
+  attendanceWatchlist: WatchlistEntryRecord[];
   coachNotes: CoachNoteRecord[];
   membershipCategories: MembershipCategoryRecord[];
   membershipPackages: MembershipPackageRecord[];
@@ -1158,6 +1196,8 @@ function readDb(): Database {
       classCategories: DEFAULT_CLASS_CATEGORIES,
       deletedCategoryLabels: {},
       bookings: [],
+      noShows: [],
+      attendanceWatchlist: [],
       coachNotes: [],
       membershipCategories: [],
       membershipPackages: [],
@@ -1259,7 +1299,12 @@ function readDb(): Database {
       (c) => (c as { isActive?: boolean }).isActive !== false
     ),
     deletedCategoryLabels: parsed.deletedCategoryLabels ?? {},
-    bookings: parsed.bookings ?? [],
+    bookings: (parsed.bookings ?? []).map((b) => ({
+      ...b,
+      noShowProcessedAt: b.noShowProcessedAt ?? null,
+    })),
+    noShows: parsed.noShows ?? [],
+    attendanceWatchlist: parsed.attendanceWatchlist ?? [],
     coachNotes: parsed.coachNotes ?? [],
     membershipCategories: parsed.membershipCategories ?? [],
     membershipPackages: (parsed.membershipPackages ?? []).map((pkg) => ({
@@ -1955,6 +2000,57 @@ export function updateBookingAttendance(id: string, attended: boolean): boolean 
 export function createBooking(booking: BookingRecord) {
   const db = readDb();
   db.bookings.push(booking);
+  writeDb(db);
+}
+
+export function markBookingNoShowProcessed(id: string): void {
+  const db = readDb();
+  const booking = db.bookings.find((b) => b.id === id);
+  if (!booking) return;
+  booking.noShowProcessedAt = new Date().toISOString();
+  writeDb(db);
+}
+
+export function findNoShowsByUserId(userId: string): NoShowRecord[] {
+  const db = readDb();
+  return db.noShows.filter((n) => n.userId === userId);
+}
+
+export function findAllNoShows(): NoShowRecord[] {
+  const db = readDb();
+  return db.noShows;
+}
+
+export function createNoShow(record: NoShowRecord): void {
+  const db = readDb();
+  db.noShows.push(record);
+  writeDb(db);
+}
+
+export function findAttendanceWatchlist(): WatchlistEntryRecord[] {
+  const db = readDb();
+  return db.attendanceWatchlist.sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+}
+
+export function findWatchlistEntryByUserAndMonth(
+  userId: string,
+  monthKey: string
+): WatchlistEntryRecord | undefined {
+  const db = readDb();
+  return db.attendanceWatchlist.find((e) => e.userId === userId && e.monthKey === monthKey);
+}
+
+export function saveWatchlistEntry(record: WatchlistEntryRecord): void {
+  const db = readDb();
+  const index = db.attendanceWatchlist.findIndex((e) => e.id === record.id);
+  if (index === -1) db.attendanceWatchlist.push(record);
+  else db.attendanceWatchlist[index] = record;
+  writeDb(db);
+}
+
+export function deleteWatchlistEntry(id: string): void {
+  const db = readDb();
+  db.attendanceWatchlist = db.attendanceWatchlist.filter((e) => e.id !== id);
   writeDb(db);
 }
 

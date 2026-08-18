@@ -53,6 +53,13 @@ function emailWrapper(title: string, body: string): string {
 </html>`;
 }
 
+export function ordinal(n: number): string {
+  const suffixes: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
+  const mod100 = n % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13 ? "th" : (suffixes[n % 10] ?? "th");
+  return `${n}${suffix}`;
+}
+
 function ctaButton(label: string, href: string): string {
   return `<a href="${href}" style="display:inline-block;margin-top:20px;padding:10px 22px;background:#3b82f6;color:#fff;font-size:13px;font-weight:600;border-radius:10px;text-decoration:none;">${label}</a>`;
 }
@@ -398,6 +405,58 @@ export function classCancelledEmail(opts: ClassCancelledEmailOpts): {
     ...(creditRestored ? [``, `Your session credit has been returned to your account.`] : []),
     ``,
     `Browse the schedule to book another session: ${actionUrl}`,
+    ``,
+    `— S&C Performance Coaching`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
+
+// ─── Missed class (no-show) ─────────────────────────────────────────────────────
+
+export interface NoShowEmailOpts {
+  memberName: string;
+  className: string;
+  // Miss number within the calendar month, including this one (1st, 2nd, ...).
+  missNumber: number;
+}
+
+export function noShowEmail(opts: NoShowEmailOpts): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { memberName, className, missNumber } = opts;
+  const eName = escapeHtml(memberName);
+  const eClass = escapeHtml(className);
+  const actionUrl = `${APP_URL}/dashboard/schedule`;
+  const subject = `We missed you for ${className}`;
+
+  const policyLine =
+    missNumber >= 2
+      ? `This is your ${ordinal(missNumber)} missed class this month — if you miss a third, your membership may be at risk of suspension.`
+      : `Please note: missing 3 classes within a calendar month may put your membership at risk, so if plans change, cancelling ahead of time really helps.`;
+  const ePolicy = escapeHtml(policyLine);
+
+  const html = emailWrapper(`We missed you: ${eClass}`, `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Missed class</p>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">Sorry we missed you today</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#a1a1aa;">Hi ${eName},</p>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
+      Sorry we missed you for today's <strong style="color:#fafafa;">${eClass}</strong> class! We understand things can happen last minute, but if you could cancel your booking in future, that would be greatly appreciated.
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">${ePolicy}</p>
+    ${ctaButton("Browse schedule →", actionUrl)}
+  `);
+
+  const text = [
+    `Hi ${memberName},`,
+    ``,
+    `Sorry we missed you for today's ${className} class! We understand things can happen last minute, but if you could cancel your booking in future, that would be greatly appreciated.`,
+    ``,
+    policyLine,
+    ``,
+    `Browse the schedule: ${actionUrl}`,
     ``,
     `— S&C Performance Coaching`,
   ].join("\n");

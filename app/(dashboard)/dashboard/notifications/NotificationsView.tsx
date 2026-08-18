@@ -15,6 +15,7 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   waitlist_timeout: "Offer expiring",
   readiness_alert: "Readiness alert",
   cancellation_credit_restored: "Credit restored",
+  no_show: "Missed class",
 };
 
 const TYPE_ICON: Record<NotificationType, string> = {
@@ -34,6 +35,8 @@ const TYPE_ICON: Record<NotificationType, string> = {
     "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
   cancellation_credit_restored:
     "M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12c1.657 0 3.116.673 3.804 1.667M12 8V6m0 14v-2",
+  no_show:
+    "M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
 };
 
 // Time-sensitive types get their own "Needs a response" group ahead of
@@ -51,6 +54,7 @@ const TYPE_IS_URGENT: Record<NotificationType, boolean> = {
   waitlist_timeout: true,
   readiness_alert: true,
   cancellation_credit_restored: false,
+  no_show: false,
 };
 
 function formatRelativeTime(iso: string): string {
