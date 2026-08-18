@@ -130,7 +130,7 @@ export function buildWorkoutReviewData(userId: string, session: WorkoutSessionRe
     : null;
 
   const hydration: HydrationCompliance | null = target
-    ? { targetMl: target.expenditureKcal, loggedMl: findWaterLogByUserIdAndDate(userId, session.date)?.ml ?? 0 }
+    ? { targetMl: target.calories, loggedMl: findWaterLogByUserIdAndDate(userId, session.date)?.ml ?? 0 }
     : null;
 
   return { session, comparison, recovery, cyclePhase, nutrition, hydration };

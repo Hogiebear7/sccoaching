@@ -160,6 +160,14 @@ export interface WeeklyTrainingSession {
   timeOfDay: TrainingTimeOfDay | null;
   intensity: TrainingIntensity | null;
   notes: string | null;
+  /** true = repeats every week (the original, only behavior this had).
+      false = a one-off for the specific week named by weekOf — once that
+      week is over it's filtered out wherever sessions are read (see
+      lib/weekly-training.ts), not deleted. */
+  recurring: boolean;
+  /** Monday (ISO date) of the week a one-off session belongs to. Only
+      meaningful when recurring is false; null for recurring sessions. */
+  weekOf: string | null;
 }
 
 export interface WeeklyTrainingScheduleRecord {

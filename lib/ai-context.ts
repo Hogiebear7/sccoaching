@@ -26,6 +26,7 @@ import {
 import { readinessDelta } from "./progress";
 import { computeRollingTrainingLoad, readinessGuidance, trainingLoadForLog } from "./recovery";
 import { classifyLoad, decideTier, LOAD_BAND_LABEL, type LoadBand } from "./workout-helper";
+import { activeWeeklySessions } from "./weekly-training";
 
 // ─────────────────────────────────────────────────────────────────────
 // Grounding context for the AI coach chat.
@@ -368,8 +369,9 @@ function buildWeeklyTrainingPatternLines(schedule: WeeklyTrainingScheduleRecord 
     return lines;
   }
 
+  const activeSessions = activeWeeklySessions(schedule.sessions, new Date().toISOString().slice(0, 10));
   for (const day of WEEKDAY_ORDER) {
-    const sessions = schedule.sessions.filter((s) => s.dayOfWeek === day);
+    const sessions = activeSessions.filter((s) => s.dayOfWeek === day);
     if (sessions.length === 0) continue;
     const parts = sessions.map((s) => {
       const bits = [s.label];
