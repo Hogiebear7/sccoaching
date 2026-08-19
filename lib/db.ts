@@ -1290,7 +1290,13 @@ function readDb(): Database {
     classWorkouts: parsed.classWorkouts ?? [],
     classWorkoutTemplates: (parsed.classWorkoutTemplates ?? []).map((t) => ({
       ...t,
-      exercises: (t.exercises ?? []).map((e) => ({ ...e, supersetGroup: e.supersetGroup ?? null })),
+      exercises: (t.exercises ?? []).map((e) => ({
+        ...e,
+        supersetGroup: e.supersetGroup ?? null,
+        perSide: e.perSide ?? false,
+        repsRight: e.repsRight ?? null,
+        repsLeft: e.repsLeft ?? null,
+      })),
     })),
     // Seed built-in categories if the DB predates this field.
     // One-way migration: rows with isActive === false (previously archived) are
@@ -2606,6 +2612,11 @@ export interface ClassWorkoutTemplateExercise {
   /** "ST1", "ST2", etc — exercises sharing a label are a superset, done
       back-to-back as one station. null = not part of one. */
   supersetGroup: string | null;
+  /** True when reps differ per side (unilateral) — repsRight/repsLeft hold
+      the split target and reps is null. */
+  perSide: boolean;
+  repsRight: number | null;
+  repsLeft: number | null;
 }
 
 export interface ClassWorkoutTemplateRecord {

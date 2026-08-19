@@ -28,13 +28,18 @@ function normalizeExercises(input: unknown): ClassWorkoutTemplateExercise[] {
     const name = typeof entry.name === "string" ? entry.name.trim() : "";
     if (!name) continue;
 
+    const perSide = entry.perSide === true;
+
     result.push({
       exerciseId: typeof entry.exerciseId === "string" && entry.exerciseId ? entry.exerciseId : null,
       name,
       weight: typeof entry.weight === "string" ? entry.weight.trim() : "",
-      reps: typeof entry.reps === "number" && Number.isFinite(entry.reps) ? Math.round(entry.reps) : null,
+      reps: !perSide && typeof entry.reps === "number" && Number.isFinite(entry.reps) ? Math.round(entry.reps) : null,
       sets: typeof entry.sets === "number" && Number.isFinite(entry.sets) ? Math.round(entry.sets) : null,
       supersetGroup: typeof entry.supersetGroup === "string" && entry.supersetGroup.trim() ? entry.supersetGroup.trim() : null,
+      perSide,
+      repsRight: perSide && typeof entry.repsRight === "number" && Number.isFinite(entry.repsRight) ? Math.round(entry.repsRight) : null,
+      repsLeft: perSide && typeof entry.repsLeft === "number" && Number.isFinite(entry.repsLeft) ? Math.round(entry.repsLeft) : null,
     });
 
     if (result.length >= MAX_EXERCISES) break;
