@@ -31,13 +31,17 @@ export function parseExerciseEntries(exercises: unknown): WorkoutExerciseEntry[]
           .map((raw) => {
             const s = (raw ?? {}) as Record<string, unknown>;
             const reps = typeof s.reps === "number" ? s.reps : null;
+            const repsRight = typeof s.repsRight === "number" ? s.repsRight : null;
+            const repsLeft = typeof s.repsLeft === "number" ? s.repsLeft : null;
             return {
               weight: typeof s.weight === "string" && s.weight.trim() ? s.weight.trim() : null,
               reps: reps !== null && Number.isFinite(reps) && reps >= 0 ? Math.floor(reps) : null,
               setType: parseSetType(s.setType),
+              repsRight: repsRight !== null && Number.isFinite(repsRight) && repsRight >= 0 ? Math.floor(repsRight) : null,
+              repsLeft: repsLeft !== null && Number.isFinite(repsLeft) && repsLeft >= 0 ? Math.floor(repsLeft) : null,
             };
           })
-          .filter((s) => s.weight !== null || s.reps !== null || s.setType !== null)
+          .filter((s) => s.weight !== null || s.reps !== null || s.repsRight !== null || s.repsLeft !== null || s.setType !== null)
       : [];
 
     return [
@@ -81,14 +85,17 @@ export function formatExerciseLoad(ex: WorkoutExerciseEntry): string {
   if (ex.setDetails && ex.setDetails.length > 0) {
     return ex.setDetails
       .map((s) => {
-        const load =
-          s.weight && s.reps !== null
-            ? `${s.weight}×${s.reps}${perSideSuffix}`
-            : s.weight
-              ? `${s.weight}`
-              : s.reps !== null
-                ? `×${s.reps}${perSideSuffix}`
-                : "—";
+        const repsLabel =
+          s.repsRight !== null && s.repsRight !== undefined && s.repsLeft !== null && s.repsLeft !== undefined
+            ? `R${s.repsRight}/L${s.repsLeft}`
+            : s.reps !== null
+              ? `×${s.reps}${perSideSuffix}`
+              : null;
+        const load = s.weight && repsLabel
+          ? `${s.weight}${repsLabel.startsWith("R") ? " " : ""}${repsLabel}`
+          : s.weight
+            ? s.weight
+            : (repsLabel ?? "—");
         const typeLabel = s.setType ? SET_TYPE_LABEL[s.setType] : "";
         return typeLabel ? `${load} (${typeLabel})` : load;
       })

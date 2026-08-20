@@ -26,8 +26,8 @@ describe("parseExerciseEntries", () => {
     expect(parsed[0].name).toBe("Bench Press");
     expect(parsed[0].rpe).toBe(8.5); // rounded to nearest 0.5
     expect(parsed[0].setDetails).toEqual([
-      { weight: "60", reps: 8, setType: null },
-      { weight: "65", reps: 6, setType: null },
+      { weight: "60", reps: 8, setType: null, repsRight: null, repsLeft: null },
+      { weight: "65", reps: 6, setType: null, repsRight: null, repsLeft: null },
     ]);
   });
 
@@ -55,11 +55,30 @@ describe("parseExerciseEntries", () => {
     expect(parsed[0].setType).toBe("failure");
     expect(parsed[0].supersetGroup).toBe("grp-1");
     expect(parsed[0].setDetails).toEqual([
-      { weight: "60", reps: 8, setType: "standard" },
-      { weight: "40", reps: 12, setType: "dropset" },
+      { weight: "60", reps: 8, setType: "standard", repsRight: null, repsLeft: null },
+      { weight: "40", reps: 12, setType: "dropset", repsRight: null, repsLeft: null },
     ]);
     expect(parsed[1].setType).toBeNull(); // invalid value rejected, not passed through
     expect(parsed[1].supersetGroup).toBe("grp-1");
+  });
+
+  it("parses per-side reps for a unilateral set", () => {
+    const parsed = parseExerciseEntries([
+      {
+        name: "Single-Arm Row",
+        perSide: true,
+        setDetails: [
+          { weight: "20", repsRight: 8, repsLeft: 6 },
+          { weight: "20", reps: 10 }, // no per-side values on this one — stays null
+        ],
+      },
+    ]);
+
+    expect(parsed[0].perSide).toBe(true);
+    expect(parsed[0].setDetails).toEqual([
+      { weight: "20", reps: null, setType: null, repsRight: 8, repsLeft: 6 },
+      { weight: "20", reps: 10, setType: null, repsRight: null, repsLeft: null },
+    ]);
   });
 });
 
@@ -120,6 +139,19 @@ describe("formatExerciseLoad", () => {
         notes: null,
       })
     ).toBe("3×15 (failure)");
+
+    expect(
+      formatExerciseLoad({
+        exerciseId: null,
+        name: "Single-Arm Row",
+        weight: null,
+        reps: null,
+        sets: null,
+        perSide: true,
+        setDetails: [{ weight: "20", reps: null, repsRight: 8, repsLeft: 6 }],
+        notes: null,
+      })
+    ).toBe("20 R8/L6");
   });
 });
 

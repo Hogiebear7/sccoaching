@@ -80,7 +80,15 @@ export interface WorkoutExerciseEntry {
   rir?: number | null;
   /** Per-set weight/reps when they differ between sets. Length matches the
       performed sets; null/absent = the shared weight/reps applied to all. */
-  setDetails?: { weight: string | null; reps: number | null; setType?: WorkoutSetType | null }[] | null;
+  setDetails?: {
+    weight: string | null;
+    reps: number | null;
+    setType?: WorkoutSetType | null;
+    /** Per-side reps for a unilateral set (perSide true) — reps is null when
+        these are used, and vice versa. */
+    repsRight?: number | null;
+    repsLeft?: number | null;
+  }[] | null;
   /** Applies when setDetails isn't used (or as this exercise's default set
       type) — e.g. "this whole exercise was to failure". */
   setType?: WorkoutSetType | null;
