@@ -117,6 +117,12 @@ export interface ProfileRecord {
   // compatibility; readers treat undefined as "not yet seen" (see db.ts
   // normalization).
   dashboardTourCompleted?: boolean;
+  // The gym profile (see GymProfileRecord in lib/db.ts) currently used to
+  // filter the exercise library and shape workout generation. null = no
+  // active profile, meaning unfiltered ("show all exercises"). Optional for
+  // backward compatibility; readers treat undefined as null (see db.ts
+  // normalization).
+  activeGymProfileId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

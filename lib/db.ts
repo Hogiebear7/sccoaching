@@ -227,6 +227,25 @@ export interface WorkoutTemplateRecord {
   updatedAt: string;
 }
 
+// A member's declared equipment setup (see lib/equipment-catalog.ts for the
+// slugs equipmentSlugs references) — used to filter the exercise library
+// and shape workout generation. Distinct from ExerciseLibraryRecord, which
+// lives in Supabase; this is per-member mutable data, so it follows the
+// JSON-store convention used everywhere else in this file instead.
+export interface GymProfileRecord {
+  id: string;
+  userId: string;
+  name: string;
+  icon: string | null;
+  equipmentSlugs: string[];
+  /** Slug of the GYM_PROFILE_PRESETS entry this was created from, if any —
+      purely informational (e.g. for a "based on Home Gym" hint); editing
+      equipmentSlugs afterward doesn't clear it. */
+  presetSlug: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── Nutrition diary — member food logging against a target ─────────────────
 // One target per member (overwritten on adjustment, not versioned — the
 // "since" date is just updatedAt); diary entries are the member's own
@@ -1078,6 +1097,7 @@ interface Database {
   programmes: ProgrammeRecord[];
   trainingPrograms: TrainingProgramRecord[];
   workoutTemplates: WorkoutTemplateRecord[];
+  gymProfiles: GymProfileRecord[];
   nutritionTargets: NutritionTargetRecord[];
   foodEntries: FoodEntryRecord[];
   customFoods: FoodRecord[];
@@ -1186,6 +1206,7 @@ function readDb(): Database {
       programmes: [],
       trainingPrograms: [],
       workoutTemplates: [],
+      gymProfiles: [],
       nutritionTargets: [],
       foodEntries: [],
       customFoods: [],
@@ -1265,6 +1286,7 @@ function readDb(): Database {
       intolerancesOrMedical: p.intolerancesOrMedical ?? [],
       dietaryNotes: p.dietaryNotes ?? null,
       dashboardTourCompleted: p.dashboardTourCompleted ?? false,
+      activeGymProfileId: p.activeGymProfileId ?? null,
       emergencyContactName: p.emergencyContactName ?? null,
       emergencyContactPhone: p.emergencyContactPhone ?? null,
       emergencyContact2Name: p.emergencyContact2Name ?? null,
@@ -1275,6 +1297,7 @@ function readDb(): Database {
     programmes: parsed.programmes ?? [],
     trainingPrograms: parsed.trainingPrograms ?? [],
     workoutTemplates: parsed.workoutTemplates ?? [],
+    gymProfiles: (parsed.gymProfiles ?? []).map((p) => ({ ...p, presetSlug: p.presetSlug ?? null })),
     // Every pre-existing record was an explicit staff-set target — default
     // to "manual" on read so its calories/macros keep meaning what they
     // always meant (see NutritionTargetRecord for the mode contract).
@@ -1669,6 +1692,85 @@ export function deleteWorkoutTemplate(id: string): void {
   const db = readDb();
   db.workoutTemplates = db.workoutTemplates.filter((t) => t.id !== id);
   writeDb(db);
+}
+
+// ── Gym profiles ("Equipment Available") ────────────────────────────────
+
+export function listGymProfilesForUser(userId: string): GymProfileRecord[] {
+  return readDb()
+    .gymProfiles.filter((p) => p.userId === userId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function getGymProfileById(userId: string, gymProfileId: string): GymProfileRecord | undefined {
+  return readDb().gymProfiles.find((p) => p.id === gymProfileId && p.userId === userId);
+}
+
+export function createGymProfile(
+  userId: string,
+  input: { name: string; icon: string | null; equipmentSlugs: string[]; presetSlug: string | null }
+): GymProfileRecord {
+  const db = readDb();
+  const now = new Date().toISOString();
+  const record: GymProfileRecord = {
+    id: randomUUID(),
+    userId,
+    name: input.name,
+    icon: input.icon,
+    equipmentSlugs: input.equipmentSlugs,
+    presetSlug: input.presetSlug,
+    createdAt: now,
+    updatedAt: now,
+  };
+  db.gymProfiles.push(record);
+  writeDb(db);
+  return record;
+}
+
+export function updateGymProfile(
+  userId: string,
+  gymProfileId: string,
+  patch: Partial<Pick<GymProfileRecord, "name" | "icon" | "equipmentSlugs">>
+): GymProfileRecord | undefined {
+  const db = readDb();
+  const existing = db.gymProfiles.find((p) => p.id === gymProfileId && p.userId === userId);
+  if (!existing) return undefined;
+  Object.assign(existing, patch, { updatedAt: new Date().toISOString() });
+  writeDb(db);
+  return existing;
+}
+
+export function deleteGymProfile(userId: string, gymProfileId: string): void {
+  const db = readDb();
+  db.gymProfiles = db.gymProfiles.filter((p) => !(p.id === gymProfileId && p.userId === userId));
+  // Clear the active pointer if it pointed at the profile we just removed —
+  // otherwise every filtered query would silently fall back to "not found"
+  // for a member who never re-picks an active profile.
+  const profile = db.profiles.find((pr) => pr.userId === userId);
+  if (profile && profile.activeGymProfileId === gymProfileId) {
+    profile.activeGymProfileId = null;
+  }
+  writeDb(db);
+}
+
+export function setActiveGymProfile(userId: string, gymProfileId: string | null): boolean {
+  const db = readDb();
+  if (gymProfileId !== null) {
+    const exists = db.gymProfiles.some((p) => p.id === gymProfileId && p.userId === userId);
+    if (!exists) return false;
+  }
+  const profile = db.profiles.find((p) => p.userId === userId);
+  if (!profile) return false;
+  profile.activeGymProfileId = gymProfileId;
+  writeDb(db);
+  return true;
+}
+
+export function getActiveGymProfile(userId: string): GymProfileRecord | null {
+  const db = readDb();
+  const activeId = db.profiles.find((p) => p.userId === userId)?.activeGymProfileId ?? null;
+  if (!activeId) return null;
+  return db.gymProfiles.find((p) => p.id === activeId && p.userId === userId) ?? null;
 }
 
 export function findNutritionTargetByUserId(userId: string): NutritionTargetRecord | undefined {
