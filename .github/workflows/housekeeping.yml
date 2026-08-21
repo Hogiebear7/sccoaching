@@ -28,12 +28,37 @@ jobs:
             echo "::error::PROD_URL and/or CRON_SECRET repository secrets are not set. See .github/workflows/housekeeping.yml for setup."
             exit 1
           fi
-          status=$(curl -sS -o response.json -w "%{http_code}" -X POST --max-time 180 \
+          # A single transient failure (server mid-restart, brief network
+          # blip) used to mean waiting for the next scheduled trigger —
+          # 15+ minutes away, and GitHub's own scheduling jitter can push
+          # that further still (observed gaps of 50+ minutes in practice).
+          # curl's own retry machinery absorbs that within this one run
+          # instead: --retry-all-errors + --fail widens retry eligibility
+          # beyond curl's default transient-error list to any non-2xx
+          # response. Each individual attempt is still capped at 180s via
+          # --max-time. --retry-max-time 300 bounds overall retry behavior,
+          # but curl measures that timer from before the first attempt and
+          # it includes retry delays — so it's not a strict "300s of
+          # retrying after the first failure" budget. A final attempt that
+          # starts just before the 300s mark can still run to completion
+          # (up to its own 180s max-time), so real wall-clock duration can
+          # exceed 300s slightly. Either way this stays well inside the
+          # 15-minute schedule interval.
+          set +e
+          status=$(curl -sS -o response.json -w "%{http_code}" -X POST \
+            --max-time 180 \
+            --retry 3 \
+            --retry-delay 10 \
+            --retry-max-time 300 \
+            --retry-all-errors \
+            --fail \
             "${{ secrets.PROD_URL }}/api/cron/run" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          curl_exit=$?
+          set -e
           echo "HTTP status: $status"
-          cat response.json
-          if [ "$status" -ge 300 ]; then
-            echo "::error::Housekeeping run failed with HTTP $status"
+          cat response.json 2>/dev/null || true
+          if [ "$curl_exit" -ne 0 ] || [ "$status" -ge 300 ]; then
+            echo "::error::Housekeeping run failed with HTTP $status (curl exit $curl_exit) after retries"
             exit 1
           fi
