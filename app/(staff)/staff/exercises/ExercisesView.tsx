@@ -42,6 +42,14 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
+  // Audit workflow: filter down, tick the ones to keep off the delete list
+  // (or the ones to prune onto it), then clear a whole batch in one go —
+  // built for "keep a handful, remove the rest" rather than one-at-a-time.
+  const [query, setQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
   // Sections holding exercises start open; empty ones start collapsed.
   const [openSections, setOpenSections] = useState<Set<ExerciseSection>>(
     () => new Set(exercises.map((e) => e.section))
@@ -225,10 +233,71 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllInSection(sectionExercises: ExerciseRecord[]) {
+    const ids = sectionExercises.map((e) => e.id);
+    const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} exercise${selectedIds.size === 1 ? "" : "s"}? This can't be undone.`)) {
+      return;
+    }
+    setBulkError(null);
+    setBulkDeleting(true);
+    try {
+      const res = await fetch("/api/staff/exercises/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selectedIds] }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setBulkError(data?.message ?? "Could not delete the selected exercises.");
+        return;
+      }
+      clearSelection();
+      router.refresh();
+    } catch {
+      setBulkError("Something went wrong. Please try again.");
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  const q = query.trim().toLowerCase();
+  const filteredExercises = q
+    ? exercises.filter(
+        (e) =>
+          e.name.toLowerCase().includes(q) ||
+          (e.description ?? "").toLowerCase().includes(q) ||
+          (e.cues ?? "").toLowerCase().includes(q)
+      )
+    : exercises;
+
   const bySection = SECTIONS.map(({ value, label }) => ({
     value,
     label,
-    exercises: exercises.filter((e) => e.section === value),
+    exercises: filteredExercises.filter((e) => e.section === value),
   }));
 
   void sectionLabel; // used via SECTIONS lookup above
@@ -355,6 +424,50 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
         ) : null}
       </div>
 
+      {/* Audit: filter down, tick what to prune (or invert — tick a section's
+          "select all" then untick the few to keep), clear a batch at once. */}
+      <div className="panel space-y-3 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Audit exercises</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {exercises.length} exercise{exercises.length === 1 ? "" : "s"} total. Search, tick the ones you
+              don&apos;t need, then delete the batch in one go.
+            </p>
+          </div>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, description, or cues…"
+            className="input-field w-64"
+          />
+        </div>
+        {selectedIds.size > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5">
+            <p className="text-sm text-foreground">
+              {selectedIds.size} selected
+            </p>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              className="rounded-xl border border-destructive/40 bg-destructive/20 px-3 py-1.5 text-xs font-medium text-destructive transition hover:border-destructive/70 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {bulkDeleting ? "Deleting…" : `Delete ${selectedIds.size} selected`}
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+            >
+              Clear selection
+            </button>
+          </div>
+        ) : null}
+        {bulkError ? <p className="text-xs text-destructive">{bulkError}</p> : null}
+      </div>
+
       {/* Per-section lists */}
       {deleteError ? (
         <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -362,38 +475,55 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
         </p>
       ) : null}
 
-      {bySection.map(({ value, label, exercises: sectionExercises }) => (
+      {bySection.map(({ value, label, exercises: sectionExercises }) => {
+        const sectionAllSelected =
+          sectionExercises.length > 0 && sectionExercises.every((e) => selectedIds.has(e.id));
+        return (
         <div key={value} className="panel p-6">
-          <button
-            type="button"
-            aria-expanded={openSections.has(value)}
-            onClick={() => toggleSection(value)}
-            className="flex w-full items-center justify-between gap-3 text-left"
-          >
-            <span className="flex items-baseline gap-2">
-              <span className="text-lg font-semibold">{label}</span>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {sectionExercises.length}
-              </span>
-            </span>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 ${
-                openSections.has(value) ? "rotate-180" : ""
-              }`}
+          <div className="flex w-full items-center justify-between gap-3">
+            {sectionExercises.length > 0 ? (
+              <input
+                type="checkbox"
+                aria-label={`Select all in ${label}`}
+                checked={sectionAllSelected}
+                onChange={() => toggleSelectAllInSection(sectionExercises)}
+                className="h-4 w-4 shrink-0 rounded border-border"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : null}
+            <button
+              type="button"
+              aria-expanded={openSections.has(value)}
+              onClick={() => toggleSection(value)}
+              className="flex flex-1 items-center justify-between gap-3 text-left"
             >
-              <path d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+              <span className="flex items-baseline gap-2">
+                <span className="text-lg font-semibold">{label}</span>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {sectionExercises.length}
+                </span>
+              </span>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 ${
+                  openSections.has(value) ? "rotate-180" : ""
+                }`}
+              >
+                <path d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
 
           {!openSections.has(value) ? null : sectionExercises.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">No exercises in this section yet.</p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              {query ? "No exercises match your search in this section." : "No exercises in this section yet."}
+            </p>
           ) : (
             <div className="mt-4 space-y-2">
               {sectionExercises.map((exercise) =>
@@ -481,9 +611,16 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
                 ) : (
                   <div
                     key={exercise.id}
-                    className="flex items-center justify-between well px-4 py-3"
+                    className="flex items-center justify-between gap-3 well px-4 py-3"
                   >
-                    <div className="min-w-0">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${exercise.name}`}
+                      checked={selectedIds.has(exercise.id)}
+                      onChange={() => toggleSelect(exercise.id)}
+                      className="h-4 w-4 shrink-0 rounded border-border"
+                    />
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm">{exercise.name}</p>
                       {exercise.description || exercise.cues ? (
                         <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -515,7 +652,8 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
 
       {exercises.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
