@@ -604,6 +604,120 @@ export async function identifyFoodPhoto(request: FoodPhotoIdentifyRequest): Prom
   return parseIdentifiedFoodItems(textFromMessage(message));
 }
 
+// ── Receipt line-item extraction ─────────────────────────────────────────
+// A member photographs a shopping/grocery receipt so its purchased items
+// can seed a shopping list and "What Can I Make?" — but a receipt is a
+// photo of PRINTED TEXT, not of food, so this is deliberately a separate
+// prompt/function from identifyFoodPhoto rather than a mode of it: the
+// grounding instructions below are about reading and normalizing noisy
+// receipt text (abbreviations, SKUs), not about visually identifying food.
+// The route layer never feeds this straight into meal suggestions — the
+// member reviews/edits the extracted list first (mobile meal-suggest.tsx's
+// confirm stage); this function's only job is "read what's on the receipt
+// as faithfully and usefully as possible."
+const RECEIPT_EXTRACT_SYSTEM_PROMPT = `You are a grocery receipt reader for S&C Performance Coaching, a strength & conditioning gym app. A member photographs a shopping/grocery receipt so its purchased items can seed a shopping list and meal ideas — the member will review and edit whatever you extract before it's used for anything, so your job is to read the receipt as faithfully and usefully as possible, not to be certain.
+
+Grounding rules — strict:
+- READ the printed line items on the receipt. This is text-reading, not food identification from a photo — extract every line that names a purchased product, in the order printed.
+- Normalize noisy printed text into a plain, human-readable food/ingredient name where you're reasonably confident (e.g. "CHKN BRST 1.2KG" → normalizedName "chicken breast", "ORG BANANA" → "banana"). Always keep the original printed text as rawText regardless of how you normalize it.
+- If a quantity is clearly printed for a line (a leading count, a "x2", a weight like "1.2KG"), extract it as quantity (a number) and unit (e.g. "kg", "g", "x", "l", "ml", or null if it's just a count with no unit). Leave both null when no quantity is legible or printed — never guess a quantity that isn't actually there.
+- Exclude lines that are clearly not a purchased item: subtotal, tax, total, change/payment/card details, loyalty points, bag fees, discounts/coupons, store name/address, receipt/transaction number, date/time, cashier/till number.
+- Set isFood to true only when you're reasonably confident the line is an edible grocery item (produce, meat, dairy, pantry goods, drinks, etc.); false for non-food purchases (household goods, toiletries, etc.) or anything too ambiguous to normalize confidently either way.
+- Set confidence to "confident" only when you're genuinely sure of the normalization; "uncertain" when the abbreviation or print quality makes it a guess worth the member double-checking — this drives which items get flagged for review, not filtered out.
+- If the photo is blurry, badly lit, cut off, or isn't a receipt at all, do your best with whatever text is actually legible. Only return an empty array if truly nothing on it is readable — a partially-legible receipt should still return whatever lines you can make out.
+
+Reply with ONLY a JSON array — no prose before or after, no markdown code fence. Each item exactly this shape:
+{"rawText": string, "normalizedName": string (best plain-language guess, or rawText verbatim if you can't improve on it), "isFood": boolean, "confidence": "confident"|"uncertain", "quantity": number|null, "unit": string|null}
+
+If nothing on the receipt is legible, reply with exactly: []`;
+
+export interface ReceiptLineItem {
+  rawText: string;
+  normalizedName: string;
+  isFood: boolean;
+  confidence: "confident" | "uncertain";
+  quantity: number | null;
+  unit: string | null;
+}
+
+// Exported for tests. Same defensive-coercion discipline as
+// parseMealSuggestions/parseIdentifiedFoodItems — every field
+// validated/coerced, never trusted, since this feeds a member-reviewed UI
+// rather than being trusted outright.
+export function parseReceiptLineItems(text: string): ReceiptLineItem[] {
+  const trimmed = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  if (!trimmed) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  function num(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  return parsed
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => {
+      const rawText = typeof item.rawText === "string" && item.rawText.trim() ? item.rawText.trim().slice(0, 100) : "";
+      return {
+        rawText,
+        normalizedName:
+          typeof item.normalizedName === "string" && item.normalizedName.trim()
+            ? item.normalizedName.trim().slice(0, 100)
+            : rawText,
+        isFood: item.isFood === true,
+        confidence: (item.confidence === "confident" ? "confident" : "uncertain") as "confident" | "uncertain",
+        quantity: num(item.quantity),
+        unit: typeof item.unit === "string" && item.unit.trim() ? item.unit.trim().slice(0, 20) : null,
+      };
+    })
+    .filter((item) => item.rawText)
+    .slice(0, 40);
+}
+
+export interface ReceiptExtractRequest {
+  /** Full data URL (already validated by the caller with isValidImageDataUrl). */
+  imageDataUrl: string;
+}
+
+export async function extractReceiptItems(request: ReceiptExtractRequest): Promise<ReceiptLineItem[]> {
+  if (!isAiConfigured()) {
+    throw new Error(AI_NOT_CONFIGURED_MESSAGE);
+  }
+
+  const mediaType = mediaTypeFromDataUrl(request.imageDataUrl);
+  if (!mediaType) return [];
+
+  const base64Data = request.imageDataUrl.slice(request.imageDataUrl.indexOf(",") + 1);
+  const content: MealSuggestContentBlock[] = [
+    { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
+    { type: "text", text: "Read and extract the purchased line items from this receipt photo." },
+  ];
+
+  const client = getClient();
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 2000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: [{ type: "text", text: RECEIPT_EXTRACT_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content }],
+  });
+
+  return parseReceiptLineItems(textFromMessage(message));
+}
+
 const WORKOUT_REVIEW_SYSTEM_PROMPT = `You write a short, member-facing review of a single workout session they just logged, read right after they finish training.
 
 Grounding rules — these are strict:

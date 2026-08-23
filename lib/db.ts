@@ -227,6 +227,50 @@ export interface WorkoutTemplateRecord {
   updatedAt: string;
 }
 
+// ── Shopping list + saved recipes — member-owned, flat (no aisle/category
+// grouping by design). Both an item and a recipe ingredient keep displayText
+// (what the member actually sees/typed) alongside normalizedName/quantity/
+// unit as best-effort structure, never ONLY a flat string — this is what
+// lets "add ingredients from a saved recipe" merge sensibly against what's
+// already on the list, and leaves room for a future pantry/food-planning
+// feature to match against normalizedName without a re-migration.
+export interface RecipeIngredientEntry {
+  displayText: string;
+  normalizedName: string | null;
+  quantity: number | null;
+  unit: string | null;
+}
+
+export interface RecipeRecord {
+  id: string;
+  userId: string;
+  title: string;
+  ingredients: RecipeIngredientEntry[];
+  notes: string | null;
+  // "meal-suggest" = saved from a What Can I Make? suggestion (provenance
+  // for the ingredient parsing quality — those strings were AI-generated
+  // prose, not user-typed, so quantity/unit parsing is best-effort at best).
+  source: "meal-suggest" | "manual";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShoppingListItemRecord {
+  id: string;
+  userId: string;
+  displayText: string;
+  normalizedName: string | null;
+  quantity: number | null;
+  unit: string | null;
+  checked: boolean;
+  // Which saved recipe this was added from, if any — provenance only, not
+  // used to cascade-delete on recipe removal (a shopping list item outlives
+  // the recipe it came from).
+  sourceRecipeId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // A member's declared equipment setup (see lib/equipment-catalog.ts for the
 // slugs equipmentSlugs references) — used to filter the exercise library
 // and shape workout generation. Distinct from ExerciseLibraryRecord, which
@@ -1150,6 +1194,8 @@ interface Database {
   readinessAlertSettings: ReadinessAlertSettings;
   // TRIAL-ONLY — see BugReportRecord above and docs/bug-reports.md.
   bugReports: BugReportRecord[];
+  recipes: RecipeRecord[];
+  shoppingListItems: ShoppingListItemRecord[];
 }
 
 // DATA_DIR defaults to a folder inside the deployed code, which is fine for
@@ -1254,6 +1300,8 @@ function readDb(): Database {
       financeSettings: { ...DEFAULT_FINANCE_SETTINGS },
       readinessAlertSettings: { ...DEFAULT_READINESS_ALERT_SETTINGS },
       bugReports: [],
+      recipes: [],
+      shoppingListItems: [],
     };
   }
 
@@ -1404,6 +1452,8 @@ function readDb(): Database {
     financeSettings: { ...DEFAULT_FINANCE_SETTINGS, ...(parsed.financeSettings ?? {}) },
     readinessAlertSettings: { ...DEFAULT_READINESS_ALERT_SETTINGS, ...(parsed.readinessAlertSettings ?? {}) },
     bugReports: parsed.bugReports ?? [],
+    recipes: parsed.recipes ?? [],
+    shoppingListItems: parsed.shoppingListItems ?? [],
   };
 }
 
@@ -1691,6 +1741,70 @@ export function saveWorkoutTemplate(template: WorkoutTemplateRecord): void {
 export function deleteWorkoutTemplate(id: string): void {
   const db = readDb();
   db.workoutTemplates = db.workoutTemplates.filter((t) => t.id !== id);
+  writeDb(db);
+}
+
+// ── Saved recipes ────────────────────────────────────────────────────────
+
+export function findRecipeById(id: string): RecipeRecord | undefined {
+  return readDb().recipes.find((r) => r.id === id);
+}
+
+export function findRecipesByUserId(userId: string): RecipeRecord[] {
+  return readDb()
+    .recipes.filter((r) => r.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function saveRecipe(recipe: RecipeRecord): void {
+  const db = readDb();
+  const index = db.recipes.findIndex((r) => r.id === recipe.id);
+  if (index === -1) db.recipes.push(recipe);
+  else db.recipes[index] = recipe;
+  writeDb(db);
+}
+
+export function deleteRecipe(id: string): void {
+  const db = readDb();
+  db.recipes = db.recipes.filter((r) => r.id !== id);
+  writeDb(db);
+}
+
+// ── Shopping list ────────────────────────────────────────────────────────
+
+export function findShoppingListItemsByUserId(userId: string): ShoppingListItemRecord[] {
+  return readDb()
+    .shoppingListItems.filter((i) => i.userId === userId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function findShoppingListItemById(id: string): ShoppingListItemRecord | undefined {
+  return readDb().shoppingListItems.find((i) => i.id === id);
+}
+
+// Case-insensitive match on normalizedName (falling back to displayText when
+// normalizedName isn't set) — the same key "add ingredients from a recipe"
+// uses to decide whether it's adding a genuinely new item or just touching
+// one that's already on the list.
+export function findShoppingListItemByName(userId: string, name: string): ShoppingListItemRecord | undefined {
+  const key = name.trim().toLowerCase();
+  if (!key) return undefined;
+  return readDb().shoppingListItems.find(
+    (i) => i.userId === userId && (i.normalizedName ?? i.displayText).trim().toLowerCase() === key
+  );
+}
+
+export function saveShoppingListItem(item: ShoppingListItemRecord): void {
+  const db = readDb();
+  const index = db.shoppingListItems.findIndex((i) => i.id === item.id);
+  if (index === -1) db.shoppingListItems.push(item);
+  else db.shoppingListItems[index] = item;
+  writeDb(db);
+}
+
+export function deleteShoppingListItem(id: string): void {
+  const db = readDb();
+  db.shoppingListItems = db.shoppingListItems.filter((i) => i.id !== id);
   writeDb(db);
 }
 
