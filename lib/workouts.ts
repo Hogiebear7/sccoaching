@@ -79,9 +79,15 @@ export function computePersonalBests(sessions: WorkoutSessionRecord[]): Personal
 
       // Per-set details (when present) are the true performed values; the
       // shared weight/reps fields are the fallback for single-value entries.
+      // A per-side set stores repsRight/repsLeft instead of reps (reps is
+      // null), so it collapses to a combined total here rather than being
+      // silently treated as "no reps" and excluded from the reps PB.
       const candidates: { weight: string | null; reps: number | null }[] =
         ex.setDetails && ex.setDetails.length > 0
-          ? ex.setDetails
+          ? ex.setDetails.map((s) => ({
+              weight: s.weight,
+              reps: s.reps ?? (s.repsRight != null && s.repsLeft != null ? s.repsRight + s.repsLeft : null),
+            }))
           : [{ weight: ex.weight, reps: ex.reps }];
 
       for (const set of candidates) {
@@ -221,7 +227,12 @@ export function weeklyWorkoutStats(
           if (!set.weight) continue;
           const w = parseFloat(set.weight);
           if (!Number.isFinite(w)) continue;
-          totalKg += (set.reps ?? 1) * w;
+          // A per-side set has reps === null (repsRight/repsLeft hold the
+          // real values) — falling back straight to "?? 1" would badly
+          // undercount its volume as a single rep instead of the combined
+          // total across both sides.
+          const reps = set.reps ?? (set.repsRight != null && set.repsLeft != null ? set.repsRight + set.repsLeft : 1);
+          totalKg += reps * w;
         }
         continue;
       }

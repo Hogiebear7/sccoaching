@@ -52,6 +52,19 @@ describe("weeklyWorkoutStats", () => {
     );
     expect(stats).toEqual({ count: 1, totalKg: 80 });
   });
+
+  it("sums a per-side set's repsRight + repsLeft, not the null reps field", () => {
+    const stats = weeklyWorkoutStats(
+      [
+        session(TODAY, [
+          { weight: "20", reps: null, setDetails: [{ weight: "20", reps: null, repsRight: 10, repsLeft: 10 }] },
+        ]),
+      ],
+      TODAY
+    );
+    // 20kg × (10 + 10) reps = 400, not 20kg × 1 (the old "?? 1" fallback).
+    expect(stats).toEqual({ count: 1, totalKg: 400 });
+  });
 });
 
 describe("computePersonalBests — reps at heaviest set", () => {
@@ -62,5 +75,16 @@ describe("computePersonalBests — reps at heaviest set", () => {
     ]);
     expect(bests[0].heaviestWeight).toMatchObject({ value: 100, reps: 5 });
     expect(bests[0].highestReps).toMatchObject({ reps: 8 });
+  });
+
+  it("counts a per-side set's combined repsRight + repsLeft toward the reps PB", () => {
+    const bests = computePersonalBests([
+      session("2026-07-01", [
+        { name: "Forward Lunge", weight: "20", reps: null, setDetails: [{ weight: "20", reps: null, repsRight: 10, repsLeft: 10 }] },
+      ]),
+    ]);
+    expect(bests[0].heaviestWeight).toMatchObject({ value: 20 });
+    // 10 + 10, not excluded entirely for having a null top-level reps.
+    expect(bests[0].highestReps).toMatchObject({ reps: 20 });
   });
 });
