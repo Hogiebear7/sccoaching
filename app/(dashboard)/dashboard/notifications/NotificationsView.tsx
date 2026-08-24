@@ -10,6 +10,8 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   message: "Message",
   membership: "Membership",
   class_reminder: "Class reminder",
+  booking_confirmed: "Booking confirmed",
+  booking_cancelled: "Booking cancelled",
   cancellation: "Cancellation",
   waitlist_offer: "Spot offer",
   waitlist_timeout: "Offer expiring",
@@ -25,6 +27,10 @@ const TYPE_ICON: Record<NotificationType, string> = {
     "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z",
   class_reminder:
     "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+  booking_confirmed:
+    "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+  booking_cancelled:
+    "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z",
   cancellation:
     "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z",
   waitlist_offer:
@@ -49,6 +55,8 @@ const TYPE_IS_URGENT: Record<NotificationType, boolean> = {
   message: false,
   membership: false,
   class_reminder: false,
+  booking_confirmed: false,
+  booking_cancelled: false,
   cancellation: false,
   waitlist_offer: true,
   waitlist_timeout: true,

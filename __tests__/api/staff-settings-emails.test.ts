@@ -17,12 +17,7 @@ vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
   getTransactionalEmailSettings: mockGetSettings,
   saveTransactionalEmailSettings: mockSaveSettings,
-  TRANSACTIONAL_EMAIL_TYPES: [
-    "bookingConfirmation",
-    "bookingCancellation",
-    "classCancelled",
-    "classReminder",
-  ],
+  TRANSACTIONAL_EMAIL_TYPES: ["bookingConfirmation", "noShow"],
 }));
 
 const ADMIN = { id: "admin-1", email: "admin@example.com", role: "admin" as const };
@@ -31,9 +26,7 @@ const MEMBER = { id: "member-1", email: "m@example.com", role: "member" as const
 
 const ALL_ON = {
   bookingConfirmation: true,
-  bookingCancellation: true,
-  classCancelled: true,
-  classReminder: true,
+  noShow: true,
 };
 
 async function callPost(body: unknown, cookie?: string) {
@@ -56,7 +49,7 @@ describe("POST /api/staff/settings/emails", () => {
   });
 
   it("requires a session", async () => {
-    const res = await callPost({ type: "classReminder", enabled: false });
+    const res = await callPost({ type: "noShow", enabled: false });
     expect(res.status).toBe(401);
     expect(mockSaveSettings).not.toHaveBeenCalled();
   });
@@ -64,7 +57,7 @@ describe("POST /api/staff/settings/emails", () => {
   it("rejects a non-admin staff member (operations gate)", async () => {
     mockFindUserById.mockReturnValue(COACH);
     const res = await callPost(
-      { type: "classReminder", enabled: false },
+      { type: "noShow", enabled: false },
       signSession({ userId: COACH.id })
     );
     expect(res.status).toBe(403);
@@ -74,7 +67,7 @@ describe("POST /api/staff/settings/emails", () => {
   it("rejects a member", async () => {
     mockFindUserById.mockReturnValue(MEMBER);
     const res = await callPost(
-      { type: "classReminder", enabled: false },
+      { type: "noShow", enabled: false },
       signSession({ userId: MEMBER.id })
     );
     expect(res.status).toBe(403);
@@ -93,7 +86,7 @@ describe("POST /api/staff/settings/emails", () => {
   it("rejects a non-boolean enabled value", async () => {
     mockFindUserById.mockReturnValue(ADMIN);
     const res = await callPost(
-      { type: "classReminder", enabled: "no" },
+      { type: "noShow", enabled: "no" },
       signSession({ userId: ADMIN.id })
     );
     expect(res.status).toBe(400);
@@ -103,16 +96,16 @@ describe("POST /api/staff/settings/emails", () => {
   it("saves a single toggle merged over the current settings", async () => {
     mockFindUserById.mockReturnValue(ADMIN);
     const res = await callPost(
-      { type: "classReminder", enabled: false },
+      { type: "noShow", enabled: false },
       signSession({ userId: ADMIN.id })
     );
     const data = await res.json();
 
     expect(res.status).toBe(200);
     expect(mockSaveSettings).toHaveBeenCalledTimes(1);
-    expect(mockSaveSettings).toHaveBeenCalledWith({ ...ALL_ON, classReminder: false });
+    expect(mockSaveSettings).toHaveBeenCalledWith({ ...ALL_ON, noShow: false });
     // Other categories are preserved.
     expect(data.settings.bookingConfirmation).toBe(true);
-    expect(data.settings.classReminder).toBe(false);
+    expect(data.settings.noShow).toBe(false);
   });
 });

@@ -5,9 +5,11 @@ import type { NextRequest } from "next/server";
 
 import {
   createBooking,
+  createNotification,
   findBookingsByClassId,
   findBookingsByUserId,
   findClassById,
+  findProfileByUserId,
   findSubscriptionByUserId,
   findUserById,
   findWaitlistEntryByClassAndUser,
@@ -15,6 +17,7 @@ import {
   saveWaitlistEntry,
   saveSubscription,
   type BookingRecord,
+  type NotificationRecord,
 } from "@/lib/db";
 import { classStartDate } from "@/lib/class-time";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
@@ -25,6 +28,7 @@ import { issueWaitlistOffer } from "@/lib/scheduling";
 import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { sendPush } from "@/lib/push";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -222,8 +226,36 @@ export async function POST(request: NextRequest) {
   }
 
   // Confirmed booking event → fire-and-forget confirmation email (gated on the
-  // member's email prefs inside the helper; never blocks the response).
+  // member's email prefs inside the helper; never blocks the response) plus
+  // an in-app + push notification (always on, mirrors every other booking
+  // event — see the class-notification channel policy in lib/db.ts).
   sendBookingConfirmationEmail(user.id, classRecord);
+
+  const confirmationNotification: NotificationRecord = {
+    id: randomUUID(),
+    userId: user.id,
+    type: "booking_confirmed",
+    title: `Booked: ${classRecord.title}`,
+    body: `You're in for ${classRecord.title} on ${new Date(classRecord.date).toLocaleDateString("en-IE", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    })} at ${classRecord.startTime}.`,
+    readAt: null,
+    linkHref: "/dashboard/bookings",
+    dedupeKey: `booking:${booking.id}:confirmation`,
+    createdAt: new Date().toISOString(),
+  };
+  createNotification(confirmationNotification);
+
+  const bookingProfile = findProfileByUserId(user.id);
+  if (bookingProfile?.pushNotificationsEnabled !== false) {
+    void sendPush(user.id, {
+      title: confirmationNotification.title,
+      body: confirmationNotification.body,
+      linkHref: confirmationNotification.linkHref ?? "/dashboard/bookings",
+    });
+  }
 
   return NextResponse.json(
     { success: true, message: "Class booked." },

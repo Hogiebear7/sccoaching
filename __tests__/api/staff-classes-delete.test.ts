@@ -56,6 +56,10 @@ vi.mock("@/lib/payments", () => ({
   reversePassConsumption: mockReversePassConsumption,
 }));
 
+// Class-cancelled is now push-only (no email) — stub the send so these tests
+// keep asserting deletion/pass logic, not the notification pipeline.
+vi.mock("@/lib/push", () => ({ sendPush: vi.fn() }));
+
 const STAFF_USER = { id: "staff-1", email: "coach@example.com", role: "staff" as const };
 const MEMBER_USER = { id: "member-1", email: "member@example.com", role: "member" as const };
 

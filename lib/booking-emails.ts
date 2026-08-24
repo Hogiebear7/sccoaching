@@ -1,8 +1,15 @@
-// Transactional booking emails (confirmation + cancellation). Thin helpers over
-// the shared sendEmail pipeline: they resolve the member's deliverable address,
-// respect the emailNotificationsEnabled opt-out, format the class details, and
-// fire-and-forget the send (sendEmail never throws, so a booking flow can never
-// be broken by email). Triggered from the booking routes at confirmed events.
+// Transactional booking confirmation email. A thin helper over the shared
+// sendEmail pipeline: resolves the member's deliverable address, respects the
+// emailNotificationsEnabled opt-out, formats the class details, and
+// fire-and-forgets the send (sendEmail never throws, so a booking flow can
+// never be broken by email). Triggered from the booking routes at confirmed
+// events.
+//
+// Booking cancellation and gym-cancelled-class notices are push-only by
+// policy — see sendPush calls in app/api/bookings/cancel/route.ts and
+// app/api/staff/classes/delete/route.ts. Their email templates
+// (bookingCancellationEmail, classCancelledEmail) still exist in
+// lib/email-templates.ts in case that policy changes back.
 
 import {
   findProfileByUserId,
@@ -11,11 +18,7 @@ import {
   type ClassRecord,
 } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
-import {
-  bookingCancellationEmail,
-  bookingConfirmationEmail,
-  classCancelledEmail,
-} from "@/lib/email-templates";
+import { bookingConfirmationEmail } from "@/lib/email-templates";
 import { buildClassIcsEvent } from "@/lib/ics";
 import { getCancellationCutoffHours } from "@/lib/scheduling";
 
@@ -76,44 +79,3 @@ export function sendBookingConfirmationEmail(userId: string, classRecord: ClassR
   });
 }
 
-// Staff/gym-initiated cancellation of a whole class — distinct wording from a
-// member's own cancellation. Sent per affected booked member.
-export function sendClassCancelledEmail(
-  userId: string,
-  classRecord: ClassRecord,
-  creditRestored: boolean
-): void {
-  if (!isTransactionalEmailEnabled("classCancelled")) return;
-  const recipient = memberRecipient(userId);
-  if (!recipient) return;
-
-  const template = classCancelledEmail({
-    memberName: recipient.name,
-    className: classRecord.title,
-    classDate: formatClassDate(classRecord.date),
-    startTime: classRecord.startTime,
-    creditRestored,
-  });
-
-  void sendEmail({ to: recipient.email, ...template });
-}
-
-export function sendBookingCancellationEmail(
-  userId: string,
-  classRecord: ClassRecord,
-  creditRestored: boolean
-): void {
-  if (!isTransactionalEmailEnabled("bookingCancellation")) return;
-  const recipient = memberRecipient(userId);
-  if (!recipient) return;
-
-  const template = bookingCancellationEmail({
-    memberName: recipient.name,
-    className: classRecord.title,
-    classDate: formatClassDate(classRecord.date),
-    startTime: classRecord.startTime,
-    creditRestored,
-  });
-
-  void sendEmail({ to: recipient.email, ...template });
-}

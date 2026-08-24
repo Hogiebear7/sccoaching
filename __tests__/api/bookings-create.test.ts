@@ -64,7 +64,12 @@ vi.mock("@/lib/db", () => ({
   // No class workout template by default — syncClassWorkoutToMember becomes
   // a no-op (these tests assert booking logic, not workout prepopulation).
   findClassWorkoutByClassId: vi.fn(),
+  createNotification: vi.fn(),
 }));
+
+// Booking confirmation now also fires a push notification — stub it out so
+// these tests keep asserting booking logic, not the notification pipeline.
+vi.mock("@/lib/push", () => ({ sendPush: vi.fn() }));
 
 vi.mock("@/lib/membership-entitlement", async (importActual) => ({
   ...(await importActual<typeof import("@/lib/membership-entitlement")>()),

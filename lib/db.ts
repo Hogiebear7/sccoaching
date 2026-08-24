@@ -983,6 +983,8 @@ export type NotificationType =
   | "message"
   | "membership"
   | "class_reminder"
+  | "booking_confirmed"
+  | "booking_cancelled"
   | "cancellation"
   | "waitlist_offer"
   | "waitlist_timeout"
@@ -1061,20 +1063,19 @@ export interface JobRunRecord {
 
 // Staff-controlled on/off switches for the OPTIONAL operational transactional
 // emails only. Billing-/account-critical emails (membership lapse, low pass
-// balance) and time-sensitive waitlist emails are deliberately NOT modelled
-// here — they must always send and are never gated by these toggles.
-export type TransactionalEmailType =
-  | "bookingConfirmation"
-  | "bookingCancellation"
-  | "classCancelled"
-  | "classReminder"
-  | "noShow";
+// balance) and time-sensitive waitlist-offer emails are deliberately NOT
+// modelled here — they must always send and are never gated by these toggles.
+//
+// Booking cancellation, gym-cancelled classes, class reminders, and the
+// waitlist-offer-expiring warning are push-only by policy (no email code
+// path at all any more) — see sendPush call sites in booking cancel/delete
+// routes, lib/jobs/send-class-reminders.ts, and
+// lib/jobs/process-waitlist-offers.ts. Only these two plus the no-show email
+// remain as actual emails for now.
+export type TransactionalEmailType = "bookingConfirmation" | "noShow";
 
 export const TRANSACTIONAL_EMAIL_TYPES: TransactionalEmailType[] = [
   "bookingConfirmation",
-  "bookingCancellation",
-  "classCancelled",
-  "classReminder",
   "noShow",
 ];
 
@@ -1083,9 +1084,6 @@ export type TransactionalEmailSettings = Record<TransactionalEmailType, boolean>
 // Defaults mirror current behaviour: every optional email is ON.
 export const DEFAULT_TRANSACTIONAL_EMAIL_SETTINGS: TransactionalEmailSettings = {
   bookingConfirmation: true,
-  bookingCancellation: true,
-  classCancelled: true,
-  classReminder: true,
   noShow: true,
 };
 

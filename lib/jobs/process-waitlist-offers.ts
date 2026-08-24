@@ -7,12 +7,9 @@ import {
   findClassById,
   findNotificationByDedupeKey,
   findProfileByUserId,
-  findUserById,
   saveWaitlistEntry,
   type NotificationRecord,
 } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
-import { waitlistTimeoutEmail } from "@/lib/email-templates";
 import { sendPush } from "@/lib/push";
 import { computeOfferWindowMs, issueWaitlistOffer } from "@/lib/scheduling";
 import type { JobDefinition } from "./types";
@@ -106,17 +103,9 @@ export const processWaitlistOffersJob: JobDefinition = {
             try {
               createNotification(notification);
 
-              const memberUser = findUserById(entry.userId);
+              // Push-only by policy — no timeout-warning email. See the
+              // class-notification channel policy comment in lib/db.ts.
               const memberProfile = findProfileByUserId(entry.userId);
-              if (memberProfile?.emailNotificationsEnabled !== false && memberUser?.email) {
-                const tmpl = waitlistTimeoutEmail({
-                  memberName: memberProfile?.fullName || memberUser.email,
-                  className: classRecord.title,
-                  classDate: classDateLabel,
-                  expiryTime: newExpiryTime,
-                });
-                void sendEmail({ to: memberUser.email, ...tmpl });
-              }
               if (memberProfile?.pushNotificationsEnabled !== false) {
                 void sendPush(entry.userId, {
                   title: notification.title,

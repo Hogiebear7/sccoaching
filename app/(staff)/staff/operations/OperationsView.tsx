@@ -390,31 +390,21 @@ function ClassTypesManager({ classTypes }: { classTypes: ClassTypeRow[] }) {
   );
 }
 
+// Only these two emails remain — booking cancellation, class-cancelled, and
+// class-reminder emails were retired in favour of push-only notifications
+// (they always send push + in-app now; there's no toggle for those since
+// there's no email code path to gate any more). Waitlist-offer email is
+// also always-on and not shown here — see the policy comment in lib/db.ts.
 const EMAIL_TOGGLES: { type: TransactionalEmailType; label: string; description: string }[] = [
   {
     type: "bookingConfirmation",
     label: "Booking confirmation",
-    description: "Sent when a member books a class or accepts a waitlist offer.",
-  },
-  {
-    type: "bookingCancellation",
-    label: "Booking cancellation",
-    description: "Sent when a member cancels their own booking.",
-  },
-  {
-    type: "classCancelled",
-    label: "Class cancelled by staff",
-    description: "Sent to booked members when you delete a class.",
-  },
-  {
-    type: "classReminder",
-    label: "Class reminder",
-    description: "Sent ahead of a booked class. In-app reminders are unaffected.",
+    description: "Sent when a member books a class or accepts a waitlist offer. Always paired with a push notification.",
   },
   {
     type: "noShow",
     label: "Missed class",
-    description: "Sent an hour after class end if a booked member was never checked in.",
+    description: "Sent an hour after class end if a booked member was never checked in. Always paired with a push notification.",
   },
 ];
 

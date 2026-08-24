@@ -1,20 +1,24 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  createNotification,
   deleteBooking,
   findBookingById,
   findClassById,
+  findProfileByUserId,
   findSubscriptionByUserId,
   findUserById,
   saveSubscription,
+  type NotificationRecord,
 } from "@/lib/db";
-import { sendBookingCancellationEmail } from "@/lib/booking-emails";
 import { classStartDate } from "@/lib/class-time";
 import { creditSourceForBooking, trackLateCancellationCredit } from "@/lib/cancellation-credits";
 import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer, isCancellationEarly } from "@/lib/scheduling";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { sendPush } from "@/lib/push";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -129,9 +133,35 @@ export async function POST(request: NextRequest) {
       // Offer failure must never block the cancellation response.
     }
 
-    // Successful cancellation of an existing class → cancellation email. Only
-    // claims restored credit when it actually applied (fire-and-forget, gated).
-    sendBookingCancellationEmail(user.id, classRecord, sessionRestored);
+    // Successful cancellation of an existing class → push-only notification
+    // (no email — see the class-notification channel policy in lib/db.ts).
+    // Only claims restored credit when it actually applied.
+    const cancellationNotification: NotificationRecord = {
+      id: randomUUID(),
+      userId: user.id,
+      type: "booking_cancelled",
+      title: `Cancelled: ${classRecord.title}`,
+      body:
+        `Your booking for ${classRecord.title} on ${new Date(classRecord.date).toLocaleDateString("en-IE", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        })} has been cancelled.` + (sessionRestored ? " Your session credit was restored." : ""),
+      readAt: null,
+      linkHref: "/dashboard/bookings",
+      dedupeKey: `booking:${bookingId}:cancellation`,
+      createdAt: new Date().toISOString(),
+    };
+    createNotification(cancellationNotification);
+
+    const cancellingProfile = findProfileByUserId(user.id);
+    if (cancellingProfile?.pushNotificationsEnabled !== false) {
+      void sendPush(user.id, {
+        title: cancellationNotification.title,
+        body: cancellationNotification.body,
+        linkHref: cancellationNotification.linkHref ?? "/dashboard/bookings",
+      });
+    }
   }
 
   const message = sessionRestored

@@ -49,12 +49,17 @@ vi.mock("@/lib/db", () => ({
   // Late-cancellation credit tracking (lib/cancellation-credits.ts) — these
   // tests only exercise the "forfeit" side, never the refill/resolve side.
   createPendingCancellationCredit: mockCreatePendingCancellationCredit,
+  createNotification: vi.fn(),
 }));
 
 vi.mock("@/lib/scheduling", () => ({
   issueWaitlistOffer: mockIssueWaitlistOffer,
   isCancellationEarly: mockIsCancellationEarly,
 }));
+
+// Cancellation is now push-only (no email) — stub the send so these tests
+// keep asserting cancel logic, not the notification pipeline.
+vi.mock("@/lib/push", () => ({ sendPush: vi.fn() }));
 
 const MEMBER_USER = { id: "user-1", email: "athlete@example.com", role: "member" as const };
 const OTHER_USER = { id: "user-2", email: "other@example.com", role: "member" as const };

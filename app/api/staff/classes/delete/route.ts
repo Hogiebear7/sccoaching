@@ -11,16 +11,18 @@ import {
   findBookingsByClassId,
   findClassById,
   findClassSeriesById,
+  findProfileByUserId,
   findSubscriptionByUserId,
   findUserById,
   saveClassSeries,
   saveSubscription,
+  type NotificationRecord,
 } from "@/lib/db";
 import { classStartMs } from "@/lib/class-time";
 import { reversePassConsumption } from "@/lib/payments";
-import { sendClassCancelledEmail } from "@/lib/booking-emails";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { sendPush } from "@/lib/push";
 
 // Deletes an upcoming class and unwinds every reservation against it.
 // Each booked member gets their pass back in whichever pool paid for it:
@@ -113,16 +115,13 @@ export async function POST(request: NextRequest) {
 
     deleteBooking(booking.id);
 
-    // Gym-initiated class-cancellation email to this affected member — non-
-    // blocking, gated on the member's email prefs, credit claim only if true.
-    sendClassCancelledEmail(booking.userId, classRecord, creditRestored);
-
-    createNotification({
+    // Gym-initiated class cancellation — push-only notification (no email,
+    // see the class-notification channel policy in lib/db.ts). Credit claim
+    // only when this member's credit was actually restored, otherwise neutral.
+    const cancellationNotification: NotificationRecord = {
       id: randomUUID(),
       userId: booking.userId,
       type: "cancellation",
-      // Match the email's conditional credit accuracy: only claim a returned
-      // pass when this member's credit was actually restored, otherwise neutral.
       body:
         `${classRecord.title} on ${classRecord.date} at ${classRecord.startTime} has been cancelled by the club.` +
         (creditRestored ? " Your class pass has been returned." : ""),
@@ -131,7 +130,17 @@ export async function POST(request: NextRequest) {
       linkHref: "/dashboard/schedule",
       dedupeKey: `class-deleted:${classRecord.id}:${booking.userId}`,
       createdAt: now,
-    });
+    };
+    createNotification(cancellationNotification);
+
+    const affectedProfile = findProfileByUserId(booking.userId);
+    if (affectedProfile?.pushNotificationsEnabled !== false) {
+      void sendPush(booking.userId, {
+        title: cancellationNotification.title,
+        body: cancellationNotification.body,
+        linkHref: cancellationNotification.linkHref ?? "/dashboard/schedule",
+      });
+    }
   }
 
   // Remove every waitlist entry for the class, terminal states included —
