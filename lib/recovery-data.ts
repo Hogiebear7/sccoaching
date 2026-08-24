@@ -1,4 +1,10 @@
-import { findCycleSettingsByUserId, findProfileByUserId, findRecoveryLogsByUserId, findUserById } from "./db";
+import {
+  findCycleSettingsByUserId,
+  findProfileByUserId,
+  findRecoveryLogsByUserId,
+  findUserById,
+  findWorkoutSessionsByUserId,
+} from "./db";
 import { estimatePhase } from "./cycle-phase";
 import { computeRollingTrainingLoad, readinessGuidance } from "./recovery";
 
@@ -34,7 +40,8 @@ export function getRecoveryData(userId: string | undefined): RecoveryData | null
 
   const logs = findRecoveryLogsByUserId(user.id);
   const latestLog = logs[0] ?? null;
-  const rollingLoad = computeRollingTrainingLoad(logs);
+  const sessions = findWorkoutSessionsByUserId(user.id);
+  const rollingLoad = computeRollingTrainingLoad(logs, sessions);
 
   const profile = findProfileByUserId(user.id);
   const cycleSettings =

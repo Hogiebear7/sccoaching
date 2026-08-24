@@ -1,4 +1,4 @@
-import type { RecoveryLogRecord } from "./db";
+import type { RecoveryLogRecord, WorkoutSessionRecord } from "./db";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -43,8 +43,24 @@ export function trainingLoadForLog(log: RecoveryLogRecord): number | null {
   return log.trainingDurationMins * log.rpe;
 }
 
+// Load for a single logged workout session — mirrors trainingLoadForLog's
+// duration x RPE formula, using the session's own duration/RPE ("How did
+// that feel?") rather than the separate, optional Recovery check-in fields.
+function trainingLoadForSession(session: WorkoutSessionRecord): number | null {
+  if (session.durationMins === null || session.durationMins === undefined) return null;
+  if (session.sessionRpe === null || session.sessionRpe === undefined) return null;
+  return session.durationMins * session.sessionRpe;
+}
+
+// Rolling 7-day training load. Members can log daily duration/RPE on the
+// Recovery check-in form, but that's redundant manual entry most members
+// skip since logging a workout already records duration + RPE via "How did
+// that feel?". So per day: prefer the Recovery check-in's own value when
+// present, otherwise fall back to that day's logged workout session(s) —
+// never both, to avoid double-counting a day covered by either source.
 export function computeRollingTrainingLoad(
-  logs: RecoveryLogRecord[]
+  logs: RecoveryLogRecord[],
+  sessions: WorkoutSessionRecord[] = []
 ): { sevenDaySum: number; sevenDayAverage: number; daysWithLoad: number } {
   const today = new Date();
   const sevenDaysAgo = new Date(today);
@@ -53,10 +69,22 @@ export function computeRollingTrainingLoad(
   const todayISO = today.toISOString().slice(0, 10);
   const sevenDaysAgoISO = sevenDaysAgo.toISOString().slice(0, 10);
 
-  const loadsInWindow = logs
-    .filter((log) => log.date >= sevenDaysAgoISO && log.date <= todayISO)
-    .map(trainingLoadForLog)
-    .filter((load): load is number => load !== null);
+  const logLoadByDate = new Map<string, number>();
+  for (const log of logs) {
+    if (log.date < sevenDaysAgoISO || log.date > todayISO) continue;
+    const load = trainingLoadForLog(log);
+    if (load !== null) logLoadByDate.set(log.date, (logLoadByDate.get(log.date) ?? 0) + load);
+  }
+
+  const sessionLoadByDate = new Map<string, number>();
+  for (const session of sessions) {
+    if (session.date < sevenDaysAgoISO || session.date > todayISO) continue;
+    const load = trainingLoadForSession(session);
+    if (load !== null) sessionLoadByDate.set(session.date, (sessionLoadByDate.get(session.date) ?? 0) + load);
+  }
+
+  const datesWithLoad = new Set([...logLoadByDate.keys(), ...sessionLoadByDate.keys()]);
+  const loadsInWindow = [...datesWithLoad].map((date) => logLoadByDate.get(date) ?? sessionLoadByDate.get(date)!);
 
   const sevenDaySum = loadsInWindow.reduce((total, load) => total + load, 0);
   const daysWithLoad = loadsInWindow.length;

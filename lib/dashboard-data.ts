@@ -129,7 +129,7 @@ export function getDashboardData(userId: string | undefined): DashboardData | nu
   const readinessTrend = readinessSeries(recoveryLogs, todayISO, 14);
   const hasTrend = readinessTrend.some((v) => v !== null);
   const delta = readinessDelta(recoveryLogs, todayISO);
-  const rolling = computeRollingTrainingLoad(recoveryLogs);
+  const rolling = computeRollingTrainingLoad(recoveryLogs, sessions);
   const loadBand = classifyLoad(rolling.sevenDaySum, rolling.daysWithLoad);
   const weekChange = weeklyTrainingSummary(recoveryLogs, todayISO, 2)[0]?.changePct ?? null;
 

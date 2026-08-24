@@ -41,7 +41,7 @@ export default async function DashboardWorkoutsPage() {
   const recoveryLogs = findRecoveryLogsByUserId(user.id);
   const todayISO = new Date().toISOString().slice(0, 10);
   const todayLog = recoveryLogs.find((log) => log.date === todayISO);
-  const rollingLoad = computeRollingTrainingLoad(recoveryLogs);
+  const rollingLoad = computeRollingTrainingLoad(recoveryLogs, sessions);
 
   const helperContext: HelperContext = {
     readinessScore: todayLog?.readinessScore ?? null,

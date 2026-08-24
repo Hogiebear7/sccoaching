@@ -1,6 +1,12 @@
 import { cookies } from "next/headers";
 
-import { findCycleSettingsByUserId, findProfileByUserId, findRecoveryLogsByUserId, findUserById } from "@/lib/db";
+import {
+  findCycleSettingsByUserId,
+  findProfileByUserId,
+  findRecoveryLogsByUserId,
+  findUserById,
+  findWorkoutSessionsByUserId,
+} from "@/lib/db";
 import { estimatePhase } from "@/lib/cycle-phase";
 import { computeRollingTrainingLoad, readinessGuidance } from "@/lib/recovery";
 import { verifySession } from "@/lib/session";
@@ -28,7 +34,8 @@ export default async function DashboardRecoveryPage() {
 
   const logs = findRecoveryLogsByUserId(user.id);
   const latestLog = logs[0] ?? null;
-  const rollingLoad = computeRollingTrainingLoad(logs);
+  const sessions = findWorkoutSessionsByUserId(user.id);
+  const rollingLoad = computeRollingTrainingLoad(logs, sessions);
 
   const profile = findProfileByUserId(user.id);
   const cycleSettings =
