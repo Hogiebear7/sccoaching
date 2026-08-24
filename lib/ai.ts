@@ -754,3 +754,121 @@ export async function generateWorkoutReview(data: WorkoutReviewData): Promise<st
   const text = textFromMessage(message).trim();
   return text || "Nothing notable to add beyond the numbers above.";
 }
+
+// ── Tracker screenshot import ────────────────────────────────────────────
+// A member photographs their fitness tracker's own app (Garmin, Whoop,
+// Fitbit, Apple Watch, Huawei Health, Samsung Health, Coros, Polar, Oura,
+// or anything else) to pull a session or sleep summary into this app —
+// one universal fallback that works for any brand without a per-platform
+// OAuth integration. The member reviews/edits everything before it's saved
+// anywhere (see app/api/mobile/tracker-import/scan/route.ts and the mobile
+// review screen), so this function's only job is reading the screen as
+// faithfully as possible, not being certain.
+const TRACKER_IMPORT_SYSTEM_PROMPT = `You read screenshots of fitness tracker and wearable apps (Garmin, Whoop, Fitbit, Apple Watch/Health, Huawei Health, Samsung Health, Coros, Polar, Oura, Strava, or any other brand) for S&C Performance Coaching, a strength & conditioning gym app. A member photographs their tracker's own summary screen so the numbers can be pulled into this app instead of retyped — the member reviews and edits everything you extract before it's saved anywhere, so read the screen as faithfully and usefully as possible.
+
+Grounding rules — strict:
+- Only extract a value you can actually read on screen. Leave a field null rather than estimating or inferring one that isn't shown.
+- activityTitle: a short, plain activity name if a workout/exercise/activity summary is shown (e.g. "Run", "Ride", "Swim", "Strength", "Hike") — null if this is a sleep-only or daily-summary screen with no specific activity.
+- durationMins: the activity's duration in whole minutes, converted from whatever format is shown (e.g. "32:15" -> 32).
+- distanceKm: distance in kilometers, converted from miles if that's what's shown (miles x 1.60934).
+- calories: calories/kcal burned for the activity, if shown.
+- avgHeartRate: average heart rate in bpm for the activity, if shown (not resting heart rate).
+- sleepHours: total sleep duration in hours (decimal, e.g. 7.5) if a sleep screen is shown.
+- otherReadings: a short, plain-English note (one sentence, under 25 words) naming any OTHER numbers visible that aren't captured above — resting heart rate, HRV, recovery/strain/readiness score, steps, VO2 max, calories burned outside an activity, etc. Null if nothing else notable is visible.
+- If the photo isn't a fitness tracker screen at all, or nothing is legible, return every field null.
+
+Reply with ONLY a JSON object — no prose before or after, no markdown code fence, exactly this shape:
+{"activityTitle": string|null, "durationMins": number|null, "distanceKm": number|null, "calories": number|null, "avgHeartRate": number|null, "sleepHours": number|null, "otherReadings": string|null}`;
+
+export interface TrackerStatsExtraction {
+  activityTitle: string | null;
+  durationMins: number | null;
+  distanceKm: number | null;
+  calories: number | null;
+  avgHeartRate: number | null;
+  sleepHours: number | null;
+  otherReadings: string | null;
+}
+
+const EMPTY_TRACKER_EXTRACTION: TrackerStatsExtraction = {
+  activityTitle: null,
+  durationMins: null,
+  distanceKm: null,
+  calories: null,
+  avgHeartRate: null,
+  sleepHours: null,
+  otherReadings: null,
+};
+
+// Exported for tests. Same defensive-coercion discipline as
+// parseMealSuggestions/parseIdentifiedFoodItems/parseReceiptLineItems.
+export function parseTrackerStatsExtraction(text: string): TrackerStatsExtraction {
+  const trimmed = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  if (!trimmed) return EMPTY_TRACKER_EXTRACTION;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return EMPTY_TRACKER_EXTRACTION;
+  }
+
+  if (typeof parsed !== "object" || parsed === null) return EMPTY_TRACKER_EXTRACTION;
+  const obj = parsed as Record<string, unknown>;
+
+  function posNum(value: unknown, roundToInt = true): number | null {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+    return roundToInt ? Math.round(value) : Math.round(value * 10) / 10;
+  }
+
+  function str(value: unknown, maxLen: number): string | null {
+    return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLen) : null;
+  }
+
+  return {
+    activityTitle: str(obj.activityTitle, 40),
+    durationMins: posNum(obj.durationMins),
+    distanceKm: posNum(obj.distanceKm, false),
+    calories: posNum(obj.calories),
+    avgHeartRate: posNum(obj.avgHeartRate),
+    sleepHours: posNum(obj.sleepHours, false),
+    otherReadings: str(obj.otherReadings, 200),
+  };
+}
+
+export interface TrackerImportRequest {
+  /** Full data URL (already validated by the caller with isValidImageDataUrl). */
+  imageDataUrl: string;
+}
+
+export async function extractTrackerStats(request: TrackerImportRequest): Promise<TrackerStatsExtraction> {
+  if (!isAiConfigured()) {
+    throw new Error(AI_NOT_CONFIGURED_MESSAGE);
+  }
+
+  const mediaType = mediaTypeFromDataUrl(request.imageDataUrl);
+  if (!mediaType) return EMPTY_TRACKER_EXTRACTION;
+
+  const base64Data = request.imageDataUrl.slice(request.imageDataUrl.indexOf(",") + 1);
+  const content: MealSuggestContentBlock[] = [
+    { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
+    { type: "text", text: "Read the fitness tracker stats shown in this screenshot." },
+  ];
+
+  const client = getClient();
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 500,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: [{ type: "text", text: TRACKER_IMPORT_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content }],
+  });
+
+  return parseTrackerStatsExtraction(textFromMessage(message));
+}
