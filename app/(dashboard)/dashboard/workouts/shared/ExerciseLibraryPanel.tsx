@@ -116,9 +116,9 @@ export function ExerciseLibraryPanel({
                 </button>
                 {open ? (
                   <div className="space-y-3 border-t border-border/60 px-3 py-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
-                      <MuscleMapDual section={exercise.section} />
-                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                      <MuscleMapDual section={exercise.section} className="h-32" />
+                      <p className="mt-2 text-center text-[11px] leading-relaxed text-muted-foreground">
                         <span className="font-medium text-foreground">{MUSCLE_GROUP_LABEL[exercise.section].primary}</span> primarily
                         <br />{MUSCLE_GROUP_LABEL[exercise.section].secondary} secondarily
                       </p>

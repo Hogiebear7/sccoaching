@@ -146,15 +146,20 @@ export function MuscleMap({ section, className = "h-10 w-10" }: { section: Exerc
 
 // Full front + back pair, for the expanded/detail moment — the "signature"
 // placement. Always shows both silhouettes so the member can see the whole
-// body at a glance, with only the trained zone(s) lit.
+// body at a glance, with only the trained zone(s) lit. Sized the same way
+// as MuscleSetLevelDiagram (h-full off the parent, capped width) rather
+// than a fixed h-20 — that parity is the point: this is the same body
+// diagram elsewhere in the app, just highlighting one zone instead of
+// grading all five, so it should read at the same scale, not as a
+// miniature afterthought next to it.
 export function MuscleMapDual({ section, className = "" }: { section: ExerciseSection; className?: string }) {
   const zone = ZONE_BY_SECTION[section];
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      <div className="h-20 w-12 shrink-0">
+    <div className={`flex items-center justify-center gap-6 ${className}`}>
+      <div className="h-full w-auto max-w-[110px] flex-1">
         <FrontBody zone={zone} />
       </div>
-      <div className="h-20 w-12 shrink-0">
+      <div className="h-full w-auto max-w-[110px] flex-1">
         <BackBody zone={zone} />
       </div>
     </div>
