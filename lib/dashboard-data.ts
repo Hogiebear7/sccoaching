@@ -4,6 +4,7 @@ import {
   findBookingsByUserId,
   findClassById,
   findCycleSettingsByUserId,
+  findPregnancyStatusByUserId,
   findProfileByUserId,
   findProgrammeByUserId,
   findRecoveryLogsByUserId,
@@ -13,6 +14,7 @@ import {
 } from "./db";
 import { classStartMs } from "@/lib/class-time";
 import { estimatePhase } from "./cycle-phase";
+import { estimatePregnancy } from "./pregnancy";
 import { isPeriodLapsed, SUBSCRIPTION_STATUS_LABEL } from "./membership-status";
 import { readinessDelta, readinessSeries, weeklyTrainingSummary } from "./progress";
 import { computeRollingTrainingLoad, readinessGuidance } from "./recovery";
@@ -51,6 +53,10 @@ export interface DashboardData {
     hasTrend: boolean;
     delta: number | null;
     phaseNote: string | null;
+    /** One-line pregnancy guidance for the member's own dashboard — always
+        shown to the member themselves regardless of their coach-sharing
+        choice, since that toggle only controls what staff see. */
+    pregnancyNote: string | null;
   };
 
   kpis: {
@@ -113,6 +119,10 @@ export function getDashboardData(userId: string | undefined): DashboardData | nu
         cycleSettings.regularity
       )
     : null;
+
+  const pregnancyStatus = profile?.cycleTrackingEligible ? findPregnancyStatusByUserId(user.id) : undefined;
+  const pregnancyEstimate =
+    pregnancyStatus?.isPregnant ? estimatePregnancy(true, pregnancyStatus.dueDate) : null;
 
   const todayISO = new Date().toISOString().slice(0, 10);
   const todayReadiness = recoveryLogs.find((l) => l.date === todayISO)?.readinessScore ?? null;
@@ -177,6 +187,10 @@ export function getDashboardData(userId: string | undefined): DashboardData | nu
       hasTrend,
       delta,
       phaseNote: phaseEstimate && phaseEstimate.phase !== "Unknown" ? phaseEstimate.readinessNote : null,
+      pregnancyNote:
+        pregnancyEstimate?.content && pregnancyEstimate.weeksPregnant !== null
+          ? `${pregnancyEstimate.content.label}, week ${pregnancyEstimate.weeksPregnant} — see Cycle Tracking for full guidance.`
+          : null,
     },
     kpis: {
       sevenDaySum: rolling.sevenDaySum,

@@ -1,6 +1,7 @@
 import {
   findCycleSettingsByUserId,
   findFoodEntriesByUserId,
+  findPregnancyStatusByUserId,
   findProfileByUserId,
   findRecoveryLogByUserIdAndDate,
   findWaterLogByUserIdAndDate,
@@ -10,6 +11,7 @@ import {
   type WorkoutSessionRecord,
 } from "./db";
 import { estimatePhase, type PhaseEstimate } from "./cycle-phase";
+import { estimatePregnancy, type PregnancyEstimate } from "./pregnancy";
 import { sumDailyTotals } from "./nutrition-diary";
 import { getResolvedNutritionTarget } from "./nutrition-target-data";
 
@@ -64,6 +66,7 @@ export interface WorkoutReviewData {
   comparison: SessionComparison;
   recovery: RecoveryLogRecord | null;
   cyclePhase: PhaseEstimate | null;
+  pregnancy: PregnancyEstimate | null;
   nutrition: NutritionCompliance | null;
   hydration: HydrationCompliance | null;
 }
@@ -116,6 +119,15 @@ export function buildWorkoutReviewData(userId: string, session: WorkoutSessionRe
     }
   }
 
+  let pregnancy: PregnancyEstimate | null = null;
+  if (profile?.cycleTrackingEligible) {
+    const pregnancyStatus = findPregnancyStatusByUserId(userId);
+    if (pregnancyStatus?.isPregnant) {
+      const estimate = estimatePregnancy(true, pregnancyStatus.dueDate, session.date);
+      if (estimate.content) pregnancy = estimate;
+    }
+  }
+
   const todayISO = new Date().toISOString().slice(0, 10);
   const target = getResolvedNutritionTarget(userId, session.date, todayISO);
   const entries = findFoodEntriesByUserId(userId).filter((e) => e.date === session.date);
@@ -133,7 +145,7 @@ export function buildWorkoutReviewData(userId: string, session: WorkoutSessionRe
     ? { targetMl: target.calories, loggedMl: findWaterLogByUserIdAndDate(userId, session.date)?.ml ?? 0 }
     : null;
 
-  return { session, comparison, recovery, cyclePhase, nutrition, hydration };
+  return { session, comparison, recovery, cyclePhase, pregnancy, nutrition, hydration };
 }
 
 // Plain-text grounding block for the AI call — every fact here is one the
@@ -171,6 +183,12 @@ export function formatWorkoutReviewContext(data: WorkoutReviewData): string {
   if (cyclePhase) {
     lines.push(
       `Estimated menstrual cycle phase on this date: ${cyclePhase.phaseLabel} (cycle day ${cyclePhase.cycleDay} of an estimated ${cyclePhase.cycleLength}-day cycle, confidence: ${cyclePhase.confidence}).`
+    );
+  }
+
+  if (data.pregnancy?.content) {
+    lines.push(
+      `Member was pregnant on this date: ${data.pregnancy.content.label}, week ${data.pregnancy.weeksPregnant}. Keep any comments about intensity or exercise choice general and consistent with standard prenatal exercise guidance — do not invent medical advice.`
     );
   }
 

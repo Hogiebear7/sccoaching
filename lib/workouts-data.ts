@@ -39,6 +39,10 @@ export interface WorkoutsData {
   // Bests card, in pick order — see /api/profile/pinned-exercises. Empty
   // until the member curates their own list.
   pinnedExercises: string[];
+  // Up to 3 exercise names pinned for quick-view on the Progression chart,
+  // in pick order — see /api/profile/pinned-progression-exercises. Separate
+  // from pinnedExercises since the two cards serve different purposes.
+  pinnedProgressionExercises: string[];
 }
 
 // Full session history (exercises + runs, not just names) so the mobile app
@@ -68,5 +72,6 @@ export function getWorkoutsData(userId: string | undefined): WorkoutsData | null
     personalBests,
     exerciseLibrary: findExercises().map((e) => ({ id: e.id, name: e.name, section: e.section })),
     pinnedExercises: profile?.pinnedExercises ?? [],
+    pinnedProgressionExercises: profile?.pinnedProgressionExercises ?? [],
   };
 }

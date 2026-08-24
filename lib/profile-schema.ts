@@ -67,6 +67,11 @@ export interface ProfileRecord {
   // Synced from mobile via /api/profile/pinned-exercises. Optional/null for
   // records created before this field existed (see db.ts normalization).
   pinnedExercises?: string[] | null;
+  // Up to 3 exercises pinned for quick-view on the Workouts tab's
+  // Progression chart — a separate, smaller list from pinnedExercises
+  // (Personal Bests), since a member may want different exercises featured
+  // in each place. See /api/profile/pinned-progression-exercises.
+  pinnedProgressionExercises?: string[] | null;
   cycleTrackingEligible: boolean;
   cycleTrackingEnabled: boolean;
   menopauseSupportEnabled: boolean;
@@ -143,6 +148,22 @@ export interface CyclePrivacyPreferencesRecord {
   shareCurrentPhaseWithCoach: boolean;
   shareExactDatesWithCoach: boolean;
   shareNotesWithCoach: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Private by default, same as cycle tracking — dueDate is derived once from
+// the "currently N weeks along" value the member entered (see
+// lib/pregnancy.ts's computeDueDate), not asked for directly, since most
+// members think in "how far along am I" rather than an LMP/due date.
+// shareWithCoach only becomes settable client-side once 12+ weeks along
+// (see lib/pregnancy.ts's COACH_SHARE_UNLOCK_WEEKS) — stored regardless so
+// a member who unshares later doesn't lose the underlying pregnancy data.
+export interface PregnancyStatusRecord {
+  userId: string;
+  isPregnant: boolean;
+  dueDate: string | null;
+  shareWithCoach: boolean;
   createdAt: string;
   updatedAt: string;
 }

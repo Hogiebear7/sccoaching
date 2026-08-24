@@ -5,6 +5,7 @@ import { randomUUID, randomBytes, createHash } from "crypto";
 import type {
   CyclePrivacyPreferencesRecord,
   CycleSettingsRecord,
+  PregnancyStatusRecord,
   ProfileRecord,
   UserRecord,
   UserRole,
@@ -1184,6 +1185,7 @@ interface Database {
   revenueEvents: RevenueEventRecord[];
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
+  pregnancyStatus: PregnancyStatusRecord[];
   weeklyTrainingSchedules: WeeklyTrainingScheduleRecord[];
   pushSubscriptions: PushSubscriptionRecord[];
   expoPushTokens: ExpoPushTokenRecord[];
@@ -1292,6 +1294,7 @@ function readDb(): Database {
       revenueEvents: [],
       cycleSettings: [],
       cyclePrivacyPreferences: [],
+      pregnancyStatus: [],
       weeklyTrainingSchedules: [],
       pushSubscriptions: [],
       expoPushTokens: [],
@@ -1340,6 +1343,7 @@ function readDb(): Database {
       emergencyContact2Name: p.emergencyContact2Name ?? null,
       emergencyContact2Phone: p.emergencyContact2Phone ?? null,
       pinnedExercises: p.pinnedExercises ?? null,
+      pinnedProgressionExercises: p.pinnedProgressionExercises ?? null,
     })),
     resetTokens: parsed.resetTokens ?? [],
     programmes: parsed.programmes ?? [],
@@ -1440,6 +1444,7 @@ function readDb(): Database {
     revenueEvents: parsed.revenueEvents ?? [],
     cycleSettings: parsed.cycleSettings ?? [],
     cyclePrivacyPreferences: parsed.cyclePrivacyPreferences ?? [],
+    pregnancyStatus: parsed.pregnancyStatus ?? [],
     weeklyTrainingSchedules: parsed.weeklyTrainingSchedules ?? [],
     pushSubscriptions: (parsed.pushSubscriptions ?? []).map((s) => ({
       ...s,
@@ -1587,7 +1592,7 @@ export function setUserArchived(userId: string, archived: boolean): boolean {
 const MEMBER_OWNED_COLLECTIONS = [
   "profiles", "resetTokens", "programmes", "workoutSessions", "aiMessages",
   "bodyWeightLogs", "bookings", "subscriptions", "recoveryLogs", "waitlistEntries",
-  "cycleSettings", "cyclePrivacyPreferences", "pushSubscriptions", "expoPushTokens", "notifications",
+  "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
 ] as const;
 
@@ -2785,6 +2790,22 @@ export function saveCyclePrivacy(prefs: CyclePrivacyPreferencesRecord) {
     db.cyclePrivacyPreferences.push(prefs);
   } else {
     db.cyclePrivacyPreferences[index] = prefs;
+  }
+  writeDb(db);
+}
+
+export function findPregnancyStatusByUserId(userId: string): PregnancyStatusRecord | undefined {
+  const db = readDb();
+  return db.pregnancyStatus.find((p) => p.userId === userId);
+}
+
+export function savePregnancyStatus(status: PregnancyStatusRecord) {
+  const db = readDb();
+  const index = db.pregnancyStatus.findIndex((p) => p.userId === status.userId);
+  if (index === -1) {
+    db.pregnancyStatus.push(status);
+  } else {
+    db.pregnancyStatus[index] = status;
   }
   writeDb(db);
 }

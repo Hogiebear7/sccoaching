@@ -13,6 +13,7 @@ import {
   findCycleSettingsByUserId,
   findMembershipPackages,
   findMessagesByMemberId,
+  findPregnancyStatusByUserId,
   findProfileByUserId,
   markMemberMessagesReadByStaff,
   findProgrammeByUserId,
@@ -22,6 +23,7 @@ import {
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
 import { estimatePhase } from "@/lib/cycle-phase";
+import { estimatePregnancy } from "@/lib/pregnancy";
 import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { describeDrinkSettings } from "@/lib/drink-settings";
@@ -89,6 +91,13 @@ export default async function StaffMemberDetailPage({
   const cyclePrivacy = profile?.cycleTrackingEligible
     ? findCyclePrivacyByUserId(user.id)
     : undefined;
+  const pregnancyStatus = profile?.cycleTrackingEligible
+    ? findPregnancyStatusByUserId(user.id)
+    : undefined;
+  const pregnancyEstimate =
+    pregnancyStatus?.isPregnant && pregnancyStatus.shareWithCoach
+      ? estimatePregnancy(true, pregnancyStatus.dueDate)
+      : null;
   const phaseEstimate = cycleSettings
     ? estimatePhase(
         cycleSettings.lastPeriodStartDate,
@@ -312,6 +321,41 @@ export default async function StaffMemberDetailPage({
               {cyclePrivacy.shareNotesWithCoach && cycleSettings?.privateNotes ? (
                 <CycleInfoRow label="Notes" value={cycleSettings.privateNotes} />
               ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {/* Pregnancy — same privacy model as cycle tracking: private by
+          default, only visible here once the member explicitly turns
+          sharing on (which the mobile app only allows once 12+ weeks
+          along). No panel at all if the member has never engaged with
+          pregnancy tracking, so an unused feature doesn't clutter every
+          eligible member's page. */}
+      {profile?.cycleTrackingEligible && pregnancyStatus?.isPregnant ? (
+        <div className="panel p-6">
+          <h3 className="text-lg font-semibold">Pregnancy</h3>
+          {!pregnancyStatus.shareWithCoach || !pregnancyEstimate ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              The member has indicated they are pregnant but has not shared details with coaches.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Shared by the member. General guidance only — not medical information.
+              </p>
+              <CycleInfoRow
+                label="Stage"
+                value={
+                  pregnancyEstimate.weeksPregnant !== null
+                    ? `${pregnancyEstimate.content?.label ?? ""} · week ${pregnancyEstimate.weeksPregnant}`
+                    : "—"
+                }
+              />
+              <p className="text-xs text-muted-foreground/70">
+                Adjust programming for reduced high-fall-risk, high-impact, and prolonged supine work as
+                appropriate for this stage. See the member&apos;s own app for the full guidance they&apos;re seeing.
+              </p>
             </div>
           )}
         </div>
