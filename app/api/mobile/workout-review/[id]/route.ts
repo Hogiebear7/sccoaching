@@ -5,6 +5,7 @@ import { findUserById, findWorkoutSessionById, saveWorkoutSession } from "@/lib/
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { generateWorkoutReview } from "@/lib/ai";
 import { buildWorkoutReviewData } from "@/lib/workout-review";
+import { computeWorkoutScore, WORKOUT_SCORE_ENABLED } from "@/lib/workout-score";
 
 // Session review for one already-logged workout — deterministic comparison
 // stats (computed fresh every time, cheap) plus an AI narrative paragraph
@@ -42,6 +43,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       nutrition: reviewData.nutrition,
       hydration: reviewData.hydration,
       reviewText,
+      // Computed fresh every request (cheap, deterministic) — unlike
+      // reviewText it's never cached, so flipping WORKOUT_SCORE_ENABLED on
+      // later doesn't require regenerating anything for existing sessions.
+      score: WORKOUT_SCORE_ENABLED ? computeWorkoutScore(reviewData) : undefined,
     },
   });
 }
