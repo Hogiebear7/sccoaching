@@ -12,25 +12,66 @@ import { UnreadMessagesBadge } from "@/components/staff/UnreadMessagesBadge";
 
 export const dynamic = "force-dynamic";
 
-// Every nav item declares the capability that reveals it — the menu is a
-// projection of the permission model, and each destination re-checks the same
-// capability server-side (see lib/staff-auth.ts requireStaffPage).
-const navItems: { label: string; href: string; capability: Capability }[] = [
-  { label: "Operations",  href: "/staff/operations",  capability: NAV_CAPABILITY["/staff/operations"] },
-  { label: "Classes",     href: "/staff/classes",     capability: NAV_CAPABILITY["/staff/classes"] },
-  { label: "Workouts",    href: "/staff/workouts",    capability: NAV_CAPABILITY["/staff/workouts"] },
-  { label: "Members",     href: "/staff/members",     capability: NAV_CAPABILITY["/staff/members"] },
-  { label: "Attendance",  href: "/staff/attendance",  capability: NAV_CAPABILITY["/staff/attendance"] },
-  { label: "Messages",    href: "/staff/messages",    capability: NAV_CAPABILITY["/staff/messages"] },
-  { label: "Membership/Class Options", href: "/staff/catalog", capability: NAV_CAPABILITY["/staff/catalog"] },
-  { label: "Exercises",   href: "/staff/exercises",   capability: NAV_CAPABILITY["/staff/exercises"] },
-  { label: "Exercise Library", href: "/staff/exercise-library", capability: NAV_CAPABILITY["/staff/exercise-library"] },
-  { label: "Staff users", href: "/staff/staff-users", capability: NAV_CAPABILITY["/staff/staff-users"] },
-  { label: "Reports",     href: "/staff/reports",     capability: NAV_CAPABILITY["/staff/reports"] },
-  { label: "Finances",    href: "/staff/finances",    capability: NAV_CAPABILITY["/staff/finances"] },
-  { label: "Food submissions", href: "/staff/nutrition-submissions", capability: NAV_CAPABILITY["/staff/nutrition-submissions"] },
-  // TRIAL-ONLY — see docs/bug-reports.md.
-  { label: "Bug reports", href: "/staff/bug-reports", capability: NAV_CAPABILITY["/staff/bug-reports"] },
+// Nav items are grouped by admin job-to-be-done, mirroring the label-caps
+// group pattern already used on the member dashboard sidebar (see
+// app/(dashboard)/dashboard/layout.tsx's navGroups) rather than inventing a
+// second pattern. Every item declares the capability that reveals it — the
+// menu is a projection of the permission model, and each destination
+// re-checks the same capability server-side (see lib/staff-auth.ts
+// requireStaffPage). A section is dropped entirely if none of its items are
+// visible to the signed-in role; group titles themselves are never links
+// (Operations' own dashboard is reachable via its "Overview" item instead,
+// keeping every heading uniformly non-clickable).
+interface StaffNavItem {
+  label: string;
+  href: string;
+  capability: Capability;
+}
+
+interface StaffNavSection {
+  title: string;
+  items: StaffNavItem[];
+}
+
+const navSections: StaffNavSection[] = [
+  {
+    title: "Operations",
+    items: [
+      { label: "Overview",   href: "/staff/operations", capability: NAV_CAPABILITY["/staff/operations"] },
+      { label: "Classes",    href: "/staff/classes",    capability: NAV_CAPABILITY["/staff/classes"] },
+      { label: "Workouts",   href: "/staff/workouts",   capability: NAV_CAPABILITY["/staff/workouts"] },
+      { label: "Members",    href: "/staff/members",    capability: NAV_CAPABILITY["/staff/members"] },
+      { label: "Attendance", href: "/staff/attendance", capability: NAV_CAPABILITY["/staff/attendance"] },
+      { label: "Messages",   href: "/staff/messages",   capability: NAV_CAPABILITY["/staff/messages"] },
+    ],
+  },
+  {
+    title: "Library",
+    items: [
+      // The standalone "Exercises" destination (hand-curated section list)
+      // still exists at /staff/exercises for staff who already know it's
+      // there, but it's no longer a first-class nav item — Exercise Library
+      // is the one exercise-related destination the sidebar surfaces.
+      { label: "Exercise Library", href: "/staff/exercise-library", capability: NAV_CAPABILITY["/staff/exercise-library"] },
+    ],
+  },
+  {
+    title: "Business",
+    items: [
+      { label: "Memberships & Pricing", href: "/staff/catalog",   capability: NAV_CAPABILITY["/staff/catalog"] },
+      { label: "Finances",              href: "/staff/finances",  capability: NAV_CAPABILITY["/staff/finances"] },
+      { label: "Reports",               href: "/staff/reports",   capability: NAV_CAPABILITY["/staff/reports"] },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { label: "Staff",        href: "/staff/staff-users",           capability: NAV_CAPABILITY["/staff/staff-users"] },
+      { label: "Food Reviews", href: "/staff/nutrition-submissions", capability: NAV_CAPABILITY["/staff/nutrition-submissions"] },
+      // TRIAL-ONLY — see docs/bug-reports.md.
+      { label: "Bug reports",  href: "/staff/bug-reports",           capability: NAV_CAPABILITY["/staff/bug-reports"] },
+    ],
+  },
 ];
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
@@ -42,7 +83,9 @@ export default async function StaffLayout({ children }: { children: ReactNode })
     redirect("/dashboard");
   }
 
-  const visibleNav = navItems.filter((item) => can(user.role, item.capability));
+  const visibleNavSections = navSections
+    .map((section) => ({ ...section, items: section.items.filter((item) => can(user.role, item.capability)) }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <div className="min-h-screen bg-black text-foreground">
@@ -60,23 +103,28 @@ export default async function StaffLayout({ children }: { children: ReactNode })
               </p>
             </div>
 
-            <nav className="flex-1 px-4 py-4">
-              <ul className="space-y-2">
-                {visibleNav.map((item) => (
-                  <li key={item.href}>
-                    <NavLink href={item.href}>
-                      {item.href === "/staff/messages" ? (
-                        <span className="flex items-center justify-between gap-2">
-                          <span>{item.label}</span>
-                          <UnreadMessagesBadge />
-                        </span>
-                      ) : (
-                        item.label
-                      )}
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
+            <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+              {visibleNavSections.map((section) => (
+                <div key={section.title}>
+                  <p className="label-caps px-3 pb-2 text-[10px]">{section.title}</p>
+                  <ul className="flex flex-col gap-0.5">
+                    {section.items.map((item) => (
+                      <li key={item.href}>
+                        <NavLink href={item.href}>
+                          {item.href === "/staff/messages" ? (
+                            <span className="flex items-center justify-between gap-2">
+                              <span>{item.label}</span>
+                              <UnreadMessagesBadge />
+                            </span>
+                          ) : (
+                            item.label
+                          )}
+                        </NavLink>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </nav>
 
             <div className="border-t border-border px-4 py-4">
