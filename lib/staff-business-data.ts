@@ -1,6 +1,6 @@
 import { getFinanceSettings } from "./db";
-import { buildRevenueLines } from "./finance";
-import { boundsForPreset, sumCents } from "./finance-shared";
+import { buildFinanceLedgerLines } from "./finance";
+import { boundsForPreset, computeTotals } from "./finance-shared";
 import { buildClassReportRows, buildMemberSignupRows, buildSubscriptionRows } from "./reports";
 import { boundsForReportPreset, currentlyActiveCount, filterByRange, filterClassesByRange } from "./reports-shared";
 
@@ -36,15 +36,17 @@ export function getStaffBusinessData(
 ): StaffBusinessData {
   let revenue: StaffBusinessData["revenue"] = null;
   if (canViewFinance) {
-    const lines = buildRevenueLines();
+    // Income lines only — this snapshot is revenue at-a-glance, not the full
+    // ledger (expenses/fees live on the web Finances workspace).
+    const lines = buildFinanceLedgerLines().filter((l) => l.kind === "income");
     const [thisMonthFrom, thisMonthTo] = boundsForPreset("this_month");
     const [lastMonthFrom, lastMonthTo] = boundsForPreset("last_month");
-    const thisMonthLines = filterByRange(lines, (l) => l.occurredAt, thisMonthFrom, thisMonthTo);
-    const lastMonthLines = filterByRange(lines, (l) => l.occurredAt, lastMonthFrom, lastMonthTo);
+    const thisMonthLines = filterByRange(lines, (l) => l.date, thisMonthFrom, thisMonthTo);
+    const lastMonthLines = filterByRange(lines, (l) => l.date, lastMonthFrom, lastMonthTo);
     const settings = getFinanceSettings();
     revenue = {
-      thisMonthCents: sumCents(thisMonthLines),
-      lastMonthCents: sumCents(lastMonthLines),
+      thisMonthCents: computeTotals(thisMonthLines).moneyInCents,
+      lastMonthCents: computeTotals(lastMonthLines).moneyInCents,
       currency: lines[0]?.currency ?? "EUR",
       taxRatePercent: settings.taxRatePercent,
     };

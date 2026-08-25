@@ -21,7 +21,9 @@ function pkg(id: string, categoryId: string, visible = true): MembershipPackageR
   return {
     id, categoryId, name: id, slug: id, shortDescription: null, fullDescription: null,
     packageType: "membership", sessionAllowanceType: "fixed_count", sessionAllowanceCount: 8,
-    eligibleClassTypes: [], visible, sortOrder: 0, stripeProductId: null, createdAt: "x", updatedAt: "x",
+    eligibleClassTypes: [], visible, sortOrder: 0, stripeProductId: null,
+    deliveryChannel: "in_person", billingChannel: "stripe_web", accessType: "membership",
+    createdAt: "x", updatedAt: "x",
   };
 }
 function opt(id: string, packageId: string, amountCents: number, visible = true): MembershipBillingOptionRecord {

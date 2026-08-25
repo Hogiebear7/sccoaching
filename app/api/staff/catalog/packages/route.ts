@@ -8,7 +8,13 @@ import {
   findMembershipPackageById,
   findUserById,
   saveMembershipPackage,
+  ACCESS_TYPES,
+  BILLING_CHANNELS,
+  DELIVERY_CHANNELS,
+  type AccessType,
+  type BillingChannel,
   type ClassCategory,
+  type DeliveryChannel,
   type MembershipPackageRecord,
   type PackageType,
   type SessionAllowanceType,
@@ -50,6 +56,9 @@ export async function POST(request: NextRequest) {
     stripeProductId,
     imageUrl,
     imageAlt,
+    deliveryChannel,
+    billingChannel,
+    accessType,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof categoryId !== "string" || !findMembershipCategoryById(categoryId)) {
@@ -88,6 +97,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "This package no longer exists." }, { status: 404 });
   }
 
+  if (deliveryChannel !== undefined && !DELIVERY_CHANNELS.includes(deliveryChannel as DeliveryChannel)) {
+    return NextResponse.json({ success: false, message: "A valid delivery channel is required." }, { status: 400 });
+  }
+  if (billingChannel !== undefined && !BILLING_CHANNELS.includes(billingChannel as BillingChannel)) {
+    return NextResponse.json({ success: false, message: "A valid billing channel is required." }, { status: 400 });
+  }
+  if (accessType !== undefined && !ACCESS_TYPES.includes(accessType as AccessType)) {
+    return NextResponse.json({ success: false, message: "A valid access type is required." }, { status: 400 });
+  }
+
   const cover = resolveCoverImageInput(imageUrl);
   if (!cover.ok) {
     return NextResponse.json({ success: false, message: "That cover image is invalid or too large." }, { status: 400 });
@@ -115,6 +134,9 @@ export async function POST(request: NextRequest) {
     stripeProductId: typeof stripeProductId === "string" && stripeProductId.trim() ? stripeProductId.trim() : null,
     imageUrl: cover.value === undefined ? existing?.imageUrl ?? null : cover.value,
     imageAlt: coverAlt.value === undefined ? existing?.imageAlt ?? null : coverAlt.value,
+    deliveryChannel: (deliveryChannel as DeliveryChannel) ?? existing?.deliveryChannel ?? "in_person",
+    billingChannel: (billingChannel as BillingChannel) ?? existing?.billingChannel ?? "stripe_web",
+    accessType: (accessType as AccessType) ?? existing?.accessType ?? (packageType === "top_up" ? "add_on" : packageType === "pass" ? "pass" : "membership"),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

@@ -1,4 +1,7 @@
 import type {
+  AccessType,
+  BillingChannel,
+  DeliveryChannel,
   MembershipBillingOptionRecord,
   MembershipCategoryRecord,
   MembershipPackageRecord,
@@ -6,6 +9,34 @@ import type {
 
 // Shared, pure catalog helpers (no db reads) — safe to import from client
 // components and API routes alike.
+
+// Value lists for the channel/tier classification fields on
+// MembershipPackageRecord. Deliberately duplicated here (not re-exported
+// from lib/db.ts as values) — lib/db.ts imports Node's `fs` and must never
+// be imported for its VALUE exports from a "use client" component; only
+// `import type` from it is safe there. lib/db.ts remains the source of
+// truth for the TYPES (DeliveryChannel/BillingChannel/AccessType).
+export const DELIVERY_CHANNEL_OPTIONS: DeliveryChannel[] = ["in_person", "hybrid", "app_only"];
+export const BILLING_CHANNEL_OPTIONS: BillingChannel[] = ["stripe_web", "apple_iap", "google_play", "manual"];
+export const ACCESS_TYPE_OPTIONS: AccessType[] = ["membership", "pass", "subscription", "add_on"];
+
+export const DELIVERY_CHANNEL_LABEL: Record<DeliveryChannel, string> = {
+  in_person: "In-person",
+  hybrid: "Hybrid",
+  app_only: "App-only",
+};
+export const BILLING_CHANNEL_LABEL: Record<BillingChannel, string> = {
+  stripe_web: "Stripe (website)",
+  apple_iap: "Apple In-App Purchase",
+  google_play: "Google Play Billing",
+  manual: "Manual / other",
+};
+export const ACCESS_TYPE_LABEL: Record<AccessType, string> = {
+  membership: "Membership",
+  pass: "Pass",
+  subscription: "Subscription",
+  add_on: "Add-on",
+};
 
 export function slugifyCatalog(name: string): string {
   return name

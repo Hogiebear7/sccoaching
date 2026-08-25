@@ -766,6 +766,21 @@ export interface MembershipCategoryRecord {
 export type PackageType = "membership" | "pass" | "top_up";
 export type SessionAllowanceType = "unlimited" | "fixed_count" | "single_use";
 
+// Tier/channel classification — added alongside the Finances rebuild so
+// Tier 2 app-only subscriptions (sold through Apple/Google, not Stripe
+// checkout) can be defined and reported on distinctly from Tier 1
+// website/gym memberships and class passes. Purely descriptive: nothing in
+// the checkout/entitlement engine branches on these fields today, so they
+// default safely for every existing package (see readDb migration) and
+// don't change how existing in-person/Stripe packages behave.
+export type DeliveryChannel = "in_person" | "hybrid" | "app_only";
+export type BillingChannel = "stripe_web" | "apple_iap" | "google_play" | "manual";
+export type AccessType = "membership" | "pass" | "subscription" | "add_on";
+
+export const DELIVERY_CHANNELS: DeliveryChannel[] = ["in_person", "hybrid", "app_only"];
+export const BILLING_CHANNELS: BillingChannel[] = ["stripe_web", "apple_iap", "google_play", "manual"];
+export const ACCESS_TYPES: AccessType[] = ["membership", "pass", "subscription", "add_on"];
+
 export interface MembershipPackageRecord {
   id: string;
   categoryId: string;
@@ -788,6 +803,17 @@ export interface MembershipPackageRecord {
   imageUrl?: string | null;
   /** Optional cover alt text. Null/blank = decorative; a value = meaningful. */
   imageAlt?: string | null;
+  /** How this package is delivered. Existing packages migrate to "in_person". */
+  deliveryChannel: DeliveryChannel;
+  /** How this package is actually paid for. Existing packages migrate to
+      "stripe_web" (matches current checkout behaviour). Tier 2 app-only
+      subscriptions should use "apple_iap"/"google_play"/"manual" — the admin
+      can define/display/report on them even though the actual purchase
+      happens in the app store, not through this app's checkout. */
+  billingChannel: BillingChannel;
+  /** Coarser than packageType for reporting — migrates from packageType
+      (membership→membership, pass→pass, top_up→add_on). */
+  accessType: AccessType;
   createdAt: string;
   updatedAt: string;
 }
@@ -1045,6 +1071,131 @@ export interface RevenueEventRecord {
   receivedAt: string;
 }
 
+// ── Business finance ledger ─────────────────────────────────────────────
+// Everything money-related that ISN'T already captured by the Stripe/Revolut
+// webhook pipeline above (RevenueEventRecord for renewals, PurchaseRecord for
+// one-off pass/top-up buys — both left untouched, and merged in at read time
+// by lib/finance.ts's buildFinanceLedgerLines). This ledger is where every
+// EXPENSE lives, every FEE lives, and every income source with no webhook
+// (Apple/Google app-store subscriptions, cash/manual payments, misc income,
+// one-off corrections) lives. One shape for all three kinds rather than
+// separate tables, because they share the same audit fields (date, amount,
+// status, reference) and need to sit side-by-side in one filterable ledger —
+// the kind-specific classification (incomeSource/incomeType vs expenseType
+// vs feeType) is what actually differs, and exactly one of those three is
+// set depending on `kind`.
+//
+// Rows are staff-entered (manual entry works today) but the shape already
+// carries what an automated importer would need (sourceExternalId for
+// dedupe, a real status enum including "pending"/"estimate") so a future
+// App Store Server Notifications / Google Play RTDN / Stripe balance
+// transaction importer can write into this same table without a redesign.
+export type FinanceEntryKind = "income" | "expense" | "fee";
+
+export type FinanceIncomeSource = "stripe" | "apple" | "google" | "revolut" | "manual_cash" | "other";
+export type FinanceIncomeType = "tier1_membership" | "class_pass" | "tier2_app_subscription" | "misc_income";
+export type FinanceExpenseType =
+  | "payroll"
+  | "contractor"
+  | "software"
+  | "rent"
+  | "utilities"
+  | "marketing"
+  | "tax"
+  | "misc";
+export type FinanceFeeType = "stripe_fee" | "apple_fee" | "google_fee" | "tax_withheld" | "other_fee";
+// "cleared" = money has actually moved (received or paid out) — the only
+// status counted in money-in/out/net totals and forecasts. "estimate" is for
+// a projected/provisional row (e.g. a bulk monthly fee estimate) that should
+// be visible in the ledger but never silently treated as real money.
+export type FinanceEntryStatus = "pending" | "cleared" | "refunded" | "disputed" | "failed" | "estimate";
+
+export const FINANCE_INCOME_SOURCES: FinanceIncomeSource[] = [
+  "stripe",
+  "apple",
+  "google",
+  "revolut",
+  "manual_cash",
+  "other",
+];
+export const FINANCE_INCOME_TYPES: FinanceIncomeType[] = [
+  "tier1_membership",
+  "class_pass",
+  "tier2_app_subscription",
+  "misc_income",
+];
+export const FINANCE_EXPENSE_TYPES: FinanceExpenseType[] = [
+  "payroll",
+  "contractor",
+  "software",
+  "rent",
+  "utilities",
+  "marketing",
+  "tax",
+  "misc",
+];
+export const FINANCE_FEE_TYPES: FinanceFeeType[] = ["stripe_fee", "apple_fee", "google_fee", "tax_withheld", "other_fee"];
+export const FINANCE_ENTRY_STATUSES: FinanceEntryStatus[] = [
+  "pending",
+  "cleared",
+  "refunded",
+  "disputed",
+  "failed",
+  "estimate",
+];
+
+export interface FinanceLedgerEntryRecord {
+  id: string;
+  kind: FinanceEntryKind;
+  /** Set only when kind === "income". */
+  incomeSource: FinanceIncomeSource | null;
+  incomeType: FinanceIncomeType | null;
+  /** Set only when kind === "expense". */
+  expenseType: FinanceExpenseType | null;
+  /** Set only when kind === "fee". */
+  feeType: FinanceFeeType | null;
+  status: FinanceEntryStatus;
+  /** ISO date this entry is attributed to — the field range filters and
+      forecasting operate on. Not necessarily "now"; staff can log a
+      previous period's expense. */
+  date: string;
+  currency: string;
+  /** The headline amount: what was charged (income), what was spent
+      (expense), or the fee itself (fee). */
+  grossAmountCents: number;
+  /** A fee known/deducted at entry time — e.g. logging an Apple payout where
+      Apple has already taken its cut, so gross and net are both known
+      up-front. 0 when not applicable (most expense/fee rows, and income rows
+      whose fee is tracked separately via a standalone "fee" kind row
+      instead). Kept editable rather than derived so staff aren't forced to
+      pick one mechanism. */
+  feeAmountCents: number;
+  /** grossAmountCents - feeAmountCents for income; equal to grossAmountCents
+      for expense/fee rows (kept for a consistent read shape). */
+  netAmountCents: number;
+  /** Optional link back to a member (e.g. an Apple/Google subscriber, or
+      whose renewal a fee/refund relates to). Null for business-wide rows
+      (rent, payroll, software). */
+  memberId: string | null;
+  /** Optional link back to a catalog package, for Tier 2 app-subscription
+      income or per-package expense attribution. */
+  packageId: string | null;
+  /** Optional link to another ledger entry this one relates to — e.g. a
+      standalone fee row that offsets a specific income row. */
+  relatedEntryId: string | null;
+  /** Free-text reference — invoice number, payout ID, cheque number. */
+  reference: string | null;
+  /** External transaction id from a future automated importer (Apple/Google
+      transaction id, Stripe balance transaction id) — reserved for dedupe
+      once that ingestion exists. Null for every manually-entered row today. */
+  sourceExternalId: string | null;
+  notes: string | null;
+  /** Staff member who entered this row. */
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type JobStatus = "success" | "error";
 
 // One row per individual job execution within a run (see lib/jobs/). Kept
@@ -1107,16 +1258,35 @@ export interface BugReportRecord {
   updatedAt: string;
 }
 
-// Staff-configured settings for the Finances tab (singleton). taxRatePercent
-// is a manually-entered estimate rate, not a computed liability — this app
-// has no expense tracking, so it can only ever show gross revenue × a rate
-// the admin_manager types in themselves. null = not set (no estimate shown).
+// Staff-configured settings for the Finances workspace (singleton).
+//  - taxRatePercent: a manually-entered estimate rate. Still not a filing
+//    figure — this app doesn't know the business's real tax treatment — but
+//    now multiplies against net income (after expenses/fees), not gross.
+//  - stripeFeePercent/stripeFeeFixedCents: an admin-entered estimate formula
+//    (Stripe's own published rate, e.g. 1.5% + €0.25) used to DERIVE an
+//    estimated Stripe fee figure against actual Stripe income for the
+//    selected period. This app doesn't call the Stripe API for real
+//    per-transaction fees, so this is explicitly an estimate, not a synced
+//    value — see lib/finance-shared.ts estimateStripeFeeCents.
+//  - cashPositionAnchorCents/cashPositionAnchorDate: a manually-entered
+//    "balance as of this date" starting point. The app has no real bank
+//    connection, so current cash position is always
+//    anchor + ledger movements since the anchor date — an app-calculated
+//    estimate, never a bank-synced value. null = no anchor set yet.
 export interface FinanceSettings {
   taxRatePercent: number | null;
+  stripeFeePercent: number | null;
+  stripeFeeFixedCents: number | null;
+  cashPositionAnchorCents: number | null;
+  cashPositionAnchorDate: string | null;
 }
 
 export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
   taxRatePercent: null,
+  stripeFeePercent: null,
+  stripeFeeFixedCents: null,
+  cashPositionAnchorCents: null,
+  cashPositionAnchorDate: null,
 };
 
 // Staff-configured settings for alerting a coach before a session when a
@@ -1181,6 +1351,7 @@ interface Database {
   jobRuns: JobRunRecord[];
   aiRedirectEvents: AiRedirectEventRecord[];
   revenueEvents: RevenueEventRecord[];
+  financeLedgerEntries: FinanceLedgerEntryRecord[];
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
   pregnancyStatus: PregnancyStatusRecord[];
@@ -1290,6 +1461,7 @@ function readDb(): Database {
       jobRuns: [],
       aiRedirectEvents: [],
       revenueEvents: [],
+      financeLedgerEntries: [],
       cycleSettings: [],
       cyclePrivacyPreferences: [],
       pregnancyStatus: [],
@@ -1399,6 +1571,9 @@ function readDb(): Database {
       eligibleClassTypes: pkg.eligibleClassTypes ?? [],
       imageUrl: pkg.imageUrl ?? null,
       imageAlt: pkg.imageAlt ?? null,
+      deliveryChannel: pkg.deliveryChannel ?? "in_person",
+      billingChannel: pkg.billingChannel ?? "stripe_web",
+      accessType: pkg.accessType ?? (pkg.packageType === "top_up" ? "add_on" : pkg.packageType === "pass" ? "pass" : "membership"),
     })),
     membershipBillingOptions: (parsed.membershipBillingOptions ?? []).map((o) => ({
       ...o,
@@ -1440,6 +1615,7 @@ function readDb(): Database {
     jobRuns: parsed.jobRuns ?? [],
     aiRedirectEvents: parsed.aiRedirectEvents ?? [],
     revenueEvents: parsed.revenueEvents ?? [],
+    financeLedgerEntries: parsed.financeLedgerEntries ?? [],
     cycleSettings: parsed.cycleSettings ?? [],
     cyclePrivacyPreferences: parsed.cyclePrivacyPreferences ?? [],
     pregnancyStatus: parsed.pregnancyStatus ?? [],
@@ -2698,6 +2874,33 @@ export function getFinanceSettings(): FinanceSettings {
 export function saveFinanceSettings(settings: FinanceSettings): void {
   const db = readDb();
   db.financeSettings = settings;
+  writeDb(db);
+}
+
+// Finance ledger — manual-entry rows (expenses, fees, and income sources
+// with no webhook — see FinanceLedgerEntryRecord). Unlike the append-only
+// revenue ledger above, these are staff-editable/deletable: a mistyped
+// expense or a corrected date needs to be fixable, not compensated for with
+// a reversing entry.
+export function findAllFinanceLedgerEntries(): FinanceLedgerEntryRecord[] {
+  return readDb().financeLedgerEntries;
+}
+
+export function findFinanceLedgerEntryById(id: string): FinanceLedgerEntryRecord | undefined {
+  return readDb().financeLedgerEntries.find((e) => e.id === id);
+}
+
+export function saveFinanceLedgerEntry(entry: FinanceLedgerEntryRecord): void {
+  const db = readDb();
+  const i = db.financeLedgerEntries.findIndex((e) => e.id === entry.id);
+  if (i === -1) db.financeLedgerEntries.push(entry);
+  else db.financeLedgerEntries[i] = entry;
+  writeDb(db);
+}
+
+export function deleteFinanceLedgerEntry(id: string): void {
+  const db = readDb();
+  db.financeLedgerEntries = db.financeLedgerEntries.filter((e) => e.id !== id);
   writeDb(db);
 }
 

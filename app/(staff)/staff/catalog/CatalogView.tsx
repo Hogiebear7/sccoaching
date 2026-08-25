@@ -5,9 +5,21 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { formatPriceCents } from "@/lib/billing";
-import { describePackageAllowance, formatBillingOptionCadence } from "@/lib/catalog";
+import {
+  ACCESS_TYPE_LABEL,
+  ACCESS_TYPE_OPTIONS,
+  BILLING_CHANNEL_LABEL,
+  BILLING_CHANNEL_OPTIONS,
+  DELIVERY_CHANNEL_LABEL,
+  DELIVERY_CHANNEL_OPTIONS,
+  describePackageAllowance,
+  formatBillingOptionCadence,
+} from "@/lib/catalog";
 import type {
+  AccessType,
+  BillingChannel,
   ClassCategoryRecord,
+  DeliveryChannel,
   MembershipBillingOptionRecord,
   MembershipCategoryRecord,
   MembershipPackageRecord,
@@ -161,9 +173,14 @@ export function CatalogView({
                                   </span>
                                 )}
                                 {!pkg.visible ? <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">Hidden</span> : null}
+                                {pkg.deliveryChannel !== "in_person" ? (
+                                  <span className="rounded-full border border-gold/30 bg-gold/[0.08] px-2 py-0.5 text-[10px] font-semibold text-gold">
+                                    {DELIVERY_CHANNEL_LABEL[pkg.deliveryChannel]} · {BILLING_CHANNEL_LABEL[pkg.billingChannel]}
+                                  </span>
+                                ) : null}
                               </span>
                               <span className="mt-0.5 text-xs text-muted-foreground">
-                                {describePackageAllowance(pkg)} · {pkg.packageType}
+                                {describePackageAllowance(pkg)} · {pkg.packageType} · {ACCESS_TYPE_LABEL[pkg.accessType]}
                               </span>
                             </button>
                             <RowActions
@@ -244,6 +261,9 @@ function packagePayload(pkg: MembershipPackageRecord, overrides: Record<string, 
     visible: pkg.visible,
     sortOrder: pkg.sortOrder,
     stripeProductId: pkg.stripeProductId,
+    deliveryChannel: pkg.deliveryChannel,
+    billingChannel: pkg.billingChannel,
+    accessType: pkg.accessType,
     ...overrides,
   };
 }
@@ -384,6 +404,9 @@ function PackageForm({
   const [stripeProductId, setStripeProductId] = useState(pkg?.stripeProductId ?? "");
   const [imageUrl, setImageUrl] = useState<string | null>(pkg?.imageUrl ?? null);
   const [imageAlt, setImageAlt] = useState(pkg?.imageAlt ?? "");
+  const [deliveryChannel, setDeliveryChannel] = useState<DeliveryChannel>(pkg?.deliveryChannel ?? "in_person");
+  const [billingChannel, setBillingChannel] = useState<BillingChannel>(pkg?.billingChannel ?? "stripe_web");
+  const [accessType, setAccessType] = useState<AccessType>(pkg?.accessType ?? "membership");
 
   return (
     <form
@@ -394,6 +417,7 @@ function PackageForm({
           sessionAllowanceType: allowanceType,
           sessionAllowanceCount: allowanceType === "fixed_count" ? Number(count) : null,
           eligibleClassTypes: eligible, visible: pkg?.visible ?? true, sortOrder: Number(sortOrder), stripeProductId, imageUrl, imageAlt,
+          deliveryChannel, billingChannel, accessType,
         });
         if (!pkg) { setName(""); setCount(""); setImageUrl(null); setImageAlt(""); }
       }}
@@ -442,6 +466,31 @@ function PackageForm({
           <input className={input} value={stripeProductId} onChange={(e) => setStripeProductId(e.target.value)} placeholder="prod_…" />
         </Field>
       </div>
+      <fieldset className="rounded-xl border border-border/60 bg-white/[0.02] p-3">
+        <span className="mb-2 block text-xs font-semibold text-foreground">Channel & tier</span>
+        <p className="mb-2 text-[11px] leading-snug text-muted-foreground">
+          Purely descriptive — how members reach and pay for this package, for Finances reporting. Doesn&apos;t
+          change checkout behaviour. Leave as In-person / Stripe (website) for normal Tier 1 gym memberships and
+          class passes; use App-only for a Tier 2 subscription sold through Apple/Google.
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <Field label="Delivery">
+            <select className={input} value={deliveryChannel} onChange={(e) => setDeliveryChannel(e.target.value as DeliveryChannel)}>
+              {DELIVERY_CHANNEL_OPTIONS.map((c) => <option key={c} value={c}>{DELIVERY_CHANNEL_LABEL[c]}</option>)}
+            </select>
+          </Field>
+          <Field label="Billed via">
+            <select className={input} value={billingChannel} onChange={(e) => setBillingChannel(e.target.value as BillingChannel)}>
+              {BILLING_CHANNEL_OPTIONS.map((c) => <option key={c} value={c}>{BILLING_CHANNEL_LABEL[c]}</option>)}
+            </select>
+          </Field>
+          <Field label="Access type">
+            <select className={input} value={accessType} onChange={(e) => setAccessType(e.target.value as AccessType)}>
+              {ACCESS_TYPE_OPTIONS.map((c) => <option key={c} value={c}>{ACCESS_TYPE_LABEL[c]}</option>)}
+            </select>
+          </Field>
+        </div>
+      </fieldset>
       <button type="submit" className="btn-primary px-4 py-2 text-xs">{pkg ? "Save package" : "Add package"}</button>
     </form>
   );
