@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { findUserById } from "@/lib/db";
 import { AUTH_ROUTES, BRAND_NAME, BRAND_TAGLINE, CONTACT_INFO, LANDING_DESCRIPTION, VALUE_PROPS } from "@/lib/content";
 import { verifySession } from "@/lib/session";
+import { AppShowcase } from "@/components/marketing/AppShowcase";
 import { ClassesShowcase } from "@/components/marketing/ClassesShowcase";
 import { ClassPricingShowcase } from "@/components/marketing/ClassPricingShowcase";
 import { ContactForm } from "@/components/marketing/ContactForm";
@@ -211,6 +212,28 @@ export default async function Root() {
 
           <ScrollReveal delayMs={80} className="mt-10">
             <ClassPricingShowcase href={AUTH_ROUTES.signup} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* App-only membership (Tier 2) — the app-based alternative to the
+          in-person memberships above. Benefit copy only, no "AI" language;
+          see AppShowcase.tsx for why pricing/store links are placeholders. */}
+      <section className="relative border-t border-white/[0.06]">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <ScrollReveal className="max-w-lg">
+            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              The App
+            </p>
+            <h2 className="mt-4 text-editorial text-[32px] text-zinc-50">Coaching that fits in your pocket.</h2>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+              Not near the gym, or want to train on your own days? Get the same coaching approach, built into an app.
+            </p>
+          </ScrollReveal>
+
+          <ScrollReveal delayMs={80} className="mt-10">
+            <AppShowcase />
           </ScrollReveal>
         </div>
       </section>
