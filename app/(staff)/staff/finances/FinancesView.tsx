@@ -595,12 +595,29 @@ function LedgerRow({
   setBanner: (b: { ok: boolean; message: string } | null) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [editing, setEditing] = useState(false);
   const editable = line.origin === "ledger";
 
   async function handleDelete() {
     const r = await post("/api/staff/finance/ledger/delete", { id: line.id });
     setBanner(r);
     if (r.ok) onChanged();
+  }
+
+  async function handleSaveEdit(payload: Record<string, unknown>) {
+    const r = await post("/api/staff/finance/ledger", payload);
+    setBanner(r);
+    if (r.ok) onChanged();
+  }
+
+  if (editing) {
+    return (
+      <tr className="border-b border-border/40">
+        <td colSpan={9} className="py-3">
+          <LedgerEntryForm kind={line.kind} initial={line} onSave={handleSaveEdit} onDone={() => setEditing(false)} />
+        </td>
+      </tr>
+    );
   }
 
   return (
@@ -633,9 +650,14 @@ function LedgerRow({
               </button>
             </span>
           ) : (
-            <button type="button" onClick={() => setConfirming(true)} className="rounded-lg border border-destructive/30 px-2 py-1 text-[11px] font-medium text-destructive hover:border-destructive/60">
-              Delete
-            </button>
+            <span className="inline-flex gap-1">
+              <button type="button" onClick={() => setEditing(true)} className="rounded-lg border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-accent">
+                Edit
+              </button>
+              <button type="button" onClick={() => setConfirming(true)} className="rounded-lg border border-destructive/30 px-2 py-1 text-[11px] font-medium text-destructive hover:border-destructive/60">
+                Delete
+              </button>
+            </span>
           )
         ) : (
           <span className="text-[10px] text-muted-foreground">auto</span>
@@ -662,23 +684,28 @@ function todayDateString(): string {
 
 function LedgerEntryForm({
   kind,
+  initial,
   onSave,
   onDone,
 }: {
   kind: FinanceLineKind;
+  /** When set, prefills every field from an existing line and includes its
+      id in the save payload — the same route handles create vs. update
+      based on id presence, matching the catalog CRUD convention. */
+  initial?: FinanceLine;
   onSave: (payload: Record<string, unknown>) => void;
   onDone: () => void;
 }) {
-  const [incomeSource, setIncomeSource] = useState(FINANCE_INCOME_SOURCE_OPTIONS[0]);
-  const [incomeType, setIncomeType] = useState(FINANCE_INCOME_TYPE_OPTIONS[0]);
-  const [expenseType, setExpenseType] = useState(FINANCE_EXPENSE_TYPE_OPTIONS[0]);
-  const [feeType, setFeeType] = useState(FINANCE_FEE_TYPE_OPTIONS[0]);
-  const [status, setStatus] = useState<FinanceLineStatus>("cleared");
-  const [date, setDate] = useState(todayDateString());
-  const [amountEur, setAmountEur] = useState("");
-  const [feeEur, setFeeEur] = useState("");
-  const [reference, setReference] = useState("");
-  const [notes, setNotes] = useState("");
+  const [incomeSource, setIncomeSource] = useState(initial?.incomeSource ?? FINANCE_INCOME_SOURCE_OPTIONS[0]);
+  const [incomeType, setIncomeType] = useState(initial?.incomeType ?? FINANCE_INCOME_TYPE_OPTIONS[0]);
+  const [expenseType, setExpenseType] = useState(initial?.expenseType ?? FINANCE_EXPENSE_TYPE_OPTIONS[0]);
+  const [feeType, setFeeType] = useState(initial?.feeType ?? FINANCE_FEE_TYPE_OPTIONS[0]);
+  const [status, setStatus] = useState<FinanceLineStatus>(initial?.status ?? "cleared");
+  const [date, setDate] = useState(initial ? initial.date.slice(0, 10) : todayDateString());
+  const [amountEur, setAmountEur] = useState(initial ? (initial.grossCents / 100).toFixed(2) : "");
+  const [feeEur, setFeeEur] = useState(initial && initial.feeCents > 0 ? (initial.feeCents / 100).toFixed(2) : "");
+  const [reference, setReference] = useState(initial?.reference ?? "");
+  const [notes, setNotes] = useState(initial?.notes ?? "");
 
   return (
     <form
@@ -687,6 +714,7 @@ function LedgerEntryForm({
         const grossAmountCents = Math.round(Number(amountEur) * 100);
         const feeAmountCents = feeEur.trim() ? Math.round(Number(feeEur) * 100) : 0;
         onSave({
+          id: initial?.id,
           kind,
           incomeSource: kind === "income" ? incomeSource : undefined,
           incomeType: kind === "income" ? incomeType : undefined,
@@ -759,7 +787,9 @@ function LedgerEntryForm({
         <input className={input} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth remembering about this entry" />
       </Field>
       <div className="flex gap-2">
-        <button type="submit" className="btn-primary px-4 py-2 text-xs">Save {FINANCE_LINE_KIND_LABEL[kind].toLowerCase()}</button>
+        <button type="submit" className="btn-primary px-4 py-2 text-xs">
+          {initial ? "Save changes" : `Save ${FINANCE_LINE_KIND_LABEL[kind].toLowerCase()}`}
+        </button>
         <button type="button" onClick={onDone} className="rounded-lg border border-border px-4 py-2 text-xs text-foreground hover:bg-accent">Cancel</button>
       </div>
     </form>
