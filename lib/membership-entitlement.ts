@@ -1,12 +1,14 @@
 import {
   findMembershipBillingOptionById,
   findMembershipPackageById,
+  findSubscriptionByUserId,
   type BillingInterval,
   type MembershipBillingOptionRecord,
   type MembershipPackageRecord,
   type MembershipPlanRecord,
   type SubscriptionRecord,
 } from "./db";
+import type { MemberTier } from "./member-access";
 
 // Single resolver for "what is this subscription entitled to?".
 //
@@ -64,4 +66,29 @@ export function resolveSubscriptionEntitlement(
     ? findMembershipBillingOptionById(subscription.billingOptionId)
     : undefined;
   return planShapeForPackage(pkg, option);
+}
+
+// Resolves a subscription straight to one of the three member-facing access
+// tiers (see lib/member-access.ts for what each tier unlocks). Reuses the
+// deliveryChannel/accessType classification already on the catalog package —
+// added specifically so Tier 2 app-only subscriptions could be told apart
+// from Tier 1 in-person/hybrid memberships — rather than a separate stored
+// field on the user, so tier can never drift out of sync with the real
+// subscription state. No active subscription (or a subscription whose
+// status isn't "active"/"past_due" — a lapsed/cancelled member reads the
+// same as never having subscribed) is Free.
+export function resolveMemberTier(subscription: SubscriptionRecord | undefined | null): MemberTier {
+  if (!subscription?.packageId) return "free";
+  if (subscription.status !== "active" && subscription.status !== "past_due") return "free";
+
+  const pkg = findMembershipPackageById(subscription.packageId);
+  if (!pkg) return "free";
+
+  return pkg.deliveryChannel === "app_only" ? "app_subscription" : "membership";
+}
+
+// Convenience wrapper — the shape every /api/mobile/* route actually wants
+// (they have a userId, not a SubscriptionRecord already in hand).
+export function resolveMemberTierForUser(userId: string): MemberTier {
+  return resolveMemberTier(findSubscriptionByUserId(userId));
 }

@@ -1,4 +1,4 @@
-import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
+import { resolveMemberTier, resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { can } from "@/lib/permissions";
 import { requireStaffPage } from "@/lib/staff-auth";
 import Link from "next/link";
@@ -39,6 +39,7 @@ import {
   TRACKED_PERSONAL_BEST_EXERCISES,
 } from "@/lib/workouts";
 import { MessagesThread } from "@/components/messages/MessagesThread";
+import { ChangeTierPanel } from "@/components/staff/ChangeTierPanel";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
 import { MemberAccountPanel } from "@/components/staff/MemberAccountPanel";
 import { MembershipStatusPanel } from "@/components/staff/MembershipStatusPanel";
@@ -190,6 +191,10 @@ export default async function StaffMemberDetailPage({
       {/* Membership + billing is admin-only. A coach never sees this panel,
           and its API routes (subscription / extra-sessions) enforce the same
           members.billing capability server-side. */}
+      {canEditBilling ? (
+        <ChangeTierPanel memberId={user.id} currentTier={resolveMemberTier(subscription)} />
+      ) : null}
+
       {canEditBilling ? (
         <MembershipStatusPanel
           memberId={user.id}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createUser, findUserByEmail, saveProfile, saveCycleSettings, saveCyclePrivacy } from "@/lib/db";
+import { redeemInviteForUser } from "@/lib/invites";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
 import { signSession } from "@/lib/session";
 import {
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
     shareCurrentPhaseWithCoach,
     shareExactDatesWithCoach,
     shareNotesWithCoach,
+    inviteToken,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password.trim()) {
@@ -209,6 +211,12 @@ export async function POST(request: Request) {
       updatedAt: now,
     };
     saveCyclePrivacy(cyclePrivacy);
+  }
+
+  // Same honor-system carry-through as the web signup route — a bad token
+  // just leaves the new account on Free rather than blocking signup.
+  if (typeof inviteToken === "string" && inviteToken.trim()) {
+    await redeemInviteForUser(inviteToken.trim(), user);
   }
 
   const token = signSession({ userId: user.id });

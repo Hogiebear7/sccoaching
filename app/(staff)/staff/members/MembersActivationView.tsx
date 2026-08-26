@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { InvitePanel } from "@/components/staff/InvitePanel";
 import { describePackageAllowance } from "@/lib/catalog";
 import type { MembershipPackageRecord, SubscriptionStatus } from "@/lib/db";
 import {
@@ -160,6 +161,8 @@ export function MembersActivationView({
           </span>
         </div>
       </div>
+
+      {canManageBilling ? <InvitePanel /> : null}
 
       {/* Age breakdown — active members only */}
       {ageBreakdown.length > 0 ? (

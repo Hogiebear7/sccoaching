@@ -12,6 +12,7 @@
     "seed:exercises": "node scripts/seed-exercise-library.mjs",
     "import:exercises": "tsx scripts/import-exercise-library.ts",
     "seed:common-foods": "node scripts/seed-common-foods.mjs",
+    "seed:app-subscription-package": "node scripts/seed-app-subscription-package.mjs",
     "create:staff": "node scripts/create-staff.mjs",
     "delete:non-staff": "node scripts/delete-non-staff.mjs",
     "delete:members": "node scripts/delete-members.mjs",

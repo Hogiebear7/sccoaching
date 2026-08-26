@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findUserById, setActiveGymProfile } from "@/lib/db";
+import { hasAccess } from "@/lib/member-access";
+import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // id: null clears the active profile (unfiltered / "show all exercises").
@@ -11,6 +13,10 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  }
+
+  if (!hasAccess(resolveMemberTierForUser(user.id), "gymProfiles")) {
+    return NextResponse.json({ success: false, message: "Gym profiles need App Subscription or above." }, { status: 403 });
   }
 
   let body: unknown;

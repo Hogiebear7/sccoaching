@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findAllFoods, findCustomFoodsByUserId, findFoodById, findFoodEntriesByUserId, findUserById, saveFood, type FoodDomain } from "@/lib/db";
+import { hasAccess } from "@/lib/member-access";
+import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { normalizeOpenFoodFactsProduct, scoreFoodMatch, searchFoodCatalog } from "@/lib/food-catalog";
 import { searchOpenFoodFactsByName } from "@/lib/open-food-facts-client";
@@ -25,6 +27,10 @@ export async function GET(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  }
+
+  if (!hasAccess(resolveMemberTierForUser(user.id), "foodSearch")) {
+    return NextResponse.json({ success: false, message: "Food search needs App Subscription or above." }, { status: 403 });
   }
 
   const query = request.nextUrl.searchParams.get("q") ?? "";

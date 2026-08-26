@@ -2,8 +2,10 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findFoodByBarcode, findUserById, saveFood, type FoodRecord } from "@/lib/db";
+import { findCustomFoodsByUserId, findFoodByBarcode, findUserById, saveFood, type FoodRecord } from "@/lib/db";
 import { parseCustomFoodInput } from "@/lib/food-catalog";
+import { FREE_CUSTOM_FOOD_LIMIT, hasAccess } from "@/lib/member-access";
+import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 export async function POST(request: NextRequest) {
@@ -12,6 +14,14 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  }
+
+  const tier = resolveMemberTierForUser(user.id);
+  if (!hasAccess(tier, "unlimitedCustomFoods") && findCustomFoodsByUserId(user.id).length >= FREE_CUSTOM_FOOD_LIMIT) {
+    return NextResponse.json(
+      { success: false, message: `Free tier is limited to ${FREE_CUSTOM_FOOD_LIMIT} saved foods. Upgrade for unlimited.` },
+      { status: 403 }
+    );
   }
 
   let body: unknown;

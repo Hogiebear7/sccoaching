@@ -23,6 +23,24 @@ interface ResetTokenRecord {
   createdAt: string;
 }
 
+export type InviteStatus = "pending" | "redeemed" | "expired" | "revoked";
+
+// Staff-issued invite granting a specific tier on redemption (see
+// lib/member-access.ts). Looked up by tokenHash, same pattern as
+// ResetTokenRecord — the raw token only ever exists in the emailed link.
+export interface InviteRecord {
+  id: string;
+  email: string;
+  tier: "app_subscription" | "membership";
+  tokenHash: string;
+  status: InviteStatus;
+  invitedByStaffId: string;
+  createdAt: string;
+  expiresAt: string;
+  redeemedAt: string | null;
+  redeemedByUserId: string | null;
+}
+
 export type ProgrammeStatus = "active" | "paused" | "completed";
 
 export interface ProgrammeRecord {
@@ -1311,6 +1329,7 @@ interface Database {
   users: StoredUser[];
   profiles: ProfileRecord[];
   resetTokens: ResetTokenRecord[];
+  invites: InviteRecord[];
   programmes: ProgrammeRecord[];
   trainingPrograms: TrainingProgramRecord[];
   workoutTemplates: WorkoutTemplateRecord[];
@@ -1383,6 +1402,7 @@ const configuredDataDir = getConfiguredDataDir();
 const DATA_DIR = configuredDataDir ? path.resolve(configuredDataDir) : path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
+const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Deployment constraint (see docs/launch-checklist.md §6): this datastore is
 // one JSON file with synchronous read/write, correct for a single persistent
@@ -1424,6 +1444,7 @@ function readDb(): Database {
       users: [],
       profiles: [],
       resetTokens: [],
+      invites: [],
       programmes: [],
       trainingPrograms: [],
       workoutTemplates: [],
@@ -1520,6 +1541,7 @@ function readDb(): Database {
       pinnedProgressionExercises: p.pinnedProgressionExercises ?? null,
     })),
     resetTokens: parsed.resetTokens ?? [],
+    invites: parsed.invites ?? [],
     programmes: parsed.programmes ?? [],
     trainingPrograms: parsed.trainingPrograms ?? [],
     workoutTemplates: parsed.workoutTemplates ?? [],
@@ -2803,6 +2825,93 @@ export function consumeResetToken(token: string): string | undefined {
   writeDb(db);
 
   return userId;
+}
+
+// ─── Tier invites ───────────────────────────────────────────────────────
+
+export function createInvite(input: {
+  email: string;
+  tier: "app_subscription" | "membership";
+  invitedByStaffId: string;
+}): { invite: InviteRecord; token: string } {
+  const db = readDb();
+  const token = randomBytes(32).toString("hex");
+  const now = new Date().toISOString();
+
+  const invite: InviteRecord = {
+    id: randomUUID(),
+    email: input.email.toLowerCase(),
+    tier: input.tier,
+    tokenHash: hashToken(token),
+    status: "pending",
+    invitedByStaffId: input.invitedByStaffId,
+    createdAt: now,
+    expiresAt: new Date(Date.now() + INVITE_TOKEN_TTL_MS).toISOString(),
+    redeemedAt: null,
+    redeemedByUserId: null,
+  };
+
+  db.invites.push(invite);
+  writeDb(db);
+
+  return { invite, token };
+}
+
+export function findInvites(): InviteRecord[] {
+  return readDb().invites.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+// Marks any pending invite past its expiry as "expired" — lazy, on-read
+// cleanup, same shape as consumeResetToken. Returns the number changed.
+function expireStaleInvites(db: Database): boolean {
+  const now = new Date().toISOString();
+  let changed = false;
+  db.invites = db.invites.map((invite) => {
+    if (invite.status === "pending" && invite.expiresAt <= now) {
+      changed = true;
+      return { ...invite, status: "expired" as const };
+    }
+    return invite;
+  });
+  return changed;
+}
+
+// Looks up an invite by its raw (unhashed) token — used on the redemption
+// page before the member has necessarily signed in/up. Returns the invite
+// regardless of status, so the caller can show a clear "expired"/"already
+// used" message rather than a generic not-found.
+export function findInviteByToken(token: string): InviteRecord | undefined {
+  const db = readDb();
+  if (expireStaleInvites(db)) writeDb(db);
+  return db.invites.find((invite) => invite.tokenHash === hashToken(token));
+}
+
+export function redeemInvite(inviteId: string, redeemedByUserId: string): InviteRecord | undefined {
+  const db = readDb();
+  expireStaleInvites(db);
+
+  const invite = db.invites.find((i) => i.id === inviteId);
+  if (!invite || invite.status !== "pending") {
+    writeDb(db);
+    return undefined;
+  }
+
+  invite.status = "redeemed";
+  invite.redeemedAt = new Date().toISOString();
+  invite.redeemedByUserId = redeemedByUserId;
+  writeDb(db);
+
+  return invite;
+}
+
+export function revokeInvite(inviteId: string): boolean {
+  const db = readDb();
+  const invite = db.invites.find((i) => i.id === inviteId);
+  if (!invite || invite.status !== "pending") return false;
+
+  invite.status = "revoked";
+  writeDb(db);
+  return true;
 }
 
 const MAX_STORED_JOB_RUNS = 200;

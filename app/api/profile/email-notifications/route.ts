@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
+import { hasAccess } from "@/lib/member-access";
+import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 export async function POST(request: NextRequest) {
@@ -34,6 +36,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "emailNotificationsEnabled must be a boolean." },
       { status: 400 }
+    );
+  }
+
+  if (emailNotificationsEnabled && !hasAccess(resolveMemberTierForUser(user.id), "notifications")) {
+    return NextResponse.json(
+      { error: "Email notifications need App Subscription or above." },
+      { status: 403 }
     );
   }
 

@@ -8,6 +8,8 @@ import {
 } from "./db";
 import { resolveCurrentWeightKg } from "./body-weight";
 import { buildMemberStatsData, sumStatsInRange, type MemberStatTotals } from "./member-stats";
+import type { MemberTier } from "./member-access";
+import { resolveMemberTierForUser } from "./membership-entitlement";
 import type { DietaryPreference, Gender, MeasurementUnits, PrimaryGoal } from "./profile-schema";
 
 export interface ProfileData {
@@ -42,6 +44,10 @@ export interface ProfileData {
   // not replicated on mobile; see app/(dashboard)/dashboard/profile/
   // ProfileStatsCard.tsx for the full version.
   allTimeStats: MemberStatTotals;
+  // Drives client-side feature gating — see lib/member-access.ts. Fetched
+  // here (a response every screen already loads) rather than a dedicated
+  // round-trip.
+  memberTier: MemberTier;
 }
 
 // Shared by the web Profile page (app/(dashboard)/dashboard/profile/
@@ -91,5 +97,6 @@ export function getProfileData(userId: string | undefined): ProfileData | null {
     avatarDataUrl: profile.avatarDataUrl ?? null,
     cycleTrackingEligible: profile.cycleTrackingEligible,
     allTimeStats: sumStatsInRange(statsData, null, null),
+    memberTier: resolveMemberTierForUser(user.id),
   };
 }

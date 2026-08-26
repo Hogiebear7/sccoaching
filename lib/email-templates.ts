@@ -593,6 +593,52 @@ export function passwordResetEmail(opts: PasswordResetEmailOpts): {
   return { subject, html, text };
 }
 
+// ─── Tier invite ───────────────────────────────────────────────────────────
+
+const INVITE_TIER_LABEL: Record<"app_subscription" | "membership", string> = {
+  app_subscription: "App Subscription",
+  membership: "Membership",
+};
+
+export interface InviteEmailOpts {
+  tier: "app_subscription" | "membership";
+  inviteToken: string;
+}
+
+export function inviteEmail(opts: InviteEmailOpts): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { tier, inviteToken } = opts;
+  const tierLabel = INVITE_TIER_LABEL[tier];
+  const actionUrl = `${APP_URL}/invite?token=${inviteToken}`;
+  const subject = `You've been invited to ${tierLabel} access`;
+
+  const html = emailWrapper(subject, `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Invite</p>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">You&#39;re invited — ${tierLabel}</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
+      S&amp;C Performance Coaching has granted you ${tierLabel} access. Open the link below to sign in (or create an
+      account, if you're new) and your access will be applied automatically. This link expires in 7 days and can only
+      be used once.
+    </p>
+    ${ctaButton("Accept invite →", actionUrl)}
+  `);
+
+  const text = [
+    `S&C Performance Coaching has granted you ${tierLabel} access.`,
+    ``,
+    `Open this link to sign in (or create an account, if you're new) and your access will be applied automatically.`,
+    `This link expires in 7 days and can only be used once:`,
+    actionUrl,
+    ``,
+    `— S&C Performance Coaching`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
+
 // ─── Contact form lead (staff notification, not member-facing) ──────────────
 
 export interface ContactInquiryEmailOpts {
