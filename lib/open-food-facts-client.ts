@@ -5,6 +5,7 @@
 // vendor payloads to the app" requirement).
 
 const OFF_BASE_URL = "https://world.openfoodfacts.org/api/v2";
+const OFF_SEARCH_URL = "https://search.openfoodfacts.org/search";
 const OFF_USER_AGENT = "SCPerformanceCoaching/1.0 (contact: app admin)";
 
 export interface OpenFoodFactsNutriments {
@@ -77,6 +78,82 @@ export async function lookupOpenFoodFactsByBarcode(barcode: string): Promise<Ope
   }
 
   return { ok: true, product: body.product };
+}
+
+// GET search.openfoodfacts.org/search?q=... — free-text product search, for
+// the case a typed name (e.g. "mars bar") isn't a barcode and isn't in our
+// local branded cache yet. This is the modern Search-a-licious endpoint;
+// its hit shape differs slightly from the v2 product-lookup shape above
+// (brands comes back as a string array, not a comma-joined string; no
+// serving_size field is exposed at all), so results are mapped onto the
+// same OpenFoodFactsProduct shape here — callers never need to know the two
+// endpoints look different on the wire.
+const SEARCH_TIMEOUT_MS = 8_000;
+const SEARCH_PAGE_SIZE = 10;
+
+interface OffSearchHit {
+  code?: string;
+  product_name?: string;
+  product_name_en?: string;
+  brands?: string[];
+  serving_size?: string;
+  countries_tags?: string[];
+  nutriments?: OpenFoodFactsNutriments;
+}
+
+export type OpenFoodFactsSearchResult =
+  | { ok: true; products: OpenFoodFactsProduct[] }
+  | { ok: false; reason: "network_error" | "invalid_response" };
+
+export async function searchOpenFoodFactsByName(query: string): Promise<OpenFoodFactsSearchResult> {
+  const q = query.trim();
+  if (!q) return { ok: true, products: [] };
+
+  let res: Response;
+  try {
+    // Same belt-and-braces timeout race as the barcode lookup above — a
+    // hung external search must never hang the member's own search screen.
+    res = await Promise.race([
+      fetch(`${OFF_SEARCH_URL}?q=${encodeURIComponent(q)}&page_size=${SEARCH_PAGE_SIZE}`, {
+        headers: { "User-Agent": OFF_USER_AGENT },
+        signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("search timed out")), SEARCH_TIMEOUT_MS);
+      }),
+    ]);
+  } catch {
+    return { ok: false, reason: "network_error" };
+  }
+
+  if (!res.ok) {
+    return { ok: false, reason: "network_error" };
+  }
+
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch {
+    return { ok: false, reason: "invalid_response" };
+  }
+
+  const hits = (json as { hits?: OffSearchHit[] }).hits ?? [];
+  const products: OpenFoodFactsProduct[] = hits
+    // OFF is community-submitted — plenty of entries have a name and
+    // barcode but never got nutrition filled in. Surfacing a 0-kcal result
+    // is worse than not surfacing it at all: it looks like a real "this
+    // food has zero calories" answer, not "we don't actually know."
+    .filter((h) => h.code && (h.product_name || h.product_name_en) && (h.nutriments?.["energy-kcal_100g"] ?? 0) > 0)
+    .map((h) => ({
+      code: h.code,
+      product_name: h.product_name || h.product_name_en,
+      brands: h.brands?.join(", "),
+      serving_size: h.serving_size,
+      countries_tags: h.countries_tags,
+      nutriments: h.nutriments,
+    }));
+
+  return { ok: true, products };
 }
 
 // ── Write provider (submission workflow) ─────────────────────────────────
