@@ -26,6 +26,7 @@ export interface ProfileData {
   emergencyContact2Name: string | null;
   emergencyContact2Phone: string | null;
   currentWeightKg: number | null;
+  heightCm: number | null;
   dietaryPreference: DietaryPreference;
   allergies: string[];
   intolerancesOrMedical: string[];
@@ -85,6 +86,7 @@ export function getProfileData(userId: string | undefined): ProfileData | null {
     emergencyContact2Name: profile.emergencyContact2Name ?? null,
     emergencyContact2Phone: profile.emergencyContact2Phone ?? null,
     currentWeightKg: resolveCurrentWeightKg(profile.currentWeightKg, bodyWeightLogs),
+    heightCm: profile.heightCm ?? null,
     dietaryPreference: profile.dietaryPreference ?? "standard",
     allergies: profile.allergies ?? [],
     intolerancesOrMedical: profile.intolerancesOrMedical ?? [],

@@ -186,6 +186,7 @@ type ProfileFormValues = {
   gender: Gender | "";
   primaryGoal: PrimaryGoal | "";
   sportPlayed: string;
+  heightCm: string;
   additionalInfo: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
@@ -207,6 +208,7 @@ function toFormValues(profile: ProfileRecord): ProfileFormValues {
     gender: profile.gender,
     primaryGoal: profile.primaryGoal,
     sportPlayed: profile.sportPlayed ?? "",
+    heightCm: profile.heightCm !== null && profile.heightCm !== undefined ? String(profile.heightCm) : "",
     additionalInfo: profile.additionalInfo ?? "",
     emergencyContactName: profile.emergencyContactName ?? "",
     emergencyContactPhone: profile.emergencyContactPhone ?? "",
@@ -378,7 +380,7 @@ export function ProfileForm({
       {/* Personal details + dietary requirements — one form, one save, but
           two clearly labeled sub-sections instead of one undifferentiated
           grid. */}
-      <form onSubmit={handleSubmit} className="surface-card overflow-hidden">
+      <form id="profile-form" onSubmit={handleSubmit} className="surface-card overflow-hidden">
         <div className="border-b border-white/[0.06] p-5 sm:p-6">
           <p className="label-caps">Personal details</p>
           <p className="mt-1 text-sm font-semibold text-zinc-50">{profile.fullName}</p>
@@ -589,6 +591,22 @@ export function ProfileForm({
               {latestLogDate ? `logged ${formatDMY(latestLogDate)}` : "no entries yet"}
             </span>
           </div>
+
+          <label htmlFor="profile-height" className="mt-4 mb-1.5 block text-sm font-medium text-foreground">
+            Height (cm) <span className="text-xs font-normal text-muted-foreground">optional</span>
+          </label>
+          <input
+            id="profile-height"
+            form="profile-form"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="0.1"
+            value={values.heightCm}
+            onChange={(e) => handleTextChange("heightCm", e)}
+            placeholder="e.g. 178"
+            className={inputClass(errors.heightCm)}
+          />
         </div>
 
         <form onSubmit={handleBwSubmit} className="border-b border-white/[0.06] p-5 sm:p-6">

@@ -20,6 +20,7 @@ type ProfileFormValues = {
   primaryGoal: PrimaryGoal | "";
   sportPlayed: string;
   currentWeightKg: string;
+  heightCm: string;
   additionalInfo: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
@@ -39,6 +40,7 @@ function toFormValues(email: string, profile: ProfileRecord): ProfileFormValues 
     primaryGoal: profile.primaryGoal,
     sportPlayed: profile.sportPlayed ?? "",
     currentWeightKg: profile.currentWeightKg !== null ? String(profile.currentWeightKg) : "",
+    heightCm: profile.heightCm !== null && profile.heightCm !== undefined ? String(profile.heightCm) : "",
     additionalInfo: profile.additionalInfo ?? "",
     emergencyContactName: profile.emergencyContactName ?? "",
     emergencyContactPhone: profile.emergencyContactPhone ?? "",
@@ -309,6 +311,25 @@ export function StaffMemberEditor({
               onChange={(e) => handleTextChange("currentWeightKg", e)}
               className={inputClass(errors.currentWeightKg)}
               placeholder="e.g. 72"
+            />
+          </FormField>
+
+          <FormField
+            label={
+              <>
+                Height (cm){" "}
+                <span className="text-xs font-normal text-muted-foreground">optional</span>
+              </>
+            }
+            error={errors.heightCm}
+          >
+            <input
+              type="number"
+              inputMode="decimal"
+              value={values.heightCm}
+              onChange={(e) => handleTextChange("heightCm", e)}
+              className={inputClass(errors.heightCm)}
+              placeholder="e.g. 178"
             />
           </FormField>
 

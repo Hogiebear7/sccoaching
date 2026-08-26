@@ -52,6 +52,11 @@ export interface ProfileRecord {
   primaryGoal: PrimaryGoal;
   sportPlayed: string | null;
   currentWeightKg: number | null;
+  // Optional so records created before this field existed stay valid;
+  // readers should treat null/undefined as "not set" (see db.ts
+  // normalization). Unlike currentWeightKg, height isn't synced from a
+  // logging feature — it's a single directly-editable value.
+  heightCm?: number | null;
   additionalInfo: string | null;
   // In-case-of-emergency contact — collected at signup, editable from
   // Profile, visible to staff on the member detail page. The second
@@ -226,6 +231,7 @@ export interface SignupProfileValues {
   primaryGoal: PrimaryGoal | "";
   sportPlayed: string;
   currentWeightKg: string;
+  heightCm: string;
   additionalInfo: string;
   // In-case-of-emergency contact. Name + phone are asked for; the second
   // contact is fully optional.
@@ -273,6 +279,7 @@ export const DEFAULT_SIGNUP_VALUES: SignupFormValues = {
   primaryGoal: "",
   sportPlayed: "",
   currentWeightKg: "",
+  heightCm: "",
   additionalInfo: "",
   emergencyContactName: "",
   emergencyContactPhone: "",

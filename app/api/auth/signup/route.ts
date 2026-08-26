@@ -44,6 +44,7 @@ export async function POST(request: Request) {
     primaryGoal,
     sportPlayed,
     currentWeightKg,
+    heightCm,
     additionalInfo,
     emergencyContactName,
     emergencyContactPhone,
@@ -182,6 +183,9 @@ export async function POST(request: Request) {
       ? Number(currentWeightKg)
       : null;
 
+  const heightValue =
+    typeof heightCm === "string" && heightCm.trim() !== "" ? Number(heightCm) : null;
+
   const passwordHash = hashPassword(password);
   const user = createUser(email, passwordHash);
 
@@ -205,6 +209,7 @@ export async function POST(request: Request) {
     primaryGoal: primaryGoalValue,
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
+    heightCm: heightValue !== null && !Number.isNaN(heightValue) && heightValue > 0 ? heightValue : null,
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
     emergencyContactName: (emergencyContactName as string).trim(),
     emergencyContactPhone: (emergencyContactPhone as string).trim(),

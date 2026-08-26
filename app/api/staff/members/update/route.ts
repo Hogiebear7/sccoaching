@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
     primaryGoal,
     sportPlayed,
     currentWeightKg,
+    heightCm,
     additionalInfo,
     emergencyContactName,
     emergencyContactPhone,
@@ -175,6 +176,9 @@ export async function POST(request: NextRequest) {
       ? Number(currentWeightKg)
       : null;
 
+  const heightValue =
+    typeof heightCm === "string" && heightCm.trim() !== "" ? Number(heightCm) : null;
+
   const cycleEligible = isFemaleGender(genderValue);
 
   saveProfile({
@@ -186,6 +190,7 @@ export async function POST(request: NextRequest) {
     primaryGoal: primaryGoalValue,
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
+    heightCm: heightValue !== null && !Number.isNaN(heightValue) && heightValue > 0 ? heightValue : null,
     additionalInfo:
       typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
     emergencyContactName:

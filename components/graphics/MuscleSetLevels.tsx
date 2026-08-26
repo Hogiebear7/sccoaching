@@ -1,29 +1,45 @@
+"use client";
+
+import { useState } from "react";
+
 import type { StrengthSection, SetLevelTier } from "@/lib/workouts";
+import { bodyFront } from "@/lib/body-highlighter-data/body-front";
+import { bodyBack } from "@/lib/body-highlighter-data/body-back";
+import { BODY_OUTLINE_BACK_D, BODY_OUTLINE_FRONT_D } from "@/lib/body-highlighter-data/body-outline";
+import type { BodyHighlighterPart } from "@/lib/body-highlighter-data/body-front";
 
-// Aggregate "how much have I trained each muscle group" body diagram —
-// distinct from MuscleMap.tsx's per-exercise single-zone indicator. Reuses
-// the same geometric "athletic emblem" body-block construction, but every
-// zone renders simultaneously at a graded intensity instead of one zone
-// being on/off.
-//
-// Deliberately rendered in the --data blue family, not gold: this is an
-// analytical/informational surface (weekly training volume), not a
-// brand-action or premium moment — matches the token-semantics rule from
-// this project's palette audit (--data for distinct informational meaning,
-// gold reserved for brand-action/premium).
+// Real anatomical figure (vendored react-native-body-highlighter path data —
+// see lib/body-highlighter-data/) instead of the earlier hand-drawn
+// geometric-block pair, so this reads as the same illustration as the
+// mobile app's Set Levels screen rather than a different, simpler stand-in.
+// Every real slug maps onto one of the five tracked StrengthSections so the
+// whole figure can be graded by training-volume tier.
+type Slug = string;
 
-type Zone = "front-upper" | "front-core" | "front-legs" | "back-upper" | "back-lower";
-
-const ZONE_BY_SECTION: Record<StrengthSection, Zone> = {
-  upper_push: "front-upper",
-  core: "front-core",
-  lower_push: "front-legs",
-  upper_pull: "back-upper",
-  lower_pull: "back-lower",
+const SECTION_FOR_SLUG: Partial<Record<Slug, StrengthSection>> = {
+  // Upper push — chest/shoulder/triceps-dominant pressing
+  chest: "upper_push",
+  deltoids: "upper_push",
+  triceps: "upper_push",
+  // Upper pull — back/biceps-dominant pulling
+  trapezius: "upper_pull",
+  "upper-back": "upper_pull",
+  "lower-back": "upper_pull",
+  biceps: "upper_pull",
+  forearm: "upper_pull",
+  // Lower push — quad/calf-dominant, anterior chain
+  quadriceps: "lower_push",
+  calves: "lower_push",
+  // Lower pull — hamstring/glute-dominant, posterior chain / hip hinge
+  hamstring: "lower_pull",
+  gluteal: "lower_pull",
+  adductors: "lower_pull",
+  // Core
+  abs: "core",
+  obliques: "core",
+  // tibialis, neck, and the decorative parts (hair/head/hands/feet/ankles/
+  // knees) are left unmapped — always rendered at the muted default fill.
 };
-
-const MUTED = "oklch(1 0 0 / 0.14)";
-const MUTED_STROKE = "oklch(1 0 0 / 0.22)";
 
 const TIER_OPACITY: Record<Exclude<SetLevelTier, "none">, number> = {
   low: 0.38,
@@ -31,61 +47,43 @@ const TIER_OPACITY: Record<Exclude<SetLevelTier, "none">, number> = {
   high: 1,
 };
 
-function fillProps(zone: Zone, byZone: Partial<Record<Zone, SetLevelTier>>): { fill: string; fillOpacity: number } {
-  const tier = byZone[zone] ?? "none";
-  if (tier === "none") return { fill: MUTED, fillOpacity: 1 };
-  // Raw var() reference — the bare "--data" custom property doesn't exist;
-  // --accent-data is the underlying token ("--color-data" is only the
-  // @theme alias that powers the bg-data/text-data Tailwind utilities).
+const MUTED_FILL = "oklch(1 0 0 / 0.14)";
+const OUTLINE_STROKE = "oklch(1 0 0 / 0.22)";
+
+function fillFor(slug: Slug, levels: Record<StrengthSection, { tier: SetLevelTier }>): { fill: string; fillOpacity: number } {
+  const section = SECTION_FOR_SLUG[slug];
+  const tier = section ? levels[section].tier : "none";
+  if (tier === "none") return { fill: MUTED_FILL, fillOpacity: 1 };
   return { fill: "var(--accent-data)", fillOpacity: TIER_OPACITY[tier] };
 }
 
-function FrontBody({ byZone }: { byZone: Partial<Record<Zone, SetLevelTier>> }) {
-  const upper = fillProps("front-upper", byZone);
-  const core = fillProps("front-core", byZone);
-  const legs = fillProps("front-legs", byZone);
+function BodyFigure({
+  view,
+  levels,
+}: {
+  view: "front" | "back";
+  levels: Record<StrengthSection, { tier: SetLevelTier }>;
+}) {
+  const parts: BodyHighlighterPart[] = view === "front" ? bodyFront : bodyBack;
+  const viewBox = view === "front" ? "0 0 724 1448" : "724 0 724 1448";
+  const outlineD = view === "front" ? BODY_OUTLINE_FRONT_D : BODY_OUTLINE_BACK_D;
+
   return (
-    <svg viewBox="0 0 100 200" fill="none" aria-hidden="true" className="h-full w-full">
-      <circle cx="50" cy="16" r="12" fill={MUTED} stroke={MUTED_STROKE} strokeWidth="1" />
-      <rect x="12" y="34" width="12" height="52" rx="6" fill={upper.fill} fillOpacity={upper.fillOpacity} />
-      <rect x="76" y="34" width="12" height="52" rx="6" fill={upper.fill} fillOpacity={upper.fillOpacity} />
-      <rect x="26" y="30" width="48" height="36" rx="14" fill={upper.fill} fillOpacity={upper.fillOpacity} />
-      <rect x="32" y="64" width="36" height="34" rx="10" fill={core.fill} fillOpacity={core.fillOpacity} />
-      <rect x="30" y="96" width="40" height="18" rx="9" fill={MUTED} />
-      <rect x="32" y="112" width="16" height="48" rx="7" fill={legs.fill} fillOpacity={legs.fillOpacity} />
-      <rect x="52" y="112" width="16" height="48" rx="7" fill={legs.fill} fillOpacity={legs.fillOpacity} />
-      <rect x="33" y="162" width="14" height="34" rx="6" fill={MUTED} />
-      <rect x="53" y="162" width="14" height="34" rx="6" fill={MUTED} />
+    <svg viewBox={viewBox} className="h-full w-full" aria-hidden="true">
+      <path d={outlineD} stroke={OUTLINE_STROKE} strokeWidth={2} fill="none" vectorEffect="non-scaling-stroke" />
+      {parts.map((part) => {
+        const { fill, fillOpacity } = fillFor(part.slug, levels);
+        const paths = [...(part.path.common ?? []), ...(part.path.left ?? []), ...(part.path.right ?? [])];
+        return paths.map((d, i) => (
+          <path key={`${part.slug}-${i}`} d={d} fill={fill} fillOpacity={fillOpacity} />
+        ));
+      })}
     </svg>
   );
 }
 
-function BackBody({ byZone }: { byZone: Partial<Record<Zone, SetLevelTier>> }) {
-  const upper = fillProps("back-upper", byZone);
-  const lower = fillProps("back-lower", byZone);
-  return (
-    <svg viewBox="0 0 100 200" fill="none" aria-hidden="true" className="h-full w-full">
-      <circle cx="50" cy="16" r="12" fill={MUTED} stroke={MUTED_STROKE} strokeWidth="1" />
-      <rect x="12" y="34" width="12" height="52" rx="6" fill={upper.fill} fillOpacity={upper.fillOpacity} />
-      <rect x="76" y="34" width="12" height="52" rx="6" fill={upper.fill} fillOpacity={upper.fillOpacity} />
-      <path
-        d="M26 30 h48 a14 14 0 0 1 14 14 v6 a34 34 0 0 1 -76 0 v-6 a14 14 0 0 1 14 -14 z"
-        fill={upper.fill}
-        fillOpacity={upper.fillOpacity}
-      />
-      <rect x="34" y="66" width="32" height="30" rx="9" fill={MUTED} />
-      <rect x="30" y="96" width="40" height="22" rx="11" fill={lower.fill} fillOpacity={lower.fillOpacity} />
-      <rect x="32" y="118" width="16" height="42" rx="7" fill={lower.fill} fillOpacity={lower.fillOpacity} />
-      <rect x="52" y="118" width="16" height="42" rx="7" fill={lower.fill} fillOpacity={lower.fillOpacity} />
-      <rect x="33" y="160" width="14" height="36" rx="6" fill={MUTED} />
-      <rect x="53" y="160" width="14" height="36" rx="6" fill={MUTED} />
-    </svg>
-  );
-}
-
-// Front + back pair, always shown together — the five tracked sections span
-// both views (upper_pull/lower_pull only ever show on the back), so a
-// front-only diagram would silently hide two-fifths of the picture.
+// Front/back toggle, one view at a time — matches the mobile app's Set
+// Levels screen rather than showing both silhouettes side by side.
 export function MuscleSetLevelDiagram({
   levels,
   className = "",
@@ -93,18 +91,34 @@ export function MuscleSetLevelDiagram({
   levels: Record<StrengthSection, { tier: SetLevelTier }>;
   className?: string;
 }) {
-  const byZone: Partial<Record<Zone, SetLevelTier>> = {};
-  (Object.keys(levels) as StrengthSection[]).forEach((section) => {
-    byZone[ZONE_BY_SECTION[section]] = levels[section].tier;
-  });
+  const [view, setView] = useState<"front" | "back">("front");
 
   return (
-    <div className={`flex items-center justify-center gap-6 ${className}`}>
-      <div className="h-full w-auto max-w-[110px] flex-1">
-        <FrontBody byZone={byZone} />
+    <div className={`flex flex-col items-center ${className}`}>
+      <div
+        className="flex items-center gap-1 rounded-lg border border-white/[0.1] bg-white/[0.03] p-0.5"
+        role="tablist"
+        aria-label="Body view"
+      >
+        {(["front", "back"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="tab"
+            aria-selected={view === v}
+            onClick={() => setView(v)}
+            className={`rounded-md px-3 py-1 text-[11px] font-medium capitalize transition ${
+              view === v ? "bg-data/15 text-data" : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            {v}
+          </button>
+        ))}
       </div>
-      <div className="h-full w-auto max-w-[110px] flex-1">
-        <BackBody byZone={byZone} />
+      <div className="mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
+        <div className="h-full max-w-[200px] aspect-[724/1448]">
+          <BodyFigure view={view} levels={levels} />
+        </div>
       </div>
     </div>
   );

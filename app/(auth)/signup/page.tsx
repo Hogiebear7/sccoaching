@@ -147,6 +147,7 @@ export default function SignupPage() {
         primaryGoal: values.primaryGoal || "—",
         sportPlayed: sportVisible ? values.sportPlayed || "—" : "Not applicable",
         currentWeightKg: values.currentWeightKg || "—",
+        heightCm: values.heightCm || "—",
         additionalInfo: values.additionalInfo || "—",
         emergencyContactName: values.emergencyContactName || "—",
         emergencyContactPhone: values.emergencyContactPhone || "—",
@@ -719,6 +720,29 @@ export default function SignupPage() {
                   </FormField>
 
                   <FormField
+                    label={
+                      <>
+                        Height (cm){" "}
+                        <span className="text-xs font-normal text-zinc-500">
+                          optional
+                        </span>
+                      </>
+                    }
+                    id="signup-height"
+                    error={errors.heightCm}
+                  >
+                    <input
+                      id="signup-height"
+                      type="number"
+                      inputMode="decimal"
+                      value={values.heightCm}
+                      onChange={(e) => handleTextChange("heightCm", e)}
+                      className={inputClass(errors.heightCm)}
+                      placeholder="e.g. 178"
+                    />
+                  </FormField>
+
+                  <FormField
                     label="Additional information"
                     id="signup-additional-info"
                     error={errors.additionalInfo}
@@ -1056,6 +1080,10 @@ export default function SignupPage() {
                     <ReviewRow
                       label="Current weight"
                       value={reviewData.profile.currentWeightKg}
+                    />
+                    <ReviewRow
+                      label="Height"
+                      value={reviewData.profile.heightCm}
                     />
                     <ReviewRow
                       label="Additional info"

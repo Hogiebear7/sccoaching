@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
     gender,
     primaryGoal,
     sportPlayed,
+    heightCm,
     additionalInfo,
     emergencyContactName,
     emergencyContactPhone,
@@ -108,6 +109,19 @@ export async function POST(request: NextRequest) {
   const genderValue = gender as Gender;
   const primaryGoalValue = primaryGoal as PrimaryGoal;
   const sportPlayedValue = typeof sportPlayed === "string" ? sportPlayed.trim() : "";
+
+  let heightCmValue: number | null = existingProfile.heightCm ?? null;
+  if (typeof heightCm === "string") {
+    if (heightCm.trim() === "") {
+      heightCmValue = null;
+    } else {
+      const parsed = Number(heightCm);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return NextResponse.json({ success: false, message: "Height must be a positive number." }, { status: 400 });
+      }
+      heightCmValue = parsed;
+    }
+  }
 
   if (shouldShowSportPlayed({ primaryGoal: primaryGoalValue }) && !sportPlayedValue) {
     return NextResponse.json(
@@ -165,6 +179,7 @@ export async function POST(request: NextRequest) {
     primaryGoal: primaryGoalValue,
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: syncedWeight,
+    heightCm: heightCmValue,
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
     // Required at signup, but editing an existing profile shouldn't be
     // blocked on backfilling this — omitting it here just clears it back
