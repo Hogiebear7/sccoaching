@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
     id: randomUUID(),
     domain: "custom",
     ...parsed.value,
+    imageUrl: null,
     provenance: "user",
     sourceRef: null,
     verified: false,

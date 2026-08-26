@@ -382,6 +382,10 @@ export interface FoodRecord {
   name: string;
   brandName: string | null;
   barcode: string | null;
+  /** A real product photo — only ever set from an Open Food Facts payload
+      (branded domain); null for common/custom foods, which fall back to a
+      keyword-matched icon on the client instead. */
+  imageUrl: string | null;
   nutrition100g: FoodNutrition100g;
   defaultServing: FoodServing;
   servings: FoodServing[];

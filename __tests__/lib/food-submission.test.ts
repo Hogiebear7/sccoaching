@@ -10,6 +10,7 @@ function makeFood(overrides: Partial<FoodRecord>): FoodRecord {
     name: "Protein Flapjack",
     brandName: "Kitchen made",
     barcode: "5901234123457",
+    imageUrl: null,
     nutrition100g: { calories: 417, proteinG: 25, carbsG: 50, fatG: 15, fiberG: null, sugarG: null, sodiumMg: null, saturatedFatG: null },
     defaultServing: { label: "1 serving", grams: 60 },
     servings: [{ label: "1 serving", grams: 60 }, { label: "100g", grams: 100 }],

@@ -26,6 +26,12 @@ export interface OpenFoodFactsProduct {
   serving_size?: string;
   countries_tags?: string[];
   nutriments?: OpenFoodFactsNutriments;
+  // Small pre-cropped front-of-pack photo — the same field name across both
+  // OFF endpoints this file talks to. Preferred over image_url (the larger
+  // original) since every place we show it is a small list thumbnail.
+  image_front_small_url?: string;
+  image_small_url?: string;
+  image_url?: string;
 }
 
 export type OpenFoodFactsLookupResult =
@@ -99,6 +105,9 @@ interface OffSearchHit {
   serving_size?: string;
   countries_tags?: string[];
   nutriments?: OpenFoodFactsNutriments;
+  image_front_small_url?: string;
+  image_small_url?: string;
+  image_url?: string;
 }
 
 export type OpenFoodFactsSearchResult =
@@ -151,6 +160,9 @@ export async function searchOpenFoodFactsByName(query: string): Promise<OpenFood
       serving_size: h.serving_size,
       countries_tags: h.countries_tags,
       nutriments: h.nutriments,
+      image_front_small_url: h.image_front_small_url,
+      image_small_url: h.image_small_url,
+      image_url: h.image_url,
     }));
 
   return { ok: true, products };

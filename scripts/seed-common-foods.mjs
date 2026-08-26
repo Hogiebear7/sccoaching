@@ -233,6 +233,7 @@ db.commonFoods = [
       name: food.name,
       brandName: null,
       barcode: null,
+      imageUrl: null,
       nutrition100g: {
         calories: food.calories,
         proteinG: food.proteinG,

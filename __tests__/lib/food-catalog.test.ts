@@ -22,6 +22,7 @@ function makeFood(overrides: Partial<FoodRecord>): FoodRecord {
     name: "Banana",
     brandName: null,
     barcode: null,
+    imageUrl: null,
     nutrition100g: { calories: 89, proteinG: 1.1, carbsG: 23, fatG: 0.3, fiberG: 2.6, sugarG: 12, sodiumMg: 1, saturatedFatG: 0.1 },
     defaultServing: { label: "1 medium (118g)", grams: 118 },
     servings: [{ label: "1 medium (118g)", grams: 118 }, { label: "100g", grams: 100 }],

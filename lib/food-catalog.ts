@@ -211,6 +211,7 @@ export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsProduct, bar
     name: product.product_name?.trim() || "Unknown product",
     brandName: product.brands?.split(",")[0]?.trim() || null,
     barcode,
+    imageUrl: product.image_front_small_url || product.image_small_url || product.image_url || null,
     nutrition100g: {
       calories: n["energy-kcal_100g"] ?? 0,
       proteinG: n.proteins_100g ?? 0,
