@@ -17,6 +17,8 @@ import { activeWeeklySessions, mondayOfWeek } from "@/lib/weekly-training";
 const MAX_SESSIONS = 21; // generous headroom over 1/day — a day can have AM+PM entries
 const MAX_LABEL_LENGTH = 60;
 const MAX_NOTES_LENGTH = 200;
+const MIN_DURATION_MINS = 5;
+const MAX_DURATION_MINS = 300;
 
 const ACTIVITY_TYPES: TrainingActivityType[] = ["gym", "sport", "cardio", "rest", "other"];
 const TIME_OF_DAY: TrainingTimeOfDay[] = ["morning", "afternoon", "evening"];
@@ -71,6 +73,14 @@ function normalizeSessions(
         ? entry.notes.trim().slice(0, MAX_NOTES_LENGTH)
         : null;
 
+    const estimatedDurationMins: number | null =
+      typeof entry.estimatedDurationMins === "number" &&
+      Number.isFinite(entry.estimatedDurationMins) &&
+      entry.estimatedDurationMins >= MIN_DURATION_MINS &&
+      entry.estimatedDurationMins <= MAX_DURATION_MINS
+        ? Math.round(entry.estimatedDurationMins)
+        : null;
+
     const id = typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID();
     // Missing/invalid `recurring` defaults to true — an older client that
     // predates this field sends no `recurring` at all, and every session it
@@ -86,6 +96,7 @@ function normalizeSessions(
       timeOfDay,
       intensity,
       notes,
+      estimatedDurationMins,
       recurring,
       weekOf,
     });

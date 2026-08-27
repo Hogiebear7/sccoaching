@@ -71,6 +71,45 @@ export const INTOLERANCE_OPTIONS: SelectOption<string>[] = [
   { label: "High blood pressure", value: "high_blood_pressure" },
 ];
 
+// Countries covered by the OFF country-tag → alpha-2 mapping in
+// lib/food-catalog.ts (normalizeOffCountryTag) — kept as a curated list
+// rather than the full ISO-3166 table since it only needs to cover
+// countries this gym's members are actually likely to select, and every
+// value here must have a matching OFF-tag entry for the ranking boost to
+// ever actually fire.
+export const COUNTRY_OPTIONS: SelectOption<string>[] = [
+  { label: "Ireland", value: "IE" },
+  { label: "United Kingdom", value: "GB" },
+  { label: "United States", value: "US" },
+  { label: "Canada", value: "CA" },
+  { label: "Australia", value: "AU" },
+  { label: "New Zealand", value: "NZ" },
+  { label: "France", value: "FR" },
+  { label: "Germany", value: "DE" },
+  { label: "Spain", value: "ES" },
+  { label: "Italy", value: "IT" },
+  { label: "Netherlands", value: "NL" },
+  { label: "Belgium", value: "BE" },
+  { label: "Portugal", value: "PT" },
+  { label: "Switzerland", value: "CH" },
+  { label: "Austria", value: "AT" },
+  { label: "Sweden", value: "SE" },
+  { label: "Norway", value: "NO" },
+  { label: "Denmark", value: "DK" },
+  { label: "Finland", value: "FI" },
+  { label: "Poland", value: "PL" },
+];
+
+const COUNTRY_VALUES = new Set(COUNTRY_OPTIONS.map((o) => o.value));
+
+// Untrusted input → a known alpha-2 code or null. Used by the profile-update
+// route the same way sanitizeDietaryFields is — unknown/empty input clears
+// the field rather than erroring, matching every other optional profile
+// field's "omit to clear" convention.
+export function sanitizeCountry(raw: unknown): string | null {
+  return typeof raw === "string" && COUNTRY_VALUES.has(raw) ? raw : null;
+}
+
 export const DIETARY_NOTES_PLACEHOLDER =
   "Anything else about your diet, or any other medical issues we should know about";
 

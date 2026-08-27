@@ -6,9 +6,11 @@ import {
   complianceAdjustmentKcal,
   computeDailyTarget,
   computeWeightTrend,
+  cyclePhaseAdjustmentKcal,
   estimateAdaptiveTdee,
   exertionFromWeeklySessions,
   macrosForCalorieTarget,
+  validateMemberTargetOverride,
   type IntakePoint,
   type WeightPoint,
 } from "@/lib/nutrition-target";
@@ -122,6 +124,46 @@ describe("coldStartMaintenanceKcal", () => {
     const young = coldStartMaintenanceKcal(80, "standard", "Male", "1996-01-01", "2026-01-01"); // age 30
     const older = coldStartMaintenanceKcal(80, "standard", "Male", "1966-01-01", "2026-01-01"); // age 60
     expect(older).toBeLessThan(young);
+  });
+});
+
+describe("coldStartMaintenanceKcal — height-aware BMR path", () => {
+  it("uses the bodyweight heuristic when height is missing", () => {
+    const kcal = coldStartMaintenanceKcal(80, "standard", "Male", "1996-01-01", "2026-01-01");
+    expect(kcal).toBe(80 * 27); // BAND_KCAL_PER_KG.standard, no gender/age adjustment at age 30
+  });
+
+  it("switches to a real BMR equation once height and date of birth are both present", () => {
+    const heuristic = coldStartMaintenanceKcal(80, "standard", "Male", "1996-01-01", "2026-01-01");
+    const bmrBased = coldStartMaintenanceKcal(80, "standard", "Male", "1996-01-01", "2026-01-01", 180);
+    // Different formula entirely — shouldn't coincidentally match the heuristic.
+    expect(bmrBased).not.toBe(heuristic);
+    // Sanity: a healthy adult male's maintenance should land in a plausible range.
+    expect(bmrBased).toBeGreaterThan(1800);
+    expect(bmrBased).toBeLessThan(4000);
+  });
+
+  it("falls back to the heuristic when height is present but date of birth isn't (BMR needs both)", () => {
+    const withHeightNoDob = coldStartMaintenanceKcal(80, "standard", "Male", null, "2026-01-01", 180);
+    const heuristic = coldStartMaintenanceKcal(80, "standard", "Male", null, "2026-01-01");
+    expect(withHeightNoDob).toBe(heuristic);
+  });
+
+  it("a taller member at the same weight/age gets a higher BMR-based maintenance number", () => {
+    const shorter = coldStartMaintenanceKcal(70, "standard", "Female", "1996-01-01", "2026-01-01", 160);
+    const taller = coldStartMaintenanceKcal(70, "standard", "Female", "1996-01-01", "2026-01-01", 180);
+    expect(taller).toBeGreaterThan(shorter);
+  });
+});
+
+describe("cyclePhaseAdjustmentKcal", () => {
+  it("adds a bump only during the luteal phase", () => {
+    expect(cyclePhaseAdjustmentKcal("Luteal")).toBeGreaterThan(0);
+    expect(cyclePhaseAdjustmentKcal("Menstrual")).toBe(0);
+    expect(cyclePhaseAdjustmentKcal("Follicular")).toBe(0);
+    expect(cyclePhaseAdjustmentKcal("Ovulatory")).toBe(0);
+    expect(cyclePhaseAdjustmentKcal("Unknown")).toBe(0);
+    expect(cyclePhaseAdjustmentKcal(null)).toBe(0);
   });
 });
 
@@ -255,5 +297,191 @@ describe("computeDailyTarget", () => {
       yesterdayComplianceKcal: -150,
     });
     expect(withNudge.calories).toBe(withoutNudge.calories - 150);
+  });
+
+  it("uses the height-aware BMR path when heightCm is supplied on a cold-start member", () => {
+    const withoutHeight = computeDailyTarget({
+      bodyWeightKg: 80,
+      gender: "Male",
+      dateOfBirth: "1996-01-01",
+      goalBias: "maintain",
+      tdee: null,
+      load: 2.0,
+      date: "2026-01-15",
+    });
+    const withHeight = computeDailyTarget({
+      bodyWeightKg: 80,
+      gender: "Male",
+      dateOfBirth: "1996-01-01",
+      heightCm: 180,
+      goalBias: "maintain",
+      tdee: null,
+      load: 2.0,
+      date: "2026-01-15",
+    });
+    expect(withHeight.calories).not.toBe(withoutHeight.calories);
+  });
+
+  it("adds the luteal-phase bump on top of an otherwise-identical target", () => {
+    const noPhase = computeDailyTarget({
+      bodyWeightKg: 65,
+      gender: "Female",
+      dateOfBirth: "1996-01-01",
+      goalBias: "maintain",
+      tdee: { kcal: 2100, confidence: "adaptive", weightChangeKg: 0, avgIntakeKcal: 2100, windowDays: 28 },
+      load: 2.0,
+      date: "2026-01-15",
+    });
+    const luteal = computeDailyTarget({
+      bodyWeightKg: 65,
+      gender: "Female",
+      dateOfBirth: "1996-01-01",
+      goalBias: "maintain",
+      tdee: { kcal: 2100, confidence: "adaptive", weightChangeKg: 0, avgIntakeKcal: 2100, windowDays: 28 },
+      load: 2.0,
+      date: "2026-01-15",
+      cyclePhase: "Luteal",
+    });
+    expect(luteal.calories).toBeGreaterThan(noPhase.calories);
+  });
+
+  // Worked examples per the launch plan's verification requirement: the
+  // SAFETY_FLOOR_KCAL_PER_KG floor (18 kcal/kg) must still bind after every
+  // new adjustment (height-aware BMR, cycle-phase bump), not just the
+  // pre-existing goal/compliance ones.
+  describe("SAFETY_FLOOR_KCAL_PER_KG still binds after the new adjustments", () => {
+    it("a lighter member on an aggressive cut with height set never drops below the floor", () => {
+      const target = computeDailyTarget({
+        bodyWeightKg: 50,
+        gender: "Female",
+        dateOfBirth: "2000-01-01",
+        heightCm: 150, // small frame -> a low BMR that an aggressive cut could undercut
+        goalBias: "lose",
+        tdee: null,
+        load: 0.5, // reduced fuel day, minimal load
+        date: "2026-01-15",
+      });
+      expect(target.calories).toBeGreaterThanOrEqual(50 * 18);
+    });
+
+    it("floor still binds even with a luteal bump layered on an aggressive cut", () => {
+      const target = computeDailyTarget({
+        bodyWeightKg: 50,
+        gender: "Female",
+        dateOfBirth: "2000-01-01",
+        heightCm: 150,
+        goalBias: "lose",
+        tdee: null,
+        load: 0.5,
+        date: "2026-01-15",
+        cyclePhase: "Luteal",
+        yesterdayComplianceKcal: -250, // worst-case: also nudged down by yesterday's overshoot
+      });
+      expect(target.calories).toBeGreaterThanOrEqual(50 * 18);
+    });
+
+    it("floor still binds when a goal-timeline adjustment is aggressively negative", () => {
+      const target = computeDailyTarget({
+        bodyWeightKg: 50,
+        gender: "Female",
+        dateOfBirth: "2000-01-01",
+        heightCm: 150,
+        goalBias: "lose",
+        tdee: null,
+        load: 0.5,
+        date: "2026-01-15",
+        goalTimelineAdjustKcal: -900, // an unrealistically steep clamp-bypassing value
+        yesterdayComplianceKcal: -250,
+      });
+      expect(target.calories).toBeGreaterThanOrEqual(50 * 18);
+      expect(target.goalTimelineAdjustKcal).toBe(-900);
+    });
+  });
+});
+
+describe("computeDailyTarget — goal timeline", () => {
+  it("uses goalTimelineAdjustKcal instead of the flat goalBias multiplier when set", () => {
+    const withTimeline = computeDailyTarget({
+      bodyWeightKg: 80,
+      gender: "Male",
+      dateOfBirth: "1995-01-01",
+      goalBias: "lose",
+      tdee: { kcal: 2800, confidence: "adaptive", weightChangeKg: 0, avgIntakeKcal: 2800, windowDays: 28 },
+      load: 2.0,
+      date: "2026-01-15",
+      goalTimelineAdjustKcal: -300,
+    });
+    // 2800 base - 300 timeline adjustment = 2500 (no compliance/cycle nudge here).
+    expect(withTimeline.calories).toBe(2500);
+    expect(withTimeline.goalTimelineAdjustKcal).toBe(-300);
+  });
+
+  it("falls back to the flat goalBias multiplier when goalTimelineAdjustKcal is omitted", () => {
+    const withoutTimeline = computeDailyTarget({
+      bodyWeightKg: 80,
+      gender: "Male",
+      dateOfBirth: "1995-01-01",
+      goalBias: "lose",
+      tdee: { kcal: 2800, confidence: "adaptive", weightChangeKg: 0, avgIntakeKcal: 2800, windowDays: 28 },
+      load: 2.0,
+      date: "2026-01-15",
+    });
+    expect(withoutTimeline.goalTimelineAdjustKcal).toBeNull();
+    // 2800 * 0.8 (lose bias) = 2240.
+    expect(withoutTimeline.calories).toBe(2240);
+  });
+});
+
+describe("validateMemberTargetOverride", () => {
+  const bodyWeightKg = 70;
+
+  it("accepts a reasonable target whose macros add up", () => {
+    const result = validateMemberTargetOverride(bodyWeightKg, {
+      calories: 2200,
+      proteinG: 160,
+      carbsG: 220,
+      fatG: 70,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects a target below the safety floor", () => {
+    const result = validateMemberTargetOverride(bodyWeightKg, {
+      calories: 900, // well under 70 * 18 = 1260
+      proteinG: 100,
+      carbsG: 80,
+      fatG: 20,
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a target above the member-override ceiling", () => {
+    const result = validateMemberTargetOverride(bodyWeightKg, {
+      calories: 5000, // well over 70 * 45 = 3150
+      proteinG: 300,
+      carbsG: 500,
+      fatG: 150,
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects macros that don't add up to the stated calorie total", () => {
+    const result = validateMemberTargetOverride(bodyWeightKg, {
+      calories: 2200,
+      proteinG: 50,
+      carbsG: 50,
+      fatG: 20, // 50*4 + 50*4 + 20*9 = 580, nowhere near 2200
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects negative or non-finite inputs", () => {
+    const result = validateMemberTargetOverride(bodyWeightKg, {
+      calories: 2200,
+      proteinG: -10,
+      carbsG: 220,
+      fatG: 70,
+    });
+    expect(result.ok).toBe(false);
   });
 });

@@ -5,9 +5,14 @@
 // the mobile/web nutrition views, and the new Day/Week screens should call
 // through — so every surface always agrees on the same number.
 
+import { computeGoalTimeline, goalTimelineAdjustKcal as kcalFromWeeklyRate } from "./body-composition-goal";
+import { resolveCurrentBodyFatPct } from "./body-fat";
 import { resolveCurrentWeightKg } from "./body-weight";
+import { estimatePhase, type PhaseName } from "./cycle-phase";
 import {
+  findBodyFatLogsByUserId,
   findBodyWeightLogsByUserId,
+  findCycleSettingsByUserId,
   findFoodEntriesByUserId,
   findNutritionTargetByUserId,
   findProfileByUserId,
@@ -19,6 +24,7 @@ import {
 } from "./db";
 import { exertionFromDayLoad, goalBiasFromPrimaryGoal, weightedThreeDayLoad, type Exertion } from "./nutrition";
 import {
+  buildTargetRationale,
   complianceAdjustmentKcal,
   computeDailyTarget,
   estimateAdaptiveTdee,
@@ -100,6 +106,17 @@ export interface ResolvedNutritionTarget {
       resolveCurrentWeightKg) — surfaced so callers that cite it in text
       (the AI coach) always match what the target math actually used. */
   bodyWeightKg: number | null;
+  /** Member-facing "why this number" lines — null when there's no number to
+      explain (disabled/no weight on file). See buildTargetRationale in
+      lib/nutrition-target.ts. */
+  rationale: string[] | null;
+  /** True when mode is "manual" and the member set it themselves (via the
+      AI Nutrition Coach's "Apply this target" button — see
+      app/api/mobile/nutrition/target/member-override/route.ts), as opposed
+      to a coach setting it. Always false for auto/disabled. Distinguishes
+      the two so the UI doesn't mislabel a member's own override as
+      coach-set. */
+  setByMember: boolean;
 }
 
 function disabledResult(dateISO: string, notes: string | null, bodyWeightKg: number | null): ResolvedNutritionTarget {
@@ -115,10 +132,17 @@ function disabledResult(dateISO: string, notes: string | null, bodyWeightKg: num
     source: null,
     notes,
     bodyWeightKg,
+    rationale: null,
+    setByMember: false,
   };
 }
 
 function manualResult(dateISO: string, record: NutritionTargetRecord, bodyWeightKg: number | null): ResolvedNutritionTarget {
+  // A member-applied override (see the AI Nutrition Coach's "Apply this
+  // target" button) writes setByStaffId as the member's own id, since
+  // there's no separate "set by member" flag on NutritionTargetRecord —
+  // this is how the resolver tells the two apart for display purposes.
+  const setByMember = record.setByStaffId === record.userId;
   return {
     date: dateISO,
     mode: "manual",
@@ -131,6 +155,12 @@ function manualResult(dateISO: string, record: NutritionTargetRecord, bodyWeight
     source: "manual",
     notes: record.notes,
     bodyWeightKg,
+    rationale: [
+      setByMember
+        ? "Set by you via the AI Nutrition Coach — it doesn't change automatically day to day."
+        : "Set directly by your coach — it doesn't change automatically day to day.",
+    ],
+    setByMember,
   };
 }
 
@@ -147,6 +177,8 @@ function emptyAutoResult(dateISO: string): ResolvedNutritionTarget {
     source: null,
     notes: null,
     bodyWeightKg: null,
+    rationale: null,
+    setByMember: false,
   };
 }
 
@@ -163,6 +195,8 @@ function autoResult(dateISO: string, target: DailyTarget, bodyWeightKg: number):
     source: target.source,
     notes: null,
     bodyWeightKg,
+    rationale: buildTargetRationale(target),
+    setByMember: false,
   };
 }
 
@@ -173,6 +207,7 @@ interface ResolveContext {
   bodyWeightKg: number | null;
   gender: import("./profile-schema").Gender;
   dateOfBirth: string | null;
+  heightCm: number | null;
   goalBias: import("./nutrition").WeightGoalBias;
   recoveryLogs: RecoveryLogRecord[];
   sessions: WeeklyTrainingSession[];
@@ -180,6 +215,21 @@ interface ResolveContext {
   foodEntries: { date: string; calories: number }[];
   /** Only ever applied to dateISO === todayISO — see loadForDate. */
   tomorrowOverride?: Exertion;
+  /** Cycle-tracking inputs, present only when the member has it enabled —
+      see estimatePhase in lib/cycle-phase.ts. Phase is resolved per-date
+      inside resolveTargetForDate (it varies day to day), not precomputed
+      once here. */
+  cycleTracking: {
+    lastPeriodStartDate: string | null;
+    averageCycleLengthDays: number | null;
+    periodLengthDays: number | null;
+    regularity: import("./profile-schema").CycleRegularity | null;
+  } | null;
+  /** Precomputed once (anchored to todayISO, not per-date) from the
+      member's goal fields + logged trend — see buildContext and
+      lib/body-composition-goal.ts. Null when no goal timeline is set,
+      which keeps computeDailyTarget's original flat goalBias behavior. */
+  goalTimelineAdjustKcal: number | null;
 }
 
 function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNutritionTarget {
@@ -207,15 +257,27 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
     ctx.sessions,
     dateISO === ctx.todayISO ? ctx.tomorrowOverride : undefined
   );
+  const cyclePhase = ctx.cycleTracking
+    ? estimatePhase(
+        ctx.cycleTracking.lastPeriodStartDate,
+        ctx.cycleTracking.averageCycleLengthDays,
+        ctx.cycleTracking.periodLengthDays,
+        ctx.cycleTracking.regularity,
+        dateISO
+      ).phase
+    : null;
   const target = computeDailyTarget({
     bodyWeightKg: ctx.bodyWeightKg,
     gender: ctx.gender,
     dateOfBirth: ctx.dateOfBirth,
+    heightCm: ctx.heightCm,
     goalBias: ctx.goalBias,
     tdee: ctx.tdee,
     load,
     date: dateISO,
     yesterdayComplianceKcal,
+    cyclePhase,
+    goalTimelineAdjustKcal: ctx.goalTimelineAdjustKcal,
   });
 
   return autoResult(dateISO, target, ctx.bodyWeightKg);
@@ -227,6 +289,8 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
 
   const weightLogs = findBodyWeightLogsByUserId(userId);
   const bodyWeightKg = resolveCurrentWeightKg(profile.currentWeightKg, weightLogs);
+  const bodyFatLogs = findBodyFatLogsByUserId(userId);
+  const bodyFatPct = resolveCurrentBodyFatPct(profile.bodyFatPct, bodyFatLogs);
 
   const recoveryLogs = findRecoveryLogsByUserId(userId);
   const schedule = findWeeklyTrainingScheduleByUserId(userId);
@@ -239,6 +303,43 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
   }));
   const tdee = bodyWeightKg !== null ? estimateAdaptiveTdee(weightPoints, intakePoints, todayISO) : null;
 
+  // Body-fat goal is primary when set (a more direct read on "aggressive
+  // but still healthy" than scale weight, which conflates fat and muscle);
+  // weight goal is the fallback. Only computed when there's a target date —
+  // without one there's no rate to derive, so the member just sees their
+  // "at current trend" projection (built client-side from the same logs).
+  const goalTimelineAdjustKcal: number | null = (() => {
+    if (bodyWeightKg === null || !profile.goalTargetDate) return null;
+
+    if (profile.goalBodyFatPct != null && bodyFatPct !== null) {
+      const bodyFatPoints: WeightPoint[] = bodyFatLogs.map((l) => ({ date: l.date, weightKg: l.bodyFatPct }));
+      const timeline = computeGoalTimeline({
+        currentValue: bodyFatPct,
+        goalValue: profile.goalBodyFatPct,
+        targetDateISO: profile.goalTargetDate,
+        asOfDateISO: todayISO,
+        history: bodyFatPoints,
+      });
+      if (timeline.clampedWeeklyRate === null) return null;
+      // %-points/week of body fat -> kg/week of fat mass, at current weight.
+      const kgPerWeek = (timeline.clampedWeeklyRate / 100) * bodyWeightKg;
+      return kcalFromWeeklyRate(kgPerWeek);
+    }
+
+    if (profile.goalWeightKg != null) {
+      const timeline = computeGoalTimeline({
+        currentValue: bodyWeightKg,
+        goalValue: profile.goalWeightKg,
+        targetDateISO: profile.goalTargetDate,
+        asOfDateISO: todayISO,
+        history: weightPoints,
+      });
+      return kcalFromWeeklyRate(timeline.clampedWeeklyRate);
+    }
+
+    return null;
+  })();
+
   return {
     userId,
     todayISO,
@@ -246,12 +347,25 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
     bodyWeightKg,
     gender: profile.gender,
     dateOfBirth: profile.dateOfBirth,
+    heightCm: profile.heightCm ?? null,
     goalBias: goalBiasFromPrimaryGoal(profile.primaryGoal),
     recoveryLogs,
     sessions: schedule?.sessions ?? [],
     tdee,
     foodEntries,
     tomorrowOverride,
+    cycleTracking: (() => {
+      if (!profile.cycleTrackingEnabled) return null;
+      const settings = findCycleSettingsByUserId(userId);
+      if (!settings) return null;
+      return {
+        lastPeriodStartDate: settings.lastPeriodStartDate,
+        averageCycleLengthDays: settings.averageCycleLengthDays,
+        periodLengthDays: settings.periodLengthDays,
+        regularity: settings.regularity,
+      };
+    })(),
+    goalTimelineAdjustKcal,
   };
 }
 

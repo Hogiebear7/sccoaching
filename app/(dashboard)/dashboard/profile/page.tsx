@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import {
+  findBodyFatLogsByUserId,
   findBodyWeightLogsByUserId,
   findBookingsByUserId,
   findClassById,
@@ -8,6 +9,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
+import { resolveCurrentBodyFatPct } from "@/lib/body-fat";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { buildMemberStatsData } from "@/lib/member-stats";
 import { verifySession } from "@/lib/session";
@@ -36,11 +38,13 @@ export default async function ProfilePage() {
   }
 
   const bodyWeightLogs = findBodyWeightLogsByUserId(user.id);
+  const bodyFatLogs = findBodyFatLogsByUserId(user.id);
 
-  // Display the synced weight: latest log wins over the stored field.
+  // Display the synced weight/body-fat: latest log wins over the stored field.
   const syncedProfile = {
     ...profile,
     currentWeightKg: resolveCurrentWeightKg(profile.currentWeightKg, bodyWeightLogs),
+    bodyFatPct: resolveCurrentBodyFatPct(profile.bodyFatPct, bodyFatLogs),
   };
 
   // Training stats — flattened server-side so the card can filter by range
@@ -60,6 +64,7 @@ export default async function ProfilePage() {
       email={user.email}
       profile={syncedProfile}
       bodyWeightLogs={bodyWeightLogs}
+      bodyFatLogs={bodyFatLogs}
       statsData={statsData}
     />
   );

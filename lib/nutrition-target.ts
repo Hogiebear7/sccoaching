@@ -23,6 +23,7 @@ import {
   type WeightGoalBias,
 } from "./nutrition";
 import type { Gender, TrainingActivityType, TrainingDayOfWeek, TrainingIntensity, WeeklyTrainingSession } from "./profile-schema";
+import type { PhaseName } from "./cycle-phase";
 
 // ─── Date helpers ───────────────────────────────────────────────────────
 
@@ -88,7 +89,7 @@ export function computeWeightTrend(logs: WeightPoint[]): WeightTrend | null {
 
 // ─── Adaptive TDEE (energy-balance back-calculation) ────────────────────
 
-const KCAL_PER_KG_FAT = 7700;
+export const KCAL_PER_KG_FAT = 7700;
 const TDEE_WINDOW_DAYS = 28;
 const MIN_WEIGHT_DAYS = 10;
 const MIN_INTAKE_DAYS = 10;
@@ -163,6 +164,28 @@ const GENDER_MULTIPLIER: Record<Gender, number> = {
   Other: 0.97,
 };
 
+// Activity multipliers for the height-aware BMR path, derived from the
+// same BAND_KCAL_PER_KG ratios as the bodyweight heuristic above (anchored
+// at a standard-day multiplier of 1.5) so the two paths agree on how much
+// harder a "full" or "match" day should scale maintenance, whichever one a
+// given member ends up using.
+const BMR_STANDARD_ACTIVITY_MULTIPLIER = 1.5;
+const BMR_ACTIVITY_MULTIPLIER: Record<FuelDay, number> = {
+  reduced: BMR_STANDARD_ACTIVITY_MULTIPLIER * (BAND_KCAL_PER_KG.reduced / BAND_KCAL_PER_KG.standard),
+  standard: BMR_STANDARD_ACTIVITY_MULTIPLIER,
+  full: BMR_STANDARD_ACTIVITY_MULTIPLIER * (BAND_KCAL_PER_KG.full / BAND_KCAL_PER_KG.standard),
+  match: BMR_STANDARD_ACTIVITY_MULTIPLIER * (BAND_KCAL_PER_KG.match / BAND_KCAL_PER_KG.standard),
+};
+
+// Mifflin-St Jeor gender constant — the formula is only defined for a
+// male/female binary; "Other" takes the midpoint rather than silently
+// picking one.
+const MIFFLIN_GENDER_CONSTANT: Record<Gender, number> = {
+  Male: 5,
+  Female: -161,
+  Other: -78,
+};
+
 function ageFromDob(dateOfBirth: string | null, asOfDate: string): number | null {
   if (!dateOfBirth) return null;
   const dob = new Date(`${dateOfBirth}T00:00:00Z`);
@@ -175,26 +198,49 @@ function ageFromDob(dateOfBirth: string | null, asOfDate: string): number | null
   return age;
 }
 
-// Bodyweight x training-load multiplier — not a BMR equation (no height on
-// file), but grounded the same way the rest of the app's nutrition maths
-// already is. Gender and age nudge the multiplier gently; neither is a
-// medical model, just enough to avoid a flat number for everyone.
-export function coldStartMaintenanceKcal(
-  bodyWeightKg: number,
-  fuelDay: FuelDay,
-  gender: Gender,
-  dateOfBirth: string | null,
-  asOfDate: string
-): number {
+// When height AND a real age (from date of birth) are both on file, this
+// uses an actual BMR equation (Mifflin-St Jeor) scaled by a training-load
+// activity multiplier — a real improvement over the fallback below, which
+// exists only because height isn't collected from every member. Age is
+// already inside the Mifflin-St Jeor formula itself, so the fallback's
+// separate "40+ knocks a bit off" adjustment doesn't apply here — applying
+// both would double-count age.
+function heightAwareMaintenanceKcal(bodyWeightKg: number, heightCm: number, age: number, fuelDay: FuelDay, gender: Gender): number {
+  const bmr = 10 * bodyWeightKg + 6.25 * heightCm - 5 * age + MIFFLIN_GENDER_CONSTANT[gender];
+  return Math.round(bmr * BMR_ACTIVITY_MULTIPLIER[fuelDay]);
+}
+
+// Bodyweight x training-load multiplier — used when height isn't on file
+// (not every member has entered it), grounded the same way the rest of the
+// app's nutrition maths already is. Gender and age nudge the multiplier
+// gently; neither is a medical model, just enough to avoid a flat number
+// for everyone.
+function bodyweightHeuristicMaintenanceKcal(bodyWeightKg: number, fuelDay: FuelDay, gender: Gender, age: number | null): number {
   let perKg = BAND_KCAL_PER_KG[fuelDay] * GENDER_MULTIPLIER[gender];
 
-  const age = ageFromDob(dateOfBirth, asOfDate);
   if (age !== null && age >= 40) {
     const decades = Math.min(3, Math.floor((age - 40) / 10) + 1);
     perKg *= 1 - decades * 0.02;
   }
 
   return Math.round(bodyWeightKg * perKg);
+}
+
+export function coldStartMaintenanceKcal(
+  bodyWeightKg: number,
+  fuelDay: FuelDay,
+  gender: Gender,
+  dateOfBirth: string | null,
+  asOfDate: string,
+  heightCm: number | null = null
+): number {
+  const age = ageFromDob(dateOfBirth, asOfDate);
+
+  if (heightCm !== null && age !== null) {
+    return heightAwareMaintenanceKcal(bodyWeightKg, heightCm, age, fuelDay, gender);
+  }
+
+  return bodyweightHeuristicMaintenanceKcal(bodyWeightKg, fuelDay, gender, age);
 }
 
 // ─── Weekly training pattern -> a day's exertion (for projecting days ──
@@ -234,6 +280,17 @@ export function complianceAdjustmentKcal(
   const miss = yesterdayActualKcal - yesterdayTargetKcal;
   const raw = -miss * COMPLIANCE_CATCH_UP_FRACTION;
   return Math.max(-COMPLIANCE_MAX_ADJUST_KCAL, Math.min(COMPLIANCE_MAX_ADJUST_KCAL, Math.round(raw)));
+}
+
+// ─── Luteal-phase nudge for members with cycle tracking enabled ────────
+
+// Progesterone rises through the luteal phase, which raises resting energy
+// expenditure a modest amount for many people — small next to the other
+// adjustments here, so it's a flat bump rather than another multiplier.
+const LUTEAL_PHASE_ADJUST_KCAL = 120;
+
+export function cyclePhaseAdjustmentKcal(phase: PhaseName | null): number {
+  return phase === "Luteal" ? LUTEAL_PHASE_ADJUST_KCAL : 0;
 }
 
 // ─── Goal adjustment + safety floor ─────────────────────────────────────
@@ -304,25 +361,66 @@ export interface DailyTargetInput {
   /** Only meaningful when this day is the real "today". Omit for any other
       day (past days keep whatever they showed; future days can't know). */
   yesterdayComplianceKcal?: number;
+  /** Enables the height-aware BMR path in coldStartMaintenanceKcal when
+      set; falls back to the bodyweight heuristic when null/omitted. Has no
+      effect once a member is on the adaptive TDEE regime. */
+  heightCm?: number | null;
+  /** This day's estimated cycle phase (see lib/cycle-phase.ts), when the
+      member has cycle tracking enabled — applies independently of the
+      adaptive/estimated regime, same as the compliance nudge. */
+  cyclePhase?: PhaseName | null;
+  /** Pre-clamped daily kcal adjustment from a member's weight/body-fat goal
+      timeline (see lib/body-composition-goal.ts's goalTimelineAdjustKcal),
+      computed by the orchestration layer from their goal fields + logged
+      trend. When set (including 0, e.g. a "maintain" direction), this
+      REPLACES the flat goalBias multiplier below — a real rate beats a
+      generic ±10-20% bias. Leave null/omitted for members with no goal
+      timeline set, which keeps the original goalBias behavior. */
+  goalTimelineAdjustKcal?: number | null;
 }
 
 export interface DailyTarget extends DailyMacros {
   fuelDay: FuelDay;
   fuelDayLabel: string;
   source: "adaptive" | "estimated";
+  /** Which inputs actually influenced this specific number — surfaced so a
+      member-facing "why this number" explanation can be built without
+      re-deriving it (see buildTargetRationale below). */
+  usedHeightBasedBmr: boolean;
+  goalBias: WeightGoalBias;
+  cyclePhaseAdjustKcal: number;
+  complianceAdjustKcal: number;
+  /** Non-null exactly when a goal-timeline adjustment was applied (see
+      DailyTargetInput.goalTimelineAdjustKcal) — the actual kcal/day used. */
+  goalTimelineAdjustKcal: number | null;
+  hitSafetyFloor: boolean;
 }
 
 export function computeDailyTarget(input: DailyTargetInput): DailyTarget {
   const band = fuelBandForLoad(input.load);
+  const usedHeightBasedBmr = input.tdee === null && input.heightCm != null && ageFromDob(input.dateOfBirth, input.date) !== null;
 
   const baseKcal =
     input.tdee !== null
       ? input.tdee.kcal
-      : coldStartMaintenanceKcal(input.bodyWeightKg, band.day, input.gender, input.dateOfBirth, input.date);
+      : coldStartMaintenanceKcal(
+          input.bodyWeightKg,
+          band.day,
+          input.gender,
+          input.dateOfBirth,
+          input.date,
+          input.heightCm ?? null
+        );
 
-  const goalAdjusted = applyGoalAdjustment(baseKcal, input.goalBias, input.bodyWeightKg);
-  const withCompliance = Math.round(goalAdjusted + (input.yesterdayComplianceKcal ?? 0));
-  const finalKcal = Math.max(Math.round(input.bodyWeightKg * SAFETY_FLOOR_KCAL_PER_KG), withCompliance);
+  const hasGoalTimeline = input.goalTimelineAdjustKcal != null;
+  const goalAdjusted = hasGoalTimeline
+    ? baseKcal + input.goalTimelineAdjustKcal!
+    : applyGoalAdjustment(baseKcal, input.goalBias, input.bodyWeightKg);
+  const cycleAdjustKcal = cyclePhaseAdjustmentKcal(input.cyclePhase ?? null);
+  const complianceAdjustKcal = input.yesterdayComplianceKcal ?? 0;
+  const withAdjustments = Math.round(goalAdjusted + complianceAdjustKcal + cycleAdjustKcal);
+  const floorKcal = Math.round(input.bodyWeightKg * SAFETY_FLOOR_KCAL_PER_KG);
+  const finalKcal = Math.max(floorKcal, withAdjustments);
 
   const macros = macrosForCalorieTarget(finalKcal, input.bodyWeightKg, band);
 
@@ -331,5 +429,111 @@ export function computeDailyTarget(input: DailyTargetInput): DailyTarget {
     fuelDay: band.day,
     fuelDayLabel: band.label,
     source: input.tdee !== null ? "adaptive" : "estimated",
+    usedHeightBasedBmr,
+    goalBias: input.goalBias,
+    cyclePhaseAdjustKcal: cycleAdjustKcal,
+    complianceAdjustKcal,
+    goalTimelineAdjustKcal: hasGoalTimeline ? input.goalTimelineAdjustKcal! : null,
+    hitSafetyFloor: finalKcal === floorKcal && withAdjustments < floorKcal,
   };
+}
+
+// Member-facing "why this number" lines, in display order — built from
+// exactly the inputs computeDailyTarget actually used (see DailyTarget's
+// tracked fields above), not re-derived or guessed. Deterministic and
+// cheap: no AI call, safe to render every time the Nutrition tab opens.
+export function buildTargetRationale(target: DailyTarget): string[] {
+  const lines: string[] = [];
+
+  lines.push(
+    target.source === "adaptive"
+      ? "Your base number comes from your own logged weight and food trend, not a formula — it's learned from what's actually happened to your weight given what you've eaten."
+      : target.usedHeightBasedBmr
+        ? "Your base number uses a standard BMR formula (weight, height, age) scaled for today's training, since there isn't enough logged history yet to learn your real trend."
+        : "Your base number is estimated from your bodyweight and today's training load — add your height in Profile for a more precise starting point, or keep logging weight and food to unlock a trend-based number."
+  );
+
+  lines.push(`Today is a "${target.fuelDayLabel}" — your calories and carbs scale with how much you're training around today.`);
+
+  if (target.goalTimelineAdjustKcal !== null) {
+    if (target.goalTimelineAdjustKcal !== 0) {
+      lines.push(
+        `${target.goalTimelineAdjustKcal > 0 ? "+" : ""}${target.goalTimelineAdjustKcal} kcal to hit the pace your weight/body-fat goal timeline needs, capped at a safe rate for your bodyweight.`
+      );
+    }
+  } else if (target.goalBias !== "maintain") {
+    lines.push(
+      target.goalBias === "lose"
+        ? "Adjusted down for your weight-loss goal."
+        : "Adjusted up for your muscle-gain goal."
+    );
+  }
+
+  if (target.cyclePhaseAdjustKcal > 0) {
+    lines.push(`+${target.cyclePhaseAdjustKcal} kcal for the luteal phase of your cycle, when energy needs tend to run a little higher.`);
+  }
+
+  if (target.complianceAdjustKcal !== 0) {
+    lines.push(
+      target.complianceAdjustKcal > 0
+        ? `+${target.complianceAdjustKcal} kcal today since you ate under target yesterday.`
+        : `${target.complianceAdjustKcal} kcal today since you ate over target yesterday.`
+    );
+  }
+
+  if (target.hitSafetyFloor) {
+    lines.push("This is held at a safe minimum for your bodyweight rather than going lower, regardless of the adjustments above.");
+  }
+
+  return lines;
+}
+
+// ─── Member-initiated override bounds (AI chat "Apply this target") ────
+//
+// A member can set their own manual target from the AI Nutrition Coach
+// chat (see app/api/mobile/nutrition/target/member-override/route.ts).
+// SAFETY_FLOOR_KCAL_PER_KG is still the hard floor; this adds the
+// corresponding ceiling so a member can't self-set something extreme
+// without it being flagged. 45 kcal/kg comfortably covers a legitimate
+// high-demand day (match day + muscle-gain goal + full compliance
+// catch-up all stacked) without functioning as a second calorie formula.
+const MEMBER_OVERRIDE_MAX_KCAL_PER_KG = 45;
+const MACRO_KCAL_TOLERANCE = 60;
+
+export interface MemberTargetOverrideInput {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+export function validateMemberTargetOverride(
+  bodyWeightKg: number,
+  input: MemberTargetOverrideInput
+): { ok: true } | { ok: false; message: string } {
+  const { calories, proteinG, carbsG, fatG } = input;
+
+  if (![calories, proteinG, carbsG, fatG].every((n) => Number.isFinite(n) && n >= 0)) {
+    return { ok: false, message: "Calories and macros must be non-negative numbers." };
+  }
+
+  const floorKcal = Math.round(bodyWeightKg * SAFETY_FLOOR_KCAL_PER_KG);
+  if (calories < floorKcal) {
+    return { ok: false, message: `That's below a safe minimum (${floorKcal} kcal) for your bodyweight.` };
+  }
+
+  const maxKcal = Math.round(bodyWeightKg * MEMBER_OVERRIDE_MAX_KCAL_PER_KG);
+  if (calories > maxKcal) {
+    return {
+      ok: false,
+      message: `That's above what can be set directly here (${maxKcal} kcal max) — talk to your coach for anything higher.`,
+    };
+  }
+
+  const macroKcal = proteinG * 4 + carbsG * 4 + fatG * 9;
+  if (Math.abs(macroKcal - calories) > MACRO_KCAL_TOLERANCE) {
+    return { ok: false, message: "Those macros don't add up to that calorie total." };
+  }
+
+  return { ok: true };
 }

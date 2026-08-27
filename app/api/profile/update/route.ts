@@ -14,7 +14,7 @@ import {
   type Gender,
   type PrimaryGoal,
 } from "@/lib/profile-schema";
-import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS, sanitizeDietaryFields } from "@/lib/profile-options";
+import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS, sanitizeCountry, sanitizeDietaryFields } from "@/lib/profile-options";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     primaryGoal,
     sportPlayed,
     heightCm,
+    country,
     additionalInfo,
     emergencyContactName,
     emergencyContactPhone,
@@ -180,6 +181,11 @@ export async function POST(request: NextRequest) {
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: syncedWeight,
     heightCm: heightCmValue,
+    // Omitted (older client) or an empty string both mean "leave as-is",
+    // matching heightCm's own default-to-existing pattern above — a
+    // country selector is optional UI, and a client that predates it must
+    // never silently wipe a value it doesn't know about.
+    country: country === undefined ? existingProfile.country ?? null : sanitizeCountry(country),
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
     // Required at signup, but editing an existing profile shouldn't be
     // blocked on backfilling this — omitting it here just clears it back

@@ -182,7 +182,9 @@ function targetSourceLine(target: ResolvedNutritionTarget | null): string {
     return "Automatic targets are turned off for this member — logging still works.";
   }
   if (target.mode === "manual") {
-    return "Set by their coach — this member's target doesn't vary day to day.";
+    return target.setByMember
+      ? "Set by you via the AI Nutrition Coach — it doesn't vary day to day."
+      : "Set by their coach — this member's target doesn't vary day to day.";
   }
   if (target.calories === null) return "No weight on file yet, so a target can't be calculated.";
   return target.source === "adaptive"
@@ -322,6 +324,22 @@ export function NutritionView({
       cancelled = true;
     };
   }, [tomorrow]);
+  // Re-pull the resolved target after the AI Nutrition Coach's "Apply this
+  // target" button writes a manual override — same fetch as the effect
+  // above, exposed as a callback so NutritionAiCoach can trigger it without
+  // this component needing to know anything about that chat flow.
+  async function refetchTarget() {
+    setTargetRefetching(true);
+    try {
+      const res = await fetch(`/api/nutrition/target?tomorrow=${tomorrow}`);
+      const json: { success: boolean; data: ResolvedNutritionTarget | null } = await res.json();
+      if (json.success) setLiveTarget(json.data);
+    } catch {
+      // Offline or server hiccup — keep showing the last-known target.
+    } finally {
+      setTargetRefetching(false);
+    }
+  }
   const [aiCoachOpen, setAiCoachOpen] = useState(false);
   const [aiCoachPrefill, setAiCoachPrefill] = useState<string | null>(null);
   const [bottleMl, setBottleMl] = useState<(typeof BOTTLE_OPTIONS)[number]>(1000);
@@ -546,7 +564,14 @@ export function NutritionView({
           />
           <div className="relative flex flex-wrap items-center justify-between gap-2">
             <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(liveTarget?.fuelDay ?? "")}`}>
-              {liveTarget?.fuelDayLabel ?? (liveTarget?.mode === "manual" ? "Coach-set target" : liveTarget?.mode === "disabled" ? "Target off" : "Fuel target")}
+              {liveTarget?.fuelDayLabel ??
+                (liveTarget?.mode === "manual"
+                  ? liveTarget.setByMember
+                    ? "Your set target"
+                    : "Coach-set target"
+                  : liveTarget?.mode === "disabled"
+                    ? "Target off"
+                    : "Fuel target")}
             </span>
             {targetRefetching && <span className="text-xs text-zinc-500">Updating…</span>}
           </div>
@@ -599,6 +624,20 @@ export function NutritionView({
                 {liveTarget!.calories} kcal total at {targetBodyWeightKg} kg
                 {liveTarget?.mode === "auto" && goalBias !== "maintain" ? ` (adjusted for your ${primaryGoal.toLowerCase()} goal)` : ""}.
               </p>
+
+              {liveTarget?.rationale && liveTarget.rationale.length > 0 ? (
+                <details className="group relative mt-3 rounded-lg border border-white/[0.08]">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[12px] font-medium text-zinc-300 transition hover:text-zinc-100">
+                    Why this number
+                    <span className="text-zinc-600 transition group-open:rotate-180">⌄</span>
+                  </summary>
+                  <ul className="space-y-1.5 border-t border-white/[0.06] px-3 py-3 text-[12px] leading-relaxed text-zinc-400">
+                    {liveTarget.rationale.map((line, i) => (
+                      <li key={i}>· {line}</li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
             </>
           ) : liveTarget?.mode !== "disabled" ? (
             <p className="relative mt-4 text-[13px] leading-relaxed text-zinc-500">
@@ -756,6 +795,7 @@ export function NutritionView({
         onOpenChange={setAiCoachOpen}
         prefillPrompt={aiCoachPrefill}
         onPrefillConsumed={() => setAiCoachPrefill(null)}
+        onTargetApplied={refetchTarget}
       />
 
       {/* Sports Performance Drink — a secondary tool for training/match

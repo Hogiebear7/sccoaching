@@ -2,11 +2,11 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findAllFoods, findCustomFoodsByUserId, findFoodById, findFoodEntriesByUserId, findUserById, saveFood, type FoodDomain } from "@/lib/db";
+import { findAllFoods, findCustomFoodsByUserId, findFoodById, findFoodEntriesByUserId, findProfileByUserId, findUserById, saveFood, type FoodDomain } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import { normalizeOpenFoodFactsProduct, scoreFoodMatch, searchFoodCatalog } from "@/lib/food-catalog";
+import { normalizeOpenFoodFactsProduct, rankByTextMatch, searchFoodCatalog } from "@/lib/food-catalog";
 import { searchOpenFoodFactsByName } from "@/lib/open-food-facts-client";
 
 // A typed query with too few local matches falls through to a live Open
@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
   }
 
   const query = request.nextUrl.searchParams.get("q") ?? "";
+  const country = findProfileByUserId(user.id)?.country ?? null;
 
   let brandedFoods = findAllFoods("branded");
 
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
     commonFoods: findAllFoods("common"),
     brandedFoods,
     resolveFood: (domain: FoodDomain, id: string) => findFoodById(domain, id),
+    country,
   });
 
   const localMatchCount = groups.custom.length + groups.common.length + groups.branded.length;
@@ -64,12 +66,7 @@ export async function GET(request: NextRequest) {
       }
 
       if (addedAny) {
-        groups.branded = brandedFoods
-          .map((f) => ({ f, score: scoreFoodMatch(query, f) }))
-          .filter((x) => x.score > 0)
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 20)
-          .map((x) => x.f);
+        groups.branded = rankByTextMatch(query, brandedFoods, 20, country);
       }
     } else if (!liveResult.ok) {
       console.warn(`[food-catalog] Open Food Facts name search failed for "${query}": ${liveResult.reason}`);

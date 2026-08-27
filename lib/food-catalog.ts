@@ -74,10 +74,25 @@ export function scoreFoodMatch(query: string, food: Pick<FoodRecord, "name" | "b
   return similarity >= TYPO_TOLERANCE_THRESHOLD ? similarity * 150 : 0;
 }
 
-function rankByTextMatch(query: string, foods: FoodRecord[], limit: number): FoodRecord[] {
+// A member's country (ProfileRecord.country, ISO alpha-2) nudges ranking
+// toward foods scoped to that same country (FoodRecord.region, normalized
+// to alpha-2 — see normalizeOffCountryTag) when the text match is otherwise
+// tied or close. The boost is deliberately smaller than the gap between any
+// two scoreFoodMatch tiers (the tightest gap is 150 fuzzy-max → 200
+// contains, a gap of 50) so it can only reorder within a relevance tier,
+// never promote a worse text match above a better one — text relevance
+// stays primary, country is a tie-breaker.
+const COUNTRY_MATCH_BOOST = 10;
+
+function applyCountryBoost(score: number, food: Pick<FoodRecord, "region">, country: string | null | undefined): number {
+  if (score <= 0 || !country || !food.region) return score;
+  return food.region.toUpperCase() === country.toUpperCase() ? score + COUNTRY_MATCH_BOOST : score;
+}
+
+export function rankByTextMatch(query: string, foods: FoodRecord[], limit: number, country?: string | null): FoodRecord[] {
   if (!query.trim()) return foods.slice(0, limit);
   return foods
-    .map((f) => ({ f, score: scoreFoodMatch(query, f) }))
+    .map((f) => ({ f, score: applyCountryBoost(scoreFoodMatch(query, f), f, country) }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
@@ -146,14 +161,20 @@ export function searchFoodCatalog(params: {
   brandedFoods: FoodRecord[];
   resolveFood: (domain: FoodDomain, id: string) => FoodRecord | undefined;
   limit?: number;
+  // Member's ProfileRecord.country (ISO alpha-2) — see applyCountryBoost.
+  // History is deliberately excluded: recency is already its secondary
+  // ranking signal (see getFoodHistory), and re-litigating that with a
+  // second signal isn't worth the complexity for a "recently logged"
+  // list that's already personal to the member.
+  country?: string | null;
 }): FoodSearchGroups {
-  const { query, userEntries, customFoods, commonFoods, brandedFoods, resolveFood, limit = 20 } = params;
+  const { query, userEntries, customFoods, commonFoods, brandedFoods, resolveFood, limit = 20, country } = params;
 
   return {
     history: getFoodHistory(userEntries, resolveFood, query, limit),
-    custom: rankByTextMatch(query, customFoods, limit),
-    common: rankByTextMatch(query, commonFoods, limit),
-    branded: rankByTextMatch(query, brandedFoods, limit),
+    custom: rankByTextMatch(query, customFoods, limit, country),
+    common: rankByTextMatch(query, commonFoods, limit, country),
+    branded: rankByTextMatch(query, brandedFoods, limit, country),
   };
 }
 
@@ -198,6 +219,43 @@ function parseServingGrams(servingSize: string | undefined): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+// Open Food Facts country tags are lowercase English country names with a
+// language-code prefix (e.g. "en:united-states", "en:ireland") — mapping the
+// ones this gym's members are actually likely to have to ISO 3166-1 alpha-2
+// lets FoodRecord.region be compared directly against ProfileRecord.country
+// (also alpha-2) for the search ranking boost in rankByTextMatch. Keep in
+// sync with lib/profile-options.ts's COUNTRY_OPTIONS — every value a member
+// can pick there needs a matching entry here or the boost can never fire for
+// OFF-sourced foods from that country. An unmapped tag is left as-is
+// (harmless: it just never matches a profile's country).
+const OFF_COUNTRY_TAG_TO_ALPHA2: Record<string, string> = {
+  "en:ireland": "IE",
+  "en:united-kingdom": "GB",
+  "en:united-states": "US",
+  "en:canada": "CA",
+  "en:australia": "AU",
+  "en:new-zealand": "NZ",
+  "en:france": "FR",
+  "en:germany": "DE",
+  "en:spain": "ES",
+  "en:italy": "IT",
+  "en:netherlands": "NL",
+  "en:belgium": "BE",
+  "en:portugal": "PT",
+  "en:switzerland": "CH",
+  "en:austria": "AT",
+  "en:sweden": "SE",
+  "en:norway": "NO",
+  "en:denmark": "DK",
+  "en:finland": "FI",
+  "en:poland": "PL",
+};
+
+export function normalizeOffCountryTag(tag: string | null | undefined): string | null {
+  if (!tag) return null;
+  return OFF_COUNTRY_TAG_TO_ALPHA2[tag.toLowerCase()] ?? tag;
+}
+
 export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsProduct, barcode: string, id: string, now: string): FoodRecord {
   const n = product.nutriments ?? {};
   const servingGrams = parseServingGrams(product.serving_size);
@@ -227,7 +285,7 @@ export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsProduct, bar
     provenance: "open_food_facts",
     sourceRef: barcode,
     verified: false,
-    region: product.countries_tags?.[0] ?? null,
+    region: normalizeOffCountryTag(product.countries_tags?.[0]),
     ownerUserId: null,
     archivedAt: null,
     createdAt: now,

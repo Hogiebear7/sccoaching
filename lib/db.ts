@@ -412,10 +412,13 @@ export interface FoodRecord {
       product id, an admin user id, or null for plain user-authored foods. */
   sourceRef: string | null;
   verified: boolean;
-  /** Region scoping — Open Food Facts' own country-tag format (e.g.
-      "en:united-states") when sourced from OFF, ISO 3166-1 alpha-2 for
-      admin/manual entries, or null when the record isn't region-scoped.
-      Deliberately not normalized to one format — see docs/food-catalog.md. */
+  /** Region scoping — ISO 3166-1 alpha-2 for admin/manual entries and for
+      OFF-sourced records whose country tag has a known mapping (see
+      normalizeOffCountryTag in lib/food-catalog.ts); an OFF country tag with
+      no mapping is left in OFF's own raw format (e.g. "en:atlantis") rather
+      than dropped, since it's still useful for eyeballing even though it
+      won't match a member's alpha-2 country for search-ranking purposes.
+      null when the record isn't region-scoped. */
   region: string | null;
   /** Set only for domain "custom" — who owns/can edit this food. */
   ownerUserId: string | null;
@@ -425,6 +428,33 @@ export interface FoodRecord {
   /** Last time this was (re)fetched from its external source — drives the
       branded-cache staleness check; null for custom/common records. */
   fetchedAt: string | null;
+}
+
+// A member's standing correction for the AI photo-identification tool: "when
+// you say X, I actually mean Y" — e.g. the vision model keeps calling their
+// usual carton "Milk" when it's actually oat milk. Applied as a deterministic
+// post-processing swap right after identifyFoodPhoto returns (see
+// applyFoodIdentificationOverrides in lib/food-identification-override.ts),
+// never as a change to the vision prompt itself — no added AI cost, and the
+// underlying photo call stays exactly as accurate/inaccurate as it always
+// was for every other member.
+export interface FoodIdentificationOverrideRecord {
+  id: string;
+  userId: string;
+  /** Normalized (trimmed/lowercased/whitespace-collapsed) form of the AI's
+      originally-identified name — the match key. See normalizeTriggerLabel
+      in lib/food-identification-override.ts; never store a raw, un-normalized
+      label here or lookups will silently miss on casing/whitespace. */
+  triggerLabel: string;
+  preferredFood: {
+    name: string;
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    servingDescription: string;
+  };
+  createdAt: string;
 }
 
 // A member flags a barcode/food that couldn't be found (barcode lookup
@@ -498,6 +528,16 @@ export interface BodyWeightLogRecord {
   userId: string;
   date: string;
   weightKg: number;
+  createdAt: string;
+}
+
+// Mirrors BodyWeightLogRecord exactly — same optional-metric-tracking
+// pattern (see lib/body-fat.ts / lib/body-weight.ts for the resolver pair).
+export interface BodyFatLogRecord {
+  id: string;
+  userId: string;
+  date: string;
+  bodyFatPct: number;
   createdAt: string;
 }
 
@@ -1341,10 +1381,12 @@ interface Database {
   brandedFoods: FoodRecord[];
   foodModerationRequests: FoodModerationRequest[];
   foodSubmissions: FoodSubmissionRecord[];
+  foodIdentificationOverrides: FoodIdentificationOverrideRecord[];
   workoutSessions: WorkoutSessionRecord[];
   exercises: ExerciseRecord[];
   aiMessages: AiMessageRecord[];
   bodyWeightLogs: BodyWeightLogRecord[];
+  bodyFatLogs: BodyFatLogRecord[];
   classes: ClassRecord[];
   classSeries: ClassSeriesRecord[];
   classWorkouts: ClassWorkoutRecord[];
@@ -1456,10 +1498,12 @@ function readDb(): Database {
       brandedFoods: [],
       foodModerationRequests: [],
       foodSubmissions: [],
+      foodIdentificationOverrides: [],
       workoutSessions: [],
       exercises: [],
       aiMessages: [],
       bodyWeightLogs: [],
+      bodyFatLogs: [],
       classes: [],
       classSeries: [],
       classWorkouts: [],
@@ -1540,6 +1584,11 @@ function readDb(): Database {
       pinnedExercises: p.pinnedExercises ?? null,
       pinnedProgressionExercises: p.pinnedProgressionExercises ?? null,
       heightCm: p.heightCm ?? null,
+      bodyFatPct: p.bodyFatPct ?? null,
+      goalWeightKg: p.goalWeightKg ?? null,
+      goalBodyFatPct: p.goalBodyFatPct ?? null,
+      goalTargetDate: p.goalTargetDate ?? null,
+      country: p.country ?? null,
     })),
     resetTokens: parsed.resetTokens ?? [],
     invites: parsed.invites ?? [],
@@ -1557,6 +1606,7 @@ function readDb(): Database {
     brandedFoods: parsed.brandedFoods ?? [],
     foodModerationRequests: parsed.foodModerationRequests ?? [],
     foodSubmissions: parsed.foodSubmissions ?? [],
+    foodIdentificationOverrides: parsed.foodIdentificationOverrides ?? [],
     workoutSessions: (parsed.workoutSessions ?? []).map((s) => ({
       ...s,
       exercises: s.exercises ?? [],
@@ -1565,6 +1615,7 @@ function readDb(): Database {
     exercises: parsed.exercises ?? [],
     aiMessages: parsed.aiMessages ?? [],
     bodyWeightLogs: parsed.bodyWeightLogs ?? [],
+    bodyFatLogs: parsed.bodyFatLogs ?? [],
     classes: (parsed.classes ?? []).map((c) => ({ ...c, category: c.category ?? "general", imageUrl: c.imageUrl ?? null, imageAlt: c.imageAlt ?? null })),
     classSeries: parsed.classSeries ?? [],
     classWorkouts: parsed.classWorkouts ?? [],
@@ -2176,6 +2227,29 @@ export function saveFood(record: FoodRecord): void {
 export function deleteFood(domain: FoodDomain, id: string): void {
   const db = readDb();
   setFoodCollection(db, domain, foodCollection(db, domain).filter((f) => f.id !== id));
+  writeDb(db);
+}
+
+export function findFoodIdentificationOverridesByUserId(userId: string): FoodIdentificationOverrideRecord[] {
+  return readDb().foodIdentificationOverrides.filter((o) => o.userId === userId);
+}
+
+// Upsert keyed on (userId, triggerLabel) — one standing override per trigger
+// per member, so re-saving "Always use this" for the same AI-identified name
+// replaces the old preference rather than accumulating duplicates.
+export function saveFoodIdentificationOverride(record: FoodIdentificationOverrideRecord): void {
+  const db = readDb();
+  const index = db.foodIdentificationOverrides.findIndex(
+    (o) => o.userId === record.userId && o.triggerLabel === record.triggerLabel
+  );
+  if (index === -1) db.foodIdentificationOverrides.push(record);
+  else db.foodIdentificationOverrides[index] = record;
+  writeDb(db);
+}
+
+export function deleteFoodIdentificationOverride(id: string, userId: string): void {
+  const db = readDb();
+  db.foodIdentificationOverrides = db.foodIdentificationOverrides.filter((o) => !(o.id === id && o.userId === userId));
   writeDb(db);
 }
 
@@ -3251,6 +3325,26 @@ export function saveBodyWeightLog(log: BodyWeightLogRecord) {
     db.bodyWeightLogs.push(log);
   } else {
     db.bodyWeightLogs[index] = log;
+  }
+  writeDb(db);
+}
+
+// Body fat logs — mirrors the bodyWeightLogs functions above exactly.
+
+export function findBodyFatLogsByUserId(userId: string): BodyFatLogRecord[] {
+  const db = readDb();
+  return db.bodyFatLogs
+    .filter((l) => l.userId === userId)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export function saveBodyFatLog(log: BodyFatLogRecord) {
+  const db = readDb();
+  const index = db.bodyFatLogs.findIndex((l) => l.id === log.id);
+  if (index === -1) {
+    db.bodyFatLogs.push(log);
+  } else {
+    db.bodyFatLogs[index] = log;
   }
   writeDb(db);
 }

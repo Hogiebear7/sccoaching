@@ -7,8 +7,10 @@ import {
   isBarcodeShaped,
   isBrandedRecordStale,
   isValidGtinChecksum,
+  normalizeOffCountryTag,
   normalizeOpenFoodFactsProduct,
   nutritionForGrams,
+  rankByTextMatch,
   scoreFoodMatch,
   searchFoodCatalog,
   stringSimilarity,
@@ -87,6 +89,57 @@ describe("scoreFoodMatch", () => {
   });
 });
 
+describe("rankByTextMatch — country boost", () => {
+  it("breaks a tie within the same relevance tier in favor of the member's country", () => {
+    // Both are "contains" matches (score 200) for query "bar" — same tier.
+    const irish = makeFood({ id: "ie", name: "Protein Bar", region: "IE" });
+    const other = makeFood({ id: "us", name: "Protein Bar", region: "US" });
+    const result = rankByTextMatch("bar", [other, irish], 10, "IE");
+    expect(result.map((f) => f.id)).toEqual(["ie", "us"]);
+  });
+
+  it("never promotes a country match above a strictly better text match", () => {
+    // "banana" startsWith "ban" (score 300) beats a country-matched
+    // "cabana" that only contains "ban" (score 200 + 10 boost = 210).
+    const startsWith = makeFood({ id: "sw", name: "Banana", region: "US" });
+    const containsSameCountry = makeFood({ id: "cs", name: "Cabana Snack", region: "IE" });
+    const result = rankByTextMatch("ban", [containsSameCountry, startsWith], 10, "IE");
+    expect(result.map((f) => f.id)).toEqual(["sw", "cs"]);
+  });
+
+  it("is a no-op when the member has no country set or the food has no region", () => {
+    const noRegion = makeFood({ id: "nr", name: "Protein Bar", region: null });
+    expect(rankByTextMatch("bar", [noRegion], 10, "IE").map((f) => f.id)).toEqual(["nr"]);
+    const withRegion = makeFood({ id: "wr", name: "Protein Bar", region: "IE" });
+    expect(rankByTextMatch("bar", [withRegion], 10, null).map((f) => f.id)).toEqual(["wr"]);
+  });
+
+  it("never turns a non-match into a match", () => {
+    const irishNonMatch = makeFood({ id: "ie", name: "Broccoli", region: "IE" });
+    expect(rankByTextMatch("zzz", [irishNonMatch], 10, "IE")).toEqual([]);
+  });
+});
+
+describe("normalizeOffCountryTag", () => {
+  it("maps a known OFF country tag to its ISO alpha-2 code", () => {
+    expect(normalizeOffCountryTag("en:ireland")).toBe("IE");
+    expect(normalizeOffCountryTag("en:united-states")).toBe("US");
+  });
+
+  it("is case-insensitive on the tag", () => {
+    expect(normalizeOffCountryTag("EN:IRELAND")).toBe("IE");
+  });
+
+  it("leaves an unmapped tag as-is rather than dropping it", () => {
+    expect(normalizeOffCountryTag("en:atlantis")).toBe("en:atlantis");
+  });
+
+  it("returns null for a missing tag", () => {
+    expect(normalizeOffCountryTag(undefined)).toBeNull();
+    expect(normalizeOffCountryTag(null)).toBeNull();
+  });
+});
+
 describe("getFoodHistory", () => {
   const banana = makeFood({ id: "banana", name: "Banana" });
   const apple = makeFood({ id: "apple", name: "Apple" });
@@ -147,6 +200,25 @@ describe("searchFoodCatalog", () => {
     expect(result.custom).toEqual([]);
     expect(result.common.map((f) => f.id)).toEqual(["co1"]);
     expect(result.branded).toEqual([]);
+  });
+
+  it("threads the country param through to branded ranking as a tie-breaker", () => {
+    const branded = [
+      makeFood({ id: "b-us", domain: "branded", name: "Protein Bar", brandName: "Acme", region: "US" }),
+      makeFood({ id: "b-ie", domain: "branded", name: "Protein Bar", brandName: "Acme", region: "IE" }),
+    ];
+
+    const result = searchFoodCatalog({
+      query: "protein bar",
+      userEntries: [],
+      customFoods: [],
+      commonFoods: [],
+      brandedFoods: branded,
+      resolveFood: () => undefined,
+      country: "IE",
+    });
+
+    expect(result.branded.map((f) => f.id)).toEqual(["b-ie", "b-us"]);
   });
 });
 

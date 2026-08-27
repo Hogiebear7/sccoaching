@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import {
@@ -12,10 +12,12 @@ import {
   type PrimaryGoal,
   type ProfileRecord,
 } from "@/lib/profile-schema";
-import type { BodyWeightLogRecord } from "@/lib/db";
+import type { BodyFatLogRecord, BodyWeightLogRecord } from "@/lib/db";
 import type { MemberStatsData } from "@/lib/member-stats";
+import type { GoalTimelineResult } from "@/lib/body-composition-goal";
+import { latestBodyFatLog } from "@/lib/body-fat";
 import { latestWeightLog } from "@/lib/body-weight";
-import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
+import { COUNTRY_OPTIONS, GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
 import { DietaryRequirementsFields } from "@/components/profile/DietaryRequirementsFields";
 import { ProfileStatsCard } from "./ProfileStatsCard";
 
@@ -179,6 +181,352 @@ function weightChangeSummary(logs: BodyWeightLogRecord[]): string | null {
   return `${delta > 0 ? "Up" : "Down"} ${Math.abs(delta)} kg since your first entry (${since}).`;
 }
 
+// Body fat % — mirrors the body weight chart/filter/summary trio above
+// exactly (BW_* constants, BwFilter, applyBwFilter, BodyWeightTrendChart,
+// weightChangeSummary), applied to BodyFatLogRecord instead.
+
+function applyBfFilter(logs: BodyFatLogRecord[], filter: BwFilter): BodyFatLogRecord[] {
+  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date));
+  if (filter === "all") return sorted;
+  const cutoff = new Date();
+  if (filter === "month")   cutoff.setMonth(cutoff.getMonth() - 1);
+  if (filter === "3months") cutoff.setMonth(cutoff.getMonth() - 3);
+  if (filter === "6months") cutoff.setMonth(cutoff.getMonth() - 6);
+  if (filter === "year")    cutoff.setFullYear(cutoff.getFullYear() - 1);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  return sorted.filter((l) => l.date >= cutoffStr);
+}
+
+function BodyFatTrendChart({ logs }: { logs: BodyFatLogRecord[] }) {
+  if (logs.length < 2) {
+    return (
+      <p className="py-3 text-center text-xs text-muted-foreground">
+        {logs.length === 0
+          ? "No entries in this time range."
+          : "Log at least two entries to see a trend."}
+      </p>
+    );
+  }
+
+  const innerW = BW_W - BW_PAD.left - BW_PAD.right;
+  const innerH = BW_H - BW_PAD.top - BW_PAD.bottom;
+
+  const values = logs.map((l) => l.bodyFatPct);
+  const minY = Math.min(...values);
+  const maxY = Math.max(...values);
+  const yRange = maxY === minY ? 1 : maxY - minY;
+
+  const toX = (i: number) =>
+    BW_PAD.left + (logs.length === 1 ? innerW / 2 : (i / (logs.length - 1)) * innerW);
+  const toY = (val: number) =>
+    BW_PAD.top + innerH - ((val - minY) / yRange) * innerH;
+
+  const plotted = logs.map((l, i) => ({ x: toX(i), y: toY(l.bodyFatPct), val: l.bodyFatPct, date: l.date }));
+  const labelStep = Math.max(1, Math.ceil(logs.length / 6));
+
+  const segments = plotted.slice(1).map((p, i) => ({
+    x1: plotted[i].x,
+    y1: plotted[i].y,
+    x2: p.x,
+    y2: p.y,
+    isGap: daysBetween(plotted[i].date, p.date) > BW_GAP_DAYS,
+  }));
+
+  const areaPoints = [
+    `${plotted[0].x},${BW_PAD.top + innerH}`,
+    ...plotted.map((p) => `${p.x},${p.y}`),
+    `${plotted[plotted.length - 1].x},${BW_PAD.top + innerH}`,
+  ].join(" ");
+
+  return (
+    <svg
+      viewBox={`0 0 ${BW_W} ${BW_H}`}
+      width="100%"
+      className="overflow-visible text-foreground"
+      aria-hidden="true"
+    >
+      <line
+        x1={BW_PAD.left} y1={BW_PAD.top}
+        x2={BW_PAD.left} y2={BW_PAD.top + innerH}
+        stroke="currentColor" strokeOpacity={0.12} strokeWidth={1}
+      />
+      <line
+        x1={BW_PAD.left} y1={BW_PAD.top + innerH}
+        x2={BW_PAD.left + innerW} y2={BW_PAD.top + innerH}
+        stroke="currentColor" strokeOpacity={0.12} strokeWidth={1}
+      />
+      <polygon points={areaPoints} style={{ fill: "var(--primary)" }} opacity={0.08} />
+      {segments.map((s, i) => (
+        <line
+          key={i}
+          x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2}
+          style={{ stroke: "var(--primary)" }}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeDasharray={s.isGap ? "3 5" : undefined}
+          strokeOpacity={s.isGap ? 0.55 : 1}
+        />
+      ))}
+      {plotted.map(({ x, y, val, date }, i) => (
+        <g key={i}>
+          <circle cx={x} cy={y} r={3.5} style={{ fill: "var(--primary)" }} />
+          <text x={x} y={y - 8} textAnchor="middle" fontSize={8} fill="currentColor" opacity={0.7}>
+            {val}
+          </text>
+          {i % labelStep === 0 && (
+            <text x={x} y={BW_PAD.top + innerH + 16} textAnchor="middle" fontSize={8} fill="currentColor" opacity={0.45}>
+              {shortDate(date)}
+            </text>
+          )}
+        </g>
+      ))}
+      <text x={BW_PAD.left - 5} y={BW_PAD.top} textAnchor="end" dominantBaseline="middle" fontSize={8} fill="currentColor" opacity={0.45}>
+        {maxY}
+      </text>
+      <text x={BW_PAD.left - 5} y={BW_PAD.top + innerH} textAnchor="end" dominantBaseline="middle" fontSize={8} fill="currentColor" opacity={0.45}>
+        {minY}
+      </text>
+    </svg>
+  );
+}
+
+function bodyFatChangeSummary(logs: BodyFatLogRecord[]): string | null {
+  if (logs.length < 2) return null;
+  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date));
+  const first = sorted[0];
+  const latest = sorted[sorted.length - 1];
+  const delta = Math.round((latest.bodyFatPct - first.bodyFatPct) * 10) / 10;
+  const since = new Date(`${first.date}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (delta === 0) return `No change since your first entry (${since}).`;
+  return `${delta > 0 ? "Up" : "Down"} ${Math.abs(delta)} pts since your first entry (${since}).`;
+}
+
+function formatShortDate(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+interface GoalTimelineData {
+  goalWeightKg: number | null;
+  goalBodyFatPct: number | null;
+  goalTargetDate: string | null;
+  currentWeightKg: number | null;
+  currentBodyFatPct: number | null;
+  weightTimeline: GoalTimelineResult | null;
+  bodyFatTimeline: GoalTimelineResult | null;
+}
+
+function TimelineSummary({ label, unit, timeline }: { label: string; unit: string; timeline: GoalTimelineResult }) {
+  return (
+    <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] p-3">
+      <p className="text-xs font-semibold text-foreground">{label}</p>
+      {timeline.clampedWeeklyRate !== null ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Needs about {Math.abs(timeline.clampedWeeklyRate).toFixed(2)}{unit}/week{" "}
+          {timeline.direction === "lose" ? "off" : "on"} to hit your date.
+          {timeline.isAggressive ? (
+            <span className="text-[var(--warning)]"> That's faster than a safe pace — the plan is capped at a safer rate, so your date may slip.</span>
+          ) : null}
+        </p>
+      ) : null}
+      {timeline.projectedDateAtCurrentTrend ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          At your current logged trend, you're on track for around {formatShortDate(timeline.projectedDateAtCurrentTrend)}.
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Keep logging to see a projection based on your actual trend.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Goal timeline card — member-set target weight/body-fat + date, with an
+// honest projection (realistic vs. capped-for-safety) fetched from
+// /api/profile/goal-timeline. A separate small save form (like Body
+// weight/Body fat above), not folded into the main profile form.
+function GoalTimelineCard() {
+  const [goalWeightKg, setGoalWeightKg] = useState("");
+  const [goalBodyFatPct, setGoalBodyFatPct] = useState("");
+  const [goalTargetDate, setGoalTargetDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<GoalTimelineData | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  async function fetchTimeline() {
+    try {
+      const res = await fetch("/api/profile/goal-timeline");
+      const json = await res.json();
+      if (json.success) {
+        setData(json.data);
+        setGoalWeightKg(json.data.goalWeightKg !== null ? String(json.data.goalWeightKg) : "");
+        setGoalBodyFatPct(json.data.goalBodyFatPct !== null ? String(json.data.goalBodyFatPct) : "");
+        setGoalTargetDate(json.data.goalTargetDate ?? "");
+      }
+    } catch {
+      // Offline or server hiccup — leave the form at its last-known state.
+    } finally {
+      setLoaded(true);
+    }
+  }
+
+  useEffect(() => {
+    void fetchTimeline();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleSave(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+
+    const weightVal = goalWeightKg.trim() ? parseFloat(goalWeightKg) : null;
+    const bodyFatVal = goalBodyFatPct.trim() ? parseFloat(goalBodyFatPct) : null;
+    if (goalWeightKg.trim() && (!Number.isFinite(weightVal) || (weightVal ?? 0) <= 0)) {
+      setError("Goal weight must be a positive number.");
+      return;
+    }
+    if (goalBodyFatPct.trim() && (!Number.isFinite(bodyFatVal) || (bodyFatVal ?? 0) <= 0 || (bodyFatVal ?? 0) > 75)) {
+      setError("Goal body fat must be a percentage between 0 and 75.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/profile/goal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goalWeightKg: weightVal,
+          goalBodyFatPct: bodyFatVal,
+          goalTargetDate: goalTargetDate.trim() || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json?.message ?? "Could not save your goal. Please try again.");
+        return;
+      }
+      await fetchTimeline();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function nudgeDate(days: number) {
+    setGoalTargetDate((prev) => shiftDate(prev || new Date().toISOString().slice(0, 10), days));
+  }
+
+  return (
+    <div className="surface-card overflow-hidden">
+      <div className="border-b border-white/[0.06] p-5 sm:p-6">
+        <p className="label-caps">Goal timeline</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Optional. Set a target weight and/or body-fat % with a date, and your daily calorie
+          target adjusts to actually aim at it — capped at a safe rate, never chasing an unsafe one.
+        </p>
+      </div>
+
+      <form onSubmit={handleSave} className="border-b border-white/[0.06] p-5 sm:p-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Goal weight (kg)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.1"
+              value={goalWeightKg}
+              onChange={(e) => setGoalWeightKg(e.target.value)}
+              placeholder="optional"
+              className={inputClass()}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Goal body fat (%)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={75}
+              step="0.1"
+              value={goalBodyFatPct}
+              onChange={(e) => setGoalBodyFatPct(e.target.value)}
+              placeholder="optional"
+              className={inputClass()}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Target date</label>
+            <input
+              type="date"
+              value={goalTargetDate}
+              onChange={(e) => setGoalTargetDate(e.target.value)}
+              className={inputClass()}
+            />
+          </div>
+        </div>
+
+        {goalTargetDate ? (
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Adjust:</span>
+            <button type="button" onClick={() => nudgeDate(-7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
+              1 week sooner
+            </button>
+            <button type="button" onClick={() => nudgeDate(7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
+              1 week later
+            </button>
+          </div>
+        ) : null}
+
+        <div className="mt-4 flex justify-end">
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary px-5 py-2.5 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Save goal"}
+          </button>
+        </div>
+
+        {error ? (
+          <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </form>
+
+      {loaded && data && (data.weightTimeline || data.bodyFatTimeline) ? (
+        <div className="space-y-3 p-5 sm:p-6">
+          {data.weightTimeline ? (
+            <TimelineSummary label={`Weight -> ${data.goalWeightKg} kg`} unit=" kg" timeline={data.weightTimeline} />
+          ) : null}
+          {data.bodyFatTimeline ? (
+            <TimelineSummary label={`Body fat -> ${data.goalBodyFatPct}%`} unit=" pts" timeline={data.bodyFatTimeline} />
+          ) : null}
+        </div>
+      ) : loaded && data && (data.goalWeightKg !== null || data.goalBodyFatPct !== null) ? (
+        <div className="p-5 text-xs text-muted-foreground sm:p-6">
+          Log your weight/body-fat to start seeing a projection.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 type ProfileFormValues = {
   fullName: string;
   phone: string;
@@ -187,6 +535,7 @@ type ProfileFormValues = {
   primaryGoal: PrimaryGoal | "";
   sportPlayed: string;
   heightCm: string;
+  country: string;
   additionalInfo: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
@@ -209,6 +558,7 @@ function toFormValues(profile: ProfileRecord): ProfileFormValues {
     primaryGoal: profile.primaryGoal,
     sportPlayed: profile.sportPlayed ?? "",
     heightCm: profile.heightCm !== null && profile.heightCm !== undefined ? String(profile.heightCm) : "",
+    country: profile.country ?? "",
     additionalInfo: profile.additionalInfo ?? "",
     emergencyContactName: profile.emergencyContactName ?? "",
     emergencyContactPhone: profile.emergencyContactPhone ?? "",
@@ -235,11 +585,13 @@ export function ProfileForm({
   email,
   profile,
   bodyWeightLogs,
+  bodyFatLogs,
   statsData,
 }: {
   email: string;
   profile: ProfileRecord;
   bodyWeightLogs: BodyWeightLogRecord[];
+  bodyFatLogs: BodyFatLogRecord[];
   statsData: MemberStatsData;
 }) {
   const router = useRouter();
@@ -262,6 +614,49 @@ export function ProfileForm({
   const [latestLogDate, setLatestLogDate] = useState<string | null>(
     () => latestWeightLog(bodyWeightLogs)?.date ?? null
   );
+
+  const [bfDate, setBfDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [bfPct, setBfPct] = useState("");
+  const [bfError, setBfError] = useState<string | null>(null);
+  const [bfSubmitting, setBfSubmitting] = useState(false);
+  const [bfFilter, setBfFilter] = useState<BwFilter>("3months");
+  const [displayBodyFatPct, setDisplayBodyFatPct] = useState<number | null>(profile.bodyFatPct ?? null);
+  const [latestBfLogDate, setLatestBfLogDate] = useState<string | null>(
+    () => latestBodyFatLog(bodyFatLogs)?.date ?? null
+  );
+
+  async function handleBfSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBfError(null);
+    const pct = parseFloat(bfPct);
+    if (!bfDate || !Number.isFinite(pct) || pct <= 0 || pct > 75) {
+      setBfError("Please enter a valid date and a body fat % between 0 and 75.");
+      return;
+    }
+    setBfSubmitting(true);
+    try {
+      const res = await fetch("/api/profile/body-fat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: bfDate, bodyFatPct: pct }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setBfError(data?.message ?? "Could not log body fat. Please try again.");
+        return;
+      }
+      setBfPct("");
+      if (latestBfLogDate === null || bfDate >= latestBfLogDate) {
+        setDisplayBodyFatPct(pct);
+        setLatestBfLogDate(bfDate);
+      }
+      router.refresh();
+    } catch {
+      setBfError("Something went wrong. Please try again.");
+    } finally {
+      setBfSubmitting(false);
+    }
+  }
 
   async function handleBwSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -607,6 +1002,24 @@ export function ProfileForm({
             placeholder="e.g. 178"
             className={inputClass(errors.heightCm)}
           />
+
+          <label htmlFor="profile-country" className="mt-4 mb-1.5 block text-sm font-medium text-foreground">
+            Country <span className="text-xs font-normal text-muted-foreground">optional — improves food search results</span>
+          </label>
+          <select
+            id="profile-country"
+            form="profile-form"
+            value={values.country}
+            onChange={(e) => handleTextChange("country", e)}
+            className={inputClass(errors.country)}
+          >
+            <option value="">Not set</option>
+            {COUNTRY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <form onSubmit={handleBwSubmit} className="border-b border-white/[0.06] p-5 sm:p-6">
@@ -686,6 +1099,107 @@ export function ProfileForm({
           )}
         </div>
       </div>
+
+      {/* Body fat % — optional, same pattern as body weight. Explains why
+          it's worth logging since it's a less familiar metric than weight. */}
+      <div className="surface-card overflow-hidden">
+        <div className="border-b border-white/[0.06] p-5 sm:p-6">
+          <p className="label-caps">Body fat %</p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Optional. Weight alone can't tell muscle gain from fat loss — logging body fat %
+            (from calipers, a smart scale, or a DEXA/InBody scan) lets your plan track body
+            composition directly instead of just the number on the scale.
+          </p>
+          <div className="mt-3 flex items-center justify-between rounded-lg border border-white/[0.09] bg-white/[0.03] px-4 py-3">
+            <span className="text-sm font-semibold text-foreground tabular-nums">
+              {displayBodyFatPct !== null ? `${displayBodyFatPct}%` : "—"}
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {latestBfLogDate ? `logged ${formatDMY(latestBfLogDate)}` : "no entries yet"}
+            </span>
+          </div>
+        </div>
+
+        <form onSubmit={handleBfSubmit} className="border-b border-white/[0.06] p-5 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Date</label>
+              <input
+                type="date"
+                value={bfDate}
+                onChange={(e) => setBfDate(e.target.value)}
+                className={inputClass()}
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Body fat (%)</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={75}
+                step="0.1"
+                value={bfPct}
+                onChange={(e) => setBfPct(e.target.value)}
+                placeholder="e.g. 18.5"
+                className={inputClass()}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={bfSubmitting}
+              className="btn-primary px-5 py-3 disabled:cursor-not-allowed disabled:opacity-60 sm:shrink-0"
+            >
+              {bfSubmitting ? "Logging…" : "Log body fat"}
+            </button>
+          </div>
+
+          {bfError ? (
+            <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {bfError}
+            </p>
+          ) : null}
+        </form>
+
+        <div className="p-5 sm:p-6">
+          {bodyFatLogs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Log your first reading above to start tracking body composition.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {BW_FILTER_LABELS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setBfFilter(value)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                      bfFilter === value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-white/[0.09] text-muted-foreground hover:border-primary/60 hover:text-primary"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {bodyFatChangeSummary(bodyFatLogs) ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {bodyFatChangeSummary(bodyFatLogs)}
+                </p>
+              ) : null}
+
+              <div className="mt-3">
+                <BodyFatTrendChart logs={applyBfFilter(bodyFatLogs, bfFilter)} />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <GoalTimelineCard />
 
       {/* More — related destinations, grouped under a clear label instead
           of floating loose at the bottom of the page. */}

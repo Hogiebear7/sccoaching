@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { identifyFoodPhoto, isAiConfigured } from "@/lib/ai";
-import { findUserById } from "@/lib/db";
+import { findFoodIdentificationOverridesByUserId, findUserById } from "@/lib/db";
+import { applyFoodIdentificationOverrides } from "@/lib/food-identification-override";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -66,7 +67,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const items = await identifyFoodPhoto({ imageDataUrl: imageBase64 });
+    const rawItems = await identifyFoodPhoto({ imageDataUrl: imageBase64 });
+    const overrides = findFoodIdentificationOverridesByUserId(user.id);
+    const items = applyFoodIdentificationOverrides(rawItems, overrides);
     return NextResponse.json({ success: true, configured: true, items });
   } catch (err) {
     console.error(`[food-catalog] photo identification failed for user ${user.id}:`, err);

@@ -7,6 +7,7 @@ import type { AiMessageRecord } from "@/lib/db";
 import type { NutritionCoachContextDisplay } from "@/lib/ai-context";
 import type { DrinkSettings } from "@/lib/drink-settings";
 import { EXERTION_LABEL, type Exertion } from "@/lib/nutrition";
+import { extractTargetProposal, type TargetProposal } from "@/lib/nutrition-target-proposal";
 import { IconBadge } from "@/components/graphics/IconBadge";
 
 type LocalMsg = {
@@ -86,6 +87,7 @@ export function NutritionAiCoach({
   onOpenChange,
   prefillPrompt,
   onPrefillConsumed,
+  onTargetApplied,
 }: {
   initialMessages: AiMessageRecord[];
   configured: boolean;
@@ -100,14 +102,44 @@ export function NutritionAiCoach({
       applied once, then cleared via onPrefillConsumed. */
   prefillPrompt: string | null;
   onPrefillConsumed: () => void;
+  /** Called after the member confirms a proposed target via the "Apply
+      this target" button, so the tab's own hero card refetches and shows
+      the new number immediately. */
+  onTargetApplied?: () => void;
 }) {
   const [messages, setMessages] = useState<LocalMsg[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState(() => crypto.randomUUID());
+  const [applyingMsgId, setApplyingMsgId] = useState<string | null>(null);
+  const [appliedMsgIds, setAppliedMsgIds] = useState<Set<string>>(new Set());
+  const [applyError, setApplyError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  async function applyProposal(msgId: string, proposal: TargetProposal) {
+    setApplyingMsgId(msgId);
+    setApplyError(null);
+    try {
+      const res = await fetch("/api/mobile/nutrition/target/member-override", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(proposal),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setApplyError(data?.message ?? "Could not apply that target. Please try again.");
+        return;
+      }
+      setAppliedMsgIds((prev) => new Set(prev).add(msgId));
+      onTargetApplied?.();
+    } catch {
+      setApplyError("Could not apply that target. Please try again.");
+    } finally {
+      setApplyingMsgId(null);
+    }
+  }
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -341,6 +373,11 @@ export function NutritionAiCoach({
             ) : (
               messages.map((msg) => {
                 const isUser = msg.role === "user";
+                // Only a finished assistant reply can carry a real proposal —
+                // a still-streaming marker line may be half-written.
+                const { cleanText, proposal } =
+                  !isUser && !msg.streaming ? extractTargetProposal(msg.content) : { cleanText: msg.content, proposal: null };
+                const applied = appliedMsgIds.has(msg.id);
                 return (
                   <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                     <div
@@ -351,7 +388,7 @@ export function NutritionAiCoach({
                       }`}
                     >
                       <p className="whitespace-pre-wrap">
-                        {msg.content}
+                        {cleanText}
                         {msg.streaming && (
                           <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse rounded-full bg-gold align-middle" />
                         )}
@@ -362,10 +399,34 @@ export function NutritionAiCoach({
                           {formatTime(msg.createdAt) ? ` · ${formatTime(msg.createdAt)}` : ""}
                         </p>
                       )}
+                      {proposal && (
+                        <div className="mt-3 border-t border-white/[0.08] pt-3">
+                          <p className="text-[11px] text-zinc-400">
+                            {proposal.calories} kcal · {proposal.proteinG}g protein · {proposal.carbsG}g carbs ·{" "}
+                            {proposal.fatG}g fat
+                          </p>
+                          <button
+                            type="button"
+                            disabled={applied || applyingMsgId === msg.id}
+                            onClick={() => void applyProposal(msg.id, proposal)}
+                            className="mt-2 rounded-lg border border-gold/30 bg-gold/[0.08] px-3 py-1.5 text-xs font-semibold text-gold transition-colors duration-150 hover:bg-gold/[0.14] disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            {applied ? "Target applied" : applyingMsgId === msg.id ? "Applying…" : "Apply this target"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })
+            )}
+
+            {applyError && (
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-[10px] rounded-bl-md border border-destructive/30 bg-destructive/10 px-4 py-2.5">
+                  <p className="text-xs text-destructive">{applyError}</p>
+                </div>
+              </div>
             )}
 
             {isSending && !messages.some((m) => m.streaming) && (

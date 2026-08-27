@@ -377,6 +377,7 @@ function buildWeeklyTrainingPatternLines(schedule: WeeklyTrainingScheduleRecord 
       const bits = [s.label];
       if (s.timeOfDay) bits.push(s.timeOfDay);
       if (s.intensity) bits.push(`${s.intensity} intensity`);
+      if (s.estimatedDurationMins) bits.push(`~${s.estimatedDurationMins} min`);
       return bits.join(", ");
     });
     lines.push(`- ${WEEKDAY_LABEL[day]}: ${parts.join(" · ")}`);
@@ -478,12 +479,16 @@ export function buildNutritionCoachContext(input: NutritionCoachContextInput): N
       "- Their coach has disabled automatic targets. Don't state or imply a calorie/macro number — talk qualitatively about fuelling instead."
     );
   } else if (resolvedTarget?.mode === "manual" && resolvedTarget.calories !== null) {
-    lines.push("## Daily calorie/macro target — set by their coach (already computed — cite exactly, never recompute)");
+    lines.push(
+      resolvedTarget.setByMember
+        ? "## Daily calorie/macro target — set by the member themselves via this chat (already computed — cite exactly, never recompute)"
+        : "## Daily calorie/macro target — set by their coach (already computed — cite exactly, never recompute)"
+    );
     lines.push(`- Calories: ${resolvedTarget.calories} kcal`);
     lines.push(`- Protein: ${resolvedTarget.proteinG} g`);
     lines.push(`- Carbs: ${resolvedTarget.carbsG} g`);
     lines.push(`- Fat: ${resolvedTarget.fatG} g`);
-    if (resolvedTarget.notes) lines.push(`- Coach's note: ${resolvedTarget.notes}`);
+    if (resolvedTarget.notes && !resolvedTarget.setByMember) lines.push(`- Coach's note: ${resolvedTarget.notes}`);
   } else if (resolvedTarget?.mode === "auto" && resolvedTarget.calories !== null) {
     lines.push("## Today's calorie/macro target — app-estimated (already computed — cite exactly, never recompute)");
     lines.push(`- Fuel day: ${resolvedTarget.fuelDayLabel}`);

@@ -57,6 +57,23 @@ export interface ProfileRecord {
   // normalization). Unlike currentWeightKg, height isn't synced from a
   // logging feature — it's a single directly-editable value.
   heightCm?: number | null;
+  // Mirrors currentWeightKg's sync pattern exactly: the latest
+  // BodyFatLogRecord wins, this field is a synced mirror + cold-start
+  // fallback for members with no logs yet. See lib/body-fat.ts. Optional
+  // for pre-existing records (see db.ts normalization).
+  bodyFatPct?: number | null;
+  // Weight/body-fat goal timeline — member-set target value(s) and a target
+  // date. Either or both of the two target fields may be set; goalTargetDate
+  // applies to whichever is set (see lib/body-composition-goal.ts). All
+  // optional/nullable for pre-existing records (see db.ts normalization).
+  goalWeightKg?: number | null;
+  goalBodyFatPct?: number | null;
+  goalTargetDate?: string | null;
+  // ISO 3166-1 alpha-2 (e.g. "IE", "US") — used to nudge food-search ranking
+  // toward locally-relevant results (see lib/food-catalog.ts's country
+  // boost). Optional/nullable for pre-existing records (see db.ts
+  // normalization); a member who never sets it just gets no boost.
+  country?: string | null;
   additionalInfo: string | null;
   // In-case-of-emergency contact — collected at signup, editable from
   // Profile, visible to staff on the member detail page. The second
@@ -191,6 +208,12 @@ export interface WeeklyTrainingSession {
   activityType: TrainingActivityType;
   timeOfDay: TrainingTimeOfDay | null;
   intensity: TrainingIntensity | null;
+  /** Self-reported plan value, not a logged actual — "estimated" prefix
+      distinguishes it from WorkoutRecord.durationMins (an actual logged
+      session length) and GymClass.durationMins (a fixed class length).
+      Optional/nullable so pre-existing sessions read as "not set" (see
+      normalizeSessions in app/api/mobile/weekly-training/route.ts). */
+  estimatedDurationMins?: number | null;
   notes: string | null;
   /** true = repeats every week (the original, only behavior this had).
       false = a one-off for the specific week named by weekOf — once that
