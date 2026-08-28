@@ -20,7 +20,9 @@ export type MemberFeature =
   | "unlimitedCustomFoods"
   | "nutritionMoreTools"
   | "gymProfiles"
-  | "notifications";
+  | "notifications"
+  | "aiCoachChat"
+  | "aiNutritionCoachChat";
 
 // App Subscription and Membership rank equal for every feature gated here —
 // the one place they currently differ (Schedule/next-session) is explicitly
@@ -40,6 +42,8 @@ const FEATURE_MIN_TIER: Record<MemberFeature, MemberTier> = {
   nutritionMoreTools: "app_subscription",
   gymProfiles: "app_subscription",
   notifications: "app_subscription",
+  aiCoachChat: "app_subscription",
+  aiNutritionCoachChat: "app_subscription",
 };
 
 export function hasAccess(tier: MemberTier, feature: MemberFeature): boolean {

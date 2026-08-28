@@ -17,6 +17,8 @@ import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { normalizeDrinkSettings } from "@/lib/drink-settings";
 import { buildCoachingContext } from "@/lib/ai-context";
 import { createCoachChatStream, isAiConfigured } from "@/lib/ai";
+import { hasAccess } from "@/lib/member-access";
+import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
@@ -53,6 +55,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, configured: false, message: "AI chat is not available right now." },
       { status: 503 }
+    );
+  }
+
+  if (!hasAccess(resolveMemberTierForUser(user.id), "aiCoachChat")) {
+    return NextResponse.json(
+      { success: false, configured: true, message: "AI Coach chat needs App Subscription or above." },
+      { status: 403 }
     );
   }
 

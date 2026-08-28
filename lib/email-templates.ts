@@ -593,6 +593,48 @@ export function passwordResetEmail(opts: PasswordResetEmailOpts): {
   return { subject, html, text };
 }
 
+// ─── Email change verification ─────────────────────────────────────────────
+
+export interface EmailChangeEmailOpts {
+  changeToken: string;
+}
+
+// Sent to the NEW address only — clicking it is what proves the member
+// actually controls that inbox, which is the entire point of the flow (see
+// consumeEmailChangeToken in lib/db.ts).
+export function emailChangeVerificationEmail(opts: EmailChangeEmailOpts): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { changeToken } = opts;
+  const actionUrl = `${APP_URL}/verify-email-change?token=${changeToken}`;
+  const subject = "Confirm your new email address";
+
+  const html = emailWrapper(subject, `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Email change</p>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">Confirm your new email</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
+      A request was made to change the email on an S&amp;C Performance Coaching account to this address. Confirm it below to complete the change. This link expires in an hour and can only be used once.
+    </p>
+    ${ctaButton("Confirm this email →", actionUrl)}
+    <p style="margin:20px 0 0;font-size:12px;color:#52525b;">If you didn&#39;t request this, you can safely ignore this email — nothing will change.</p>
+  `);
+
+  const text = [
+    `A request was made to change the email on an S&C Performance Coaching account to this address.`,
+    ``,
+    `Confirm it here — this link expires in an hour and can only be used once:`,
+    actionUrl,
+    ``,
+    `If you didn't request this, you can safely ignore this email — nothing will change.`,
+    ``,
+    `— S&C Performance Coaching`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
+
 // ─── Tier invite ───────────────────────────────────────────────────────────
 
 const INVITE_TIER_LABEL: Record<"app_subscription" | "membership", string> = {

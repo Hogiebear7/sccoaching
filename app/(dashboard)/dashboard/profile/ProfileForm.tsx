@@ -320,16 +320,27 @@ interface GoalTimelineData {
   goalWeightKg: number | null;
   goalBodyFatPct: number | null;
   goalTargetDate: string | null;
+  trainingDaysPerWeek: number | null;
   currentWeightKg: number | null;
   currentBodyFatPct: number | null;
   weightTimeline: GoalTimelineResult | null;
   bodyFatTimeline: GoalTimelineResult | null;
 }
 
+const DIFFICULTY_COPY: Record<NonNullable<GoalTimelineResult["difficulty"]>, { label: string; className: string }> = {
+  comfortable: { label: "Comfortable", className: "text-[var(--success)]" },
+  challenging: { label: "Challenging", className: "text-[var(--warning)]" },
+  aggressive: { label: "Aggressive", className: "text-destructive" },
+};
+
 function TimelineSummary({ label, unit, timeline }: { label: string; unit: string; timeline: GoalTimelineResult }) {
+  const difficulty = timeline.difficulty ? DIFFICULTY_COPY[timeline.difficulty] : null;
   return (
     <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] p-3">
-      <p className="text-xs font-semibold text-foreground">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-foreground">{label}</p>
+        {difficulty ? <span className={`text-xs font-semibold ${difficulty.className}`}>{difficulty.label}</span> : null}
+      </div>
       {timeline.clampedWeeklyRate !== null ? (
         <p className="mt-1 text-xs text-muted-foreground">
           Needs about {Math.abs(timeline.clampedWeeklyRate).toFixed(2)}{unit}/week{" "}
@@ -337,6 +348,12 @@ function TimelineSummary({ label, unit, timeline }: { label: string; unit: strin
           {timeline.isAggressive ? (
             <span className="text-[var(--warning)]"> That's faster than a safe pace — the plan is capped at a safer rate, so your date may slip.</span>
           ) : null}
+        </p>
+      ) : null}
+      {timeline.suggestedDate ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          At a sustainable pace for your training frequency, this goal is realistic by around{" "}
+          {formatShortDate(timeline.suggestedDate)}.
         </p>
       ) : null}
       {timeline.projectedDateAtCurrentTrend ? (
@@ -352,6 +369,8 @@ function TimelineSummary({ label, unit, timeline }: { label: string; unit: strin
   );
 }
 
+const TRAINING_DAYS_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
+
 // Goal timeline card — member-set target weight/body-fat + date, with an
 // honest projection (realistic vs. capped-for-safety) fetched from
 // /api/profile/goal-timeline. A separate small save form (like Body
@@ -360,12 +379,14 @@ function GoalTimelineCard() {
   const [goalWeightKg, setGoalWeightKg] = useState("");
   const [goalBodyFatPct, setGoalBodyFatPct] = useState("");
   const [goalTargetDate, setGoalTargetDate] = useState("");
+  const [trainingDaysPerWeek, setTrainingDaysPerWeek] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<GoalTimelineData | null>(null);
   const [loaded, setLoaded] = useState(false);
 
-  async function fetchTimeline() {
+  async function fetchTimeline(): Promise<GoalTimelineData | null> {
     try {
       const res = await fetch("/api/profile/goal-timeline");
       const json = await res.json();
@@ -374,12 +395,15 @@ function GoalTimelineCard() {
         setGoalWeightKg(json.data.goalWeightKg !== null ? String(json.data.goalWeightKg) : "");
         setGoalBodyFatPct(json.data.goalBodyFatPct !== null ? String(json.data.goalBodyFatPct) : "");
         setGoalTargetDate(json.data.goalTargetDate ?? "");
+        setTrainingDaysPerWeek(json.data.trainingDaysPerWeek);
+        return json.data as GoalTimelineData;
       }
     } catch {
       // Offline or server hiccup — leave the form at its last-known state.
     } finally {
       setLoaded(true);
     }
+    return null;
   }
 
   useEffect(() => {
@@ -387,38 +411,93 @@ function GoalTimelineCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleSave(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-
+  function parsedGoals(): { weightVal: number | null; bodyFatVal: number | null } | null {
     const weightVal = goalWeightKg.trim() ? parseFloat(goalWeightKg) : null;
     const bodyFatVal = goalBodyFatPct.trim() ? parseFloat(goalBodyFatPct) : null;
     if (goalWeightKg.trim() && (!Number.isFinite(weightVal) || (weightVal ?? 0) <= 0)) {
       setError("Goal weight must be a positive number.");
-      return;
+      return null;
     }
     if (goalBodyFatPct.trim() && (!Number.isFinite(bodyFatVal) || (bodyFatVal ?? 0) <= 0 || (bodyFatVal ?? 0) > 75)) {
       setError("Goal body fat must be a percentage between 0 and 75.");
+      return null;
+    }
+    if (weightVal === null && bodyFatVal === null) {
+      setError("Set a goal weight or body-fat % first.");
+      return null;
+    }
+    return { weightVal, bodyFatVal };
+  }
+
+  async function saveGoal(body: Record<string, unknown>): Promise<boolean> {
+    const res = await fetch("/api/profile/goal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setError(json?.message ?? "Could not save your goal. Please try again.");
+      return false;
+    }
+    return true;
+  }
+
+  // "Generate timeline" is the primary flow: weight/body-fat goal + training
+  // frequency in, a realistic suggested date out — rather than the member
+  // guessing their own date first. Two round trips (save the inputs, read
+  // back the suggested date, save that as the target date) so the final
+  // fetchTimeline() reflects a saved, sharable state, same as manual save.
+  async function handleGenerate() {
+    setError(null);
+    const parsed = parsedGoals();
+    if (!parsed) return;
+    if (trainingDaysPerWeek === null) {
+      setError("Choose how many days a week you can train.");
       return;
     }
 
-    setSaving(true);
+    setGenerating(true);
     try {
-      const res = await fetch("/api/profile/goal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          goalWeightKg: weightVal,
-          goalBodyFatPct: bodyFatVal,
-          goalTargetDate: goalTargetDate.trim() || null,
-        }),
+      const savedInputs = await saveGoal({
+        goalWeightKg: parsed.weightVal,
+        goalBodyFatPct: parsed.bodyFatVal,
+        trainingDaysPerWeek,
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json?.message ?? "Could not save your goal. Please try again.");
+      if (!savedInputs) return;
+
+      const projection = await fetchTimeline();
+      const suggested = projection?.weightTimeline?.suggestedDate ?? projection?.bodyFatTimeline?.suggestedDate ?? null;
+      if (!suggested) {
+        setError("Not enough information yet to suggest a date — check your current weight/body-fat is logged.");
         return;
       }
+
+      const savedDate = await saveGoal({ goalTargetDate: suggested });
+      if (!savedDate) return;
       await fetchTimeline();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleSave(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const parsed = parsedGoals();
+    if (!parsed) return;
+
+    setSaving(true);
+    try {
+      const ok = await saveGoal({
+        goalWeightKg: parsed.weightVal,
+        goalBodyFatPct: parsed.bodyFatVal,
+        goalTargetDate: goalTargetDate.trim() || null,
+        trainingDaysPerWeek,
+      });
+      if (ok) await fetchTimeline();
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -426,8 +505,12 @@ function GoalTimelineCard() {
     }
   }
 
-  function nudgeDate(days: number) {
-    setGoalTargetDate((prev) => shiftDate(prev || new Date().toISOString().slice(0, 10), days));
+  async function nudgeDate(days: number) {
+    const next = shiftDate(goalTargetDate || new Date().toISOString().slice(0, 10), days);
+    setGoalTargetDate(next);
+    setError(null);
+    const ok = await saveGoal({ goalTargetDate: next });
+    if (ok) await fetchTimeline();
   }
 
   return (
@@ -435,8 +518,9 @@ function GoalTimelineCard() {
       <div className="border-b border-white/[0.06] p-5 sm:p-6">
         <p className="label-caps">Goal timeline</p>
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Optional. Set a target weight and/or body-fat % with a date, and your daily calorie
-          target adjusts to actually aim at it — capped at a safe rate, never chasing an unsafe one.
+          Optional. Set a target weight and/or body-fat %, tell us how many days a week you can
+          train, and generate a realistic timeline — your daily calorie target then adjusts to
+          actually aim at it, capped at a safe rate.
         </p>
       </div>
 
@@ -480,25 +564,56 @@ function GoalTimelineCard() {
           </div>
         </div>
 
-        {goalTargetDate ? (
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Adjust:</span>
-            <button type="button" onClick={() => nudgeDate(-7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
-              1 week sooner
-            </button>
-            <button type="button" onClick={() => nudgeDate(7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
-              1 week later
-            </button>
+        <div className="mt-3">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Days per week you can train</label>
+          <div className="flex flex-wrap gap-1.5">
+            {TRAINING_DAYS_OPTIONS.map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setTrainingDaysPerWeek(d)}
+                className={`rounded-full border px-3 py-1 text-xs ${
+                  trainingDaysPerWeek === d
+                    ? "border-primary/60 bg-primary/10 text-primary"
+                    : "border-white/[0.09] text-muted-foreground hover:border-primary/40"
+                }`}
+              >
+                {d}
+              </button>
+            ))}
           </div>
-        ) : null}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={generating}
+            className="btn-primary px-5 py-2.5 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {generating ? "Generating…" : "Generate timeline"}
+          </button>
+
+          {goalTargetDate ? (
+            <>
+              <span className="text-xs text-muted-foreground">Adjust:</span>
+              <button type="button" onClick={() => nudgeDate(-7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
+                1 week sooner
+              </button>
+              <button type="button" onClick={() => nudgeDate(7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
+                1 week later
+              </button>
+            </>
+          ) : null}
+        </div>
 
         <div className="mt-4 flex justify-end">
           <button
             type="submit"
             disabled={saving}
-            className="btn-primary px-5 py-2.5 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-white/[0.09] px-5 py-2.5 text-sm text-zinc-100 transition hover:border-primary/60 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {saving ? "Saving…" : "Save goal"}
+            {saving ? "Saving…" : "Save without generating"}
           </button>
         </div>
 
@@ -600,6 +715,37 @@ export function ProfileForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [newEmailInput, setNewEmailInput] = useState("");
+  const [emailChangeMessage, setEmailChangeMessage] = useState<string | null>(null);
+  const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
+  const [isSendingEmailChange, setIsSendingEmailChange] = useState(false);
+
+  async function handleRequestEmailChange(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setEmailChangeError(null);
+    setIsSendingEmailChange(true);
+    try {
+      const res = await fetch("/api/profile/change-email/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newEmail: newEmailInput }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setEmailChangeError(data?.message ?? "Could not send confirmation email. Please try again.");
+        return;
+      }
+      setEmailChangeMessage(data.message);
+      setNewEmailInput("");
+      setIsChangingEmail(false);
+    } catch {
+      setEmailChangeError("Something went wrong. Please try again.");
+    } finally {
+      setIsSendingEmailChange(false);
+    }
+  }
 
   const [bwDate, setBwDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [bwWeight, setBwWeight] = useState("");
@@ -800,6 +946,51 @@ export function ProfileForm({
                 disabled
                 className={`${inputClass()} cursor-not-allowed opacity-60`}
               />
+              {emailChangeMessage ? (
+                <p className="mt-1.5 text-xs text-[var(--success)]">{emailChangeMessage}</p>
+              ) : isChangingEmail ? (
+                <form onSubmit={handleRequestEmailChange} className="mt-2 space-y-2">
+                  <input
+                    type="email"
+                    required
+                    value={newEmailInput}
+                    onChange={(e) => setNewEmailInput(e.target.value)}
+                    placeholder="New email address"
+                    className={inputClass()}
+                  />
+                  {emailChangeError ? (
+                    <p className="text-xs text-destructive">{emailChangeError}</p>
+                  ) : null}
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={isSendingEmailChange}
+                      className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-zinc-100 transition hover:border-primary/60 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSendingEmailChange ? "Sending…" : "Send confirmation link"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsChangingEmail(false);
+                        setEmailChangeError(null);
+                        setNewEmailInput("");
+                      }}
+                      className="text-xs text-zinc-400 transition hover:text-zinc-200"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsChangingEmail(true)}
+                  className="mt-1.5 text-xs text-gold transition hover:text-gold/80"
+                >
+                  Change email
+                </button>
+              )}
             </FormField>
 
             <FormField label="Full name" error={errors.fullName}>

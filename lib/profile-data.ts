@@ -19,6 +19,7 @@ export interface ProfileData {
   dateOfBirth: string | null;
   gender: Gender;
   primaryGoal: PrimaryGoal;
+  secondaryGoal: PrimaryGoal | null;
   sportPlayed: string | null;
   additionalInfo: string | null;
   emergencyContactName: string | null;
@@ -80,6 +81,7 @@ export function getProfileData(userId: string | undefined): ProfileData | null {
     dateOfBirth: profile.dateOfBirth,
     gender: profile.gender,
     primaryGoal: profile.primaryGoal,
+    secondaryGoal: profile.secondaryGoal ?? null,
     sportPlayed: profile.sportPlayed,
     additionalInfo: profile.additionalInfo,
     emergencyContactName: profile.emergencyContactName ?? null,

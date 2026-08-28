@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     dateOfBirth,
     gender,
     primaryGoal,
+    secondaryGoal,
     sportPlayed,
     heightCm,
     country,
@@ -107,8 +108,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Secondary goal is optional — only validate the value when one was
+  // actually submitted, mirroring heightCm's "omitted/empty means leave
+  // as-is or clear" handling below rather than primaryGoal's required check.
+  if (
+    typeof secondaryGoal === "string" &&
+    secondaryGoal.trim() !== "" &&
+    !PRIMARY_GOAL_VALUES.includes(secondaryGoal as PrimaryGoal)
+  ) {
+    return NextResponse.json(
+      { success: false, message: "Secondary goal must be a valid goal option." },
+      { status: 400 }
+    );
+  }
+
   const genderValue = gender as Gender;
   const primaryGoalValue = primaryGoal as PrimaryGoal;
+  const secondaryGoalValue: PrimaryGoal | null =
+    typeof secondaryGoal === "string" && secondaryGoal.trim() !== ""
+      ? (secondaryGoal as PrimaryGoal)
+      : null;
   const sportPlayedValue = typeof sportPlayed === "string" ? sportPlayed.trim() : "";
 
   let heightCmValue: number | null = existingProfile.heightCm ?? null;
@@ -178,6 +197,7 @@ export async function POST(request: NextRequest) {
     dateOfBirth: dobRaw,
     gender: genderValue,
     primaryGoal: primaryGoalValue,
+    secondaryGoal: secondaryGoalValue,
     sportPlayed: sportPlayedValue || null,
     currentWeightKg: syncedWeight,
     heightCm: heightCmValue,

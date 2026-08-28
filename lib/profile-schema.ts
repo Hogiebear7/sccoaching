@@ -17,7 +17,16 @@ export type CycleRegularity = "Regular" | "Irregular" | "Unsure";
 // Structured dietary requirements. Preference is a single choice that ranks
 // food suggestions; allergies + intolerances/medical are HARD exclusions the
 // nutrition engine must never violate (see lib/nutrition-recommendations.ts).
-export type DietaryPreference = "standard" | "vegetarian" | "pescetarian" | "vegan";
+export type DietaryPreference =
+  | "standard"
+  | "vegetarian"
+  | "pescetarian"
+  | "vegan"
+  | "low_carb"
+  | "keto"
+  | "paleo"
+  | "mediterranean"
+  | "intermittent_fasting";
 
 export type CycleEventType = "period_start" | "period_end" | "symptom" | "note";
 
@@ -50,6 +59,11 @@ export interface ProfileRecord {
   dateOfBirth: string | null;
   gender: Gender;
   primaryGoal: PrimaryGoal;
+  // Optional secondary focus alongside the primary goal — same option set,
+  // deliberately never required. Optional key (not just nullable) so
+  // records from before this field existed stay valid; see db.ts
+  // normalization.
+  secondaryGoal?: PrimaryGoal | null;
   sportPlayed: string | null;
   currentWeightKg: number | null;
   // Optional so records created before this field existed stay valid;
@@ -69,6 +83,11 @@ export interface ProfileRecord {
   goalWeightKg?: number | null;
   goalBodyFatPct?: number | null;
   goalTargetDate?: string | null;
+  // How many days/week the member can train — feeds the "generate timeline"
+  // realism report (see lib/body-composition-goal.ts) as a sustainability
+  // fraction of the hard safety ceiling. Optional/nullable, same convention
+  // as the goal fields above.
+  trainingDaysPerWeek?: number | null;
   // ISO 3166-1 alpha-2 (e.g. "IE", "US") — used to nudge food-search ranking
   // toward locally-relevant results (see lib/food-catalog.ts's country
   // boost). Optional/nullable for pre-existing records (see db.ts

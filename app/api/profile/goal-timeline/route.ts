@@ -12,6 +12,7 @@ export interface GoalTimelineResponseData {
   goalWeightKg: number | null;
   goalBodyFatPct: number | null;
   goalTargetDate: string | null;
+  trainingDaysPerWeek: number | null;
   currentWeightKg: number | null;
   currentBodyFatPct: number | null;
   /** Null when no goalWeightKg is set. */
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
           targetDateISO: profile.goalTargetDate ?? null,
           asOfDateISO: todayISO,
           history: weightPoints,
+          trainingDaysPerWeek: profile.trainingDaysPerWeek ?? null,
         })
       : null;
 
@@ -61,6 +63,7 @@ export async function GET(request: NextRequest) {
           targetDateISO: profile.goalTargetDate ?? null,
           asOfDateISO: todayISO,
           history: bodyFatPoints,
+          trainingDaysPerWeek: profile.trainingDaysPerWeek ?? null,
         })
       : null;
 
@@ -68,6 +71,7 @@ export async function GET(request: NextRequest) {
     goalWeightKg: profile.goalWeightKg ?? null,
     goalBodyFatPct: profile.goalBodyFatPct ?? null,
     goalTargetDate: profile.goalTargetDate ?? null,
+    trainingDaysPerWeek: profile.trainingDaysPerWeek ?? null,
     currentWeightKg,
     currentBodyFatPct,
     weightTimeline,

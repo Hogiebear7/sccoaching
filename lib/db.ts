@@ -23,6 +23,18 @@ interface ResetTokenRecord {
   createdAt: string;
 }
 
+// A member requesting a change of their account email — the new address is
+// only ever applied once they click the link sent TO THAT NEW ADDRESS (never
+// the old one), which is what actually proves they control it. Same
+// tokenHash-only-on-disk discipline as ResetTokenRecord.
+interface EmailChangeRequestRecord {
+  tokenHash: string;
+  userId: string;
+  newEmail: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
 export type InviteStatus = "pending" | "redeemed" | "expired" | "revoked";
 
 // Staff-issued invite granting a specific tier on redemption (see
@@ -1369,6 +1381,7 @@ interface Database {
   users: StoredUser[];
   profiles: ProfileRecord[];
   resetTokens: ResetTokenRecord[];
+  emailChangeRequests: EmailChangeRequestRecord[];
   invites: InviteRecord[];
   programmes: ProgrammeRecord[];
   trainingPrograms: TrainingProgramRecord[];
@@ -1445,6 +1458,10 @@ const DATA_DIR = configuredDataDir ? path.resolve(configuredDataDir) : path.join
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// Longer than a password reset — this is a member deliberately checking a
+// different inbox, not an urgent security action, so a tighter window would
+// just cause avoidable "link expired" friction.
+const EMAIL_CHANGE_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 // Deployment constraint (see docs/launch-checklist.md §6): this datastore is
 // one JSON file with synchronous read/write, correct for a single persistent
@@ -1486,6 +1503,7 @@ function readDb(): Database {
       users: [],
       profiles: [],
       resetTokens: [],
+      emailChangeRequests: [],
       invites: [],
       programmes: [],
       trainingPrograms: [],
@@ -1588,9 +1606,12 @@ function readDb(): Database {
       goalWeightKg: p.goalWeightKg ?? null,
       goalBodyFatPct: p.goalBodyFatPct ?? null,
       goalTargetDate: p.goalTargetDate ?? null,
+      trainingDaysPerWeek: p.trainingDaysPerWeek ?? null,
+      secondaryGoal: p.secondaryGoal ?? null,
       country: p.country ?? null,
     })),
     resetTokens: parsed.resetTokens ?? [],
+    emailChangeRequests: parsed.emailChangeRequests ?? [],
     invites: parsed.invites ?? [],
     programmes: parsed.programmes ?? [],
     trainingPrograms: parsed.trainingPrograms ?? [],
@@ -2900,6 +2921,67 @@ export function consumeResetToken(token: string): string | undefined {
   writeDb(db);
 
   return userId;
+}
+
+// ─── Email change ───────────────────────────────────────────────────────
+
+export function createEmailChangeToken(userId: string, newEmail: string): { token: string; expiresAt: string } {
+  const db = readDb();
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + EMAIL_CHANGE_TOKEN_TTL_MS).toISOString();
+
+  // Requesting again supersedes any earlier outstanding request for this
+  // user — only the most recent link should ever work.
+  db.emailChangeRequests = db.emailChangeRequests.filter((entry) => entry.userId !== userId);
+
+  db.emailChangeRequests.push({
+    tokenHash: hashToken(token),
+    userId,
+    newEmail: newEmail.toLowerCase(),
+    expiresAt,
+    createdAt: new Date().toISOString(),
+  });
+
+  writeDb(db);
+
+  return { token, expiresAt };
+}
+
+// Validates the token and, if it's still live, swaps the account's email in
+// the same write — returns the new email on success so the caller can
+// confirm it back to the client without a second read.
+export function consumeEmailChangeToken(token: string): string | undefined {
+  const db = readDb();
+  const now = new Date().toISOString();
+
+  db.emailChangeRequests = db.emailChangeRequests.filter((entry) => entry.expiresAt > now);
+
+  const tokenHash = hashToken(token);
+  const match = db.emailChangeRequests.find((entry) => entry.tokenHash === tokenHash);
+
+  if (!match) {
+    writeDb(db);
+    return undefined;
+  }
+
+  const { userId, newEmail } = match;
+  db.emailChangeRequests = db.emailChangeRequests.filter((entry) => entry.userId !== userId);
+
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) {
+    writeDb(db);
+    return undefined;
+  }
+
+  user.email = newEmail;
+  user.updatedAt = now;
+
+  const profile = db.profiles.find((p) => p.userId === userId);
+  if (profile) profile.email = newEmail;
+
+  writeDb(db);
+
+  return newEmail;
 }
 
 // ─── Tier invites ───────────────────────────────────────────────────────

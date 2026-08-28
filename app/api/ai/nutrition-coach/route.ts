@@ -16,6 +16,8 @@ import { resolveBookingsForUser } from "@/lib/bookings";
 import { normalizeDrinkSettings } from "@/lib/drink-settings";
 import { buildNutritionCoachContext } from "@/lib/ai-context";
 import { createNutritionCoachChatStream, isAiConfigured } from "@/lib/ai";
+import { hasAccess } from "@/lib/member-access";
+import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { EXERTION_LABEL, type Exertion } from "@/lib/nutrition";
@@ -56,6 +58,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, configured: false, message: "AI Nutrition Coach is not available right now." },
       { status: 503 }
+    );
+  }
+
+  if (!hasAccess(resolveMemberTierForUser(user.id), "aiNutritionCoachChat")) {
+    return NextResponse.json(
+      { success: false, configured: true, message: "AI Nutrition Coach needs App Subscription or above." },
+      { status: 403 }
     );
   }
 

@@ -1,3 +1,4 @@
+import { COUNTRIES, COUNTRY_VALUES } from "./countries";
 import type { CycleRegularity, DietaryPreference, Gender, PrimaryGoal } from "./profile-schema";
 
 export interface SelectOption<T extends string> {
@@ -39,6 +40,11 @@ export const DIETARY_PREFERENCE_OPTIONS: SelectOption<DietaryPreference>[] = [
   { label: "Vegetarian", value: "vegetarian" },
   { label: "Pescetarian", value: "pescetarian" },
   { label: "Vegan", value: "vegan" },
+  { label: "Low carb", value: "low_carb" },
+  { label: "Keto", value: "keto" },
+  { label: "Paleo", value: "paleo" },
+  { label: "Mediterranean", value: "mediterranean" },
+  { label: "Intermittent fasting", value: "intermittent_fasting" },
 ];
 
 // Allergen keys (value) with member-friendly labels. `value` is what's stored
@@ -71,36 +77,9 @@ export const INTOLERANCE_OPTIONS: SelectOption<string>[] = [
   { label: "High blood pressure", value: "high_blood_pressure" },
 ];
 
-// Countries covered by the OFF country-tag → alpha-2 mapping in
-// lib/food-catalog.ts (normalizeOffCountryTag) — kept as a curated list
-// rather than the full ISO-3166 table since it only needs to cover
-// countries this gym's members are actually likely to select, and every
-// value here must have a matching OFF-tag entry for the ranking boost to
-// ever actually fire.
-export const COUNTRY_OPTIONS: SelectOption<string>[] = [
-  { label: "Ireland", value: "IE" },
-  { label: "United Kingdom", value: "GB" },
-  { label: "United States", value: "US" },
-  { label: "Canada", value: "CA" },
-  { label: "Australia", value: "AU" },
-  { label: "New Zealand", value: "NZ" },
-  { label: "France", value: "FR" },
-  { label: "Germany", value: "DE" },
-  { label: "Spain", value: "ES" },
-  { label: "Italy", value: "IT" },
-  { label: "Netherlands", value: "NL" },
-  { label: "Belgium", value: "BE" },
-  { label: "Portugal", value: "PT" },
-  { label: "Switzerland", value: "CH" },
-  { label: "Austria", value: "AT" },
-  { label: "Sweden", value: "SE" },
-  { label: "Norway", value: "NO" },
-  { label: "Denmark", value: "DK" },
-  { label: "Finland", value: "FI" },
-  { label: "Poland", value: "PL" },
-];
-
-const COUNTRY_VALUES = new Set(COUNTRY_OPTIONS.map((o) => o.value));
+// Full world country list — see lib/countries.ts for the data and its one
+// deliberate deviation from ISO 3166-1 (no Israel, includes Palestine).
+export const COUNTRY_OPTIONS: SelectOption<string>[] = COUNTRIES;
 
 // Untrusted input → a known alpha-2 code or null. Used by the profile-update
 // route the same way sanitizeDietaryFields is — unknown/empty input clears

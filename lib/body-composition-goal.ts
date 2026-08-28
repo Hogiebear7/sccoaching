@@ -21,6 +21,7 @@ const MAX_SAFE_WEEKLY_LOSS_FRACTION = 0.01;
 const MAX_SAFE_WEEKLY_GAIN_FRACTION = 0.0025;
 
 export type GoalDirection = "lose" | "gain" | "maintain";
+export type GoalDifficulty = "comfortable" | "challenging" | "aggressive";
 
 export interface GoalTimelineInput {
   currentValue: number;
@@ -32,6 +33,24 @@ export interface GoalTimelineInput {
   /** Logged history for whichever metric this goal tracks (weight or body
       fat %) — used to compute the "at your current pace" projection. */
   history: WeightPoint[];
+  /** How many days/week the member can train, or null/undefined if they
+      haven't said — drives sustainableWeeklyRate/suggestedDate/difficulty
+      below. Training frequency doesn't change what's biologically SAFE
+      (the hard MAX_SAFE_WEEKLY_*_FRACTION ceilings never move) — it changes
+      what's realistic to sustain, which is a softer, member-specific line
+      inside that hard ceiling. */
+  trainingDaysPerWeek?: number | null;
+}
+
+// 1-2 days/week ~ half the hard safety ceiling is a sustainable ask; 7
+// days/week can sustainably chase the full ceiling. Deliberately coarse
+// buckets rather than a continuous curve — the input itself is a rough
+// self-report, so false precision here would be misleading.
+function trainingDaysFraction(daysPerWeek: number): number {
+  if (daysPerWeek >= 7) return 1;
+  if (daysPerWeek >= 5) return 0.9;
+  if (daysPerWeek >= 3) return 0.75;
+  return 0.5;
 }
 
 export interface GoalTimelineResult {
@@ -56,6 +75,20 @@ export interface GoalTimelineResult {
       logged history yet, or the current trend isn't moving toward the goal
       at all. */
   projectedDateAtCurrentTrend: string | null;
+  /** The weekly rate considered sustainable for this member's training
+      frequency — trainingDaysFraction(trainingDaysPerWeek) of the hard
+      safety ceiling. Signed to match direction. Null without
+      trainingDaysPerWeek, or when direction is "maintain". */
+  sustainableWeeklyRate: number | null;
+  /** The "generate timeline" output: the date this goal is reachable by at
+      the sustainable pace above, independent of any date the member has
+      chosen. Null without trainingDaysPerWeek, or when direction is
+      "maintain". */
+  suggestedDate: string | null;
+  /** How the member's chosen date compares to what's sustainable for their
+      training frequency. Null without both a chosen target date and
+      trainingDaysPerWeek. */
+  difficulty: GoalDifficulty | null;
 }
 
 function isoDaysBetween(a: string, b: string): number {
@@ -107,7 +140,44 @@ export function computeGoalTimeline(input: GoalTimelineInput): GoalTimelineResul
     }
   }
 
-  return { direction, daysToTarget, requiredWeeklyRate, clampedWeeklyRate, isAggressive, projectedDateAtCurrentTrend };
+  let sustainableWeeklyRate: number | null = null;
+  let suggestedDate: string | null = null;
+  let difficulty: GoalDifficulty | null = null;
+
+  if (input.trainingDaysPerWeek != null && direction !== "maintain") {
+    const fraction = trainingDaysFraction(input.trainingDaysPerWeek);
+    const maxLossAbs = Math.abs(input.currentValue * MAX_SAFE_WEEKLY_LOSS_FRACTION);
+    const maxGainAbs = Math.abs(input.currentValue * MAX_SAFE_WEEKLY_GAIN_FRACTION);
+    const sustainableAbs = (direction === "lose" ? maxLossAbs : maxGainAbs) * fraction;
+    sustainableWeeklyRate = direction === "lose" ? -sustainableAbs : sustainableAbs;
+
+    const daysNeeded = (diff / sustainableWeeklyRate) * 7;
+    if (Number.isFinite(daysNeeded) && daysNeeded > 0) {
+      suggestedDate = addIsoDays(input.asOfDateISO, daysNeeded);
+    }
+
+    if (requiredWeeklyRate !== null) {
+      if (isAggressive) {
+        difficulty = "aggressive";
+      } else if (Math.abs(requiredWeeklyRate) <= sustainableAbs * 0.7) {
+        difficulty = "comfortable";
+      } else {
+        difficulty = "challenging";
+      }
+    }
+  }
+
+  return {
+    direction,
+    daysToTarget,
+    requiredWeeklyRate,
+    clampedWeeklyRate,
+    isAggressive,
+    projectedDateAtCurrentTrend,
+    sustainableWeeklyRate,
+    suggestedDate,
+    difficulty,
+  };
 }
 
 // Converts a (already safety-clamped) weekly rate of change into the daily

@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { goalWeightKg, goalBodyFatPct, goalTargetDate } = (body ?? {}) as Record<string, unknown>;
+  const { goalWeightKg, goalBodyFatPct, goalTargetDate, trainingDaysPerWeek } = (body ?? {}) as Record<string, unknown>;
 
   let goalWeightKgValue: number | null = profile.goalWeightKg ?? null;
   if (goalWeightKg !== undefined) {
@@ -74,11 +74,31 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let trainingDaysPerWeekValue: number | null = profile.trainingDaysPerWeek ?? null;
+  if (trainingDaysPerWeek !== undefined) {
+    if (trainingDaysPerWeek === null) {
+      trainingDaysPerWeekValue = null;
+    } else if (
+      typeof trainingDaysPerWeek !== "number" ||
+      !Number.isInteger(trainingDaysPerWeek) ||
+      trainingDaysPerWeek < 0 ||
+      trainingDaysPerWeek > 7
+    ) {
+      return NextResponse.json(
+        { success: false, message: "Training days per week must be a whole number between 0 and 7." },
+        { status: 400 }
+      );
+    } else {
+      trainingDaysPerWeekValue = trainingDaysPerWeek;
+    }
+  }
+
   saveProfile({
     ...profile,
     goalWeightKg: goalWeightKgValue,
     goalBodyFatPct: goalBodyFatPctValue,
     goalTargetDate: goalTargetDateValue,
+    trainingDaysPerWeek: trainingDaysPerWeekValue,
     updatedAt: new Date().toISOString(),
   });
 
