@@ -39,11 +39,15 @@ if (staff.length === 0) {
 }
 
 // Collections keyed by a member's user id → drop rows owned by a doomed user.
+// Mirrors MEMBER_OWNED_COLLECTIONS in lib/db.ts — keep in sync.
 const BY_USER_ID = [
-  "profiles", "resetTokens", "programmes", "workoutSessions", "aiMessages",
-  "bodyWeightLogs", "bookings", "subscriptions", "recoveryLogs", "waitlistEntries",
-  "cycleSettings", "cyclePrivacyPreferences", "pushSubscriptions", "notifications",
-  "purchases", "passLedger", "coachNotes",
+  "profiles", "resetTokens", "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
+  "workoutSessions", "aiMessages", "bodyWeightLogs", "bodyFatLogs", "bookings", "noShows",
+  "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
+  "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
+  "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
+  "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
+  "recipes", "shoppingListItems",
 ];
 
 // Compute deletion counts without mutating (for the dry-run report).
@@ -54,6 +58,8 @@ for (const key of BY_USER_ID) {
 }
 // messages are keyed by memberId (the member the thread belongs to).
 report.messages = (db.messages ?? []).filter((m) => doomedIds.has(m.memberId)).length;
+// Custom foods use ownerUserId, not userId — see lib/db.ts's deleteUserAndOwnedRecords.
+report.customFoods = (db.customFoods ?? []).filter((f) => doomedIds.has(f.ownerUserId)).length;
 report.users = doomed.length;
 
 // Orphan check: a kept class coached by a doomed user would break. Shouldn't
@@ -88,6 +94,7 @@ for (const key of BY_USER_ID) {
   if (Array.isArray(db[key])) db[key] = db[key].filter((r) => !doomedIds.has(r.userId));
 }
 db.messages = (db.messages ?? []).filter((m) => !doomedIds.has(m.memberId));
+if (Array.isArray(db.customFoods)) db.customFoods = db.customFoods.filter((f) => !doomedIds.has(f.ownerUserId));
 
 writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
 

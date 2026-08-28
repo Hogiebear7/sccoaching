@@ -1860,13 +1860,21 @@ export function setUserArchived(userId: string, archived: boolean): boolean {
 }
 
 // Member-owned collections keyed by the member's user id. Kept as one list so
-// hard-delete (below) and the delete-non-staff script stay in sync about what
-// "owned by a member" means.
+// hard-delete (below) and the delete-members/delete-non-staff scripts stay in
+// sync about what "owned by a member" means — mirrored (scripts can't import
+// TS) in scripts/delete-members.mjs and scripts/delete-non-staff.mjs; update
+// all three together. This list previously missed several collections added
+// after it was first written (food/nutrition data especially) — a member's
+// "permanent" deletion silently left their food diary behind. If you add a
+// new `{ userId, ... }` collection to the DB schema, add it here too.
 const MEMBER_OWNED_COLLECTIONS = [
-  "profiles", "resetTokens", "programmes", "workoutSessions", "aiMessages",
-  "bodyWeightLogs", "bookings", "subscriptions", "recoveryLogs", "waitlistEntries",
+  "profiles", "resetTokens", "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
+  "workoutSessions", "aiMessages", "bodyWeightLogs", "bodyFatLogs", "bookings", "noShows",
+  "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
+  "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
+  "recipes", "shoppingListItems",
 ] as const;
 
 // PERMANENT, irreversible deletion of a user and every record they own. This is
@@ -1875,7 +1883,9 @@ const MEMBER_OWNED_COLLECTIONS = [
 // membership package/billing option to be deleted. Authorization + the
 // "archived member only" rule live in the route, not here. Returns per-table
 // counts of what was removed. Staff-owned/global data (classes, exercises,
-// catalog, categories, payment events) is untouched.
+// the shared common/branded food catalog, categories, payment events) is
+// untouched — the member's own custom foods are removed separately below
+// since they're keyed by `ownerUserId`, not `userId`.
 export function deleteUserAndOwnedRecords(userId: string): Record<string, number> {
   const db = readDb();
   const summary: Record<string, number> = {};
@@ -1892,6 +1902,14 @@ export function deleteUserAndOwnedRecords(userId: string): Record<string, number
       summary[key] = n;
     }
   }
+
+  // Custom foods use `ownerUserId`, not `userId` (see FoodRecord) — every
+  // entry in this array belongs to exactly one member, unlike the shared
+  // commonFoods/brandedFoods arrays, which have no owner and are untouched.
+  const foodsBefore = db.customFoods.length;
+  db.customFoods = db.customFoods.filter((f) => f.ownerUserId !== userId);
+  const foodsRemoved = foodsBefore - db.customFoods.length;
+  if (foodsRemoved > 0) summary.customFoods = foodsRemoved;
 
   // Message threads are keyed by the member (memberId); this removes the whole
   // conversation, including any staff replies within it.

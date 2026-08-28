@@ -48,10 +48,13 @@ const doomedIds = new Set(doomed.map((u) => u.id));
 
 // Mirrors MEMBER_OWNED_COLLECTIONS in lib/db.ts — keep in sync.
 const BY_USER_ID = [
-  "profiles", "resetTokens", "programmes", "workoutSessions", "aiMessages",
-  "bodyWeightLogs", "bookings", "subscriptions", "recoveryLogs", "waitlistEntries",
-  "cycleSettings", "cyclePrivacyPreferences", "pushSubscriptions", "notifications",
-  "purchases", "passLedger", "coachNotes",
+  "profiles", "resetTokens", "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
+  "workoutSessions", "aiMessages", "bodyWeightLogs", "bodyFatLogs", "bookings", "noShows",
+  "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
+  "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
+  "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
+  "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
+  "recipes", "shoppingListItems",
 ];
 
 const report = {};
@@ -60,6 +63,8 @@ for (const key of BY_USER_ID) {
   report[key] = arr.filter((r) => doomedIds.has(r.userId)).length;
 }
 report.messages = (db.messages ?? []).filter((m) => doomedIds.has(m.memberId)).length;
+// Custom foods use ownerUserId, not userId — see lib/db.ts's deleteUserAndOwnedRecords.
+report.customFoods = (db.customFoods ?? []).filter((f) => doomedIds.has(f.ownerUserId)).length;
 
 console.log(`\nDelete members — ${CONFIRM ? "APPLYING" : "DRY RUN"}\n`);
 if (notFound.length > 0) console.log(`⚠ Not found (skipped): ${notFound.join(", ")}`);
@@ -89,6 +94,7 @@ for (const key of BY_USER_ID) {
   if (Array.isArray(db[key])) db[key] = db[key].filter((r) => !doomedIds.has(r.userId));
 }
 db.messages = (db.messages ?? []).filter((m) => !doomedIds.has(m.memberId));
+if (Array.isArray(db.customFoods)) db.customFoods = db.customFoods.filter((f) => !doomedIds.has(f.ownerUserId));
 
 writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
 
