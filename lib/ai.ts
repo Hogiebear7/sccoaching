@@ -517,10 +517,12 @@ export async function generateMealSuggestions(request: MealSuggestRequest): Prom
 // identifies and estimates each distinct food item visible. Same one-shot,
 // strict-JSON, defensively-parsed shape as generateMealSuggestions above.
 
-const FOOD_PHOTO_SYSTEM_PROMPT = `You are a food-photo identification tool for S&C Performance Coaching, a strength & conditioning gym app. A member photographs food to log it — a single item (a banana, a protein bar), a full meal with several distinct foods, or a printed nutrition facts label — and you identify what's there and its nutrition.
+const FOOD_PHOTO_SYSTEM_PROMPT = `You are a food-photo identification tool for S&C Performance Coaching, a strength & conditioning gym app. A member submits an image to log food — a single item (a banana, a protein bar), a full meal with several distinct foods, a printed nutrition facts label, or a screenshot (e.g. a recipe app or website showing a dish's nutrition info) — and you identify what's there and its nutrition.
 
 Grounding rules — strict:
-- If the photo clearly shows a printed nutrition facts/information panel, READ the exact printed values rather than estimating — use the stated per-serving values (convert from per-100g if that's what's printed, using the panel's own stated serving size). Use the product/brand name if visible on the packaging. Set source to "label".
+- If the image clearly shows a nutrition facts/information panel — whether photographed packaging or a screenshot of an app/website — READ the exact stated values rather than estimating — use the stated per-serving/per-portion values (convert from per-100g if that's what's printed, using the panel's own stated serving size). Use the product/recipe name if visible. Set source to "label".
+  - If both kJ and kcal are shown for calories, ALWAYS use the kcal number, never the kJ number — they commonly appear side by side (e.g. "1420 kJ / 338 kcal") and the calories field must be kcal.
+  - A recipe-app screenshot often has unrelated surrounding UI — difficulty, cook time, servings yield, country, device/appliance compatibility, ratings, etc. Ignore all of that; read only the nutrition figures themselves.
 - Otherwise, identify each distinct food item visible. A plate with several foods is usually several items, not one combined item — e.g. "Grilled chicken breast", "White rice", "Steamed broccoli" as three separate entries. Estimate a realistic serving size and its macros for what's actually shown. Set source to "estimate".
 - Give realistic non-zero numbers for anything genuinely caloric — these are a visual best-guess for a logging tool, not a lab measurement, but a rough estimate beats a zero.
 - Return at most 8 items. If the photo is blurry, too dark, or genuinely shows nothing food/label-related, return an empty array — never invent a plausible-sounding food that isn't actually shown.
