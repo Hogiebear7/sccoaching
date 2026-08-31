@@ -374,6 +374,26 @@ export interface FoodEntryRecord {
   quantity?: number | null;
 }
 
+// A member's own curated shortlist of regularly-eaten foods, organized by
+// which meal they usually go with — separate from the auto-populated
+// "recent" shelf (derived from FoodEntryRecord history), this is a
+// deliberate save action. A flat nutrition snapshot at save time, same
+// convention as FoodEntryRecord — a favourite still logs correctly even if
+// its source food is later edited/archived in the catalog.
+export interface FoodFavoriteRecord {
+  id: string;
+  userId: string;
+  mealType: MealType;
+  name: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  servingLabel: string | null;
+  servingGrams: number | null;
+  createdAt: string;
+}
+
 // ── Food catalog — normalizes every source (member-created, generic/
 // "common", vendor/"branded") into ONE internal schema so the app and its
 // API consumers never see a raw vendor payload. Nutrition is always stored
@@ -1395,6 +1415,7 @@ interface Database {
   foodModerationRequests: FoodModerationRequest[];
   foodSubmissions: FoodSubmissionRecord[];
   foodIdentificationOverrides: FoodIdentificationOverrideRecord[];
+  foodFavorites: FoodFavoriteRecord[];
   workoutSessions: WorkoutSessionRecord[];
   exercises: ExerciseRecord[];
   aiMessages: AiMessageRecord[];
@@ -1517,6 +1538,7 @@ function readDb(): Database {
       foodModerationRequests: [],
       foodSubmissions: [],
       foodIdentificationOverrides: [],
+      foodFavorites: [],
       workoutSessions: [],
       exercises: [],
       aiMessages: [],
@@ -1628,6 +1650,7 @@ function readDb(): Database {
     foodModerationRequests: parsed.foodModerationRequests ?? [],
     foodSubmissions: parsed.foodSubmissions ?? [],
     foodIdentificationOverrides: parsed.foodIdentificationOverrides ?? [],
+    foodFavorites: parsed.foodFavorites ?? [],
     workoutSessions: (parsed.workoutSessions ?? []).map((s) => ({
       ...s,
       exercises: s.exercises ?? [],
@@ -1874,7 +1897,7 @@ const MEMBER_OWNED_COLLECTIONS = [
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
   "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
-  "recipes", "shoppingListItems",
+  "recipes", "shoppingListItems", "foodFavorites",
 ] as const;
 
 // PERMANENT, irreversible deletion of a user and every record they own. This is
@@ -2289,6 +2312,28 @@ export function saveFoodIdentificationOverride(record: FoodIdentificationOverrid
 export function deleteFoodIdentificationOverride(id: string, userId: string): void {
   const db = readDb();
   db.foodIdentificationOverrides = db.foodIdentificationOverrides.filter((o) => !(o.id === id && o.userId === userId));
+  writeDb(db);
+}
+
+export function findFoodFavoritesByUserId(userId: string): FoodFavoriteRecord[] {
+  return readDb()
+    .foodFavorites.filter((f) => f.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findFoodFavoriteById(id: string): FoodFavoriteRecord | undefined {
+  return readDb().foodFavorites.find((f) => f.id === id);
+}
+
+export function createFoodFavorite(record: FoodFavoriteRecord): void {
+  const db = readDb();
+  db.foodFavorites.push(record);
+  writeDb(db);
+}
+
+export function deleteFoodFavorite(id: string, userId: string): void {
+  const db = readDb();
+  db.foodFavorites = db.foodFavorites.filter((f) => !(f.id === id && f.userId === userId));
   writeDb(db);
 }
 
