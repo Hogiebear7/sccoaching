@@ -600,11 +600,14 @@ export async function identifyFoodPhoto(request: FoodPhotoIdentifyRequest): Prom
   ];
 
   const client = getClient();
+  // "medium" effort (not "low") — reading a label or distinguishing plate
+  // contents is a harder perceptual task than the other "low"-effort calls
+  // in this file, which are mostly short text interpretation.
   const message = await client.messages.create({
     model: COACH_MODEL,
     max_tokens: 2000,
     thinking: { type: "adaptive" },
-    output_config: { effort: "low" },
+    output_config: { effort: "medium" },
     system: [{ type: "text", text: FOOD_PHOTO_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
   });

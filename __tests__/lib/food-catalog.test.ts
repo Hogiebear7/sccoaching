@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { FoodDomain, FoodEntryRecord, FoodRecord } from "@/lib/db";
 import {
+  applyCatalogMatches,
   gramsForServing,
   getFoodHistory,
   isBarcodeShaped,
   isBrandedRecordStale,
   isValidGtinChecksum,
+  matchIdentifiedItemToCatalog,
   normalizeOffCountryTag,
   normalizeOpenFoodFactsProduct,
   nutritionForGrams,
@@ -15,6 +17,7 @@ import {
   searchFoodCatalog,
   stringSimilarity,
 } from "@/lib/food-catalog";
+import type { IdentifiedFoodItem } from "@/lib/ai";
 import type { OpenFoodFactsProduct } from "@/lib/open-food-facts-client";
 
 function makeFood(overrides: Partial<FoodRecord>): FoodRecord {
@@ -282,5 +285,72 @@ describe("isBrandedRecordStale", () => {
     expect(isBrandedRecordStale(makeFood({ fetchedAt: null }), now)).toBe(true);
     expect(isBrandedRecordStale(makeFood({ fetchedAt: "2026-08-09T00:00:00.000Z" }), now)).toBe(false);
     expect(isBrandedRecordStale(makeFood({ fetchedAt: "2026-06-01T00:00:00.000Z" }), now)).toBe(true);
+  });
+});
+
+describe("matchIdentifiedItemToCatalog", () => {
+  const commonFoods = [makeFood({ id: "c1", domain: "common", name: "Grilled Chicken Breast" })];
+  const brandedFoods = [
+    makeFood({ id: "b1", domain: "branded", name: "Original", brandName: "Coca-Cola" }),
+    makeFood({ id: "b2", domain: "branded", name: "Digestive Biscuits", brandName: "McVitie's", archivedAt: "2026-01-01T00:00:00.000Z" }),
+  ];
+
+  it("never matches a 'label' item — the AI already read real printed values, nothing to substitute", () => {
+    const item: Pick<IdentifiedFoodItem, "name" | "source"> = { name: "Grilled Chicken Breast", source: "label" };
+    expect(matchIdentifiedItemToCatalog(item, commonFoods, brandedFoods)).toBeNull();
+  });
+
+  it("matches an 'estimate' item by exact common-food name", () => {
+    const item: Pick<IdentifiedFoodItem, "name" | "source"> = { name: "Grilled Chicken Breast", source: "estimate" };
+    expect(matchIdentifiedItemToCatalog(item, commonFoods, brandedFoods)?.id).toBe("c1");
+  });
+
+  it("matches case/whitespace-insensitively", () => {
+    const item: Pick<IdentifiedFoodItem, "name" | "source"> = { name: "  grilled   chicken breast  ", source: "estimate" };
+    expect(matchIdentifiedItemToCatalog(item, commonFoods, brandedFoods)?.id).toBe("c1");
+  });
+
+  it("matches a branded item by its combined 'brand name' form", () => {
+    const item: Pick<IdentifiedFoodItem, "name" | "source"> = { name: "Coca-Cola Original", source: "estimate" };
+    expect(matchIdentifiedItemToCatalog(item, commonFoods, brandedFoods)?.id).toBe("b1");
+  });
+
+  it("does not match a merely similar name — exact match only, to avoid a confidently-wrong substitution", () => {
+    const item: Pick<IdentifiedFoodItem, "name" | "source"> = { name: "Grilled Chicken Thigh", source: "estimate" };
+    expect(matchIdentifiedItemToCatalog(item, commonFoods, brandedFoods)).toBeNull();
+  });
+
+  it("ignores archived records", () => {
+    const item: Pick<IdentifiedFoodItem, "name" | "source"> = { name: "McVitie's Digestive Biscuits", source: "estimate" };
+    expect(matchIdentifiedItemToCatalog(item, commonFoods, brandedFoods)).toBeNull();
+  });
+});
+
+describe("applyCatalogMatches", () => {
+  it("substitutes catalog nutrition/serving and relabels source to 'label' on a match", () => {
+    const chicken = makeFood({
+      id: "c1",
+      domain: "common",
+      name: "Grilled Chicken Breast",
+      nutrition100g: { calories: 165, proteinG: 31, carbsG: 0, fatG: 3.6, fiberG: 0, sugarG: 0, sodiumMg: 74, saturatedFatG: 1 },
+      defaultServing: { label: "1 breast (172g)", grams: 172 },
+    });
+    const items: IdentifiedFoodItem[] = [
+      { name: "Grilled Chicken Breast", servingDescription: "1 palm-sized portion (~150g)", calories: 250, proteinG: 40, carbsG: 0, fatG: 5, source: "estimate" },
+    ];
+    const [result] = applyCatalogMatches(items, [chicken], []);
+    expect(result.source).toBe("label");
+    expect(result.servingDescription).toBe("1 breast (172g)");
+    expect(result.calories).toBe(Math.round((165 * 172) / 100));
+  });
+
+  it("leaves a 'label' item and a non-matching 'estimate' item untouched", () => {
+    const chicken = makeFood({ id: "c1", domain: "common", name: "Grilled Chicken Breast" });
+    const items: IdentifiedFoodItem[] = [
+      { name: "Nutrition Facts Panel Item", servingDescription: "1 serving (40g)", calories: 200, proteinG: 5, carbsG: 20, fatG: 8, source: "label" },
+      { name: "Homemade Lasagna", servingDescription: "1 slice (~250g)", calories: 400, proteinG: 20, carbsG: 30, fatG: 18, source: "estimate" },
+    ];
+    const result = applyCatalogMatches(items, [chicken], []);
+    expect(result).toEqual(items);
   });
 });

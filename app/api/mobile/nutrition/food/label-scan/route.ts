@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { identifyFoodPhoto, isAiConfigured } from "@/lib/ai";
-import { findFoodIdentificationOverridesByUserId, findUserById } from "@/lib/db";
+import { findAllFoods, findFoodIdentificationOverridesByUserId, findUserById } from "@/lib/db";
+import { applyCatalogMatches } from "@/lib/food-catalog";
 import { applyFoodIdentificationOverrides } from "@/lib/food-identification-override";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -68,8 +69,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const rawItems = await identifyFoodPhoto({ imageDataUrl: imageBase64 });
+    // Swap in verified catalog nutrition for anything the AI only
+    // estimated but that already matches a known common/branded food
+    // exactly by name — before the member's own manual overrides, which
+    // should still win if they've specifically corrected this item before.
+    const catalogMatched = applyCatalogMatches(rawItems, findAllFoods("common"), findAllFoods("branded"));
     const overrides = findFoodIdentificationOverridesByUserId(user.id);
-    const items = applyFoodIdentificationOverrides(rawItems, overrides);
+    const items = applyFoodIdentificationOverrides(catalogMatched, overrides);
     return NextResponse.json({ success: true, configured: true, items });
   } catch (err) {
     console.error(`[food-catalog] photo identification failed for user ${user.id}:`, err);

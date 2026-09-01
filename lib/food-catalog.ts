@@ -205,6 +205,70 @@ export function nutritionForGrams(n100: FoodNutrition100g, grams: number): FoodN
   };
 }
 
+// ── Photo-scan ↔ catalog cross-check ─────────────────────────────────────
+// The AI photo-identification tool (lib/ai.ts identifyFoodPhoto) reads
+// printed labels exactly ("label") but otherwise gives its own numeric
+// estimate ("estimate") for anything it recognizes by sight alone — even
+// when that exact product already has verified nutrition sitting in the
+// catalog (common foods, or branded foods already cached from Open Food
+// Facts via a barcode scan or search). This substitutes the catalog's own
+// numbers in that case, so a repeat photo of a product already in the
+// catalog gets real data instead of a fresh visual guess every time.
+//
+// Exact-name match only, never fuzzy — a wrong substitution here is worse
+// than no substitution at all, since it would confidently show
+// verified-looking numbers for the wrong product. Only common/branded are
+// considered (never "custom": another member's private food isn't a
+// trustworthy source to silently apply to someone else's photo scan).
+function normalizeForExactMatch(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export function matchIdentifiedItemToCatalog<T extends { name: string; source: "label" | "estimate" }>(
+  item: T,
+  commonFoods: FoodRecord[],
+  brandedFoods: FoodRecord[]
+): FoodRecord | null {
+  if (item.source !== "estimate") return null;
+  const target = normalizeForExactMatch(item.name);
+  if (!target) return null;
+
+  for (const food of [...commonFoods, ...brandedFoods]) {
+    if (food.archivedAt) continue;
+    const name = normalizeForExactMatch(food.name);
+    const combined = food.brandName ? normalizeForExactMatch(`${food.brandName} ${food.name}`) : name;
+    if (name === target || combined === target) return food;
+  }
+  return null;
+}
+
+// Applies matchIdentifiedItemToCatalog across a full identifyFoodPhoto
+// result, substituting matched items' serving/macros with the catalog
+// record's own default-serving values (a known, real serving — e.g. "1 can
+// (330ml)" — rather than trying to reconcile the AI's rough visual gram
+// estimate against per-100g catalog data) and relabeling them "label" since
+// the numbers are now catalog-verified, not a visual guess.
+export function applyCatalogMatches<T extends { name: string; servingDescription: string; calories: number; proteinG: number; carbsG: number; fatG: number; source: "label" | "estimate" }>(
+  items: T[],
+  commonFoods: FoodRecord[],
+  brandedFoods: FoodRecord[]
+): T[] {
+  return items.map((item) => {
+    const match = matchIdentifiedItemToCatalog(item, commonFoods, brandedFoods);
+    if (!match) return item;
+    const nutrition = nutritionForGrams(match.nutrition100g, match.defaultServing.grams);
+    return {
+      ...item,
+      servingDescription: match.defaultServing.label,
+      calories: nutrition.calories,
+      proteinG: nutrition.proteinG,
+      carbsG: nutrition.carbsG,
+      fatG: nutrition.fatG,
+      source: "label" as const,
+    };
+  });
+}
+
 // ── Open Food Facts normalization ───────────────────────────────────────
 // The ONLY place an OFF payload is read — everything past this function
 // deals exclusively in FoodRecord. serving_size is a free-text vendor
