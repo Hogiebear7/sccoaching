@@ -31,7 +31,7 @@ function oneTime(id, packageId, name, priceEur, sortOrder) {
 const categories = [
   cat("cat_semi_private_pt", "Semi-Private PT", 0, "Small-group personal training."),
   cat("cat_parent_and_baby", "Parent & Baby Classes", 1, "Train with your little one."),
-  cat("cat_older_athletes", "Mature Athletes", 2, "Strength & mobility for older members."),
+  cat("cat_over_50s", "Over 50s", 2, "Strength & mobility for older members."),
 ];
 
 const packages = [
@@ -45,11 +45,11 @@ const packages = [
   pkg("pkg_pnb_10", "cat_parent_and_baby", "10 Classes", "pass", "fixed_count", 10, ["parent_and_baby"], 1, "A 10-class pack."),
   pkg("pkg_pnb_5", "cat_parent_and_baby", "5 Classes", "pass", "fixed_count", 5, ["parent_and_baby"], 2, "A 5-class pack."),
   pkg("pkg_pnb_pass", "cat_parent_and_baby", "One Class Pass", "pass", "single_use", 1, ["parent_and_baby"], 3, "A single drop-in class."),
-  // Mature Athletes
-  pkg("pkg_oa_20", "cat_older_athletes", "20 Classes", "pass", "fixed_count", 20, ["general"], 0, "A 20-class pack."),
-  pkg("pkg_oa_10", "cat_older_athletes", "10 Classes", "pass", "fixed_count", 10, ["general"], 1, "A 10-class pack."),
-  pkg("pkg_oa_5", "cat_older_athletes", "5 Classes", "pass", "fixed_count", 5, ["general"], 2, "A 5-class pack."),
-  pkg("pkg_oa_pass", "cat_older_athletes", "One Class Pass", "pass", "single_use", 1, ["general"], 3, "A single drop-in class."),
+  // Over 50s
+  pkg("pkg_oa_20", "cat_over_50s", "20 Classes", "pass", "fixed_count", 20, ["general"], 0, "A 20-class pack."),
+  pkg("pkg_oa_10", "cat_over_50s", "10 Classes", "pass", "fixed_count", 10, ["general"], 1, "A 10-class pack."),
+  pkg("pkg_oa_5", "cat_over_50s", "5 Classes", "pass", "fixed_count", 5, ["general"], 2, "A 5-class pack."),
+  pkg("pkg_oa_pass", "cat_over_50s", "One Class Pass", "pass", "single_use", 1, ["general"], 3, "A single drop-in class."),
 ];
 
 const billingOptions = [
@@ -66,7 +66,7 @@ const billingOptions = [
   oneTime("opt_pnb_10", "pkg_pnb_10", "One-off", 110, 0),
   oneTime("opt_pnb_5", "pkg_pnb_5", "One-off", 60, 0),
   oneTime("opt_pnb_pass", "pkg_pnb_pass", "One-off", 14, 0),
-  // Mature Athletes (one-time class packs)
+  // Over 50s (one-time class packs)
   oneTime("opt_oa_20", "pkg_oa_20", "One-off", 190, 0),
   oneTime("opt_oa_10", "pkg_oa_10", "One-off", 105, 0),
   oneTime("opt_oa_5", "pkg_oa_5", "One-off", 58, 0),

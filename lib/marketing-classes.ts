@@ -18,7 +18,7 @@ export const MARKETING_CLASSES: MarketingClass[] = [
       "A supportive session for new parents to rebuild strength, improve movement, and train with their baby nearby. Ideal for anyone in the postnatal period looking to return to training safely, without needing childcare sorted first.",
   },
   {
-    name: "Mature Athletes",
+    name: "Over 50s",
     description:
       "Smart, resilient training for older adults who want to stay strong, mobile, and capable for the long term. Built for anyone who wants to protect their independence — better balance, stronger joints, and confidence in everyday movement.",
   },

@@ -31,7 +31,7 @@ const IMAGES: { imageUrl: string; alt: string }[] = [
     alt: "A parent training with a supported squat while their baby rests safely nearby",
   },
   {
-    imageUrl: "/marketing/mature-athletes.jpg",
+    imageUrl: "/marketing/over-50s.jpg",
     alt: "An older athlete performing a kettlebell deadlift with a coach observing her form",
   },
 ];

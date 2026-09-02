@@ -21,7 +21,7 @@ const FAQS: FaqItem[] = [
   {
     question: "Which class is right for me?",
     answer:
-      "Semi-Private Personal Training suits anyone wanting individual coaching in a small group, from beginners to experienced lifters chasing a specific goal. Parent & Baby Classes are for the postnatal period, training with your baby nearby. Mature Athletes is built for older adults focused on strength, balance, and staying capable long-term. Not sure? Get in touch and we'll point you the right way.",
+      "Semi-Private Personal Training suits anyone wanting individual coaching in a small group, from beginners to experienced lifters chasing a specific goal. Parent & Baby Classes are for the postnatal period, training with your baby nearby. Over 50s is built for older adults focused on strength, balance, and staying capable long-term. Not sure? Get in touch and we'll point you the right way.",
   },
   {
     question: "What should I bring to my first session?",
@@ -46,7 +46,7 @@ const FAQS: FaqItem[] = [
   {
     question: "How much does membership cost?",
     answer:
-      "Semi-Private Personal Training starts from €160/month. Parent & Baby and Mature Athletes classes start from €20/class. Every plan includes coach messaging, class booking, and full workout tracking in the app. See the Membership section above for the full breakdown.",
+      "Semi-Private Personal Training starts from €160/month. Parent & Baby and Over 50s classes start from €20/class. Every plan includes coach messaging, class booking, and full workout tracking in the app. See the Membership section above for the full breakdown.",
   },
   {
     question: "Where are you located?",
