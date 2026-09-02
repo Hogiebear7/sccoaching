@@ -1,41 +1,132 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 // Real in-app screenshots, one per bottom-tab screen — member-provided,
 // status bar already cropped off. Order matches the app's own tab bar
-// (Home, Schedule, Workouts, Recovery, Nutrition) so the strip reads as a
-// tour of the app rather than an arbitrary selection.
-const APP_SCREENS: { src: string; alt: string; label: string }[] = [
-  { src: "/marketing/app/home.jpg", alt: "App home screen showing next session, readiness score, and today's nutrition prompt", label: "Home" },
-  { src: "/marketing/app/schedule.jpg", alt: "App schedule screen showing a monthly class calendar with a booked session", label: "Schedule" },
-  { src: "/marketing/app/workouts.jpg", alt: "App workouts screen showing today's logged session and weekly training stats", label: "Workouts" },
-  { src: "/marketing/app/recovery.jpg", alt: "App recovery screen showing a readiness score and a daily check-in form", label: "Recovery" },
-  { src: "/marketing/app/nutrition.jpg", alt: "App nutrition screen showing today's calorie and macro progress and hydration tracking", label: "Nutrition" },
+// (Home, Schedule, Workouts, Recovery, Nutrition) so the grid reads as a
+// tour of the app rather than an arbitrary selection. A 3-column grid with
+// 5 items naturally lays out 3 on top, 2 underneath — no horizontal scroll,
+// so there's nothing for the last card to get clipped by.
+const APP_SCREENS: { src: string; alt: string; label: string; description: string }[] = [
+  {
+    src: "/marketing/app/home.jpg",
+    alt: "App home screen showing next session, readiness score, and today's nutrition prompt",
+    label: "Home",
+    description: "Your day at a glance — next session, readiness score, and today's nutrition target.",
+  },
+  {
+    src: "/marketing/app/schedule.jpg",
+    alt: "App schedule screen showing a monthly class calendar with a booked session",
+    label: "Schedule",
+    description: "Browse classes, book your spot, and manage upcoming sessions from a simple calendar.",
+  },
+  {
+    src: "/marketing/app/workouts.jpg",
+    alt: "App workouts screen showing today's logged session and weekly training stats",
+    label: "Workouts",
+    description: "Log every session, track sets and volume, and see your training stats for the week.",
+  },
+  {
+    src: "/marketing/app/recovery.jpg",
+    alt: "App recovery screen showing a readiness score and a daily check-in form",
+    label: "Recovery",
+    description: "Log how you're feeling and get a readiness score that adapts your training to match.",
+  },
+  {
+    src: "/marketing/app/nutrition.jpg",
+    alt: "App nutrition screen showing today's calorie and macro progress and hydration tracking",
+    label: "Nutrition",
+    description: "Track calories, macros, and hydration against a target that adjusts with your training load.",
+  },
 ];
+
+type AppScreen = (typeof APP_SCREENS)[number];
 
 // Plain rounded-rect device frame rather than a fake notch/camera cutout —
 // the screenshots themselves already read clearly as a phone UI, so a
 // heavier mockup would add visual noise without adding believability.
-function PhoneFrame({ screen }: { screen: (typeof APP_SCREENS)[number] }) {
+// Hovering (or focusing, for keyboard/touch users) fades in the
+// description over the screenshot; clicking opens it full-size.
+function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void }) {
   return (
-    <div className="w-[200px] flex-shrink-0 snap-start sm:w-[220px]">
-      <div className="overflow-hidden rounded-[22px] border border-white/[0.12] bg-black shadow-[0_24px_60px_-20px_rgba(0,0,0,0.65)]">
+    <div className="mx-auto w-full max-w-[220px]">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="group relative block w-full overflow-hidden rounded-[22px] border border-white/[0.12] bg-black text-left shadow-[0_24px_60px_-20px_rgba(0,0,0,0.65)] transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        aria-label={`Open a larger view of the ${screen.label} screen`}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element -- real static screenshots, not a next/image-worthy asset */}
         <img src={screen.src} alt={screen.alt} className="block h-auto w-full" loading="lazy" />
-      </div>
+        <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+          <p className="text-xs leading-relaxed text-zinc-100">{screen.description}</p>
+        </div>
+      </button>
       <p className="mt-3 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">{screen.label}</p>
     </div>
   );
 }
 
-function AppScreensStrip() {
+// Full-size view of whichever screen was clicked — mirrors the app's
+// existing modal convention (fixed inset-0 backdrop + click-outside-to-
+// close, see components/member/ExerciseSearchModal.tsx) rather than
+// inventing a new one.
+function ScreenLightbox({ screen, onClose }: { screen: AppScreen; onClose: () => void }) {
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   return (
-    // -mx-6/px-6 at every breakpoint (not just mobile) so the row always has
-    // its own padding independent of the section's max-w-6xl boundary — the
-    // last card needs that trailing room for itself and its drop shadow,
-    // same as the first card already gets on the left.
-    <div className="no-scrollbar -mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-8">
-      {APP_SCREENS.map((screen) => (
-        <PhoneFrame key={screen.label} screen={screen} />
-      ))}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${screen.label} screen, enlarged`}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div className="max-h-full w-full max-w-sm overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="overflow-hidden rounded-[28px] border border-white/[0.14] bg-black shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={screen.src} alt={screen.alt} className="block h-auto w-full" />
+        </div>
+        <div className="mt-5 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-zinc-50">{screen.label}</p>
+            <p className="mt-1 text-sm leading-relaxed text-zinc-400">{screen.description}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-full border border-white/[0.14] p-2 text-zinc-400 transition-colors hover:border-white/[0.3] hover:text-zinc-100"
+            aria-label="Close"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden className="h-4 w-4">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function AppScreensGrid() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-6 sm:grid-cols-3">
+        {APP_SCREENS.map((screen, i) => (
+          <PhoneFrame key={screen.label} screen={screen} onOpen={() => setOpenIndex(i)} />
+        ))}
+      </div>
+      {openIndex !== null ? <ScreenLightbox screen={APP_SCREENS[openIndex]} onClose={() => setOpenIndex(null)} /> : null}
+    </>
   );
 }
 
@@ -130,7 +221,7 @@ function StoreBadge({ store }: { store: "apple" | "google" }) {
 export function AppShowcase() {
   return (
     <div>
-      <AppScreensStrip />
+      <AppScreensGrid />
 
       <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {APP_BENEFITS.map((item) => (
