@@ -75,7 +75,7 @@ export default async function Root() {
       <nav className="anim-fade relative mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-          <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-14 w-auto" />
+          <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-20 w-auto" />
         </Link>
         <div className="flex items-center gap-2.5">
           <Link

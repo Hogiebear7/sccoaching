@@ -73,7 +73,7 @@ export default function LoginPage() {
         <div className="anim-rise relative" style={{ animationDelay: "60ms" }}>
           <Link href="/" className="inline-block transition-opacity hover:opacity-80">
             {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-            <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-9 w-auto" />
+            <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-12 w-auto" />
           </Link>
         </div>
         <div className="relative max-w-md">
@@ -104,7 +104,7 @@ export default function LoginPage() {
         <div className="lg:hidden">
           <Link href="/" className="inline-block transition-opacity hover:opacity-80">
             {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-            <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-7 w-auto" />
+            <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-9 w-auto" />
           </Link>
         </div>
         <div className="anim-rise mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">

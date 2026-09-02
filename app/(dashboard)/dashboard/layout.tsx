@@ -83,7 +83,7 @@ export default async function DashboardLayout({
           <div className="px-5 pt-6 pb-5">
             <Link href="/dashboard" className="inline-block">
               {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-              <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-9 w-auto" />
+              <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-12 w-auto" />
             </Link>
           </div>
 
@@ -134,7 +134,7 @@ export default async function DashboardLayout({
               <div className="min-w-0">
                 <div className="lg:hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-                  <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-7 w-auto" />
+                  <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-9 w-auto" />
                 </div>
                 <p className="hidden text-sm text-zinc-400 lg:block">
                   Welcome back{profile?.fullName ? `, ${profile.fullName.split(" ")[0]}` : ""}.
