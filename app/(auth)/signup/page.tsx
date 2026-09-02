@@ -337,7 +337,7 @@ export default function SignupPage() {
           <aside className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
             <Link href="/" className="inline-block transition-opacity hover:opacity-80">
               {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-              <img src="/brand/website-logo.png" alt={BRAND_NAME} className="h-7 w-auto" />
+              <img src="/brand/website-logo-v2.png" alt={BRAND_NAME} className="h-7 w-auto" />
             </Link>
             <h1 className="text-editorial mt-3 text-[30px]">Create your account</h1>
             <p className="mt-2 text-sm text-zinc-400">

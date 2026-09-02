@@ -55,7 +55,7 @@ export function SplashIntro() {
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- one-shot decorative splash, next/image's overhead isn't worth it here */}
       <img
-        src="/brand/website-logo.png"
+        src="/brand/website-logo-v2.png"
         alt=""
         style={{
           position: "fixed",

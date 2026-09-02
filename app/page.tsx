@@ -75,7 +75,7 @@ export default async function Root() {
       <nav className="anim-fade relative mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-          <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-20 w-auto" />
+          <img src="/brand/website-logo-v2.png" alt="S&amp;C Performance Coaching" className="h-20 w-auto" />
         </Link>
         <div className="flex items-center gap-2.5">
           <Link
@@ -355,7 +355,7 @@ export default async function Root() {
       <footer className="relative border-t border-white/[0.06]">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-6 py-10 sm:flex-row sm:items-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-          <img src="/brand/website-logo.png" alt="S&amp;C Performance Coaching" className="h-8 w-auto" />
+          <img src="/brand/website-logo-v2.png" alt="S&amp;C Performance Coaching" className="h-8 w-auto" />
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-zinc-500">
             <Link href={AUTH_ROUTES.login} className="transition-colors duration-150 hover:text-gold">Sign in</Link>
             <Link href={AUTH_ROUTES.signup} className="transition-colors duration-150 hover:text-gold">Create account</Link>
