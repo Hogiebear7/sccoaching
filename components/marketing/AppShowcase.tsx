@@ -1,3 +1,40 @@
+// Real in-app screenshots, one per bottom-tab screen — member-provided,
+// status bar already cropped off. Order matches the app's own tab bar
+// (Home, Schedule, Workouts, Recovery, Nutrition) so the strip reads as a
+// tour of the app rather than an arbitrary selection.
+const APP_SCREENS: { src: string; alt: string; label: string }[] = [
+  { src: "/marketing/app/home.jpg", alt: "App home screen showing next session, readiness score, and today's nutrition prompt", label: "Home" },
+  { src: "/marketing/app/schedule.jpg", alt: "App schedule screen showing a monthly class calendar with a booked session", label: "Schedule" },
+  { src: "/marketing/app/workouts.jpg", alt: "App workouts screen showing today's logged session and weekly training stats", label: "Workouts" },
+  { src: "/marketing/app/recovery.jpg", alt: "App recovery screen showing a readiness score and a daily check-in form", label: "Recovery" },
+  { src: "/marketing/app/nutrition.jpg", alt: "App nutrition screen showing today's calorie and macro progress and hydration tracking", label: "Nutrition" },
+];
+
+// Plain rounded-rect device frame rather than a fake notch/camera cutout —
+// the screenshots themselves already read clearly as a phone UI, so a
+// heavier mockup would add visual noise without adding believability.
+function PhoneFrame({ screen }: { screen: (typeof APP_SCREENS)[number] }) {
+  return (
+    <div className="w-[200px] flex-shrink-0 snap-start sm:w-[220px]">
+      <div className="overflow-hidden rounded-[22px] border border-white/[0.12] bg-black shadow-[0_24px_60px_-20px_rgba(0,0,0,0.65)]">
+        {/* eslint-disable-next-line @next/next/no-img-element -- real static screenshots, not a next/image-worthy asset */}
+        <img src={screen.src} alt={screen.alt} className="block h-auto w-full" loading="lazy" />
+      </div>
+      <p className="mt-3 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">{screen.label}</p>
+    </div>
+  );
+}
+
+function AppScreensStrip() {
+  return (
+    <div className="no-scrollbar -mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-2 sm:mx-0 sm:px-0">
+      {APP_SCREENS.map((screen) => (
+        <PhoneFrame key={screen.label} screen={screen} />
+      ))}
+    </div>
+  );
+}
+
 // Benefit copy for the app-only (Tier 2) subscription. Deliberately avoids
 // naming the underlying tech (no "AI") — each line describes the outcome a
 // member gets, matching the rest of the site's voice. Pricing is not shown
@@ -89,7 +126,9 @@ function StoreBadge({ store }: { store: "apple" | "google" }) {
 export function AppShowcase() {
   return (
     <div>
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <AppScreensStrip />
+
+      <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {APP_BENEFITS.map((item) => (
           <div
             key={item.title}
