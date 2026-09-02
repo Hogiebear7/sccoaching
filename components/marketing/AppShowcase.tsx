@@ -27,7 +27,11 @@ function PhoneFrame({ screen }: { screen: (typeof APP_SCREENS)[number] }) {
 
 function AppScreensStrip() {
   return (
-    <div className="no-scrollbar -mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-2 sm:mx-0 sm:px-0">
+    // -mx-6/px-6 at every breakpoint (not just mobile) so the row always has
+    // its own padding independent of the section's max-w-6xl boundary — the
+    // last card needs that trailing room for itself and its drop shadow,
+    // same as the first card already gets on the left.
+    <div className="no-scrollbar -mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-8">
       {APP_SCREENS.map((screen) => (
         <PhoneFrame key={screen.label} screen={screen} />
       ))}
