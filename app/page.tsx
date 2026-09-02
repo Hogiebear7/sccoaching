@@ -187,7 +187,7 @@ export default async function Root() {
           </ScrollReveal>
 
           <ScrollReveal delayMs={80} className="mt-10">
-            <ClassesShowcase imageUrl="/gymPicture.jpg" imageAlt="Inside the S&C training floor" />
+            <ClassesShowcase imageUrl="/marketing/training-floor.jpg" imageAlt="Inside the S&C training floor" />
           </ScrollReveal>
         </div>
       </section>
