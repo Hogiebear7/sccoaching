@@ -17,7 +17,6 @@ import {
   type FuelDay,
 } from "./nutrition";
 import { getResolvedNutritionTarget } from "./nutrition-target-data";
-import { exertionFromWeeklySessions } from "./nutrition-target";
 import { excludedAllergensFor, recommendFoods } from "./nutrition-recommendations";
 import {
   ALLERGEN_OPTIONS,
@@ -27,7 +26,7 @@ import {
 import { readinessDelta } from "./progress";
 import { computeRollingTrainingLoad, readinessGuidance, trainingLoadForLog } from "./recovery";
 import { classifyLoad, decideTier, LOAD_BAND_LABEL, type LoadBand } from "./workout-helper";
-import { activeWeeklySessions } from "./weekly-training";
+import { activeWeeklySessions, plannedExertionForDate } from "./weekly-training";
 
 // ─────────────────────────────────────────────────────────────────────
 // Grounding context for the AI coach chat.
@@ -220,10 +219,7 @@ export function buildCoachingContext(input: CoachingContextInput): CoachingConte
   const readinessScore = todayLog?.readinessScore ?? null;
   const rolling = computeRollingTrainingLoad(recoveryLogs);
   const loadBand = classifyLoad(rolling.sevenDaySum, rolling.daysWithLoad);
-  const todayWeekday = new Date(`${todayISO}T00:00:00Z`).getUTCDay() as TrainingDayOfWeek;
-  const plannedTodayExertion = input.weeklyTrainingSchedule
-    ? exertionFromWeeklySessions(activeWeeklySessions(input.weeklyTrainingSchedule.sessions, todayISO), todayWeekday)
-    : null;
+  const plannedTodayExertion = plannedExertionForDate(input.weeklyTrainingSchedule, todayISO);
   const tier = decideTier({
     readinessScore,
     sevenDayLoad: rolling.sevenDaySum,
