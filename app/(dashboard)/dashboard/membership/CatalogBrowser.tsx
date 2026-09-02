@@ -15,6 +15,7 @@ import type {
   MembershipCategoryRecord,
   MembershipPackageRecord,
 } from "@/lib/db";
+import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
 
 // Recurring/one-off is a genuine categorical distinction, not an ordinal
 // one — and this palette only has two hues (gold, --data) available once
@@ -132,7 +133,12 @@ export function CatalogBrowser({
         </p>
       ) : null}
 
-      {/* Level 1: categories — high-level offerings */}
+      {/* Level 1: categories — high-level offerings. Photo banner + name
+          overlay matches the public marketing page's pricing cards
+          (components/marketing/ClassPricingShowcase.tsx) — ClassImageSlot
+          already falls back to an on-brand placeholder when a category has
+          no cover image set yet, so this looks right immediately even
+          before staff upload real photos for every category. */}
       {!category ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {categories.map((cat) => {
@@ -142,31 +148,38 @@ export function CatalogBrowser({
                 key={cat.id}
                 type="button"
                 onClick={() => setCategoryId(cat.id)}
-                className="surface-card group flex min-h-[150px] flex-col p-5 text-left transition hover:border-white/[0.18]"
+                className="surface-card group flex flex-col overflow-hidden p-0 text-left transition hover:border-white/[0.18]"
               >
-                <p className="text-base font-semibold tracking-tight text-zinc-50">{cat.name}</p>
-                {cat.description ? (
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{cat.description}</p>
-                ) : null}
-                <div className="mt-auto flex items-end justify-between gap-2 pt-4">
-                  <div>
-                    {from !== null ? (
-                      <>
-                        <span className="block text-[11px] text-muted-foreground">From</span>
-                        <span className="text-display text-[22px] leading-none tabular-nums text-zinc-50">
-                          {formatPriceCents(from.amountCents)}
-                        </span>
-                        {from.billingType === "one_time" ? (
-                          <span className="ml-1 text-xs text-muted-foreground">one-off</span>
-                        ) : null}
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Coming soon</span>
-                    )}
+                <div className="relative">
+                  <ClassImageSlot seed={cat.id} imageUrl={cat.imageUrl} alt={cat.imageAlt} className="h-28 w-full" />
+                  <h3 className="text-condensed absolute inset-x-4 bottom-2.5 text-lg uppercase leading-none text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]">
+                    {cat.name}
+                  </h3>
+                </div>
+                <div className="flex flex-1 flex-col p-5">
+                  {cat.description ? (
+                    <p className="text-xs leading-relaxed text-muted-foreground">{cat.description}</p>
+                  ) : null}
+                  <div className="mt-auto flex items-end justify-between gap-2 pt-4">
+                    <div>
+                      {from !== null ? (
+                        <>
+                          <span className="block text-[11px] text-muted-foreground">From</span>
+                          <span className="text-display text-[22px] leading-none tabular-nums text-zinc-50">
+                            {formatPriceCents(from.amountCents)}
+                          </span>
+                          {from.billingType === "one_time" ? (
+                            <span className="ml-1 text-xs text-muted-foreground">one-off</span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Coming soon</span>
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-primary transition group-hover:translate-x-0.5">
+                      View options →
+                    </span>
                   </div>
-                  <span className="text-xs font-medium text-primary transition group-hover:translate-x-0.5">
-                    View options →
-                  </span>
                 </div>
               </button>
             );

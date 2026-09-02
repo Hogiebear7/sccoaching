@@ -60,7 +60,41 @@ describe("staff catalog CRUD", () => {
     const res = await call("categories", { name: "Semi-Private PT" }, staff());
     expect(res.status).toBe(200);
     const saved = h.saveMembershipCategory.mock.calls[0][0];
-    expect(saved).toMatchObject({ name: "Semi-Private PT", slug: "semi_private_pt", visible: true });
+    expect(saved).toMatchObject({ name: "Semi-Private PT", slug: "semi_private_pt", visible: true, imageUrl: null, imageAlt: null });
+  });
+
+  it("accepts a valid category cover image and rejects an invalid one", async () => {
+    const ok = await call(
+      "categories",
+      { name: "Over 50s", imageUrl: "data:image/png;base64,iVBORw0KGgo=", imageAlt: "An older athlete training with a coach" },
+      staff()
+    );
+    expect(ok.status).toBe(200);
+    expect(h.saveMembershipCategory.mock.calls[0][0]).toMatchObject({
+      imageUrl: "data:image/png;base64,iVBORw0KGgo=",
+      imageAlt: "An older athlete training with a coach",
+    });
+
+    const bad = await call("categories", { name: "Over 50s", imageUrl: "https://example.com/photo.jpg" }, staff());
+    expect(bad.status).toBe(400);
+  });
+
+  it("omitting imageUrl on an edit leaves the existing category cover untouched", async () => {
+    h.findMembershipCategoryById.mockReturnValue({
+      id: "c1",
+      name: "Cat",
+      slug: "cat",
+      visible: true,
+      sortOrder: 0,
+      imageUrl: "data:image/png;base64,existing=",
+      imageAlt: "Existing alt",
+    });
+    const res = await call("categories", { id: "c1", name: "Cat", visible: true, sortOrder: 0 }, staff());
+    expect(res.status).toBe(200);
+    expect(h.saveMembershipCategory.mock.calls[0][0]).toMatchObject({
+      imageUrl: "data:image/png;base64,existing=",
+      imageAlt: "Existing alt",
+    });
   });
 
   it("packages require a valid allowance count for fixed_count", async () => {

@@ -9,6 +9,7 @@ import {
   type MembershipCategoryRecord,
 } from "@/lib/db";
 import { slugifyCatalog } from "@/lib/catalog";
+import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { id, name, description, sortOrder, visible } = (body ?? {}) as Record<string, unknown>;
+  const { id, name, description, sortOrder, visible, imageUrl, imageAlt } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof name !== "string" || !name.trim()) {
     return NextResponse.json({ success: false, message: "Category name is required." }, { status: 400 });
@@ -35,6 +36,16 @@ export async function POST(request: NextRequest) {
   const existing = typeof id === "string" && id.trim() ? findMembershipCategoryById(id) : undefined;
   if (typeof id === "string" && id.trim() && !existing) {
     return NextResponse.json({ success: false, message: "This category no longer exists." }, { status: 404 });
+  }
+
+  const cover = resolveCoverImageInput(imageUrl);
+  if (!cover.ok) {
+    return NextResponse.json({ success: false, message: "That cover image is invalid or too large." }, { status: 400 });
+  }
+
+  const coverAlt = resolveCoverAltInput(imageAlt);
+  if (!coverAlt.ok) {
+    return NextResponse.json({ success: false, message: "That image description is too long." }, { status: 400 });
   }
 
   const now = new Date().toISOString();
@@ -46,6 +57,8 @@ export async function POST(request: NextRequest) {
     description: typeof description === "string" && description.trim() ? description.trim() : null,
     sortOrder: Number.isFinite(Number(sortOrder)) ? Math.trunc(Number(sortOrder)) : existing?.sortOrder ?? 0,
     visible: typeof visible === "boolean" ? visible : existing?.visible ?? true,
+    imageUrl: cover.value === undefined ? existing?.imageUrl ?? null : cover.value,
+    imageAlt: coverAlt.value === undefined ? existing?.imageAlt ?? null : coverAlt.value,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

@@ -363,18 +363,29 @@ function CategoryForm({
   const [name, setName] = useState(category?.name ?? "");
   const [description, setDescription] = useState(category?.description ?? "");
   const [sortOrder, setSortOrder] = useState(String(category?.sortOrder ?? 0));
+  const [imageUrl, setImageUrl] = useState<string | null>(category?.imageUrl ?? null);
+  const [imageAlt, setImageAlt] = useState(category?.imageAlt ?? "");
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSave({ name, description, sortOrder: Number(sortOrder), visible: category?.visible ?? true });
-        if (!category) setName("");
+        onSave({ name, description, sortOrder: Number(sortOrder), visible: category?.visible ?? true, imageUrl, imageAlt });
+        if (!category) { setName(""); setImageUrl(null); setImageAlt(""); }
       }}
       className={category ? "space-y-2" : "panel space-y-2 p-4"}
     >
       {!category ? <h3 className="text-sm font-semibold">New category</h3> : null}
       <Field label="Name"><input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Semi-Private PT" /></Field>
       <Field label="Description (optional)"><input className={input} value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
+      <CoverImageField
+        seed={category?.id ?? name}
+        label={name || undefined}
+        value={imageUrl}
+        onChange={setImageUrl}
+        alt={imageAlt}
+        onAltChange={setImageAlt}
+        hint="Optional — shown as the card's photo banner on the member catalog page. A placeholder is used if none is set."
+      />
       <div className="flex items-end gap-2">
         <div className="w-24"><Field label="Sort"><input type="number" className={input} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></Field></div>
         <button type="submit" className="btn-primary px-4 py-2 text-xs">{category ? "Save category" : "Add category"}</button>

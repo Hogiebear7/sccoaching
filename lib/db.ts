@@ -748,8 +748,12 @@ export interface MembershipPlanRecord {
 }
 
 // "none" means no real payment provider is wired up, or the member's plan
-// was activated manually by staff — see lib/billing.ts.
-export type BillingProvider = "none" | "stripe" | "revolut";
+// was activated manually by staff — see lib/billing.ts. "google_play" is
+// Tier 2 App Subscription purchased through Google Play Billing on Android
+// — see lib/providers/google-play.ts. Unlike stripe/revolut, the app never
+// creates a google_play checkout itself; the purchase happens natively in
+// the Play Store UI and this app only verifies + records it afterwards.
+export type BillingProvider = "none" | "stripe" | "revolut" | "google_play";
 
 // "pending" = a checkout was created with the provider but payment hasn't
 // been confirmed yet (webhook hasn't fired). Only a provider webhook (or a
@@ -853,6 +857,13 @@ export interface MembershipCategoryRecord {
   description: string | null;
   sortOrder: number;
   visible: boolean;
+  /** Optional cover image — a small JPEG/PNG/WebP data URL (staff-uploaded) or
+      a built-in cover path. Shown as the card's photo banner on the member
+      catalog browser; a placeholder is used when unset (see ClassImageSlot). */
+  imageUrl?: string | null;
+  /** Optional alt text for the cover. Null/blank = decorative (image ignored
+      by screen readers); a value = meaningful (used as the img alt). */
+  imageAlt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -930,6 +941,52 @@ export interface MembershipBillingOptionRecord {
   /** Stripe Price id. When set, checkout uses it; else it falls back to
       inline price_data derived from this record (see lib/billing.ts). */
   stripePriceId: string | null;
+  /** Google Play Console subscription product id (set up in Monetize >
+      Subscriptions) this option maps to — null for options not sold through
+      Play. See lib/providers/google-play.ts. */
+  googlePlaySubscriptionId?: string | null;
+  /** The specific base plan within that Play subscription product (Play's
+      model allows several base plans — e.g. monthly/annual — per product
+      id), null if not applicable. */
+  googlePlayBasePlanId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// A verified Google Play Billing purchase for a Tier 2 App Subscription.
+// One row per purchase token (a fresh token is issued on every new
+// subscription purchase, including a resubscribe after cancellation) —
+// history is kept rather than overwritten so past purchases stay auditable.
+// currentStatus is re-derived from a live Android Publisher API call
+// whenever we act on it (initial verify, or an RTDN notification wakes us
+// up to re-check) — never trusted from the notification payload alone, same
+// "provider state is never the entitlement source of truth" principle the
+// Stripe/Revolut webhooks already follow (see the commerce section above).
+export type GooglePlaySubscriptionStatus =
+  | "active"
+  | "in_grace_period"
+  | "on_hold"
+  | "paused"
+  | "canceled"
+  | "expired";
+
+export interface GooglePlayPurchaseRecord {
+  id: string;
+  userId: string;
+  purchaseToken: string;
+  productId: string;
+  basePlanId: string | null;
+  /** Google's order id for this purchase (e.g. "GPA.xxxx-xxxx-xxxx-xxxxx"). */
+  orderId: string | null;
+  /** If this purchase replaced an earlier one (resubscribe/upgrade), the
+      previous purchase token — carried over from Google's notification so
+      the chain is traceable. Null for a first-time purchase. */
+  linkedPurchaseToken: string | null;
+  status: GooglePlaySubscriptionStatus;
+  acknowledged: boolean;
+  autoRenewing: boolean;
+  startTimeMillis: number | null;
+  expiryTimeMillis: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1438,6 +1495,7 @@ interface Database {
   membershipPackages: MembershipPackageRecord[];
   membershipBillingOptions: MembershipBillingOptionRecord[];
   subscriptions: SubscriptionRecord[];
+  googlePlayPurchases: GooglePlayPurchaseRecord[];
   purchases: PurchaseRecord[];
   paymentEvents: PaymentEventRecord[];
   passLedger: PassLedgerEntryRecord[];
@@ -1558,6 +1616,7 @@ function readDb(): Database {
       membershipPackages: [],
       membershipBillingOptions: [],
       subscriptions: [],
+      googlePlayPurchases: [],
       purchases: [],
       paymentEvents: [],
       passLedger: [],
@@ -1700,6 +1759,8 @@ function readDb(): Database {
     membershipBillingOptions: (parsed.membershipBillingOptions ?? []).map((o) => ({
       ...o,
       currency: o.currency ?? "eur",
+      googlePlaySubscriptionId: o.googlePlaySubscriptionId ?? null,
+      googlePlayBasePlanId: o.googlePlayBasePlanId ?? null,
     })),
     subscriptions: (parsed.subscriptions ?? []).map((s) => ({
       ...s,
@@ -1708,6 +1769,7 @@ function readDb(): Database {
       extraSessionGrants: s.extraSessionGrants ?? [],
       periodLapsedNotifiedAt: s.periodLapsedNotifiedAt ?? null,
     })),
+    googlePlayPurchases: parsed.googlePlayPurchases ?? [],
     purchases: (parsed.purchases ?? []).map((p) => ({
       ...p,
       providerPaymentRef: p.providerPaymentRef ?? null,
@@ -1897,7 +1959,7 @@ const MEMBER_OWNED_COLLECTIONS = [
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
   "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
-  "recipes", "shoppingListItems", "foodFavorites",
+  "recipes", "shoppingListItems", "googlePlayPurchases", "foodFavorites",
 ] as const;
 
 // PERMANENT, irreversible deletion of a user and every record they own. This is
@@ -2688,6 +2750,33 @@ export function saveSubscription(subscription: SubscriptionRecord) {
     db.subscriptions.push(subscription);
   } else {
     db.subscriptions[index] = subscription;
+  }
+
+  writeDb(db);
+}
+
+export function findGooglePlayPurchaseByToken(
+  purchaseToken: string
+): GooglePlayPurchaseRecord | undefined {
+  const db = readDb();
+  return db.googlePlayPurchases.find((p) => p.purchaseToken === purchaseToken);
+}
+
+export function findGooglePlayPurchasesByUserId(userId: string): GooglePlayPurchaseRecord[] {
+  const db = readDb();
+  return db.googlePlayPurchases
+    .filter((p) => p.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function saveGooglePlayPurchase(purchase: GooglePlayPurchaseRecord) {
+  const db = readDb();
+  const index = db.googlePlayPurchases.findIndex((p) => p.purchaseToken === purchase.purchaseToken);
+
+  if (index === -1) {
+    db.googlePlayPurchases.push(purchase);
+  } else {
+    db.googlePlayPurchases[index] = purchase;
   }
 
   writeDb(db);
