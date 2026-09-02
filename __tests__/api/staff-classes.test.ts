@@ -246,6 +246,37 @@ describe("POST /api/staff/classes", () => {
     expect(mockIssueWaitlistOffer).not.toHaveBeenCalled();
   });
 
+  // Regression test: the mobile app's class editor sends durationMins/
+  // capacity as real numbers (correct for a JSON API client), not strings
+  // like the web form's inputs — parseRequiredPositiveInt previously only
+  // accepted strings, so every mobile-created class was rejected with
+  // "Duration must be a whole number greater than zero" regardless of the
+  // actual value.
+  it("accepts durationMins/capacity sent as real numbers, not just strings", async () => {
+    mockFindUserById.mockReturnValue(STAFF_USER);
+    mockFindClassById.mockReturnValue(undefined);
+    const cookie = signSession({ userId: STAFF_USER.id });
+
+    const res = await callStaffClasses(
+      {
+        title: "Mobile-created Class",
+        category: "general",
+        date: FUTURE_DATE,
+        startTime: "18:00",
+        durationMins: 45,
+        capacity: 8,
+      },
+      cookie
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.message).toBe("Class created.");
+    const saved = mockSaveClass.mock.calls[0][0];
+    expect(saved.durationMins).toBe(45);
+    expect(saved.capacity).toBe(8);
+  });
+
   it("updates an existing class, preserving id, coachUserId, and createdAt", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue(EXISTING_CLASS);

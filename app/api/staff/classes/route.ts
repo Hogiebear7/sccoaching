@@ -20,12 +20,18 @@ import { isFutureDateTime } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
+// Accepts a real number directly (the mobile app's class editor, a JSON
+// API client, sends durationMins/capacity as numbers — as it should) as
+// well as a numeric string (the web form's inputs, which come through as
+// strings). Previously only accepted strings, so every mobile-created
+// class request was rejected regardless of the actual value.
 function parseRequiredPositiveInt(
   value: unknown
 ): { ok: true; value: number } | { ok: false } {
-  if (typeof value !== "string" || value.trim() === "") return { ok: false };
+  if (typeof value !== "string" && typeof value !== "number") return { ok: false };
+  if (typeof value === "string" && value.trim() === "") return { ok: false };
 
-  const parsed = Number(value);
+  const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) return { ok: false };
 
   return { ok: true, value: parsed };
