@@ -9,7 +9,7 @@ import { AppShowcase } from "@/components/marketing/AppShowcase";
 import { ClassesShowcase } from "@/components/marketing/ClassesShowcase";
 import { ClassPricingShowcase } from "@/components/marketing/ClassPricingShowcase";
 import { ContactForm } from "@/components/marketing/ContactForm";
-import { FaqSection } from "@/components/marketing/FaqSection";
+import { AppFaqSection, FaqSection } from "@/components/marketing/FaqSection";
 import { MemberPreviewStack } from "@/components/marketing/MemberPreviewStack";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
@@ -234,6 +234,17 @@ export default async function Root() {
 
           <ScrollReveal delayMs={80} className="mt-10">
             <AppShowcase />
+          </ScrollReveal>
+
+          <ScrollReveal delayMs={80} className="mx-auto mt-16 max-w-2xl">
+            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              App FAQ
+            </p>
+            <h3 className="mt-4 text-editorial text-[26px] text-zinc-50">Questions about the app.</h3>
+            <div className="mt-8">
+              <AppFaqSection />
+            </div>
           </ScrollReveal>
         </div>
       </section>

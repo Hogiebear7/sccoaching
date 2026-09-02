@@ -54,12 +54,51 @@ const FAQS: FaqItem[] = [
   },
 ];
 
-export function FaqSection() {
+// App-only (Tier 2) FAQ — scoped to the standalone app subscription described
+// in AppShowcase.tsx. Kept separate from FAQS above (which covers the
+// in-person Semi-Private/Parent & Baby/Over 50s memberships) rather than
+// merged into one list, since the two products have different answers to
+// similar-sounding questions (e.g. cost, what's included). Grounded in
+// AppShowcase's own placeholders — no invented pricing or store links, since
+// neither exists yet.
+const APP_FAQS: FaqItem[] = [
+  {
+    question: "What's included with the app?",
+    answer:
+      "A workout built around your equipment and goals, a coach you can message any time, meal logging from a photo of your plate, and calorie and macro targets that adjust as your training changes — all in one place instead of spread across separate apps.",
+  },
+  {
+    question: "How is this different from the in-person membership?",
+    answer:
+      "The app-only plan is for training on your own, with no gym visit or class booking involved. If you're already a Semi-Private, Parent & Baby, or Over 50s member, you get the same app — workout tracking, coach messaging, and nutrition logging — included in your membership already.",
+  },
+  {
+    question: "Do I need any equipment?",
+    answer:
+      "No — tell it what you've got, from a full gym to just bodyweight, and your sessions are built around that.",
+  },
+  {
+    question: "Is it a replacement for a real coach?",
+    answer:
+      "It runs on the same coaching approach used on the gym floor, not a generic template. Every session and nutrition target is built around your own data and adjusts as your training and progress change.",
+  },
+  {
+    question: "When can I download it, and what does it cost?",
+    answer: "Launching soon on the App Store and Google Play. Pricing will be confirmed closer to launch.",
+  },
+];
+
+interface AccordionProps {
+  items: FaqItem[];
+  idPrefix: string;
+}
+
+function Accordion({ items, idPrefix }: AccordionProps) {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
     <div className="divide-y divide-white/[0.08] border-t border-white/[0.08]">
-      {FAQS.map((item, i) => {
+      {items.map((item, i) => {
         const isOpen = open === i;
         return (
           <div key={item.question}>
@@ -67,7 +106,7 @@ export function FaqSection() {
               type="button"
               onClick={() => setOpen(isOpen ? null : i)}
               aria-expanded={isOpen}
-              aria-controls={`faq-answer-${i}`}
+              aria-controls={`${idPrefix}-answer-${i}`}
               className="flex w-full items-center justify-between gap-4 py-5 text-left"
             >
               <span className="text-base font-medium text-zinc-100">{item.question}</span>
@@ -85,7 +124,7 @@ export function FaqSection() {
               </svg>
             </button>
             <div
-              id={`faq-answer-${i}`}
+              id={`${idPrefix}-answer-${i}`}
               className={`grid overflow-hidden text-sm leading-relaxed text-zinc-400 transition-[grid-template-rows,opacity,margin] duration-200 ${
                 isOpen ? "mb-5 [grid-template-rows:1fr] opacity-100" : "[grid-template-rows:0fr] opacity-0"
               }`}
@@ -97,4 +136,12 @@ export function FaqSection() {
       })}
     </div>
   );
+}
+
+export function FaqSection() {
+  return <Accordion items={FAQS} idPrefix="faq" />;
+}
+
+export function AppFaqSection() {
+  return <Accordion items={APP_FAQS} idPrefix="app-faq" />;
 }
