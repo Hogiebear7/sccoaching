@@ -1,4 +1,5 @@
 import type { WorkoutSessionRecord } from "./db";
+import type { Exertion } from "./nutrition";
 
 // ─────────────────────────────────────────────────────────────────────
 // Workout Helper — deterministic solo-session builder.
@@ -29,6 +30,13 @@ export interface HelperContext {
   // Rolling 7-day training load (sum of duration × RPE from recovery logs).
   sevenDayLoad: number;
   daysWithLoad: number;
+  /** Exertion already planned or booked for today, from the member's
+      Weekly Training entries — including ones auto-synced from a class
+      booking (see lib/weekly-training-sync.ts). Null when nothing's set
+      for today. Lets the Helper avoid piling a full/standard session on
+      top of a day that already has a heavy session coming, the same way
+      it avoids one after a heavy 7-day load. */
+  plannedTodayExertion?: Exertion | null;
 }
 
 export interface Prescription {
@@ -83,7 +91,7 @@ export const LOAD_BAND_LABEL: Record<LoadBand, string> = {
 
 // ─── Session tier decision ────────────────────────────────────────────
 
-export function decideTier(context: HelperContext): { tier: SessionTier; rationale: string } {
+function decideBaseTier(context: HelperContext): { tier: SessionTier; rationale: string } {
   const band = classifyLoad(context.sevenDayLoad, context.daysWithLoad);
   const score = context.readinessScore;
 
@@ -124,6 +132,26 @@ export function decideTier(context: HelperContext): { tier: SessionTier; rationa
     tier: "standard",
     rationale: `Readiness is ${score} with ${band === "moderate" ? "a normal" : "a manageable"} recent load — a standard session fits today.`,
   };
+}
+
+export function decideTier(context: HelperContext): { tier: SessionTier; rationale: string } {
+  const base = decideBaseTier(context);
+
+  // A "high"/"match" planned or booked session today (a class, a match) is
+  // itself a hard training stimulus — stacking a full/standard Helper
+  // session on top of it risks overtraining, and if the Helper is being
+  // used to prep for that session later today, staying lighter leaves more
+  // in the tank for it. Already-reduced stays reduced; nothing to downgrade.
+  const heavyDayPlanned = context.plannedTodayExertion === "high" || context.plannedTodayExertion === "match";
+  if (heavyDayPlanned && base.tier !== "reduced") {
+    const downgradedTier: SessionTier = base.tier === "full" ? "standard" : "reduced";
+    return {
+      tier: downgradedTier,
+      rationale: `${base.rationale} You've also got a heavy session booked or planned for today, so this stays lighter to leave enough in the tank for that.`,
+    };
+  }
+
+  return base;
 }
 
 // ─── Movement catalogue ───────────────────────────────────────────────

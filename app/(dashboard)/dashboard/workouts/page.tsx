@@ -5,10 +5,14 @@ import {
   findProfileByUserId,
   findRecoveryLogsByUserId,
   findUserById,
+  findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
+import { exertionFromWeeklySessions } from "@/lib/nutrition-target";
 import { computeRollingTrainingLoad } from "@/lib/recovery";
 import { verifySession } from "@/lib/session";
+import { activeWeeklySessions } from "@/lib/weekly-training";
+import type { TrainingDayOfWeek } from "@/lib/profile-schema";
 import type { HelperContext } from "@/lib/workout-helper";
 import { WorkoutsView } from "./WorkoutsView";
 
@@ -43,10 +47,20 @@ export default async function DashboardWorkoutsPage() {
   const todayLog = recoveryLogs.find((log) => log.date === todayISO);
   const rollingLoad = computeRollingTrainingLoad(recoveryLogs, sessions);
 
+  // Whatever's already planned/booked for today (including a class booking
+  // synced into Weekly Training — see lib/weekly-training-sync.ts) so the
+  // Helper doesn't stack a full/standard session on top of a heavy day.
+  const weeklySchedule = findWeeklyTrainingScheduleByUserId(user.id);
+  const todayWeekday = new Date(`${todayISO}T00:00:00Z`).getUTCDay() as TrainingDayOfWeek;
+  const plannedTodayExertion = weeklySchedule
+    ? exertionFromWeeklySessions(activeWeeklySessions(weeklySchedule.sessions, todayISO), todayWeekday)
+    : null;
+
   const helperContext: HelperContext = {
     readinessScore: todayLog?.readinessScore ?? null,
     sevenDayLoad: rollingLoad.sevenDaySum,
     daysWithLoad: rollingLoad.daysWithLoad,
+    plannedTodayExertion,
   };
 
   return <WorkoutsView sessions={sessions} exercises={exercises} helperContext={helperContext} />;

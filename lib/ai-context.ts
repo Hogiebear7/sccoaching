@@ -17,6 +17,7 @@ import {
   type FuelDay,
 } from "./nutrition";
 import { getResolvedNutritionTarget } from "./nutrition-target-data";
+import { exertionFromWeeklySessions } from "./nutrition-target";
 import { excludedAllergensFor, recommendFoods } from "./nutrition-recommendations";
 import {
   ALLERGEN_OPTIONS,
@@ -219,10 +220,15 @@ export function buildCoachingContext(input: CoachingContextInput): CoachingConte
   const readinessScore = todayLog?.readinessScore ?? null;
   const rolling = computeRollingTrainingLoad(recoveryLogs);
   const loadBand = classifyLoad(rolling.sevenDaySum, rolling.daysWithLoad);
+  const todayWeekday = new Date(`${todayISO}T00:00:00Z`).getUTCDay() as TrainingDayOfWeek;
+  const plannedTodayExertion = input.weeklyTrainingSchedule
+    ? exertionFromWeeklySessions(activeWeeklySessions(input.weeklyTrainingSchedule.sessions, todayISO), todayWeekday)
+    : null;
   const tier = decideTier({
     readinessScore,
     sevenDayLoad: rolling.sevenDaySum,
     daysWithLoad: rolling.daysWithLoad,
+    plannedTodayExertion,
   });
 
   const lines: string[] = [];

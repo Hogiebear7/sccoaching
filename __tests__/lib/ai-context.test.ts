@@ -229,6 +229,39 @@ describe("buildCoachingContext — missing data is stated, never invented", () =
     expect(context.text).toContain("Tier: reduced");
     expect(context.text.toLowerCase()).toContain("reduced volume");
   });
+
+  it("downgrades an otherwise-full tier when a heavy session is already booked/planned today", () => {
+    const todayWeekday = new Date(`${TODAY}T00:00:00Z`).getUTCDay();
+    const context = buildCoachingContext({
+      profile: makeProfile(),
+      recoveryLogs: [makeRecoveryLog(TODAY, { readinessScore: 82 })], // would be "full" alone
+      sessions: [],
+      todayISO: TODAY,
+      weeklyTrainingSchedule: {
+        userId: "user-1",
+        updatedAt: TODAY,
+        sessions: [
+          {
+            id: "wt-1",
+            dayOfWeek: todayWeekday as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+            label: "Match day",
+            activityType: "sport",
+            timeOfDay: null,
+            intensity: "heavy",
+            estimatedDurationMins: null,
+            notes: null,
+            recurring: true,
+            weekOf: null,
+            sourceBookingId: null,
+          },
+        ],
+      },
+      upcomingBookings: [],
+    });
+
+    expect(context.display.tierLabel).not.toBe("Full session");
+    expect(context.text).toContain("booked or planned");
+  });
 });
 
 describe("buildCoachingContext — drink calculator grounding", () => {

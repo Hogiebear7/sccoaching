@@ -76,6 +76,35 @@ describe("decideTier", () => {
     expect(result.tier).toBe("standard");
     expect(result.rationale).toMatch(/no recovery log/i);
   });
+
+  it("downgrades a full session to standard when a heavy session is already planned today", () => {
+    const result = decideTier(ctx({ readinessScore: 82, sevenDayLoad: 900, plannedTodayExertion: "match" }));
+    expect(result.tier).toBe("standard");
+    expect(result.rationale).toMatch(/booked or planned/i);
+  });
+
+  it("downgrades a standard session to reduced when a heavy session is already planned today", () => {
+    const result = decideTier(ctx({ readinessScore: 70, sevenDayLoad: 800, plannedTodayExertion: "high" }));
+    expect(result.tier).toBe("reduced");
+    expect(result.rationale).toMatch(/booked or planned/i);
+  });
+
+  it("leaves an already-reduced session as reduced when a heavy session is planned today", () => {
+    const result = decideTier(ctx({ readinessScore: 42, plannedTodayExertion: "match" }));
+    expect(result.tier).toBe("reduced");
+    // No double rationale tacked on — the low-readiness reasoning alone still applies.
+    expect(result.rationale).toContain("42");
+    expect(result.rationale).not.toMatch(/booked or planned/i);
+  });
+
+  it("does not downgrade for a light or medium planned day", () => {
+    expect(decideTier(ctx({ readinessScore: 82, sevenDayLoad: 900, plannedTodayExertion: "low" })).tier).toBe("full");
+    expect(decideTier(ctx({ readinessScore: 82, sevenDayLoad: 900, plannedTodayExertion: "medium" })).tier).toBe("full");
+  });
+
+  it("does not downgrade when nothing is planned today", () => {
+    expect(decideTier(ctx({ readinessScore: 82, sevenDayLoad: 900, plannedTodayExertion: null })).tier).toBe("full");
+  });
 });
 
 describe("buildWorkoutPlan — history anchoring", () => {
