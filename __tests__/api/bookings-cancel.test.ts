@@ -15,6 +15,8 @@ const {
   mockAppendPassLedgerEntry,
   mockFindPassLedgerByBookingId,
   mockCreatePendingCancellationCredit,
+  mockFindWeeklyTrainingScheduleByUserId,
+  mockSaveWeeklyTrainingSchedule,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindBookingById: vi.fn(),
@@ -27,6 +29,8 @@ const {
   mockAppendPassLedgerEntry: vi.fn(),
   mockFindPassLedgerByBookingId: vi.fn(),
   mockCreatePendingCancellationCredit: vi.fn(),
+  mockFindWeeklyTrainingScheduleByUserId: vi.fn(),
+  mockSaveWeeklyTrainingSchedule: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -50,6 +54,8 @@ vi.mock("@/lib/db", () => ({
   // tests only exercise the "forfeit" side, never the refill/resolve side.
   createPendingCancellationCredit: mockCreatePendingCancellationCredit,
   createNotification: vi.fn(),
+  findWeeklyTrainingScheduleByUserId: mockFindWeeklyTrainingScheduleByUserId,
+  saveWeeklyTrainingSchedule: mockSaveWeeklyTrainingSchedule,
 }));
 
 vi.mock("@/lib/scheduling", () => ({
@@ -126,9 +132,12 @@ describe("POST /api/bookings/cancel", () => {
     mockFindPassLedgerByBookingId.mockReset();
     mockFindPassLedgerByBookingId.mockReturnValue([]);
     mockCreatePendingCancellationCredit.mockReset();
+    mockFindWeeklyTrainingScheduleByUserId.mockReset();
+    mockSaveWeeklyTrainingSchedule.mockReset();
     mockFindUserById.mockReturnValue(MEMBER_USER);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
     mockIsCancellationEarly.mockReturnValue(true);
+    mockFindWeeklyTrainingScheduleByUserId.mockReturnValue(undefined);
   });
 
   it("rejects requests with no session cookie", async () => {
@@ -205,6 +214,85 @@ describe("POST /api/bookings/cancel", () => {
     expect(mockSaveSubscription.mock.calls[0][0].sessionsUsedThisPeriod).toBe(2);
     expect(mockDeleteBooking).toHaveBeenCalledWith("booking-1");
     expect(mockIssueWaitlistOffer).toHaveBeenCalledWith("class-1");
+  });
+
+  it("removes the Weekly Training entry this booking synced, leaving unrelated sessions alone", async () => {
+    mockFindBookingById.mockReturnValue(SOME_BOOKING);
+    mockFindClassById.mockReturnValue(FUTURE_CLASS);
+    mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
+    mockIsCancellationEarly.mockReturnValue(true);
+    mockFindWeeklyTrainingScheduleByUserId.mockReturnValue({
+      userId: MEMBER_USER.id,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      sessions: [
+        {
+          id: "wt-synced",
+          dayOfWeek: 5,
+          label: "Evening Strength",
+          activityType: "gym",
+          timeOfDay: "evening",
+          intensity: "moderate",
+          estimatedDurationMins: 60,
+          notes: null,
+          recurring: false,
+          weekOf: "2026-12-21",
+          sourceBookingId: "booking-1", // this booking's synced entry
+        },
+        {
+          id: "wt-manual",
+          dayOfWeek: 2,
+          label: "Football training",
+          activityType: "sport",
+          timeOfDay: "evening",
+          intensity: "heavy",
+          estimatedDurationMins: 90,
+          notes: null,
+          recurring: true,
+          weekOf: null,
+          sourceBookingId: null, // member-created, unrelated to this booking
+        },
+      ],
+    });
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    await callBookingsCancel({ bookingId: "booking-1" }, cookie);
+
+    expect(mockSaveWeeklyTrainingSchedule).toHaveBeenCalledTimes(1);
+    const saved = mockSaveWeeklyTrainingSchedule.mock.calls[0][0];
+    expect(saved.userId).toBe(MEMBER_USER.id);
+    expect(saved.sessions).toHaveLength(1);
+    expect(saved.sessions[0].id).toBe("wt-manual");
+  });
+
+  it("skips the Weekly Training save when nothing was synced for this booking", async () => {
+    mockFindBookingById.mockReturnValue(SOME_BOOKING);
+    mockFindClassById.mockReturnValue(FUTURE_CLASS);
+    mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
+    mockIsCancellationEarly.mockReturnValue(true);
+    mockFindWeeklyTrainingScheduleByUserId.mockReturnValue({
+      userId: MEMBER_USER.id,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      sessions: [
+        {
+          id: "wt-manual",
+          dayOfWeek: 2,
+          label: "Football training",
+          activityType: "sport",
+          timeOfDay: "evening",
+          intensity: "heavy",
+          estimatedDurationMins: 90,
+          notes: null,
+          recurring: true,
+          weekOf: null,
+          sourceBookingId: null,
+        },
+      ],
+    });
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    await callBookingsCancel({ bookingId: "booking-1" }, cookie);
+
+    expect(mockSaveWeeklyTrainingSchedule).not.toHaveBeenCalled();
   });
 
   it("returns a purchased pass on early cancel instead of touching the counter", async () => {

@@ -242,6 +242,14 @@ export interface WeeklyTrainingSession {
   /** Monday (ISO date) of the week a one-off session belongs to. Only
       meaningful when recurring is false; null for recurring sessions. */
   weekOf: string | null;
+  /** Set only on a session auto-created from a class booking (see
+      lib/weekly-training-sync.ts) — null for every member-created session.
+      Server-owned: never trusted from the client, preserved by id across a
+      member's own full-list saves the same way weekOf is (see
+      normalizeSessions in app/api/mobile/weekly-training/route.ts). Lets a
+      cancelled booking find and remove the session it created, even if the
+      member edited it afterward. */
+  sourceBookingId: string | null;
 }
 
 export interface WeeklyTrainingScheduleRecord {

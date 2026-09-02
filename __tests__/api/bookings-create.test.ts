@@ -20,6 +20,8 @@ const {
   mockAppendPassLedgerEntry,
   mockFindPassLedgerByUserId,
   mockFindPassLedgerByBookingId,
+  mockFindWeeklyTrainingScheduleByUserId,
+  mockSaveWeeklyTrainingSchedule,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindClassById: vi.fn(),
@@ -37,6 +39,8 @@ const {
   mockAppendPassLedgerEntry: vi.fn(),
   mockFindPassLedgerByUserId: vi.fn(),
   mockFindPassLedgerByBookingId: vi.fn(),
+  mockFindWeeklyTrainingScheduleByUserId: vi.fn(),
+  mockSaveWeeklyTrainingSchedule: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -65,6 +69,8 @@ vi.mock("@/lib/db", () => ({
   // a no-op (these tests assert booking logic, not workout prepopulation).
   findClassWorkoutByClassId: vi.fn(),
   createNotification: vi.fn(),
+  findWeeklyTrainingScheduleByUserId: mockFindWeeklyTrainingScheduleByUserId,
+  saveWeeklyTrainingSchedule: mockSaveWeeklyTrainingSchedule,
 }));
 
 // Booking confirmation now also fires a push notification — stub it out so
@@ -150,9 +156,12 @@ describe("POST /api/bookings/create", () => {
     mockAppendPassLedgerEntry.mockReset();
     mockFindPassLedgerByUserId.mockReset();
     mockFindPassLedgerByBookingId.mockReset();
+    mockFindWeeklyTrainingScheduleByUserId.mockReset();
+    mockSaveWeeklyTrainingSchedule.mockReset();
     mockFindWaitlistEntriesByClassId.mockReturnValue([]);
     mockFindPassLedgerByUserId.mockReturnValue([]);
     mockFindPassLedgerByBookingId.mockReturnValue([]);
+    mockFindWeeklyTrainingScheduleByUserId.mockReturnValue(undefined);
     mockFindUserById.mockReturnValue(MEMBER_USER);
     // No packages configured by default, so membership gating doesn't apply —
     // matches the pre-Block-B behavior for all the existing tests below.
@@ -257,6 +266,24 @@ describe("POST /api/bookings/create", () => {
     expect(saved.classId).toBe("class-1");
     expect(saved.userId).toBe(MEMBER_USER.id);
     expect(saved.id).toBeTruthy();
+
+    // The booking also syncs a matching Weekly Training entry (see
+    // lib/weekly-training-sync.ts) — SOME_CLASS is 2026-12-25, a Friday,
+    // 18:00 (evening), 60 min.
+    expect(mockSaveWeeklyTrainingSchedule).toHaveBeenCalledTimes(1);
+    const savedSchedule = mockSaveWeeklyTrainingSchedule.mock.calls[0][0];
+    expect(savedSchedule.userId).toBe(MEMBER_USER.id);
+    expect(savedSchedule.sessions).toHaveLength(1);
+    const syncedSession = savedSchedule.sessions[0];
+    expect(syncedSession.label).toBe("Evening Strength");
+    expect(syncedSession.activityType).toBe("gym");
+    expect(syncedSession.intensity).toBe("moderate");
+    expect(syncedSession.timeOfDay).toBe("evening");
+    expect(syncedSession.estimatedDurationMins).toBe(60);
+    expect(syncedSession.dayOfWeek).toBe(5); // Friday
+    expect(syncedSession.recurring).toBe(false);
+    expect(syncedSession.weekOf).toBe("2026-12-21"); // Monday of that week
+    expect(syncedSession.sourceBookingId).toBe(saved.id);
   });
 
   it("blocks a member without an active subscription once plans exist", async () => {

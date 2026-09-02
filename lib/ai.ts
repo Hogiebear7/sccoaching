@@ -14,6 +14,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import { resolveBookingsForUser } from "@/lib/bookings";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { buildCoachingContext } from "@/lib/ai-context";
 import { getConfiguredAnthropicApiKey } from "@/lib/app-config";
@@ -21,6 +22,7 @@ import {
   findBodyWeightLogsByUserId,
   findProfileByUserId,
   findRecoveryLogsByUserId,
+  findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
 import { formatWorkoutReviewContext, type WorkoutReviewData } from "@/lib/workout-review";
@@ -223,6 +225,8 @@ function buildStaffMemberContext(userId: string): string | null {
     sessions: findWorkoutSessionsByUserId(userId),
     todayISO: new Date().toISOString().slice(0, 10),
     drinkSettings: profile.drinkSettings ?? null,
+    weeklyTrainingSchedule: findWeeklyTrainingScheduleByUserId(userId) ?? null,
+    upcomingBookings: resolveBookingsForUser(userId),
   }).text;
 }
 

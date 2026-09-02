@@ -19,6 +19,7 @@ import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
 import { resolvePendingCancellationCreditsForClass } from "@/lib/cancellation-credits";
 import { syncClassWorkoutToMember } from "@/lib/class-workout-sync";
 import { issueWaitlistOffer } from "@/lib/scheduling";
+import { syncBookingToWeeklyTraining } from "@/lib/weekly-training-sync";
 import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -217,6 +218,14 @@ export async function POST(request: NextRequest) {
   // If staff already prepared a workout for this class, it shows up in the
   // member's Workouts tab immediately — no need to wait for check-in.
   syncClassWorkoutToMember(entry.classId, user.id);
+
+  // Reflect this booking in the member's Weekly Training plan — see
+  // lib/weekly-training-sync.ts. Best-effort: must never block the booking.
+  try {
+    syncBookingToWeeklyTraining(user.id, classRecord, booking.id);
+  } catch {
+    // Non-critical — the booking itself has already succeeded.
+  }
 
   if (subscription) {
     if (coverWithPurchasedPass) {

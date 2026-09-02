@@ -19,6 +19,7 @@ import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer, isCancellationEarly } from "@/lib/scheduling";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
+import { removeSyncedWeeklyTrainingSession } from "@/lib/weekly-training-sync";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -125,6 +126,12 @@ export async function POST(request: NextRequest) {
   }
 
   deleteBooking(bookingId);
+
+  try {
+    removeSyncedWeeklyTrainingSession(user.id, bookingId);
+  } catch {
+    // Non-critical — the cancellation itself has already succeeded.
+  }
 
   if (classRecord) {
     try {

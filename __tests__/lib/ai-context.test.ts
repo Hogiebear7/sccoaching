@@ -127,7 +127,14 @@ describe("buildCoachingContext — grounding categories", () => {
     makeSession(isoDaysAgo(4), [{ name: "Bench Press", weight: "60", reps: 8, sets: 3 }]),
   ];
 
-  const context = buildCoachingContext({ profile, recoveryLogs, sessions, todayISO: TODAY });
+  const context = buildCoachingContext({
+    profile,
+    recoveryLogs,
+    sessions,
+    todayISO: TODAY,
+    weeklyTrainingSchedule: null,
+    upcomingBookings: [],
+  });
 
   it("includes member profile context", () => {
     expect(context.text).toContain("Alex Rivera");
@@ -179,6 +186,8 @@ describe("buildCoachingContext — missing data is stated, never invented", () =
       recoveryLogs: [],
       sessions: [],
       todayISO: TODAY,
+      weeklyTrainingSchedule: null,
+      upcomingBookings: [],
     });
 
     expect(context.text).toContain("No recovery log for today");
@@ -197,6 +206,8 @@ describe("buildCoachingContext — missing data is stated, never invented", () =
       recoveryLogs: [makeRecoveryLog(isoDaysAgo(1), { readinessScore: 91 })],
       sessions: [],
       todayISO: TODAY,
+      weeklyTrainingSchedule: null,
+      upcomingBookings: [],
     });
 
     expect(context.display.readinessScore).toBeNull();
@@ -210,6 +221,8 @@ describe("buildCoachingContext — missing data is stated, never invented", () =
       recoveryLogs: [makeRecoveryLog(TODAY, { readinessScore: 38 })],
       sessions: [],
       todayISO: TODAY,
+      weeklyTrainingSchedule: null,
+      upcomingBookings: [],
     });
 
     expect(context.display.tierLabel).toBe("Reduced session");
@@ -224,6 +237,8 @@ describe("buildCoachingContext — drink calculator grounding", () => {
     recoveryLogs: [],
     sessions: [],
     todayISO: TODAY,
+    weeklyTrainingSchedule: null,
+    upcomingBookings: [],
   });
 
   it("omits the drink section when no settings are provided", () => {

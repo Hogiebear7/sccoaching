@@ -6,8 +6,10 @@ import {
   findProfileByUserId,
   findRecoveryLogsByUserId,
   findUserById,
+  findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
+import { resolveBookingsForUser } from "@/lib/bookings";
 import { buildCoachingContext, type CoachingContextDisplay } from "@/lib/ai-context";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { isAiConfigured } from "@/lib/ai";
@@ -54,6 +56,8 @@ export default async function DashboardMessagesPage({
       recoveryLogs: findRecoveryLogsByUserId(user.id),
       sessions: findWorkoutSessionsByUserId(user.id),
       todayISO: new Date().toISOString().slice(0, 10),
+      weeklyTrainingSchedule: findWeeklyTrainingScheduleByUserId(user.id) ?? null,
+      upcomingBookings: resolveBookingsForUser(user.id),
     }).display;
   }
 

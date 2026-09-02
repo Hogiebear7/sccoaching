@@ -46,7 +46,10 @@ export function trainingLoadForLog(log: RecoveryLogRecord): number | null {
 // Load for a single logged workout session — mirrors trainingLoadForLog's
 // duration x RPE formula, using the session's own duration/RPE ("How did
 // that feel?") rather than the separate, optional Recovery check-in fields.
-function trainingLoadForSession(session: WorkoutSessionRecord): number | null {
+// Exported for lib/nutrition-target-data.ts's exertionForDate, which sums
+// same-date sessions with this exact formula for its logged-workout tier —
+// see the same-date-only-once-per-source discipline noted above.
+export function trainingLoadForSession(session: WorkoutSessionRecord): number | null {
   if (session.durationMins === null || session.durationMins === undefined) return null;
   if (session.sessionRpe === null || session.sessionRpe === undefined) return null;
   return session.durationMins * session.sessionRpe;

@@ -4,8 +4,10 @@ import {
   findProfileByUserId,
   findRecoveryLogsByUserId,
   findUserById,
+  findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "./db";
+import { resolveBookingsForUser } from "./bookings";
 import { buildCoachingContext, type CoachingContextDisplay } from "./ai-context";
 import { isAiConfigured } from "./ai";
 
@@ -48,6 +50,8 @@ export function getMessagesData(userId: string | undefined): MessagesData | null
       recoveryLogs: findRecoveryLogsByUserId(user.id),
       sessions: findWorkoutSessionsByUserId(user.id),
       todayISO: new Date().toISOString().slice(0, 10),
+      weeklyTrainingSchedule: findWeeklyTrainingScheduleByUserId(user.id) ?? null,
+      upcomingBookings: resolveBookingsForUser(user.id),
     }).display;
   }
 

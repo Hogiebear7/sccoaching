@@ -13,6 +13,7 @@ import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { removeSyncedWeeklyTrainingSession } from "@/lib/weekly-training-sync";
 
 // Staff-initiated removal from a booked class — distinct from a member's own
 // cancellation (app/api/bookings/cancel/route.ts). This is an administrative
@@ -74,6 +75,12 @@ export async function POST(request: NextRequest) {
   }
 
   deleteBooking(bookingId);
+
+  try {
+    removeSyncedWeeklyTrainingSession(booking.userId, bookingId);
+  } catch {
+    // Non-critical — the removal itself has already succeeded.
+  }
 
   const classRecord = findClassById(booking.classId);
   if (classRecord) {

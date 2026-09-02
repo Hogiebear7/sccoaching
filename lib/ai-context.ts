@@ -49,6 +49,12 @@ export interface CoachingContextInput {
    * them so the coach can explain the member's actual mix.
    */
   drinkSettings?: DrinkSettings | null;
+  /** Same self-reported plan buildNutritionCoachContext already grounds
+      fuelling advice with — gives this coach visibility into what the
+      member has already booked/planned, so it doesn't suggest a session
+      that collides with it. */
+  weeklyTrainingSchedule: WeeklyTrainingScheduleRecord | null;
+  upcomingBookings: ResolvedBooking[];
 }
 
 export interface CoachingContextDisplay {
@@ -207,7 +213,7 @@ function buildDrinkContextLines(profile: ProfileRecord, drinkSettings: DrinkSett
 }
 
 export function buildCoachingContext(input: CoachingContextInput): CoachingContext {
-  const { profile, recoveryLogs, sessions, todayISO } = input;
+  const { profile, recoveryLogs, sessions, todayISO, upcomingBookings } = input;
 
   const todayLog = recoveryLogs.find((log) => log.date === todayISO);
   const readinessScore = todayLog?.readinessScore ?? null;
@@ -292,6 +298,25 @@ export function buildCoachingContext(input: CoachingContextInput): CoachingConte
       }
     }
   }
+
+  // ── Upcoming booked session (so a suggested/generated workout doesn't
+  // collide with what's already booked) ──
+  const nextBooking =
+    [...upcomingBookings]
+      .filter((b) => !b.isPast)
+      .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`))[0] ?? null;
+  lines.push("");
+  lines.push("## Upcoming booked session");
+  if (nextBooking) {
+    lines.push(`- ${nextBooking.title} (category: ${nextBooking.category}) on ${nextBooking.date} at ${nextBooking.startTime}`);
+    lines.push("- Avoid recommending a session that clashes with this unless the member is specifically asking about it.");
+  } else {
+    lines.push("- No upcoming class booked.");
+  }
+
+  // ── Weekly training plan (self-reported, not logged) ──
+  lines.push("");
+  lines.push(...buildWeeklyTrainingPatternLines(input.weeklyTrainingSchedule));
 
   // ── Sports performance drink (Nutrition tab calculator) ──
   if (input.drinkSettings) {

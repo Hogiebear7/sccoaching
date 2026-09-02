@@ -37,10 +37,16 @@ function todayISO(): string {
 // recurring session), its original weekOf is preserved via
 // existingWeekOfById — otherwise every save would silently "renew" old
 // one-offs back to the current week and they'd never actually clear.
+// sourceBookingId gets the identical treatment: it's server-owned (set only
+// by the booking sync in lib/weekly-training-sync.ts), never taken from the
+// client, and preserved by id so a member editing an unrelated session
+// doesn't accidentally strip the link a synced session needs for cleanup
+// when its booking is later cancelled.
 function normalizeSessions(
   input: unknown,
   currentWeekMonday: string,
-  existingWeekOfById: Map<string, string | null>
+  existingWeekOfById: Map<string, string | null>,
+  existingSourceBookingIdById: Map<string, string | null>
 ): WeeklyTrainingSession[] {
   if (!Array.isArray(input)) return [];
 
@@ -87,6 +93,7 @@ function normalizeSessions(
     // sends should keep behaving exactly like it always did (always applies).
     const recurring = typeof entry.recurring === "boolean" ? entry.recurring : true;
     const weekOf = recurring ? null : (existingWeekOfById.get(id) ?? currentWeekMonday);
+    const sourceBookingId = existingSourceBookingIdById.get(id) ?? null;
 
     result.push({
       id,
@@ -99,6 +106,7 @@ function normalizeSessions(
       estimatedDurationMins,
       recurring,
       weekOf,
+      sourceBookingId,
     });
 
     if (result.length >= MAX_SESSIONS) break;
@@ -142,8 +150,14 @@ export async function POST(request: NextRequest) {
 
   const existing = findWeeklyTrainingScheduleByUserId(session.userId);
   const existingWeekOfById = new Map((existing?.sessions ?? []).map((s) => [s.id, s.weekOf]));
+  const existingSourceBookingIdById = new Map((existing?.sessions ?? []).map((s) => [s.id, s.sourceBookingId]));
   const currentWeekMonday = mondayOfWeek(todayISO());
-  const sessions = normalizeSessions((body as { sessions?: unknown }).sessions, currentWeekMonday, existingWeekOfById);
+  const sessions = normalizeSessions(
+    (body as { sessions?: unknown }).sessions,
+    currentWeekMonday,
+    existingWeekOfById,
+    existingSourceBookingIdById
+  );
   const now = new Date().toISOString();
 
   saveWeeklyTrainingSchedule({ userId: session.userId, sessions, updatedAt: now });

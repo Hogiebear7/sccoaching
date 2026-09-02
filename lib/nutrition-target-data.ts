@@ -18,9 +18,11 @@ import {
   findProfileByUserId,
   findRecoveryLogsByUserId,
   findWeeklyTrainingScheduleByUserId,
+  findWorkoutSessionsByUserId,
   type NutritionTargetMode,
   type NutritionTargetRecord,
   type RecoveryLogRecord,
+  type WorkoutSessionRecord,
 } from "./db";
 import { exertionFromDayLoad, goalBiasFromPrimaryGoal, weightedThreeDayLoad, type Exertion } from "./nutrition";
 import {
@@ -34,7 +36,7 @@ import {
   type TdeeEstimate,
   type WeightPoint,
 } from "./nutrition-target";
-import { trainingLoadForLog } from "./recovery";
+import { trainingLoadForLog, trainingLoadForSession } from "./recovery";
 import type { TrainingDayOfWeek, WeeklyTrainingSession } from "./profile-schema";
 import { activeWeeklySessions } from "./weekly-training";
 
@@ -55,15 +57,40 @@ function mondayOfWeek(dateISO: string): string {
 }
 
 // Real logged training load wins when a Recovery check-in exists for that
-// date; the member's recurring weekly pattern fills in every other day —
-// past days with no check-in, and every future day (a projection, not a
-// log, since it hasn't happened yet).
-function exertionForDate(dateISO: string, recoveryLogs: RecoveryLogRecord[], sessions: WeeklyTrainingSession[]): Exertion {
+// date. Otherwise, an actual logged workout for that date is the next-best
+// signal — it's what genuinely happened, ahead of the pre-set weekly plan's
+// mere projection. The recurring weekly pattern only fills in when neither
+// exists — past days with no check-in or logged workout, and every future
+// day (a projection, since it hasn't happened yet — a workout can only ever
+// be logged for today or earlier, so this tier naturally never fires for a
+// future date).
+export function exertionForDate(
+  dateISO: string,
+  recoveryLogs: RecoveryLogRecord[],
+  sessions: WeeklyTrainingSession[],
+  workoutSessions: WorkoutSessionRecord[]
+): Exertion {
   const log = recoveryLogs.find((l) => l.date === dateISO);
   if (log) {
     const load = trainingLoadForLog(log);
     if (load !== null) return exertionFromDayLoad(load);
   }
+
+  // Sum same-date sessions rather than taking one — mirrors
+  // computeRollingTrainingLoad in lib/recovery.ts, the existing precedent
+  // for this exact fallback (Recovery wins when present, logged workouts
+  // fill in per day otherwise, never double-counted against each other).
+  // A session missing duration/RPE contributes nothing (not zero) — same
+  // null-means-"no data", not "no exertion", distinction trainingLoadForLog
+  // already draws above.
+  const sameDateWorkoutLoads = workoutSessions
+    .filter((s) => s.date === dateISO)
+    .map((s) => trainingLoadForSession(s))
+    .filter((load): load is number => load !== null);
+  if (sameDateWorkoutLoads.length > 0) {
+    return exertionFromDayLoad(sameDateWorkoutLoads.reduce((sum, load) => sum + load, 0));
+  }
+
   return exertionFromWeeklySessions(activeWeeklySessions(sessions, dateISO), weekdayOf(dateISO));
 }
 
@@ -75,11 +102,12 @@ function loadForDate(
   dateISO: string,
   recoveryLogs: RecoveryLogRecord[],
   sessions: WeeklyTrainingSession[],
+  workoutSessions: WorkoutSessionRecord[],
   tomorrowOverride?: Exertion
 ): number {
-  const yesterday = exertionForDate(isoDaysFrom(dateISO, -1), recoveryLogs, sessions);
-  const today = exertionForDate(dateISO, recoveryLogs, sessions);
-  const tomorrow = tomorrowOverride ?? exertionForDate(isoDaysFrom(dateISO, 1), recoveryLogs, sessions);
+  const yesterday = exertionForDate(isoDaysFrom(dateISO, -1), recoveryLogs, sessions, workoutSessions);
+  const today = exertionForDate(dateISO, recoveryLogs, sessions, workoutSessions);
+  const tomorrow = tomorrowOverride ?? exertionForDate(isoDaysFrom(dateISO, 1), recoveryLogs, sessions, workoutSessions);
   return weightedThreeDayLoad(yesterday, today, tomorrow);
 }
 
@@ -211,6 +239,7 @@ interface ResolveContext {
   goalBias: import("./nutrition").WeightGoalBias;
   recoveryLogs: RecoveryLogRecord[];
   sessions: WeeklyTrainingSession[];
+  workoutSessions: WorkoutSessionRecord[];
   tdee: TdeeEstimate | null;
   foodEntries: { date: string; calories: number }[];
   /** Only ever applied to dateISO === todayISO — see loadForDate. */
@@ -255,6 +284,7 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
     dateISO,
     ctx.recoveryLogs,
     ctx.sessions,
+    ctx.workoutSessions,
     dateISO === ctx.todayISO ? ctx.tomorrowOverride : undefined
   );
   const cyclePhase = ctx.cycleTracking
@@ -294,6 +324,7 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
 
   const recoveryLogs = findRecoveryLogsByUserId(userId);
   const schedule = findWeeklyTrainingScheduleByUserId(userId);
+  const workoutSessions = findWorkoutSessionsByUserId(userId);
   const foodEntries = findFoodEntriesByUserId(userId);
 
   const weightPoints: WeightPoint[] = weightLogs.map((l) => ({ date: l.date, weightKg: l.weightKg }));
@@ -351,6 +382,7 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
     goalBias: goalBiasFromPrimaryGoal(profile.primaryGoal),
     recoveryLogs,
     sessions: schedule?.sessions ?? [],
+    workoutSessions,
     tdee,
     foodEntries,
     tomorrowOverride,

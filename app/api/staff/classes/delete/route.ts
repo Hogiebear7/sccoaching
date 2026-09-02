@@ -23,6 +23,7 @@ import { reversePassConsumption } from "@/lib/payments";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { sendPush } from "@/lib/push";
+import { removeSyncedWeeklyTrainingSession } from "@/lib/weekly-training-sync";
 
 // Deletes an upcoming class and unwinds every reservation against it.
 // Each booked member gets their pass back in whichever pool paid for it:
@@ -114,6 +115,12 @@ export async function POST(request: NextRequest) {
     }
 
     deleteBooking(booking.id);
+
+    try {
+      removeSyncedWeeklyTrainingSession(booking.userId, booking.id);
+    } catch {
+      // Non-critical — the deletion itself has already succeeded.
+    }
 
     // Gym-initiated class cancellation — push-only notification (no email,
     // see the class-notification channel policy in lib/db.ts). Credit claim

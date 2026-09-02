@@ -10,9 +10,11 @@ import {
   findProfileByUserId,
   findRecoveryLogsByUserId,
   findUserById,
+  findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
   type AiMessageRecord,
 } from "@/lib/db";
+import { resolveBookingsForUser } from "@/lib/bookings";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { normalizeDrinkSettings } from "@/lib/drink-settings";
 import { buildCoachingContext } from "@/lib/ai-context";
@@ -140,6 +142,8 @@ export async function POST(request: NextRequest) {
     // Client-attached settings are freshest; fall back to the profile-synced
     // copy so grounding works on devices that never opened the calculator.
     drinkSettings: cleanDrinkSettings ?? profile.drinkSettings ?? null,
+    weeklyTrainingSchedule: findWeeklyTrainingScheduleByUserId(user.id) ?? null,
+    upcomingBookings: resolveBookingsForUser(user.id),
   });
 
   // Last 20 messages (including the one just saved) for multi-turn context.
