@@ -50,12 +50,11 @@ type AppScreen = (typeof APP_SCREENS)[number];
 // description over the screenshot; clicking opens it full-size.
 function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void }) {
   return (
-    // Explicit per-row width (accounting for the container's gap-6) rather
-    // than a grid — 2-up under sm:, 3-up above it, so a 5th item wraps to a
-    // second row of 2. Paired with justify-center on the container, that
-    // shorter last row centers itself instead of sitting left-aligned with
-    // empty space on the right.
-    <div className="w-[calc(50%-12px)] max-w-[220px] sm:w-[calc(33.333%-16px)]">
+    // 2-up under sm: (percentage-based, so it scales with a narrow phone
+    // viewport); a fixed 220px at sm: and up, matching the container's own
+    // max-w-[708px] cap exactly (3 x 220 + 2 x 24 gap) so a 4th item never
+    // has room to squeeze into the first row on a wide screen.
+    <div className="w-[calc(50%-12px)] max-w-[220px] sm:w-[220px]">
       <button
         type="button"
         onClick={onOpen}
@@ -125,7 +124,13 @@ function AppScreensGrid() {
 
   return (
     <>
-      <div className="flex flex-wrap justify-center gap-6">
+      {/* max-w-[708px] = exactly 3 items at 220px + 2 gaps at 24px (gap-6) —
+          on a wide desktop viewport, percentage-based item widths alone
+          don't force a 3-per-row wrap once each item hits its own
+          max-w-[220px] cap (there's room left over for a 4th), so the row
+          itself has to be capped to leave no room for that. Unconstrained
+          below sm: since two-up already fits comfortably on a phone width. */}
+      <div className="mx-auto flex flex-wrap justify-center gap-6 sm:max-w-[708px]">
         {APP_SCREENS.map((screen, i) => (
           <PhoneFrame key={screen.label} screen={screen} onOpen={() => setOpenIndex(i)} />
         ))}
