@@ -50,7 +50,12 @@ type AppScreen = (typeof APP_SCREENS)[number];
 // description over the screenshot; clicking opens it full-size.
 function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void }) {
   return (
-    <div className="mx-auto w-full max-w-[220px]">
+    // Explicit per-row width (accounting for the container's gap-6) rather
+    // than a grid — 2-up under sm:, 3-up above it, so a 5th item wraps to a
+    // second row of 2. Paired with justify-center on the container, that
+    // shorter last row centers itself instead of sitting left-aligned with
+    // empty space on the right.
+    <div className="w-[calc(50%-12px)] max-w-[220px] sm:w-[calc(33.333%-16px)]">
       <button
         type="button"
         onClick={onOpen}
@@ -120,7 +125,7 @@ function AppScreensGrid() {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-6 sm:grid-cols-3">
+      <div className="flex flex-wrap justify-center gap-6">
         {APP_SCREENS.map((screen, i) => (
           <PhoneFrame key={screen.label} screen={screen} onOpen={() => setOpenIndex(i)} />
         ))}
