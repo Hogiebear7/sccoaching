@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { findUserById } from "@/lib/db";
 import { AUTH_ROUTES, BRAND_NAME, BRAND_TAGLINE, CONTACT_INFO, LANDING_DESCRIPTION, VALUE_PROPS } from "@/lib/content";
 import { verifySession } from "@/lib/session";
+import { AppFeatureGrid } from "@/components/marketing/AppFeatureGrid";
 import { AppShowcase } from "@/components/marketing/AppShowcase";
 import { ClassesShowcase } from "@/components/marketing/ClassesShowcase";
 import { ClassPricingShowcase } from "@/components/marketing/ClassPricingShowcase";
@@ -245,6 +246,29 @@ export default async function Root() {
             <div className="mt-8">
               <AppFaqSection />
             </div>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* Everything in the app — a full, compact index of the app's real
+          features (distinct from AppShowcase's screenshots + curated top-6
+          benefits above), so a visitor can see the whole feature set at a
+          glance rather than just the highlight reel. */}
+      <section className="relative border-t border-white/[0.06] bg-[var(--surface-1)]">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <ScrollReveal className="max-w-lg">
+            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              Everything In The App
+            </p>
+            <h2 className="mt-4 text-editorial text-[32px] text-zinc-50">One app, the whole program.</h2>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+              Every tool below is live in the app today — training, nutrition, recovery, and planning, all connected.
+            </p>
+          </ScrollReveal>
+
+          <ScrollReveal delayMs={80} className="mt-10">
+            <AppFeatureGrid />
           </ScrollReveal>
         </div>
       </section>
