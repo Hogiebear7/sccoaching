@@ -22,8 +22,8 @@ const CATEGORIES: FeatureCategory[] = [
     label: "Workouts",
     items: [
       {
-        title: "Workout generator",
-        body: "Builds a session from your equipment and time, then scales sets, reps, and exercise count to today's readiness, training load, and anything already planned or booked.",
+        title: "Workout & programme generator",
+        body: "Generate a single session — scaled to today's readiness, training load, and anything already planned or booked — or a full multi-week programme that adjusts your targets automatically as you log each cycle.",
         icon: "M4 9v6M20 9v6M7 7v10M17 7v10M9 12h6",
       },
       {
