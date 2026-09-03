@@ -4,7 +4,8 @@ import type { NextRequest } from "next/server";
 import { findRecoveryLogsByUserId, findUserById, findWorkoutSessionsByUserId } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computeRollingTrainingLoad } from "@/lib/recovery";
-import { classifyLoad, LOAD_BAND_LABEL, resolveTodayTier } from "@/lib/workout-helper";
+import { resolveTodayTier } from "@/lib/resolve-today-tier";
+import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
 
 // Today's Workout Helper session tier (full/standard/reduced) plus why —
 // the same decision the web dashboard's Workout Helper and the AI Coach's

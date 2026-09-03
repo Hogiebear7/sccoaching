@@ -3,8 +3,8 @@ import type { NextRequest } from "next/server";
 
 import { findActiveTrainingProgramByUserId, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { resolveTodayTier } from "@/lib/resolve-today-tier";
 import { applyTierModifier } from "@/lib/training-programs";
-import { resolveTodayTier } from "@/lib/workout-helper";
 
 export async function GET(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;

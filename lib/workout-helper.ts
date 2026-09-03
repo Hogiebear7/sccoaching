@@ -1,12 +1,5 @@
-import {
-  findRecoveryLogsByUserId,
-  findWeeklyTrainingScheduleByUserId,
-  findWorkoutSessionsByUserId,
-  type WorkoutSessionRecord,
-} from "./db";
+import type { WorkoutSessionRecord } from "./db";
 import type { Exertion } from "./nutrition";
-import { computeRollingTrainingLoad } from "./recovery";
-import { plannedExertionForDate } from "./weekly-training";
 
 // ─────────────────────────────────────────────────────────────────────
 // Workout Helper — deterministic solo-session builder.
@@ -139,32 +132,6 @@ function decideBaseTier(context: HelperContext): { tier: SessionTier; rationale:
     tier: "standard",
     rationale: `Readiness is ${score} with ${band === "moderate" ? "a normal" : "a manageable"} recent load — a standard session fits today.`,
   };
-}
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-// Shared by the mobile tier route (app/api/mobile/workout-helper/tier) and
-// the AI-programme GET route's read-time tier trim — one implementation of
-// "what's today's Workout Helper tier for this member" instead of two.
-export function resolveTodayTier(userId: string): { tier: SessionTier; rationale: string } {
-  const today = todayISO();
-  const recoveryLogs = findRecoveryLogsByUserId(userId);
-  const sessions = findWorkoutSessionsByUserId(userId);
-  const schedule = findWeeklyTrainingScheduleByUserId(userId);
-
-  const todayLog = recoveryLogs.find((log) => log.date === today);
-  const readinessScore = todayLog?.readinessScore ?? null;
-  const rolling = computeRollingTrainingLoad(recoveryLogs, sessions);
-  const plannedTodayExertion = plannedExertionForDate(schedule, today);
-
-  return decideTier({
-    readinessScore,
-    sevenDayLoad: rolling.sevenDaySum,
-    daysWithLoad: rolling.daysWithLoad,
-    plannedTodayExertion,
-  });
 }
 
 export function decideTier(context: HelperContext): { tier: SessionTier; rationale: string } {
