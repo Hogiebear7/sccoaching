@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findTrainingProgramById, findUserById } from "@/lib/db";
+import { findTrainingProgramById, findUserById, findWorkoutSessionsByUserId } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { advanceProgramDay } from "@/lib/training-programs";
 
@@ -33,7 +33,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Program not found." }, { status: 404 });
   }
 
-  const updated = advanceProgramDay(program);
+  // Only needed for an AI programme's cycle-wrap overload recompute (see
+  // advanceProgramDay) — harmless to fetch unconditionally, this route
+  // isn't hot-path enough to matter.
+  const sessions = findWorkoutSessionsByUserId(user.id);
+  const updated = advanceProgramDay(program, sessions);
 
   return NextResponse.json({ success: true, message: "Advanced to next day.", data: { program: updated } });
 }

@@ -229,6 +229,8 @@ export interface ProgramDayRecord {
   exercises: PrescribedExercise[];
 }
 
+export type TrainingProgramSource = "staff" | "ai";
+
 export interface TrainingProgramRecord {
   id: string;
   userId: string;
@@ -241,6 +243,33 @@ export interface TrainingProgramRecord {
   createdByStaffId: string;
   createdAt: string;
   updatedAt: string;
+  /** Undefined on every program created before this field existed — read as
+      `source ?? "staff"`, never written as undefined going forward. */
+  source?: TrainingProgramSource;
+  /** Only set for source: "ai" programs. days[] is one week's template;
+      this is how many weeks the member asked for. Null for staff programs,
+      which have no week concept. */
+  totalWeeks?: number | null;
+  /** How many times currentDayIndex has wrapped back to day 0 — the basis
+      for "Week X of Y" display and for triggering a progressive-overload
+      recompute on wrap (see lib/training-programs.ts). */
+  completedCycles?: number;
+  /** When the current cycle began — reset every time completedCycles
+      increments. Scopes the progressive-overload lookup to sessions logged
+      during THIS cycle, not older history (which is still used, separately,
+      to seed a brand-new program's very first targets). */
+  cycleStartedAt?: string | null;
+  /** Generation inputs, kept for "regenerate with the same brief" and for
+      display — not used by any logic that decides today's targets. */
+  aiMeta?: {
+    goal: string;
+    splitStyle: string;
+    daysPerWeek: number;
+    sessionMinutes: number;
+    equipmentSlugs: string[];
+    gymProfileId: string | null;
+    generatedAt: string;
+  } | null;
 }
 
 // ── Workout templates — member-owned reusable workouts (the "Library"). A

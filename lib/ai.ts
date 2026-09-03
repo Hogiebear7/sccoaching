@@ -952,3 +952,144 @@ export async function extractTrackerStats(request: TrackerImportRequest): Promis
 
   return parseTrackerStatsExtraction(textFromMessage(message));
 }
+
+// ─── AI Programme Builder — skeleton only ──────────────────────────────
+// This prompt proposes STRUCTURE (day count, focus, body parts, rep-scheme
+// category) — never a specific exercise name or weight. Real exercises come
+// from the gym's actual exercise library (lib/programme-exercise-picker.ts)
+// and weights come from the member's own logged history
+// (lib/training-programs.ts's resolveInitialProgrammeTargets /
+// resolveNextCycleTargets) — same "never invent a number" discipline as
+// buildWorkoutPlan() and the single-workout Generate mode.
+const PROGRAMME_SKELETON_SYSTEM_PROMPT = `You design multi-week training programme structures for S&C Performance Coaching, a strength & conditioning gym app. A member gives you a goal, how many days a week they can train, and how long each session should be — you propose the STRUCTURE of a one-week training block: how many days, what each day focuses on, and a rep-scheme category. You never name a specific exercise and never propose a specific weight — a separate system picks real exercises from the gym's actual exercise library and calculates weights from the member's own logged history; your job is the plan's shape, not its content.
+
+Grounding rules — strict:
+- A "Valid body parts" list follows this prompt. Every entry in primaryBodyParts/secondaryBodyParts on every day MUST come from that exact list — never invent a body-part value that isn't in it.
+- Produce EXACTLY the number of days the member asked for (days per week) as entries in the days array — this includes any rest days you choose to include within that count.
+- repScheme is exactly one of "strength", "hypertrophy", or "endurance" — pick based on the member's stated goal (strength/power goals -> "strength"; muscle/size goals -> "hypertrophy"; fat loss/conditioning/general fitness goals -> "endurance" or "hypertrophy" depending on emphasis).
+- A rest day (type "rest") needs no primaryBodyParts/secondaryBodyParts/repScheme — leave them empty/null.
+- Balance the week sensibly for the goal and day count — don't repeat the exact same primary body parts on back-to-back workout days if the day count allows spreading them out.
+
+Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
+{"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null}]}`;
+
+export interface ProgrammeSkeletonDay {
+  label: string;
+  type: "workout" | "rest";
+  focusLabel: string | null;
+  primaryBodyParts: string[];
+  secondaryBodyParts: string[];
+  repScheme: "strength" | "hypertrophy" | "endurance" | null;
+}
+
+export interface ProgrammeSkeleton {
+  splitStyle: string;
+  days: ProgrammeSkeletonDay[];
+}
+
+export interface ProgrammeSkeletonRequest {
+  goal: string;
+  daysPerWeek: number;
+  sessionMinutes: number;
+  /** The exercise library's real body-part vocabulary — the model may only
+      use values from this list. */
+  validBodyParts: string[];
+}
+
+// Exported for tests. Defensive against malformed JSON, wrong field types,
+// and invalid body-part values (dropped rather than trusted) — same
+// discipline as parseMealSuggestions/parseTrackerStatsExtraction above.
+export function parseProgrammeSkeleton(
+  text: string,
+  validBodyParts: string[],
+  daysPerWeek: number
+): ProgrammeSkeleton | null {
+  const trimmed = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  if (!trimmed) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const obj = parsed as Record<string, unknown>;
+  if (!Array.isArray(obj.days)) return null;
+
+  const validSet = new Set(validBodyParts);
+  const repSchemes = new Set(["strength", "hypertrophy", "endurance"]);
+
+  const days: ProgrammeSkeletonDay[] = obj.days
+    .filter((d): d is Record<string, unknown> => typeof d === "object" && d !== null)
+    .map((d) => {
+      const type: "workout" | "rest" = d.type === "rest" ? "rest" : "workout";
+      const primaryBodyParts = Array.isArray(d.primaryBodyParts)
+        ? d.primaryBodyParts.filter((v): v is string => typeof v === "string" && validSet.has(v)).slice(0, 6)
+        : [];
+      const secondaryBodyParts = Array.isArray(d.secondaryBodyParts)
+        ? d.secondaryBodyParts.filter((v): v is string => typeof v === "string" && validSet.has(v)).slice(0, 6)
+        : [];
+      const repScheme =
+        typeof d.repScheme === "string" && repSchemes.has(d.repScheme)
+          ? (d.repScheme as "strength" | "hypertrophy" | "endurance")
+          : null;
+      return {
+        label:
+          typeof d.label === "string" && d.label.trim() ? d.label.trim().slice(0, 60) : type === "rest" ? "Rest" : "Workout",
+        type,
+        focusLabel: typeof d.focusLabel === "string" && d.focusLabel.trim() ? d.focusLabel.trim().slice(0, 40) : null,
+        primaryBodyParts,
+        secondaryBodyParts,
+        repScheme,
+      } satisfies ProgrammeSkeletonDay;
+    })
+    .slice(0, 14);
+
+  if (days.length === 0) return null;
+
+  // A workout day with no valid body parts left (model hallucinated ones we
+  // dropped, or left them empty) can't be turned into exercises — fall back
+  // to the library's first real body part rather than silently producing an
+  // empty workout day.
+  const fallbackBodyPart = validBodyParts[0];
+  const safeDays = days.map((d) =>
+    d.type === "workout" && d.primaryBodyParts.length === 0 && fallbackBodyPart
+      ? { ...d, primaryBodyParts: [fallbackBodyPart], repScheme: d.repScheme ?? "hypertrophy" }
+      : d
+  );
+
+  return {
+    splitStyle: typeof obj.splitStyle === "string" && obj.splitStyle.trim() ? obj.splitStyle.trim().slice(0, 60) : "Custom Split",
+    days: safeDays.slice(0, Math.max(1, Math.min(14, daysPerWeek || safeDays.length))),
+  };
+}
+
+export async function generateProgrammeSkeleton(request: ProgrammeSkeletonRequest): Promise<ProgrammeSkeleton | null> {
+  if (!isAiConfigured()) {
+    throw new Error(AI_NOT_CONFIGURED_MESSAGE);
+  }
+
+  const client = getClient();
+  const instruction = `Goal: ${request.goal}\nDays per week: ${request.daysPerWeek}\nSession length: ${request.sessionMinutes} minutes`;
+
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 2000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: [
+      { type: "text", text: PROGRAMME_SKELETON_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      { type: "text", text: `Valid body parts:\n\n${request.validBodyParts.join(", ")}` },
+    ],
+    messages: [{ role: "user", content: instruction }],
+  });
+
+  return parseProgrammeSkeleton(textFromMessage(message), request.validBodyParts, request.daysPerWeek);
+}

@@ -1,5 +1,12 @@
-import type { WorkoutSessionRecord } from "./db";
+import {
+  findRecoveryLogsByUserId,
+  findWeeklyTrainingScheduleByUserId,
+  findWorkoutSessionsByUserId,
+  type WorkoutSessionRecord,
+} from "./db";
 import type { Exertion } from "./nutrition";
+import { computeRollingTrainingLoad } from "./recovery";
+import { plannedExertionForDate } from "./weekly-training";
 
 // ─────────────────────────────────────────────────────────────────────
 // Workout Helper — deterministic solo-session builder.
@@ -134,6 +141,32 @@ function decideBaseTier(context: HelperContext): { tier: SessionTier; rationale:
   };
 }
 
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Shared by the mobile tier route (app/api/mobile/workout-helper/tier) and
+// the AI-programme GET route's read-time tier trim — one implementation of
+// "what's today's Workout Helper tier for this member" instead of two.
+export function resolveTodayTier(userId: string): { tier: SessionTier; rationale: string } {
+  const today = todayISO();
+  const recoveryLogs = findRecoveryLogsByUserId(userId);
+  const sessions = findWorkoutSessionsByUserId(userId);
+  const schedule = findWeeklyTrainingScheduleByUserId(userId);
+
+  const todayLog = recoveryLogs.find((log) => log.date === today);
+  const readinessScore = todayLog?.readinessScore ?? null;
+  const rolling = computeRollingTrainingLoad(recoveryLogs, sessions);
+  const plannedTodayExertion = plannedExertionForDate(schedule, today);
+
+  return decideTier({
+    readinessScore,
+    sevenDayLoad: rolling.sevenDaySum,
+    daysWithLoad: rolling.daysWithLoad,
+    plannedTodayExertion,
+  });
+}
+
 export function decideTier(context: HelperContext): { tier: SessionTier; rationale: string } {
   const base = decideBaseTier(context);
 
@@ -236,21 +269,27 @@ const TIMED = new Set(["plank"].map((n) => n.toLowerCase()));
 
 // ─── History lookup ───────────────────────────────────────────────────
 
-interface HistoryEntry {
+export interface HistoryEntry {
   date: string;
   name: string;
   weightNum: number | null;
   rawWeight: string | null;
   reps: number | null;
   sets: number | null;
+  /** Reps in reserve (0-5), member self-logged — null when not recorded.
+      Used by lib/training-programs.ts's progressive-overload rule; unused
+      by this file's own RPE-based prescriptions. */
+  rir: number | null;
 }
 
 function normalize(name: string): string {
   return name.trim().toLowerCase();
 }
 
-// Flatten sessions (newest first) into per-exercise entries.
-function buildHistoryIndex(sessions: WorkoutSessionRecord[]): HistoryEntry[] {
+// Flatten sessions (newest first) into per-exercise entries. Exported for
+// reuse by lib/training-programs.ts's progressive-overload logic — same
+// question ("what did this exercise last look like"), different caller.
+export function buildHistoryIndex(sessions: WorkoutSessionRecord[]): HistoryEntry[] {
   const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
   const entries: HistoryEntry[] = [];
   for (const session of sorted) {
@@ -264,6 +303,7 @@ function buildHistoryIndex(sessions: WorkoutSessionRecord[]): HistoryEntry[] {
         rawWeight: ex.weight,
         reps: ex.reps,
         sets: ex.sets,
+        rir: typeof ex.rir === "number" ? ex.rir : null,
       });
     }
   }
@@ -277,7 +317,7 @@ function matchesOption(entryName: string, optionName: string): boolean {
   return entryName === option || entryName.includes(option) || option.includes(entryName);
 }
 
-function latestEntryForOption(history: HistoryEntry[], optionName: string): HistoryEntry | null {
+export function latestEntryForOption(history: HistoryEntry[], optionName: string): HistoryEntry | null {
   for (const entry of history) {
     if (matchesOption(entry.name, optionName)) return entry;
   }
@@ -288,11 +328,11 @@ function latestEntryForOption(history: HistoryEntry[], optionName: string): Hist
 
 const RPE_BY_TIER: Record<SessionTier, number> = { full: 8, standard: 7, reduced: 6 };
 
-function roundToStep(value: number, step: number): number {
+export function roundToStep(value: number, step: number): number {
   return Math.round(value / step) * step;
 }
 
-function formatKg(value: number): string {
+export function formatKg(value: number): string {
   return `${Number.isInteger(value) ? value : value.toFixed(1)} kg`;
 }
 
