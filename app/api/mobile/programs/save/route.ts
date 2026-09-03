@@ -14,6 +14,7 @@ interface AiMetaInput {
   sessionMinutes: number;
   equipmentSlugs: string[];
   gymProfileId: string | null;
+  notes: string | null;
   generatedAt: string;
 }
 
@@ -28,6 +29,7 @@ function parseAiMeta(input: unknown): AiMetaInput | null {
     sessionMinutes: typeof m.sessionMinutes === "number" ? m.sessionMinutes : 45,
     equipmentSlugs: Array.isArray(m.equipmentSlugs) ? m.equipmentSlugs.filter((s): s is string => typeof s === "string") : [],
     gymProfileId: typeof m.gymProfileId === "string" ? m.gymProfileId : null,
+    notes: typeof m.notes === "string" && m.notes.trim() ? m.notes.trim().slice(0, 500) : null,
     generatedAt: typeof m.generatedAt === "string" ? m.generatedAt : new Date().toISOString(),
   };
 }

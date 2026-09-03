@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, configured: true, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { goal, weeks, daysPerWeek, sessionMinutes, equipmentSlugs, gymProfileId } = (body ?? {}) as Record<
+  const { goal, weeks, daysPerWeek, sessionMinutes, equipmentSlugs, gymProfileId, notes } = (body ?? {}) as Record<
     string,
     unknown
   >;
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
     ? equipmentSlugs.filter((s): s is string => typeof s === "string")
     : [];
   const cleanGymProfileId = typeof gymProfileId === "string" ? gymProfileId : null;
+  const cleanNotes = typeof notes === "string" && notes.trim() ? notes.trim().slice(0, 500) : null;
 
   if (!cleanGoal || !cleanWeeks || !cleanDaysPerWeek) {
     return NextResponse.json(
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
       daysPerWeek: cleanDaysPerWeek,
       sessionMinutes: cleanSessionMinutes,
       validBodyParts,
+      notes: cleanNotes,
     });
 
     if (!skeleton || skeleton.days.length === 0) {
@@ -165,6 +167,7 @@ export async function POST(request: NextRequest) {
           sessionMinutes: cleanSessionMinutes,
           equipmentSlugs: cleanEquipmentSlugs,
           gymProfileId: cleanGymProfileId,
+          notes: cleanNotes,
           generatedAt: new Date().toISOString(),
         },
       },

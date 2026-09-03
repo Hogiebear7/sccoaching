@@ -268,6 +268,7 @@ export interface TrainingProgramRecord {
     sessionMinutes: number;
     equipmentSlugs: string[];
     gymProfileId: string | null;
+    notes: string | null;
     generatedAt: string;
   } | null;
 }

@@ -969,6 +969,7 @@ Grounding rules — strict:
 - repScheme is exactly one of "strength", "hypertrophy", or "endurance" — pick based on the member's stated goal (strength/power goals -> "strength"; muscle/size goals -> "hypertrophy"; fat loss/conditioning/general fitness goals -> "endurance" or "hypertrophy" depending on emphasis).
 - A rest day (type "rest") needs no primaryBodyParts/secondaryBodyParts/repScheme — leave them empty/null.
 - Balance the week sensibly for the goal and day count — don't repeat the exact same primary body parts on back-to-back workout days if the day count allows spreading them out.
+- A "Member's notes" block may follow with extra context the member typed themselves (an upcoming event, a target date, a specific PB, a competition) — when present, let it genuinely shape the split, the body-part balance, and the repScheme choice (e.g. a named race or match date argues for more conditioning-leaning days and less pure hypertrophy work as it approaches; a stated strength PB argues for "strength" repScheme on the relevant days; a bodybuilding show argues for "hypertrophy" with broader body-part coverage). Treat it as real signal, not filler — but it never overrides the strict rules above (still exactly the requested day count, still only valid body parts).
 
 Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
 {"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null}]}`;
@@ -994,6 +995,9 @@ export interface ProgrammeSkeletonRequest {
   /** The exercise library's real body-part vocabulary — the model may only
       use values from this list. */
   validBodyParts: string[];
+  /** Free-text detail the member typed themselves — an upcoming event, a
+      target date, a specific PB, a competition. Optional. */
+  notes?: string | null;
 }
 
 // Exported for tests. Defensive against malformed JSON, wrong field types,
@@ -1077,7 +1081,15 @@ export async function generateProgrammeSkeleton(request: ProgrammeSkeletonReques
   }
 
   const client = getClient();
-  const instruction = `Goal: ${request.goal}\nDays per week: ${request.daysPerWeek}\nSession length: ${request.sessionMinutes} minutes`;
+  const instructionParts = [
+    `Goal: ${request.goal}`,
+    `Days per week: ${request.daysPerWeek}`,
+    `Session length: ${request.sessionMinutes} minutes`,
+  ];
+  if (request.notes?.trim()) {
+    instructionParts.push(`Member's notes: ${request.notes.trim()}`);
+  }
+  const instruction = instructionParts.join("\n");
 
   const message = await client.messages.create({
     model: COACH_MODEL,
