@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, saveTrainingProgram, type TrainingProgramRecord } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import { archiveOtherActivePrograms, parseProgramDays } from "@/lib/training-programs";
+import { archiveOtherActivePrograms, parseProgramDays, parseTestCheckpoints } from "@/lib/training-programs";
 
 interface AiMetaInput {
   goal: string;
@@ -54,11 +54,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { name, days, totalWeeks, aiMeta } = (body ?? {}) as Record<string, unknown>;
+  const { name, days, totalWeeks, aiMeta, testCheckpoints } = (body ?? {}) as Record<string, unknown>;
 
   const cleanName = typeof name === "string" && name.trim() ? name.trim().slice(0, 100) : "AI Programme";
   const cleanTotalWeeks = typeof totalWeeks === "number" && Number.isFinite(totalWeeks) ? totalWeeks : null;
   const cleanAiMeta = parseAiMeta(aiMeta);
+  const cleanTestCheckpoints = parseTestCheckpoints(testCheckpoints);
 
   const validated = parseProgramDays(days);
   if (!validated.ok) {
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
     completedCycles: 0,
     cycleStartedAt: now,
     aiMeta: cleanAiMeta,
+    testCheckpoints: cleanTestCheckpoints,
   };
 
   saveTrainingProgram(program);

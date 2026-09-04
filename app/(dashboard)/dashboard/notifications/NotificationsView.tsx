@@ -18,6 +18,8 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   readiness_alert: "Readiness alert",
   cancellation_credit_restored: "Credit restored",
   no_show: "Missed class",
+  training_reminder: "Training reminder",
+  training_checkin: "Weekly check-in",
 };
 
 const TYPE_ICON: Record<NotificationType, string> = {
@@ -43,6 +45,8 @@ const TYPE_ICON: Record<NotificationType, string> = {
     "M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12c1.657 0 3.116.673 3.804 1.667M12 8V6m0 14v-2",
   no_show:
     "M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
+  training_reminder: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
+  training_checkin: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
 };
 
 // Time-sensitive types get their own "Needs a response" group ahead of
@@ -63,6 +67,8 @@ const TYPE_IS_URGENT: Record<NotificationType, boolean> = {
   readiness_alert: true,
   cancellation_credit_restored: false,
   no_show: false,
+  training_reminder: false,
+  training_checkin: false,
 };
 
 function formatRelativeTime(iso: string): string {

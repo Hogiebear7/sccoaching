@@ -253,6 +253,7 @@ describe("buildCoachingContext — missing data is stated, never invented", () =
             recurring: true,
             weekOf: null,
             sourceBookingId: null,
+            sourceProgramId: null,
           },
         ],
       },

@@ -60,6 +60,7 @@ function makeWeeklySession(overrides: Partial<WeeklyTrainingSession> = {}): Week
     recurring: true,
     weekOf: null,
     sourceBookingId: null,
+    sourceProgramId: null,
     ...overrides,
   };
 }

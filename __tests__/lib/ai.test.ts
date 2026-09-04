@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseProgrammeSkeleton } from "@/lib/ai";
+import { parseProgrammeCheckIn, parseProgrammeSkeleton } from "@/lib/ai";
 
 const VALID_BODY_PARTS = ["chest", "back", "upper legs", "shoulders", "upper arms"];
 
@@ -73,5 +73,102 @@ describe("parseProgrammeSkeleton", () => {
     }) + "\n```";
     const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
     expect(result?.splitStyle).toBe("Full Body");
+  });
+
+  it("keeps exactly one checkpoint per requested week, dropping duplicates and unrequested weeks", () => {
+    const raw = JSON.stringify({
+      splitStyle: "Full Body",
+      days: [{ label: "Day A", type: "workout", primaryBodyParts: ["chest"], secondaryBodyParts: [], repScheme: "strength" }],
+      checkpoints: [
+        { weekNumber: 1, label: "Baseline", exercises: [{ name: "5RM Back Squat", protocol: "5RM" }] },
+        { weekNumber: 1, label: "Duplicate", exercises: [{ name: "Other", protocol: "AMRAP" }] },
+        { weekNumber: 8, label: "Final", exercises: [{ name: "5RM Back Squat", protocol: "5RM" }] },
+        { weekNumber: 99, label: "Not requested", exercises: [{ name: "Ghost", protocol: "n/a" }] },
+      ],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1, [1, 8]);
+    expect(result?.checkpoints).toHaveLength(2);
+    expect(result?.checkpoints.map((c) => c.weekNumber)).toEqual([1, 8]);
+    expect(result?.checkpoints[0].label).toBe("Baseline");
+  });
+
+  it("drops a checkpoint left with no valid exercises", () => {
+    const raw = JSON.stringify({
+      splitStyle: "Full Body",
+      days: [{ label: "Day A", type: "workout", primaryBodyParts: ["chest"], secondaryBodyParts: [], repScheme: "strength" }],
+      checkpoints: [{ weekNumber: 1, label: "Baseline", exercises: [{ name: "", protocol: "" }] }],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1, [1]);
+    expect(result?.checkpoints).toEqual([]);
+  });
+
+  it("returns an empty checkpoints array when no checkpoint weeks were requested", () => {
+    const raw = JSON.stringify({
+      splitStyle: "Full Body",
+      days: [{ label: "Day A", type: "workout", primaryBodyParts: ["chest"], secondaryBodyParts: [], repScheme: "strength" }],
+      checkpoints: [{ weekNumber: 1, label: "Baseline", exercises: [{ name: "5RM Back Squat", protocol: "5RM" }] }],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
+    expect(result?.checkpoints).toEqual([]);
+  });
+});
+
+describe("parseProgrammeCheckIn", () => {
+  it("returns null for malformed JSON", () => {
+    expect(parseProgrammeCheckIn("not json", 8)).toBeNull();
+  });
+
+  it("returns null when feedbackText is missing or empty", () => {
+    expect(parseProgrammeCheckIn(JSON.stringify({ adjustmentProposal: null }), 8)).toBeNull();
+    expect(parseProgrammeCheckIn(JSON.stringify({ feedbackText: "  " }), 8)).toBeNull();
+  });
+
+  it("accepts a null adjustment proposal", () => {
+    const result = parseProgrammeCheckIn(JSON.stringify({ feedbackText: "Solid week.", adjustmentProposal: null }), 8);
+    expect(result).toEqual({ feedbackText: "Solid week.", adjustmentProposal: null });
+  });
+
+  it("accepts an accelerate/hold_back proposal without a week count", () => {
+    const raw = JSON.stringify({
+      feedbackText: "Great week.",
+      adjustmentProposal: { type: "accelerate", rationale: "RIR stayed high all week." },
+    });
+    const result = parseProgrammeCheckIn(raw, 8);
+    expect(result?.adjustmentProposal).toEqual({ type: "accelerate", rationale: "RIR stayed high all week." });
+  });
+
+  it("drops an expedite_timeline proposal with an invalid or non-shorter week count", () => {
+    const tooLong = JSON.stringify({
+      feedbackText: "Ahead of schedule.",
+      adjustmentProposal: { type: "expedite_timeline", rationale: "Fast progress.", proposedTotalWeeks: 12 },
+    });
+    expect(parseProgrammeCheckIn(tooLong, 8)?.adjustmentProposal).toBeNull();
+
+    const notInteger = JSON.stringify({
+      feedbackText: "Ahead of schedule.",
+      adjustmentProposal: { type: "expedite_timeline", rationale: "Fast progress.", proposedTotalWeeks: "soon" },
+    });
+    expect(parseProgrammeCheckIn(notInteger, 8)?.adjustmentProposal).toBeNull();
+  });
+
+  it("accepts a valid expedite_timeline proposal", () => {
+    const raw = JSON.stringify({
+      feedbackText: "Ahead of schedule.",
+      adjustmentProposal: { type: "expedite_timeline", rationale: "Fast progress.", proposedTotalWeeks: 6 },
+    });
+    const result = parseProgrammeCheckIn(raw, 8);
+    expect(result?.adjustmentProposal).toEqual({
+      type: "expedite_timeline",
+      rationale: "Fast progress.",
+      proposedTotalWeeks: 6,
+    });
+  });
+
+  it("rejects an unrecognized proposal type", () => {
+    const raw = JSON.stringify({
+      feedbackText: "Fine week.",
+      adjustmentProposal: { type: "double_the_weight", rationale: "..." },
+    });
+    expect(parseProgrammeCheckIn(raw, 8)?.adjustmentProposal).toBeNull();
   });
 });

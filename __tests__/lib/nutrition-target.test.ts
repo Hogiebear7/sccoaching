@@ -169,9 +169,9 @@ describe("cyclePhaseAdjustmentKcal", () => {
 
 describe("exertionFromWeeklySessions", () => {
   const sessions: WeeklyTrainingSession[] = [
-    { id: "1", dayOfWeek: 1, label: "Gym", activityType: "gym", timeOfDay: "morning", intensity: "moderate", notes: null, recurring: true, weekOf: null, sourceBookingId: null },
-    { id: "2", dayOfWeek: 3, label: "Football", activityType: "sport", timeOfDay: "evening", intensity: "heavy", notes: null, recurring: true, weekOf: null, sourceBookingId: null },
-    { id: "3", dayOfWeek: 0, label: "Rest", activityType: "rest", timeOfDay: null, intensity: null, notes: null, recurring: true, weekOf: null, sourceBookingId: null },
+    { id: "1", dayOfWeek: 1, label: "Gym", activityType: "gym", timeOfDay: "morning", intensity: "moderate", notes: null, recurring: true, weekOf: null, sourceBookingId: null, sourceProgramId: null },
+    { id: "2", dayOfWeek: 3, label: "Football", activityType: "sport", timeOfDay: "evening", intensity: "heavy", notes: null, recurring: true, weekOf: null, sourceBookingId: null, sourceProgramId: null },
+    { id: "3", dayOfWeek: 0, label: "Rest", activityType: "rest", timeOfDay: null, intensity: null, notes: null, recurring: true, weekOf: null, sourceBookingId: null, sourceProgramId: null },
   ];
 
   it("maps a moderate gym day to medium", () => {
@@ -189,8 +189,8 @@ describe("exertionFromWeeklySessions", () => {
 
   it("takes the busiest session when a day has more than one", () => {
     const busy: WeeklyTrainingSession[] = [
-      { id: "a", dayOfWeek: 5, label: "Easy jog", activityType: "cardio", timeOfDay: "morning", intensity: "light", notes: null, recurring: true, weekOf: null, sourceBookingId: null },
-      { id: "b", dayOfWeek: 5, label: "Heavy lift", activityType: "gym", timeOfDay: "evening", intensity: "heavy", notes: null, recurring: true, weekOf: null, sourceBookingId: null },
+      { id: "a", dayOfWeek: 5, label: "Easy jog", activityType: "cardio", timeOfDay: "morning", intensity: "light", notes: null, recurring: true, weekOf: null, sourceBookingId: null, sourceProgramId: null },
+      { id: "b", dayOfWeek: 5, label: "Heavy lift", activityType: "gym", timeOfDay: "evening", intensity: "heavy", notes: null, recurring: true, weekOf: null, sourceBookingId: null, sourceProgramId: null },
     ];
     expect(exertionFromWeeklySessions(busy, 5)).toBe("high");
   });

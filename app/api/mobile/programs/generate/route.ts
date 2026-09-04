@@ -10,7 +10,13 @@ import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { pickExercisesForDay } from "@/lib/programme-exercise-picker";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { parseProgramDays, resolveInitialProgrammeTargets, type ProgrammeRepScheme } from "@/lib/training-programs";
+import {
+  buildTestCheckpoints,
+  computeCheckpointWeeks,
+  parseProgramDays,
+  resolveInitialProgrammeTargets,
+  type ProgrammeRepScheme,
+} from "@/lib/training-programs";
 
 // Heavier cost than a photo scan (a full skeleton + per-day exercise
 // resolution), so a tighter budget than the other AI features' 15/10min.
@@ -110,12 +116,14 @@ export async function POST(request: NextRequest) {
   const validBodyParts = [...new Set(exercises.map((e) => e.bodyPart).filter((v): v is string => !!v))];
 
   try {
+    const checkpointWeeks = computeCheckpointWeeks(cleanWeeks);
     const skeleton = await generateProgrammeSkeleton({
       goal: cleanGoal,
       daysPerWeek: cleanDaysPerWeek,
       sessionMinutes: cleanSessionMinutes,
       validBodyParts,
       notes: cleanNotes,
+      checkpointWeeks,
     });
 
     if (!skeleton || skeleton.days.length === 0) {
@@ -153,6 +161,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, configured: true, message: validated.message }, { status: 502 });
     }
 
+    const testCheckpoints = buildTestCheckpoints(skeleton.checkpoints);
+
     return NextResponse.json({
       success: true,
       configured: true,
@@ -160,6 +170,7 @@ export async function POST(request: NextRequest) {
         name: `${skeleton.splitStyle} — ${cleanGoal}`.slice(0, 80),
         days: validated.days,
         totalWeeks: cleanWeeks,
+        testCheckpoints,
         aiMeta: {
           goal: cleanGoal,
           splitStyle: skeleton.splitStyle,

@@ -11,6 +11,8 @@ import { purgeOldRecoveryLogsJob } from "./purge-old-recovery-logs";
 import { refreshBrandedFoodCacheJob } from "./refresh-branded-food-cache";
 import { resumePausedMembershipsJob } from "./resume-paused-memberships";
 import { sendClassRemindersJob } from "./send-class-reminders";
+import { sendProgrammeCheckinsJob } from "./send-programme-checkins";
+import { sendProgrammeRemindersJob } from "./send-programme-reminders";
 import type { JobDefinition } from "./types";
 
 // Execution order:
@@ -29,6 +31,8 @@ export const ALL_JOBS: JobDefinition[] = [
   generateClassSeriesJob,
   processWaitlistOffersJob,
   sendClassRemindersJob,
+  sendProgrammeRemindersJob,
+  sendProgrammeCheckinsJob,
   detectNoShowsJob,
   cleanupPastWaitlistsJob,
   purgeExpiredResetTokensJob,

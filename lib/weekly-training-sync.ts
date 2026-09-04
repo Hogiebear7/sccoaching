@@ -48,6 +48,7 @@ export function syncBookingToWeeklyTraining(userId: string, classRecord: ClassRe
     recurring: false,
     weekOf: mondayOfWeek(classRecord.date),
     sourceBookingId: bookingId,
+    sourceProgramId: null,
   };
 
   saveWeeklyTrainingSchedule({

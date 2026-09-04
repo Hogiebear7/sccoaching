@@ -37,6 +37,14 @@ export const AI_NOT_CONFIGURED_MESSAGE =
 // Env-overridable so the model can be bumped without a code change.
 const COACH_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-4-8";
 
+// Shared across every prompt that gives training/coaching advice (not the
+// pure OCR/extraction ones, which have nothing to attach it to). The
+// "don't fabricate a citation" half is load-bearing, not optional — asked
+// to "cite sources" without that guard, a model will invent plausible-
+// sounding fake studies, which is worse than no citation at all.
+const SCIENTIFIC_GROUNDING_CLAUSE =
+  "Ground your reasoning in established exercise/sports science — the kind of consensus reflected in bodies like the NSCA, ACSM, and IOC, and in peer-reviewed exercise physiology — rather than fitness-influencer trends or unverified claims. Don't fabricate a specific citation, study name, or statistic you can't be sure is real; when you reference a principle (progressive overload, RIR-based autoregulation, periodization, protein-per-kg ranges, etc.) state it as an established principle, not a name-dropped source.";
+
 let cachedClient: Anthropic | null = null;
 
 function getClient(): Anthropic {
@@ -64,6 +72,7 @@ Coaching stance:
 - When pointing the member somewhere in the app, use the exact tab names: Recovery, Workouts, Nutrition, Schedule, Programme, Profile, Settings.
 - If asked for food or meal ideas beyond a quick pointer, keep it to one or two general suggestions, then redirect to the AI Nutrition Coach (Nutrition tab) — it has their actual macro targets, the training-load fuel model, and their dietary profile, and covers daily/weekly meal planning, pre/post-training fuelling, and match-day meals in depth. Whatever you do say, follow the "Dietary requirements" block in the member data exactly: NEVER suggest a food that contains an excluded ingredient or violates a listed allergy or intolerance/medical condition, and treat the member's dietary preference (vegan, vegetarian, pescetarian) as a filter only — it never overrides an exclusion. Prefer drawing from the "Safe foods to suggest from" list when one is given. For allergy, coeliac, or other medically sensitive dietary questions, keep advice general and recommend a qualified professional rather than giving definitive medical guidance.
 - If you're not sure, say so briefly rather than guessing. Don't overstate confidence.
+- ${SCIENTIFIC_GROUNDING_CLAUSE}
 
 Boundaries:
 - You are not a doctor, physiotherapist, or dietitian. For pain, injury, illness, or medication questions, briefly recommend a qualified professional and keep training advice general. Do not diagnose.
@@ -146,6 +155,7 @@ Coaching stance:
 - Lead with the answer in the first sentence. Default to 2–6 short sentences or a short dash list of food ideas; go longer only when the member explicitly asks for a fuller plan (e.g. "plan my week"). Plain text only — no markdown headings or tables.
 - No rigid meal plans, no supplement protocols, no calorie-counting rules beyond the app's own carb/protein/fat targets.
 - If you're not sure, say so briefly rather than guessing.
+- ${SCIENTIFIC_GROUNDING_CLAUSE}
 
 Boundaries:
 - You are not a doctor or registered dietitian. For medical nutrition questions (coeliac disease, diagnosed conditions, medication interactions), keep advice general and recommend a qualified professional. Do not diagnose.
@@ -242,6 +252,7 @@ const STAFF_SUMMARY_SYSTEM_PROMPT = `You write brief internal briefings for a st
 Grounding rules — these are strict:
 - A "Member data" block follows this prompt. It is the ONLY source of facts. Cite numbers from it exactly; never invent readiness scores, weights, sets, reps, dates, or history not in it.
 - If the data is thin (little or no recent logging), say that plainly rather than padding the summary out.
+- When flagging load or readiness, weigh it against normal training-load thresholds, not a guessed number.
 
 Reply as 3-5 short bullet points, one per line, each starting with "- ". Each bullet is one self-contained fact or observation — readiness/load trend, anything notable (a dip, a strong stretch, a gap in logging), a practical note if something's worth flagging. Third person about the member ("She's...", "His readiness..."), professional coach-to-coach tone. No intro line, no sign-off, no sub-bullets, no other markdown.`;
 
@@ -320,7 +331,7 @@ const EXERCISE_CONTENT_PROMPT = `You write concise exercise-library content for 
 CUES:
 <3-5 short coaching cues, one per line, each a single actionable thought>
 
-Rules: plain text only — no markdown, no bullets or dashes, no headings, no emoji. No safety disclaimers. Keep the description under 80 words and each cue under 10 words. If the exercise name is not a real exercise, reply with exactly: UNKNOWN`;
+Rules: plain text only — no markdown, no bullets or dashes, no headings, no emoji. No safety disclaimers. Keep the description under 80 words and each cue under 10 words. If the exercise name is not a real exercise, reply with exactly: UNKNOWN. ${SCIENTIFIC_GROUNDING_CLAUSE}`;
 
 export interface ExerciseContentDraft {
   description: string;
@@ -805,6 +816,7 @@ Grounding rules — these are strict:
 - When a section of data is missing (no recovery log, no cycle tracking, no food logged), say so plainly rather than guessing or padding around the gap.
 - Reason about mismatches, don't just restate numbers: a low RPE with volume above their recent average suggests they had more in the tank; a high RPE with volume below average is worth flagging as a possible fatigue, sleep, or stress signal rather than a bad session; cycle phase and recovery data are context for WHY performance may have shifted, not a diagnosis. Never make medical claims — frame cycle-phase and recovery observations as gentle, non-clinical context ("might explain", "worth noting"), never as certainty.
 - If nutrition was logged, note whether they were close to target; if not logged, say fueling can't be assessed rather than assuming they under-ate.
+- ${SCIENTIFIC_GROUNDING_CLAUSE}
 
 Write 2-4 short sentences, second person ("you"), warm and direct like a coach who actually looked at the numbers — not clinical, not generic hype. No headers, no bullet points, no sign-off.`;
 
@@ -970,9 +982,17 @@ Grounding rules — strict:
 - A rest day (type "rest") needs no primaryBodyParts/secondaryBodyParts/repScheme — leave them empty/null.
 - Balance the week sensibly for the goal and day count — don't repeat the exact same primary body parts on back-to-back workout days if the day count allows spreading them out.
 - A "Member's notes" block may follow with extra context the member typed themselves (an upcoming event, a target date, a specific PB, a competition) — when present, let it genuinely shape the split, the body-part balance, and the repScheme choice (e.g. a named race or match date argues for more conditioning-leaning days and less pure hypertrophy work as it approaches; a stated strength PB argues for "strength" repScheme on the relevant days; a bodybuilding show argues for "hypertrophy" with broader body-part coverage). Treat it as real signal, not filler — but it never overrides the strict rules above (still exactly the requested day count, still only valid body parts).
+- ${SCIENTIFIC_GROUNDING_CLAUSE}
+
+Test checkpoints — only when a "Test checkpoint weeks" list follows this prompt:
+- Propose EXACTLY one checkpoint per week number listed, no more, no fewer — this is a fitness/performance test, not a training day, so it has no repScheme and isn't counted in the days-per-week total.
+- Pick 2-4 tests appropriate to the goal: sports performance -> sprint/agility/change-of-direction/conditioning-style tests; strength/power -> a rep-max attempt (e.g. "5RM") on the programme's own main lifts; hypertrophy/general fitness/fat loss -> a short fitness battery (e.g. a timed conditioning piece plus a couple of compound-lift rep-max or max-rep checks). Let the member's notes shape this exactly as they shape the days above.
+- Never give a test a target/goal number — describe only the protocol to perform (e.g. "5RM Back Squat", "Max reps push-ups in 60s", "12-minute run for distance"). There is nothing to hit, only something to measure.
+- When a later checkpoint week re-tests the same measure as an earlier one in this same response, it MUST use the EXACT SAME exercise name as that earlier test (character-for-character) so the two results can be matched up later — do not rename "5RM Back Squat" to "Back Squat 5-Rep Max" partway through.
 
 Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
-{"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null}]}`;
+{"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
+Omit "checkpoints" (or return an empty array) when no "Test checkpoint weeks" list was given.`;
 
 export interface ProgrammeSkeletonDay {
   label: string;
@@ -983,9 +1003,22 @@ export interface ProgrammeSkeletonDay {
   repScheme: "strength" | "hypertrophy" | "endurance" | null;
 }
 
+export interface ProgrammeSkeletonCheckpointExercise {
+  name: string;
+  protocol: string;
+}
+
+export interface ProgrammeSkeletonCheckpoint {
+  weekNumber: number;
+  label: string;
+  focusLabel: string | null;
+  exercises: ProgrammeSkeletonCheckpointExercise[];
+}
+
 export interface ProgrammeSkeleton {
   splitStyle: string;
   days: ProgrammeSkeletonDay[];
+  checkpoints: ProgrammeSkeletonCheckpoint[];
 }
 
 export interface ProgrammeSkeletonRequest {
@@ -998,6 +1031,10 @@ export interface ProgrammeSkeletonRequest {
   /** Free-text detail the member typed themselves — an upcoming event, a
       target date, a specific PB, a competition. Optional. */
   notes?: string | null;
+  /** Deterministically computed by computeCheckpointWeeks() in
+      lib/training-programs.ts — when present, the model is asked to propose
+      a test checkpoint for each listed week number. Omit/empty for none. */
+  checkpointWeeks?: number[];
 }
 
 // Exported for tests. Defensive against malformed JSON, wrong field types,
@@ -1006,7 +1043,8 @@ export interface ProgrammeSkeletonRequest {
 export function parseProgrammeSkeleton(
   text: string,
   validBodyParts: string[],
-  daysPerWeek: number
+  daysPerWeek: number,
+  checkpointWeeks: number[] = []
 ): ProgrammeSkeleton | null {
   const trimmed = text
     .trim()
@@ -1069,9 +1107,44 @@ export function parseProgrammeSkeleton(
       : d
   );
 
+  // Exactly one checkpoint per requested week — a requested week the model
+  // didn't return is simply dropped rather than fabricated; a week it
+  // returned that we didn't ask for is dropped too (checkpoint weeks are
+  // computed deterministically by computeCheckpointWeeks, never AI-chosen).
+  const requestedWeeks = new Set(checkpointWeeks);
+  const rawCheckpoints = Array.isArray(obj.checkpoints) ? obj.checkpoints : [];
+  const checkpointsByWeek = new Map<number, ProgrammeSkeletonCheckpoint>();
+  for (const raw of rawCheckpoints) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const c = raw as Record<string, unknown>;
+    const weekNumber = Number(c.weekNumber);
+    if (!Number.isInteger(weekNumber) || !requestedWeeks.has(weekNumber) || checkpointsByWeek.has(weekNumber)) continue;
+
+    const exercises: ProgrammeSkeletonCheckpointExercise[] = Array.isArray(c.exercises)
+      ? c.exercises
+          .filter((e): e is Record<string, unknown> => typeof e === "object" && e !== null)
+          .map((e) => ({
+            name: typeof e.name === "string" ? e.name.trim().slice(0, 60) : "",
+            protocol: typeof e.protocol === "string" ? e.protocol.trim().slice(0, 80) : "",
+          }))
+          .filter((e) => e.name && e.protocol)
+          .slice(0, 4)
+      : [];
+    if (exercises.length === 0) continue;
+
+    checkpointsByWeek.set(weekNumber, {
+      weekNumber,
+      label: typeof c.label === "string" && c.label.trim() ? c.label.trim().slice(0, 60) : `Week ${weekNumber} Check-in`,
+      focusLabel: typeof c.focusLabel === "string" && c.focusLabel.trim() ? c.focusLabel.trim().slice(0, 40) : null,
+      exercises,
+    });
+  }
+  const checkpoints = [...checkpointsByWeek.values()].sort((a, b) => a.weekNumber - b.weekNumber);
+
   return {
     splitStyle: typeof obj.splitStyle === "string" && obj.splitStyle.trim() ? obj.splitStyle.trim().slice(0, 60) : "Custom Split",
     days: safeDays.slice(0, Math.max(1, Math.min(14, daysPerWeek || safeDays.length))),
+    checkpoints,
   };
 }
 
@@ -1089,6 +1162,10 @@ export async function generateProgrammeSkeleton(request: ProgrammeSkeletonReques
   if (request.notes?.trim()) {
     instructionParts.push(`Member's notes: ${request.notes.trim()}`);
   }
+  const checkpointWeeks = request.checkpointWeeks ?? [];
+  if (checkpointWeeks.length > 0) {
+    instructionParts.push(`Test checkpoint weeks: ${checkpointWeeks.join(", ")}`);
+  }
   const instruction = instructionParts.join("\n");
 
   const message = await client.messages.create({
@@ -1103,5 +1180,123 @@ export async function generateProgrammeSkeleton(request: ProgrammeSkeletonReques
     messages: [{ role: "user", content: instruction }],
   });
 
-  return parseProgrammeSkeleton(textFromMessage(message), request.validBodyParts, request.daysPerWeek);
+  return parseProgrammeSkeleton(textFromMessage(message), request.validBodyParts, request.daysPerWeek, checkpointWeeks);
+}
+
+// ─── AI Programme Builder — end-of-cycle check-in ──────────────────────
+// Generated lazily on first open of that cycle's check-in (see
+// app/api/mobile/programs/[id]/checkin/[cycle]/route.ts), grounded entirely
+// in lib/programme-checkin.ts's deterministic, already-logged data — same
+// "the AI narrates real numbers, it doesn't invent them" split as
+// generateWorkoutReview. The one number this prompt IS allowed to author
+// is proposedTotalWeeks on an "expedite_timeline" proposal — that's a
+// genuine judgment call the member explicitly asked the AI to make, not a
+// fabricated training statistic.
+const PROGRAMME_CHECKIN_SYSTEM_PROMPT = `You write a short, encouraging end-of-week check-in for a member who just completed one cycle of their AI-generated training programme, plus — only when the data supports it — a proposal to adjust their programme's pace or timeline.
+
+Grounding rules — strict:
+- A "Cycle data" block follows this prompt. It is the ONLY source of facts. Never invent adherence numbers, RIR values, or checkpoint results not in it.
+- ${SCIENTIFIC_GROUNDING_CLAUSE}
+
+Writing the check-in:
+- 2-4 short sentences, second person ("you"), warm and direct like a coach who actually looked at the week — not clinical, not generic hype.
+- Reference the real adherence figure and any clear RIR/effort trend. If a checkpoint retest comparison is given, mention what changed in plain terms.
+- If the data is thin (few or no sessions logged, no RIR data), say so plainly rather than padding it out with generic encouragement.
+
+Proposing an adjustment:
+- Only ever propose one when a "Checkpoint retest available" line is given — no checkpoint comparison this cycle means no proposal, full stop (adjustmentProposal must be null).
+- "accelerate": the retest shows clearly faster progress than the timeframe implies AND adherence/effort this cycle was strong (RIR consistently 3+) — the member may be able to progress faster than planned.
+- "hold_back": the retest shows notably slower or stalled progress, OR adherence/effort was poor enough that the current pace looks unsustainable.
+- "expedite_timeline": only when "accelerate" applies AND the member is clearly ahead of a reasonable pace for their stated goal and remaining weeks — propose a shorter proposedTotalWeeks (a real integer, less than the programme's current total weeks, still leaving at least one full cycle remaining). Never propose extending the timeline — a member behind schedule gets "hold_back" (pace, not length).
+- Otherwise, adjustmentProposal is null — most cycles won't have one, and that's the expected, healthy default. Don't manufacture a reason to propose something.
+- rationale is 1-2 plain sentences explaining the proposal using the real numbers from the data block — never a fabricated statistic or study.
+
+Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
+{"feedbackText": string, "adjustmentProposal": {"type": "accelerate"|"hold_back"|"expedite_timeline", "rationale": string, "proposedTotalWeeks": number|null} | null}`;
+
+export interface ProgrammeAdjustmentProposal {
+  type: "accelerate" | "hold_back" | "expedite_timeline";
+  rationale: string;
+  proposedTotalWeeks?: number;
+}
+
+export interface ProgrammeCheckInResult {
+  feedbackText: string;
+  adjustmentProposal: ProgrammeAdjustmentProposal | null;
+}
+
+// Exported for tests. Defensive against malformed JSON and invalid
+// proposal shapes — an invalid or nonsensical proposal is dropped (null)
+// rather than trusted, the feedback text itself still stands on its own.
+export function parseProgrammeCheckIn(text: string, currentTotalWeeks: number | null): ProgrammeCheckInResult | null {
+  const trimmed = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  if (!trimmed) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const obj = parsed as Record<string, unknown>;
+
+  const feedbackText = typeof obj.feedbackText === "string" ? obj.feedbackText.trim().slice(0, 800) : "";
+  if (!feedbackText) return null;
+
+  let adjustmentProposal: ProgrammeAdjustmentProposal | null = null;
+  const proposalTypes = new Set(["accelerate", "hold_back", "expedite_timeline"]);
+  if (typeof obj.adjustmentProposal === "object" && obj.adjustmentProposal !== null) {
+    const p = obj.adjustmentProposal as Record<string, unknown>;
+    const type = typeof p.type === "string" && proposalTypes.has(p.type) ? (p.type as ProgrammeAdjustmentProposal["type"]) : null;
+    const rationale = typeof p.rationale === "string" && p.rationale.trim() ? p.rationale.trim().slice(0, 400) : "";
+
+    if (type && rationale) {
+      if (type === "expedite_timeline") {
+        const proposedTotalWeeks = Number(p.proposedTotalWeeks);
+        const valid =
+          Number.isInteger(proposedTotalWeeks) &&
+          proposedTotalWeeks > 0 &&
+          currentTotalWeeks !== null &&
+          proposedTotalWeeks < currentTotalWeeks;
+        if (valid) {
+          adjustmentProposal = { type, rationale, proposedTotalWeeks };
+        }
+        // An expedite_timeline proposal with no valid new week count isn't
+        // actionable — drop the whole proposal rather than apply a pace
+        // change the model didn't actually ask for.
+      } else {
+        adjustmentProposal = { type, rationale };
+      }
+    }
+  }
+
+  return { feedbackText, adjustmentProposal };
+}
+
+export async function generateProgrammeCheckIn(
+  contextText: string,
+  currentTotalWeeks: number | null
+): Promise<ProgrammeCheckInResult | null> {
+  if (!isAiConfigured()) {
+    throw new Error(AI_NOT_CONFIGURED_MESSAGE);
+  }
+
+  const client = getClient();
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 1200,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: [{ type: "text", text: PROGRAMME_CHECKIN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content: `Cycle data:\n\n${contextText}` }],
+  });
+
+  return parseProgrammeCheckIn(textFromMessage(message), currentTotalWeeks);
 }

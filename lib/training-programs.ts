@@ -14,6 +14,8 @@ import {
   type WorkoutSessionRecord,
   type WorkoutSetType,
 } from "./db";
+import type { ProgrammeSkeletonCheckpoint } from "./ai";
+import { removeSyncedProgrammeSessions } from "./programme-weekly-sync";
 import { buildHistoryIndex, formatKg, latestEntryForOption, roundToStep, type SessionTier } from "./workout-helper";
 
 const SET_TYPES: WorkoutSetType[] = ["standard", "warmup", "dropset", "myoset", "failure", "partial"];
@@ -100,6 +102,9 @@ export function parseProgramDays(input: unknown): { ok: true; days: ProgramDayRe
 
 export type ProgrammeRepScheme = "strength" | "hypertrophy" | "endurance";
 
+// The standard strength/hypertrophy/endurance rep-range convention (roughly
+// 1-6 / 6-12 / 12-20+ reps) reflected across NSCA/ACSM guidance — a general,
+// well-established principle, not tied to any specific cited study.
 const REP_SCHEME_TARGETS: Record<ProgrammeRepScheme, { sets: number; reps: string }> = {
   strength: { sets: 4, reps: "4-6" },
   hypertrophy: { sets: 3, reps: "8-12" },
@@ -151,6 +156,10 @@ export function resolveInitialProgrammeTargets(
 // first cycle, and mixing it back in here would let a stale log from
 // before the programme started drive "how did last week go."
 //
+// RIR/RPE-based autoregulation — a standard progressive-overload principle
+// (bump load only when the prescribed reps were achievable with room to
+// spare) rather than a fixed percentage-based scheme.
+//
 // Rule (WorkoutExerciseEntry.rir = reps in reserve, 0-5, low = near
 // failure):
 //   - No RIR logged for that exercise this cycle -> hold (safest default).
@@ -160,13 +169,26 @@ export function resolveInitialProgrammeTargets(
 //   - Missed target reps, RIR 0 (failed)         -> back off ~10%.
 // No matching log at all this cycle -> hold (member skipped/hasn't logged
 // it yet; nothing to react to).
+// The RIR bar for "comfortable enough to bump" — set by a check-in's
+// accepted pace-adjustment proposal (TrainingProgramRecord.progressBias).
+// Lower bar = bumps sooner (accelerate); higher bar = waits for more room
+// in reserve before bumping (hold_back). Same mechanism, just retuned —
+// exercise identity and content are never touched by this.
+const COMFORTABLE_RIR_THRESHOLD: Record<"accelerate" | "normal" | "hold_back", number> = {
+  accelerate: 2,
+  normal: 3,
+  hold_back: 4,
+};
+
 export function resolveNextCycleTargets(
   exercises: PrescribedExercise[],
   sessions: WorkoutSessionRecord[],
-  cycleStartedAt: string | null
+  cycleStartedAt: string | null,
+  progressBias: "accelerate" | "normal" | "hold_back" = "normal"
 ): PrescribedExercise[] {
   const cutoff = cycleStartedAt ?? "";
   const history = buildHistoryIndex(sessions).filter((entry) => entry.date >= cutoff);
+  const comfortableRir = COMFORTABLE_RIR_THRESHOLD[progressBias];
 
   return exercises.map((exercise) => {
     const entry = latestEntryForOption(history, exercise.name);
@@ -175,7 +197,7 @@ export function resolveNextCycleTargets(
     const hitTarget = entry.reps !== null && entry.reps >= lowerRepBound(exercise.targetReps ?? "");
     const hasWeight = entry.weightNum !== null;
 
-    if (hitTarget && entry.rir >= 3) {
+    if (hitTarget && entry.rir >= comfortableRir) {
       if (!hasWeight) return exercise;
       const step = stepFor(entry.weightNum!);
       return { ...exercise, targetWeight: formatKg(entry.weightNum! + step) };
@@ -236,8 +258,78 @@ export function archiveOtherActivePrograms(userId: string, exceptId: string): vo
   for (const program of findTrainingProgramsByUserId(userId)) {
     if (program.id !== exceptId && program.status === "active") {
       saveTrainingProgram({ ...program, status: "archived", updatedAt: new Date().toISOString() });
+      removeSyncedProgrammeSessions(userId, program.id);
     }
   }
+}
+
+// Deterministic, not AI-chosen — removes any hallucination risk around WHEN
+// a checkpoint falls; the AI only ever decides what to test (see
+// PROGRAMME_SKELETON_SYSTEM_PROMPT in lib/ai.ts). Always week 1 (baseline)
+// and the final week, plus intermediate checkpoints every 4 weeks for
+// anything longer: 4wk -> [1,4], 8wk -> [1,5,8], 12wk -> [1,5,9,12].
+export function computeCheckpointWeeks(totalWeeks: number): number[] {
+  if (totalWeeks <= 0) return [];
+  const STEP = 4;
+  const weeks: number[] = [];
+  for (let w = 1; w <= totalWeeks; w += STEP) {
+    weeks.push(w);
+  }
+  if (weeks[weeks.length - 1] !== totalWeeks) {
+    weeks.push(totalWeeks);
+  }
+  return weeks;
+}
+
+// Re-validates the testCheckpoints the client echoes back from /generate's
+// preview to /save — same "never trust the client" discipline as
+// parseProgramDays, since a save call carries no second AI response to
+// re-derive this from.
+export function parseTestCheckpoints(input: unknown): TrainingProgramRecord["testCheckpoints"] {
+  if (!Array.isArray(input)) return undefined;
+
+  const checkpoints: NonNullable<TrainingProgramRecord["testCheckpoints"]> = [];
+  for (const raw of input.slice(0, 6)) {
+    const c = (raw ?? {}) as Record<string, unknown>;
+    const weekNumber = Number(c.weekNumber);
+    if (!Number.isInteger(weekNumber) || weekNumber <= 0) continue;
+
+    const d = (c.day ?? {}) as Record<string, unknown>;
+    const label = str(d.label);
+    if (!label) continue;
+
+    const exercises = parsePrescribedExercises(d.exercises);
+    if (exercises.length === 0) continue;
+
+    checkpoints.push({
+      weekNumber,
+      day: { id: str(d.id) ?? randomUUID(), label, type: "test", exercises },
+    });
+  }
+
+  return checkpoints.length > 0 ? checkpoints : undefined;
+}
+
+// Turns the AI's validated checkpoint proposals into real ProgramDayRecords
+// (type "test") the same way a workout day is built — via
+// parsePrescribedExercises, so ids/defaults are assigned identically.
+// exerciseId is always null (a test protocol names its own movement in free
+// text, there's no library exercise to link) and targetWeight is always
+// null (a test has a protocol to perform, never a number to hit).
+export function buildTestCheckpoints(
+  checkpoints: ProgrammeSkeletonCheckpoint[]
+): TrainingProgramRecord["testCheckpoints"] {
+  return checkpoints.map((cp) => ({
+    weekNumber: cp.weekNumber,
+    day: {
+      id: randomUUID(),
+      label: cp.label,
+      type: "test" as const,
+      exercises: parsePrescribedExercises(
+        cp.exercises.map((e) => ({ name: e.name, targetReps: e.protocol, exerciseId: null }))
+      ),
+    },
+  }));
 }
 
 // Pure core of advanceProgramDay — no save, so it's directly unit-testable.
@@ -255,15 +347,23 @@ export function computeAdvancedProgram(
   let days = program.days;
   let completedCycles = program.completedCycles ?? 0;
   let cycleStartedAt = program.cycleStartedAt ?? null;
+  let cycleSummaries = program.cycleSummaries ?? [];
 
   if (wrapped && program.source === "ai") {
     days = days.map((day) => ({
       ...day,
       exercises:
-        day.type === "workout" ? resolveNextCycleTargets(day.exercises, sessions, cycleStartedAt) : day.exercises,
+        day.type === "workout"
+          ? resolveNextCycleTargets(day.exercises, sessions, cycleStartedAt, program.progressBias ?? "normal")
+          : day.exercises,
     }));
+    const endedAt = new Date().toISOString();
+    cycleSummaries = [
+      ...cycleSummaries,
+      { cycleIndex: completedCycles, startedAt: cycleStartedAt ?? program.createdAt, endedAt },
+    ];
     completedCycles += 1;
-    cycleStartedAt = new Date().toISOString();
+    cycleStartedAt = endedAt;
   }
 
   return {
@@ -272,6 +372,46 @@ export function computeAdvancedProgram(
     currentDayIndex: nextIndex,
     completedCycles,
     cycleStartedAt,
+    cycleSummaries,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+// Pure core of applying an accepted checkpoint adjustment proposal — no
+// save, so it's directly unit-testable, same split as computeAdvancedProgram
+// above. "accelerate"/"hold_back" just set progressBias (resolveNextCycle-
+// Targets picks it up next wrap). "expedite_timeline" shortens totalWeeks
+// and remaps any still-upcoming testCheckpoints onto the new, shorter
+// schedule — already-reached checkpoints (weekNumber <= current week) are
+// left exactly as they are, and the AI-authored test CONTENT of any
+// remapped future checkpoint is reused as-is (only which week it lands on
+// changes) rather than fabricated fresh, since there's no second AI call
+// here.
+export function applyProgrammeAdjustment(
+  program: TrainingProgramRecord,
+  type: "accelerate" | "hold_back" | "expedite_timeline",
+  proposedTotalWeeks?: number
+): TrainingProgramRecord {
+  if (type === "accelerate" || type === "hold_back") {
+    return { ...program, progressBias: type, updatedAt: new Date().toISOString() };
+  }
+
+  // expedite_timeline
+  if (!proposedTotalWeeks || proposedTotalWeeks <= 0) return program;
+
+  const currentWeek = (program.completedCycles ?? 0) + 1;
+  const newCheckpointWeeks = computeCheckpointWeeks(proposedTotalWeeks).filter((w) => w > currentWeek);
+
+  const pastCheckpoints = (program.testCheckpoints ?? []).filter((c) => c.weekNumber <= currentWeek);
+  const futureCheckpoints = (program.testCheckpoints ?? []).filter((c) => c.weekNumber > currentWeek);
+  const remapped = futureCheckpoints
+    .slice(0, newCheckpointWeeks.length)
+    .map((c, i) => ({ ...c, weekNumber: newCheckpointWeeks[i] }));
+
+  return {
+    ...program,
+    totalWeeks: proposedTotalWeeks,
+    testCheckpoints: [...pastCheckpoints, ...remapped].sort((a, b) => a.weekNumber - b.weekNumber),
     updatedAt: new Date().toISOString(),
   };
 }

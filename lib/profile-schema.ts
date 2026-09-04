@@ -250,6 +250,11 @@ export interface WeeklyTrainingSession {
       cancelled booking find and remove the session it created, even if the
       member edited it afterward. */
   sourceBookingId: string | null;
+  /** Set only on a session auto-created from a saved AI training programme
+      (see lib/programme-weekly-sync.ts) — null otherwise. Same server-owned,
+      preserve-by-id treatment as sourceBookingId above; lets an archived or
+      shortened programme find and remove the sessions it created. */
+  sourceProgramId: string | null;
 }
 
 export interface WeeklyTrainingScheduleRecord {

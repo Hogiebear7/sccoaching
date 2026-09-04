@@ -46,7 +46,8 @@ function normalizeSessions(
   input: unknown,
   currentWeekMonday: string,
   existingWeekOfById: Map<string, string | null>,
-  existingSourceBookingIdById: Map<string, string | null>
+  existingSourceBookingIdById: Map<string, string | null>,
+  existingSourceProgramIdById: Map<string, string | null>
 ): WeeklyTrainingSession[] {
   if (!Array.isArray(input)) return [];
 
@@ -94,6 +95,7 @@ function normalizeSessions(
     const recurring = typeof entry.recurring === "boolean" ? entry.recurring : true;
     const weekOf = recurring ? null : (existingWeekOfById.get(id) ?? currentWeekMonday);
     const sourceBookingId = existingSourceBookingIdById.get(id) ?? null;
+    const sourceProgramId = existingSourceProgramIdById.get(id) ?? null;
 
     result.push({
       id,
@@ -107,6 +109,7 @@ function normalizeSessions(
       recurring,
       weekOf,
       sourceBookingId,
+      sourceProgramId,
     });
 
     if (result.length >= MAX_SESSIONS) break;
@@ -151,12 +154,14 @@ export async function POST(request: NextRequest) {
   const existing = findWeeklyTrainingScheduleByUserId(session.userId);
   const existingWeekOfById = new Map((existing?.sessions ?? []).map((s) => [s.id, s.weekOf]));
   const existingSourceBookingIdById = new Map((existing?.sessions ?? []).map((s) => [s.id, s.sourceBookingId]));
+  const existingSourceProgramIdById = new Map((existing?.sessions ?? []).map((s) => [s.id, s.sourceProgramId]));
   const currentWeekMonday = mondayOfWeek(todayISO());
   const sessions = normalizeSessions(
     (body as { sessions?: unknown }).sessions,
     currentWeekMonday,
     existingWeekOfById,
-    existingSourceBookingIdById
+    existingSourceBookingIdById,
+    existingSourceProgramIdById
   );
   const now = new Date().toISOString();
 

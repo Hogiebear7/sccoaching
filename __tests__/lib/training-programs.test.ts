@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { PrescribedExercise, TrainingProgramRecord, WorkoutSessionRecord } from "@/lib/db";
 import {
+  applyProgrammeAdjustment,
   applyTierModifier,
+  buildTestCheckpoints,
   computeAdvancedProgram,
+  computeCheckpointWeeks,
   parseProgramDays,
+  parseTestCheckpoints,
   resolveInitialProgrammeTargets,
   resolveNextCycleTargets,
 } from "@/lib/training-programs";
@@ -251,5 +255,132 @@ describe("parseProgramDays", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.days[0].exercises[0].setType).toBeNull();
+  });
+});
+
+describe("computeCheckpointWeeks", () => {
+  it("computes deterministic checkpoint weeks for the standard durations", () => {
+    expect(computeCheckpointWeeks(4)).toEqual([1, 4]);
+    expect(computeCheckpointWeeks(8)).toEqual([1, 5, 8]);
+    expect(computeCheckpointWeeks(12)).toEqual([1, 5, 9, 12]);
+  });
+
+  it("handles short/edge durations without duplicating the final week", () => {
+    expect(computeCheckpointWeeks(1)).toEqual([1]);
+    expect(computeCheckpointWeeks(5)).toEqual([1, 5]);
+    expect(computeCheckpointWeeks(0)).toEqual([]);
+    expect(computeCheckpointWeeks(-2)).toEqual([]);
+  });
+});
+
+describe("resolveNextCycleTargets with progressBias", () => {
+  const cycleStart = "2026-02-01T00:00:00.000Z";
+
+  it("accelerate bumps sooner — RIR 2 is enough (would hold under normal)", () => {
+    const sessions = [makeSession("2026-02-03", [{ name: "Back Squat", weight: "80", reps: 12, sets: 3, rir: 2 }])];
+    const normal = resolveNextCycleTargets([makeExercise({ targetWeight: "80 kg" })], sessions, cycleStart, "normal");
+    expect(normal[0].targetWeight).toBe("80 kg");
+    const accelerated = resolveNextCycleTargets([makeExercise({ targetWeight: "80 kg" })], sessions, cycleStart, "accelerate");
+    expect(accelerated[0].targetWeight).toBe("82.5 kg");
+  });
+
+  it("hold_back waits longer — RIR 3 isn't enough (would bump under normal)", () => {
+    const sessions = [makeSession("2026-02-03", [{ name: "Back Squat", weight: "80", reps: 12, sets: 3, rir: 3 }])];
+    const normal = resolveNextCycleTargets([makeExercise({ targetWeight: "80 kg" })], sessions, cycleStart, "normal");
+    expect(normal[0].targetWeight).toBe("82.5 kg");
+    const heldBack = resolveNextCycleTargets([makeExercise({ targetWeight: "80 kg" })], sessions, cycleStart, "hold_back");
+    expect(heldBack[0].targetWeight).toBe("80 kg");
+  });
+});
+
+describe("buildTestCheckpoints", () => {
+  it("turns AI-authored checkpoint proposals into test-type ProgramDayRecords with no invented target", () => {
+    const checkpoints = buildTestCheckpoints([
+      { weekNumber: 1, label: "Baseline", focusLabel: null, exercises: [{ name: "5RM Back Squat", protocol: "5RM" }] },
+    ]);
+    expect(checkpoints).toHaveLength(1);
+    const [cp] = checkpoints!;
+    expect(cp.weekNumber).toBe(1);
+    expect(cp.day.type).toBe("test");
+    expect(cp.day.exercises[0].name).toBe("5RM Back Squat");
+    expect(cp.day.exercises[0].targetReps).toBe("5RM");
+    expect(cp.day.exercises[0].targetWeight).toBeNull();
+    expect(cp.day.exercises[0].exerciseId).toBeNull();
+  });
+});
+
+describe("parseTestCheckpoints", () => {
+  it("returns undefined for non-array input", () => {
+    expect(parseTestCheckpoints(null)).toBeUndefined();
+    expect(parseTestCheckpoints("nope")).toBeUndefined();
+  });
+
+  it("drops entries with an invalid weekNumber, no label, or no exercises", () => {
+    const result = parseTestCheckpoints([
+      { weekNumber: 0, day: { label: "Bad week", exercises: [{ name: "Test" }] } },
+      { weekNumber: 1, day: { label: "", exercises: [{ name: "Test" }] } },
+      { weekNumber: 1, day: { label: "Baseline", exercises: [] } },
+      { weekNumber: 1, day: { label: "Baseline", exercises: [{ name: "5RM Back Squat", targetReps: "5RM" }] } },
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result![0].weekNumber).toBe(1);
+    expect(result![0].day.exercises[0].name).toBe("5RM Back Squat");
+  });
+
+  it("returns undefined when nothing survives validation", () => {
+    expect(parseTestCheckpoints([{ weekNumber: -1, day: {} }])).toBeUndefined();
+  });
+});
+
+describe("applyProgrammeAdjustment", () => {
+  it("sets progressBias for accelerate/hold_back without touching totalWeeks or checkpoints", () => {
+    const program = makeProgram({ testCheckpoints: [{ weekNumber: 1, day: { id: "cp-1", label: "Baseline", type: "test", exercises: [] } }] });
+    const accelerated = applyProgrammeAdjustment(program, "accelerate");
+    expect(accelerated.progressBias).toBe("accelerate");
+    expect(accelerated.totalWeeks).toBe(program.totalWeeks);
+    expect(accelerated.testCheckpoints).toEqual(program.testCheckpoints);
+
+    const heldBack = applyProgrammeAdjustment(program, "hold_back");
+    expect(heldBack.progressBias).toBe("hold_back");
+  });
+
+  it("expedite_timeline shortens totalWeeks and remaps future checkpoints, leaving past ones untouched", () => {
+    const program = makeProgram({
+      completedCycles: 4, // currentWeek = 5
+      totalWeeks: 12,
+      testCheckpoints: [
+        { weekNumber: 1, day: { id: "cp-1", label: "Baseline", type: "test", exercises: [] } },
+        { weekNumber: 5, day: { id: "cp-2", label: "Mid", type: "test", exercises: [] } },
+        { weekNumber: 9, day: { id: "cp-3", label: "Late", type: "test", exercises: [] } },
+        { weekNumber: 12, day: { id: "cp-4", label: "Final", type: "test", exercises: [] } },
+      ],
+    });
+    const updated = applyProgrammeAdjustment(program, "expedite_timeline", 8);
+    expect(updated.totalWeeks).toBe(8);
+    // computeCheckpointWeeks(8) = [1, 5, 8]; only weeks > currentWeek (5) survive as targets: [8]
+    const weeks = updated.testCheckpoints!.map((c) => c.weekNumber);
+    expect(weeks).toEqual([1, 5, 8]);
+    // Past checkpoints (weekNumber <= 5) are the exact original objects.
+    expect(updated.testCheckpoints![0]).toEqual(program.testCheckpoints![0]);
+    expect(updated.testCheckpoints![1]).toEqual(program.testCheckpoints![1]);
+    // The first still-upcoming checkpoint's content is reused, just remapped to week 8.
+    expect(updated.testCheckpoints![2].day).toEqual(program.testCheckpoints![2].day);
+  });
+
+  it("expedite_timeline is a no-op with no valid proposed week count", () => {
+    const program = makeProgram({ totalWeeks: 12 });
+    expect(applyProgrammeAdjustment(program, "expedite_timeline")).toEqual(program);
+    expect(applyProgrammeAdjustment(program, "expedite_timeline", 0)).toEqual(program);
+  });
+});
+
+describe("computeAdvancedProgram cycle summaries", () => {
+  it("appends a cycleSummaries entry with the real date window on wrap", () => {
+    const program = makeProgram({ currentDayIndex: 1, cycleStartedAt: "2026-02-01T00:00:00.000Z", completedCycles: 0 });
+    const updated = computeAdvancedProgram(program, []);
+    expect(updated.cycleSummaries).toHaveLength(1);
+    expect(updated.cycleSummaries![0].cycleIndex).toBe(0);
+    expect(updated.cycleSummaries![0].startedAt).toBe("2026-02-01T00:00:00.000Z");
+    expect(updated.cycleSummaries![0].endedAt).toBe(updated.cycleStartedAt);
   });
 });

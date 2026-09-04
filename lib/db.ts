@@ -193,7 +193,7 @@ export interface ClassWorkoutRecord {
 // order via currentDayIndex, which advances each time they mark the current
 // day complete — it does not lock to calendar dates, matching the reference
 // app's "just do the next one" model rather than a rigid weekly schedule.
-export type ProgramDayType = "workout" | "rest";
+export type ProgramDayType = "workout" | "rest" | "test";
 export type TrainingProgramStatus = "active" | "archived";
 
 export interface PrescribedSet {
@@ -259,6 +259,13 @@ export interface TrainingProgramRecord {
       during THIS cycle, not older history (which is still used, separately,
       to seed a brand-new program's very first targets). */
   cycleStartedAt?: string | null;
+  /** One entry per cycle that has ever completed, appended at the moment a
+      wrap happens (see computeAdvancedProgram in lib/training-programs.ts).
+      cycleStartedAt only tracks the CURRENT cycle's start — this is what
+      lets a later check-in look back at a specific finished cycle's real
+      date window to pull its logged sessions, since nothing else records
+      where a past cycle began or ended. */
+  cycleSummaries?: { cycleIndex: number; startedAt: string; endedAt: string }[];
   /** Generation inputs, kept for "regenerate with the same brief" and for
       display — not used by any logic that decides today's targets. */
   aiMeta?: {
@@ -271,6 +278,31 @@ export interface TrainingProgramRecord {
     notes: string | null;
     generatedAt: string;
   } | null;
+  /** Baseline + periodic retest days, computed at generation time (weeks are
+      deterministic — see computeCheckpointWeeks in lib/training-programs.ts —
+      only the AI-authored test content is generated). weekNumber is 1-based
+      against totalWeeks/completedCycles, not a calendar week. Undefined for
+      staff programs and for ai programs created before this field existed. */
+  testCheckpoints?: { weekNumber: number; day: ProgramDayRecord }[];
+  /** Set by accepting a check-in's pace-adjustment proposal (see
+      generateProgrammeCheckIn in lib/ai.ts) — shifts the RIR comfort
+      threshold resolveNextCycleTargets uses each cycle. "normal" and
+      undefined behave identically; undefined is just "never adjusted". */
+  progressBias?: "accelerate" | "normal" | "hold_back";
+  /** One entry per completed cycle, appended lazily on first open of that
+      cycle's check-in screen (see app/api/mobile/programs/[id]/checkin/
+      [cycle]/route.ts) — never regenerated once cached. */
+  checkIns?: {
+    cycleIndex: number;
+    generatedAt: string;
+    feedbackText: string;
+    adjustmentProposal: {
+      type: "accelerate" | "hold_back" | "expedite_timeline";
+      rationale: string;
+      proposedTotalWeeks?: number;
+    } | null;
+    adjustmentDecision: "accepted" | "declined" | null;
+  }[];
 }
 
 // ── Workout templates — member-owned reusable workouts (the "Library"). A
@@ -1197,7 +1229,9 @@ export type NotificationType =
   | "waitlist_timeout"
   | "readiness_alert"
   | "cancellation_credit_restored"
-  | "no_show";
+  | "no_show"
+  | "training_reminder"
+  | "training_checkin";
 
 export interface NotificationRecord {
   id: string;
