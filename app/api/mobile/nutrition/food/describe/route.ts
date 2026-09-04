@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       descriptionText: descriptionText.trim().slice(0, MAX_DESCRIPTION_LENGTH),
       existingItem: cleanExistingItem,
       dietaryContext: buildDietaryContextBlock(profile),
+      userId: user.id,
     });
     return NextResponse.json({ success: true, configured: true, items });
   } catch (err) {

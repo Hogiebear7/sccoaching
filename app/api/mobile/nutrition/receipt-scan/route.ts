@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const items = await extractReceiptItems({ imageDataUrl: cleanImage });
+    const items = await extractReceiptItems({ imageDataUrl: cleanImage, userId: user.id });
     return NextResponse.json({ success: true, configured: true, items });
   } catch (err) {
     console.error("Receipt scan failed:", err);

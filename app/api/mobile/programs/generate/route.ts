@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
       validBodyParts,
       notes: cleanNotes,
       checkpointWeeks,
+      userId: user.id,
     });
 
     if (!skeleton || skeleton.days.length === 0) {

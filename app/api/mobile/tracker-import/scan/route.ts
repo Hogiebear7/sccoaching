@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const stats = await extractTrackerStats({ imageDataUrl: imageBase64 });
+    const stats = await extractTrackerStats({ imageDataUrl: imageBase64, userId: user.id });
     return NextResponse.json({ success: true, configured: true, stats });
   } catch (err) {
     console.error(`[tracker-import] extraction failed for user ${user.id}:`, err);

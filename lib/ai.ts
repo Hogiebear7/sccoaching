@@ -25,6 +25,7 @@ import {
   findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
+import { recordAiUsageFromResponse } from "@/lib/ai-usage";
 import { formatWorkoutReviewContext, type WorkoutReviewData } from "@/lib/workout-review";
 
 export function isAiConfigured(): boolean {
@@ -90,11 +91,18 @@ export interface CoachChatRequest {
   memberContext: string;
   // Recent conversation, oldest first, ending with the newest user message.
   turns: CoachChatTurn[];
+  // The signed-in member — usage is logged against them. Null only lets a
+  // caller opt out of logging (there's no legitimate real caller without a
+  // signed-in member, since this is the member's own chat).
+  userId: string | null;
 }
 
 // Returns the SDK MessageStream. The caller pipes text deltas to the client
 // and persists the final message. Throws if the API key is not configured —
-// callers must check isAiConfigured() first.
+// callers must check isAiConfigured() first. Usage is logged internally via
+// the stream's 'finalMessage' event, once the full response (with real
+// token counts) is available — this doesn't block or delay anything the
+// caller streams to the client.
 export function createCoachChatStream(request: CoachChatRequest) {
   if (!isAiConfigured()) {
     throw new Error(AI_NOT_CONFIGURED_MESSAGE);
@@ -102,7 +110,7 @@ export function createCoachChatStream(request: CoachChatRequest) {
 
   const client = getClient();
 
-  return client.messages.stream({
+  const stream = client.messages.stream({
     model: COACH_MODEL,
     max_tokens: 8000,
     thinking: { type: "adaptive" },
@@ -125,6 +133,12 @@ export function createCoachChatStream(request: CoachChatRequest) {
       content: turn.content,
     })),
   });
+
+  stream.on("finalMessage", (message) => {
+    recordAiUsageFromResponse({ userId: request.userId, feature: "coach_chat", model: COACH_MODEL, usage: message.usage });
+  });
+
+  return stream;
 }
 
 // Stable persona + guardrails for the Nutrition tab's dedicated AI Nutrition
@@ -172,10 +186,12 @@ export interface NutritionCoachChatRequest {
   // Plain-text grounding block from lib/ai-context.ts's buildNutritionCoachContext.
   memberContext: string;
   turns: CoachChatTurn[];
+  userId: string | null;
 }
 
 // Mirrors createCoachChatStream's shape exactly (same model/thinking/cache
-// setup) but with the Nutrition Coach's own system prompt.
+// setup, same 'finalMessage' usage logging) but with the Nutrition Coach's
+// own system prompt.
 export function createNutritionCoachChatStream(request: NutritionCoachChatRequest) {
   if (!isAiConfigured()) {
     throw new Error(AI_NOT_CONFIGURED_MESSAGE);
@@ -183,7 +199,7 @@ export function createNutritionCoachChatStream(request: NutritionCoachChatReques
 
   const client = getClient();
 
-  return client.messages.stream({
+  const stream = client.messages.stream({
     model: COACH_MODEL,
     max_tokens: 8000,
     thinking: { type: "adaptive" },
@@ -204,6 +220,17 @@ export function createNutritionCoachChatStream(request: NutritionCoachChatReques
       content: turn.content,
     })),
   });
+
+  stream.on("finalMessage", (message) => {
+    recordAiUsageFromResponse({
+      userId: request.userId,
+      feature: "nutrition_coach_chat",
+      model: COACH_MODEL,
+      usage: message.usage,
+    });
+  });
+
+  return stream;
 }
 
 export interface CoachSummaryContext {
@@ -277,6 +304,12 @@ export async function generateCoachSummary(
     ],
     messages: [{ role: "user", content: "Summarize this member for their coach." }],
   });
+  recordAiUsageFromResponse({
+    userId: context.memberId,
+    feature: "staff_member_summary",
+    model: COACH_MODEL,
+    usage: message.usage,
+  });
 
   const text = textFromMessage(message).trim();
   return text || "Nothing notable to report right now.";
@@ -313,6 +346,12 @@ export async function draftReply(context: DraftReplyContext): Promise<string> {
         content: `Member's latest message:\n\n${context.latestMemberMessage?.trim() || "(no message yet)"}`,
       },
     ],
+  });
+  recordAiUsageFromResponse({
+    userId: context.memberId,
+    feature: "staff_draft_reply",
+    model: COACH_MODEL,
+    usage: message.usage,
   });
 
   const text = textFromMessage(message).trim();
@@ -381,6 +420,9 @@ Category: ${input.sectionLabel}`,
       },
     ],
   });
+  // Not member-specific — writes to the shared exercise library, so there's
+  // no member to attribute the cost to.
+  recordAiUsageFromResponse({ userId: null, feature: "exercise_content", model: COACH_MODEL, usage: message.usage });
 
   return parseExerciseContentResponse(textFromMessage(message));
 }
@@ -478,6 +520,7 @@ export interface MealSuggestRequest {
   /** buildDietaryContextBlock(profile) — same allergy/preference grounding
       the coach and nutrition coach prompts use. */
   dietaryContext: string;
+  userId: string | null;
 }
 
 export async function generateMealSuggestions(request: MealSuggestRequest): Promise<MealSuggestion[]> {
@@ -520,6 +563,7 @@ export async function generateMealSuggestions(request: MealSuggestRequest): Prom
     ],
     messages: [{ role: "user", content }],
   });
+  recordAiUsageFromResponse({ userId: request.userId, feature: "meal_suggestions", model: COACH_MODEL, usage: message.usage });
 
   return parseMealSuggestions(textFromMessage(message));
 }
@@ -598,6 +642,7 @@ export function parseIdentifiedFoodItems(text: string): IdentifiedFoodItem[] {
 export interface FoodPhotoIdentifyRequest {
   /** Full data URL (already validated by the caller with isValidImageDataUrl). */
   imageDataUrl: string;
+  userId: string | null;
 }
 
 export async function identifyFoodPhoto(request: FoodPhotoIdentifyRequest): Promise<IdentifiedFoodItem[]> {
@@ -626,6 +671,7 @@ export async function identifyFoodPhoto(request: FoodPhotoIdentifyRequest): Prom
     system: [{ type: "text", text: FOOD_PHOTO_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
   });
+  recordAiUsageFromResponse({ userId: request.userId, feature: "food_photo_scan", model: COACH_MODEL, usage: message.usage });
 
   return parseIdentifiedFoodItems(textFromMessage(message));
 }
@@ -660,6 +706,7 @@ export interface FoodDescriptionRequest {
   /** buildDietaryContextBlock(profile) — same grounding as the other
       food/meal AI features. */
   dietaryContext: string;
+  userId: string | null;
 }
 
 export async function interpretFoodDescription(request: FoodDescriptionRequest): Promise<IdentifiedFoodItem[]> {
@@ -687,6 +734,7 @@ export async function interpretFoodDescription(request: FoodDescriptionRequest):
     ],
     messages: [{ role: "user", content: instructionParts.join("\n\n") }],
   });
+  recordAiUsageFromResponse({ userId: request.userId, feature: "food_description", model: COACH_MODEL, usage: message.usage });
 
   // Text can never read a printed label, so every result reads as "estimate"
   // regardless of what the model itself might reply — parseIdentifiedFoodItems
@@ -780,6 +828,7 @@ export function parseReceiptLineItems(text: string): ReceiptLineItem[] {
 export interface ReceiptExtractRequest {
   /** Full data URL (already validated by the caller with isValidImageDataUrl). */
   imageDataUrl: string;
+  userId: string | null;
 }
 
 export async function extractReceiptItems(request: ReceiptExtractRequest): Promise<ReceiptLineItem[]> {
@@ -805,6 +854,7 @@ export async function extractReceiptItems(request: ReceiptExtractRequest): Promi
     system: [{ type: "text", text: RECEIPT_EXTRACT_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
   });
+  recordAiUsageFromResponse({ userId: request.userId, feature: "receipt_scan", model: COACH_MODEL, usage: message.usage });
 
   return parseReceiptLineItems(textFromMessage(message));
 }
@@ -841,6 +891,12 @@ export async function generateWorkoutReview(data: WorkoutReviewData): Promise<st
       { type: "text", text: `Session data:\n\n${sessionContext}` },
     ],
     messages: [{ role: "user", content: "Write my review for this session." }],
+  });
+  recordAiUsageFromResponse({
+    userId: data.session.userId,
+    feature: "workout_review",
+    model: COACH_MODEL,
+    usage: message.usage,
   });
 
   const text = textFromMessage(message).trim();
@@ -936,6 +992,7 @@ export function parseTrackerStatsExtraction(text: string): TrackerStatsExtractio
 export interface TrackerImportRequest {
   /** Full data URL (already validated by the caller with isValidImageDataUrl). */
   imageDataUrl: string;
+  userId: string | null;
 }
 
 export async function extractTrackerStats(request: TrackerImportRequest): Promise<TrackerStatsExtraction> {
@@ -961,6 +1018,7 @@ export async function extractTrackerStats(request: TrackerImportRequest): Promis
     system: [{ type: "text", text: TRACKER_IMPORT_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
   });
+  recordAiUsageFromResponse({ userId: request.userId, feature: "tracker_import", model: COACH_MODEL, usage: message.usage });
 
   return parseTrackerStatsExtraction(textFromMessage(message));
 }
@@ -1035,6 +1093,7 @@ export interface ProgrammeSkeletonRequest {
       lib/training-programs.ts — when present, the model is asked to propose
       a test checkpoint for each listed week number. Omit/empty for none. */
   checkpointWeeks?: number[];
+  userId: string | null;
 }
 
 // Exported for tests. Defensive against malformed JSON, wrong field types,
@@ -1179,6 +1238,12 @@ export async function generateProgrammeSkeleton(request: ProgrammeSkeletonReques
     ],
     messages: [{ role: "user", content: instruction }],
   });
+  recordAiUsageFromResponse({
+    userId: request.userId,
+    feature: "programme_generation",
+    model: COACH_MODEL,
+    usage: message.usage,
+  });
 
   return parseProgrammeSkeleton(textFromMessage(message), request.validBodyParts, request.daysPerWeek, checkpointWeeks);
 }
@@ -1282,7 +1347,8 @@ export function parseProgrammeCheckIn(text: string, currentTotalWeeks: number | 
 
 export async function generateProgrammeCheckIn(
   contextText: string,
-  currentTotalWeeks: number | null
+  currentTotalWeeks: number | null,
+  userId: string | null
 ): Promise<ProgrammeCheckInResult | null> {
   if (!isAiConfigured()) {
     throw new Error(AI_NOT_CONFIGURED_MESSAGE);
@@ -1297,6 +1363,7 @@ export async function generateProgrammeCheckIn(
     system: [{ type: "text", text: PROGRAMME_CHECKIN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: `Cycle data:\n\n${contextText}` }],
   });
+  recordAiUsageFromResponse({ userId, feature: "programme_checkin", model: COACH_MODEL, usage: message.usage });
 
   return parseProgrammeCheckIn(textFromMessage(message), currentTotalWeeks);
 }

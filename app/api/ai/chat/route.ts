@@ -170,6 +170,7 @@ export async function POST(request: NextRequest) {
         const stream = createCoachChatStream({
           memberContext: context.text,
           turns,
+          userId: user.id,
         });
 
         for await (const event of stream) {

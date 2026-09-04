@@ -1286,6 +1286,58 @@ export interface RevenueEventRecord {
   receivedAt: string;
 }
 
+// AI API usage — one entry per real Anthropic API call, capturing the
+// actual token counts the response reported (never estimated) so real cost
+// can be tracked per member and in aggregate. Append-only and NEVER pruned,
+// same discipline as RevenueEventRecord — this is cost history a staff
+// member can pull up "all time," not operational telemetry.
+export type AiFeature =
+  | "coach_chat"
+  | "nutrition_coach_chat"
+  | "staff_member_summary"
+  | "staff_draft_reply"
+  | "exercise_content"
+  | "meal_suggestions"
+  | "food_photo_scan"
+  | "food_description"
+  | "receipt_scan"
+  | "workout_review"
+  | "tracker_import"
+  | "programme_generation"
+  | "programme_checkin";
+
+export interface AiUsageLogRecord {
+  id: string;
+  /** The member this usage is attributed to. Null only for features with
+      no specific member subject (e.g. exercise-content generation, which
+      writes to the shared exercise library, not a member's own data).
+      Staff-initiated calls that are ABOUT a member (staff summary, staff
+      draft reply) are attributed to that member — the cost exists because
+      of their data, not the staff user who happened to trigger it. */
+  userId: string | null;
+  feature: AiFeature;
+  model: string;
+  /** Regular (non-cached) input tokens — Anthropic reports cached input
+      separately (see below), so this is only the uncached portion. */
+  inputTokens: number;
+  /** Tokens written to the ephemeral prompt cache this call (billed at
+      1.25x the base input rate) — almost every call here caches its system
+      prompt, so this is rarely zero on a cold cache. */
+  cacheWriteTokens: number;
+  /** Tokens read from an existing prompt cache this call (billed at 0.1x
+      the base input rate) — the common case once a system prompt's cache
+      entry is warm. */
+  cacheReadTokens: number;
+  outputTokens: number;
+  /** Real cost in USD, computed from the model's per-token pricing
+      (lib/ai-usage.ts) at call time, including the cache write/read
+      multipliers above — Anthropic bills in USD, so this is the
+      ground-truth figure. Converted to EUR only at display time, so a
+      later FX-rate change never rewrites already-logged history. */
+  costUsd: number;
+  createdAt: string;
+}
+
 // ── Business finance ledger ─────────────────────────────────────────────
 // Everything money-related that ISN'T already captured by the Stripe/Revolut
 // webhook pipeline above (RevenueEventRecord for renewals, PurchaseRecord for
@@ -1572,6 +1624,7 @@ interface Database {
   jobRuns: JobRunRecord[];
   aiRedirectEvents: AiRedirectEventRecord[];
   revenueEvents: RevenueEventRecord[];
+  aiUsageLogs: AiUsageLogRecord[];
   financeLedgerEntries: FinanceLedgerEntryRecord[];
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
@@ -1693,6 +1746,7 @@ function readDb(): Database {
       jobRuns: [],
       aiRedirectEvents: [],
       revenueEvents: [],
+      aiUsageLogs: [],
       financeLedgerEntries: [],
       cycleSettings: [],
       cyclePrivacyPreferences: [],
@@ -1863,6 +1917,7 @@ function readDb(): Database {
     jobRuns: parsed.jobRuns ?? [],
     aiRedirectEvents: parsed.aiRedirectEvents ?? [],
     revenueEvents: parsed.revenueEvents ?? [],
+    aiUsageLogs: parsed.aiUsageLogs ?? [],
     financeLedgerEntries: parsed.financeLedgerEntries ?? [],
     cycleSettings: parsed.cycleSettings ?? [],
     cyclePrivacyPreferences: parsed.cyclePrivacyPreferences ?? [],
@@ -3351,6 +3406,23 @@ export function findRevenueEventByProviderRef(
 
 export function findAllRevenueEvents(): RevenueEventRecord[] {
   return readDb().revenueEvents;
+}
+
+// AI usage ledger — append-only, uncapped (see AiUsageLogRecord). One entry
+// per real API call, written right after the response comes back so the
+// logged tokens are exactly what was billed, never an estimate.
+export function createAiUsageLog(log: AiUsageLogRecord): void {
+  const db = readDb();
+  db.aiUsageLogs.push(log);
+  writeDb(db);
+}
+
+export function findAiUsageLogsByUserId(userId: string): AiUsageLogRecord[] {
+  return readDb().aiUsageLogs.filter((l) => l.userId === userId);
+}
+
+export function findAllAiUsageLogs(): AiUsageLogRecord[] {
+  return readDb().aiUsageLogs;
 }
 
 export function getFinanceSettings(): FinanceSettings {

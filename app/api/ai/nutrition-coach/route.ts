@@ -172,6 +172,7 @@ export async function POST(request: NextRequest) {
         const stream = createNutritionCoachChatStream({
           memberContext: context.text,
           turns,
+          userId: user.id,
         });
 
         for await (const event of stream) {

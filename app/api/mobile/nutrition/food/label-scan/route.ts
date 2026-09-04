@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const rawItems = await identifyFoodPhoto({ imageDataUrl: imageBase64 });
+    const rawItems = await identifyFoodPhoto({ imageDataUrl: imageBase64, userId: user.id });
     // Swap in verified catalog nutrition for anything the AI only
     // estimated but that already matches a known common/branded food
     // exactly by name — before the member's own manual overrides, which

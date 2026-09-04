@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
       imageDataUrl: cleanImage,
       ingredientsText: cleanIngredients || null,
       dietaryContext: buildDietaryContextBlock(profile),
+      userId: user.id,
     });
 
     return NextResponse.json({ success: true, configured: true, suggestions });

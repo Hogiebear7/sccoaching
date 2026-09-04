@@ -39,6 +39,7 @@ import {
   TRACKED_PERSONAL_BEST_EXERCISES,
 } from "@/lib/workouts";
 import { MessagesThread } from "@/components/messages/MessagesThread";
+import { AiUsagePanel } from "@/components/staff/AiUsagePanel";
 import { ChangeTierPanel } from "@/components/staff/ChangeTierPanel";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
 import { MemberAccountPanel } from "@/components/staff/MemberAccountPanel";
@@ -187,6 +188,8 @@ export default async function StaffMemberDetailPage({
       ) : null}
 
       <CoachSummaryPanel memberId={user.id} />
+
+      <AiUsagePanel memberId={user.id} />
 
       {/* Membership + billing is admin-only. A coach never sees this panel,
           and its API routes (subscription / extra-sessions) enforce the same

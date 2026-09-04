@@ -48,7 +48,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const sessions = findWorkoutSessionsByUserId(user.id);
     const checkInData = buildProgrammeCheckInData(program, sessions, cycleIndex);
-    const result = await generateProgrammeCheckIn(formatProgrammeCheckInContext(checkInData), program.totalWeeks ?? null);
+    const result = await generateProgrammeCheckIn(
+      formatProgrammeCheckInContext(checkInData),
+      program.totalWeeks ?? null,
+      user.id
+    );
 
     if (!result) {
       return NextResponse.json(
