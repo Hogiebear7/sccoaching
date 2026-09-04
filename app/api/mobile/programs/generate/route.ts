@@ -23,7 +23,13 @@ import {
 const GENERATE_RATE_LIMIT = 5;
 const GENERATE_RATE_WINDOW_MS = 60 * 60 * 1000;
 
-const VALID_WEEKS = new Set([4, 8, 12]);
+// 4/8/12 are the mobile UI's fast-default presets, but any whole-number
+// length in this range is valid — the mobile custom-end-date picker (see
+// workout-generator.tsx's weeksUntil) derives an arbitrary week count from
+// a real calendar date, not just these three. computeCheckpointWeeks in
+// lib/training-programs.ts already handles any totalWeeks generically.
+const MIN_WEEKS = 1;
+const MAX_WEEKS = 26;
 
 // POST /api/mobile/programs/generate
 // The "preview" half of the AI programme builder — everything here is
@@ -79,7 +85,8 @@ export async function POST(request: NextRequest) {
   >;
 
   const cleanGoal = typeof goal === "string" ? goal.trim().slice(0, 200) : "";
-  const cleanWeeks = typeof weeks === "number" && VALID_WEEKS.has(weeks) ? weeks : null;
+  const cleanWeeks =
+    typeof weeks === "number" && Number.isInteger(weeks) && weeks >= MIN_WEEKS && weeks <= MAX_WEEKS ? weeks : null;
   const cleanDaysPerWeek =
     typeof daysPerWeek === "number" && Number.isInteger(daysPerWeek) && daysPerWeek >= 2 && daysPerWeek <= 6
       ? daysPerWeek
@@ -96,7 +103,7 @@ export async function POST(request: NextRequest) {
 
   if (!cleanGoal || !cleanWeeks || !cleanDaysPerWeek) {
     return NextResponse.json(
-      { success: false, configured: true, message: "goal, weeks (4/8/12), and daysPerWeek (2-6) are required." },
+      { success: false, configured: true, message: `goal, weeks (${MIN_WEEKS}-${MAX_WEEKS}), and daysPerWeek (2-6) are required.` },
       { status: 400 }
     );
   }
