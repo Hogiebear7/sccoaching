@@ -5,6 +5,7 @@ import { generateProgrammeCheckIn, isAiConfigured } from "@/lib/ai";
 import { findTrainingProgramById, findUserById, findWorkoutSessionsByUserId, saveTrainingProgram } from "@/lib/db";
 import { buildProgrammeCheckInData, formatProgrammeCheckInContext } from "@/lib/programme-checkin";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { isExerciseRefreshEligible } from "@/lib/training-programs";
 
 // GET /api/mobile/programs/[id]/checkin/[cycle]
 // Same lazy-generate-and-cache shape as workout-review/[id] — the check-in
@@ -48,10 +49,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const sessions = findWorkoutSessionsByUserId(user.id);
     const checkInData = buildProgrammeCheckInData(program, sessions, cycleIndex);
+    const refreshEligible = isExerciseRefreshEligible(cycleIndex + 1, program.totalWeeks ?? null);
     const result = await generateProgrammeCheckIn(
       formatProgrammeCheckInContext(checkInData),
       program.totalWeeks ?? null,
-      user.id
+      user.id,
+      refreshEligible
     );
 
     if (!result) {
@@ -67,6 +70,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       feedbackText: result.feedbackText,
       adjustmentProposal: result.adjustmentProposal,
       adjustmentDecision: null as "accepted" | "declined" | null,
+      exerciseRefreshProposal: result.exerciseRefreshProposal,
+      exerciseRefreshDecision: null as "accepted" | "declined" | null,
     };
 
     saveTrainingProgram({ ...program, checkIns: [...(program.checkIns ?? []), entry], updatedAt: new Date().toISOString() });

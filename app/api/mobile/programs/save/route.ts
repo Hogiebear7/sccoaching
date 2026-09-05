@@ -10,6 +10,7 @@ import { archiveOtherActivePrograms, parseProgramDays, parseTestCheckpoints } fr
 interface AiMetaInput {
   goal: string;
   splitStyle: string;
+  rationale: string | null;
   daysPerWeek: number;
   sessionMinutes: number;
   equipmentSlugs: string[];
@@ -25,6 +26,7 @@ function parseAiMeta(input: unknown): AiMetaInput | null {
   return {
     goal: m.goal.slice(0, 200),
     splitStyle: m.splitStyle.slice(0, 60),
+    rationale: typeof m.rationale === "string" && m.rationale.trim() ? m.rationale.trim().slice(0, 800) : null,
     daysPerWeek: typeof m.daysPerWeek === "number" ? m.daysPerWeek : 0,
     sessionMinutes: typeof m.sessionMinutes === "number" ? m.sessionMinutes : 45,
     equipmentSlugs: Array.isArray(m.equipmentSlugs) ? m.equipmentSlugs.filter((s): s is string => typeof s === "string") : [],

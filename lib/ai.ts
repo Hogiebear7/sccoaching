@@ -1041,6 +1041,7 @@ Grounding rules — strict:
 - Balance the week sensibly for the goal and day count — don't repeat the exact same primary body parts on back-to-back workout days if the day count allows spreading them out.
 - A "Member's notes" block may follow with extra context the member typed themselves (an upcoming event, a target date, a specific PB, a competition) — when present, let it genuinely shape the split, the body-part balance, and the repScheme choice (e.g. a named race or match date argues for more conditioning-leaning days and less pure hypertrophy work as it approaches; a stated strength PB argues for "strength" repScheme on the relevant days; a bodybuilding show argues for "hypertrophy" with broader body-part coverage). Treat it as real signal, not filler — but it never overrides the strict rules above (still exactly the requested day count, still only valid body parts).
 - ${SCIENTIFIC_GROUNDING_CLAUSE}
+- rationale is 2-4 plain sentences, written to the member directly: why this split/balance fits their stated goal (and notes, if given), plus an honest read on how demanding it'll feel (e.g. "this is a demanding volume for 5 days/week — expect the first week or two to feel taxing while you adapt" or "this is a moderate, sustainable load for a first programme"). Plain prose, no markdown, no bullet points, no fabricated statistics.
 
 Test checkpoints — only when a "Test checkpoint weeks" list follows this prompt:
 - Propose EXACTLY one checkpoint per week number listed, no more, no fewer — this is a fitness/performance test, not a training day, so it has no repScheme and isn't counted in the days-per-week total.
@@ -1049,7 +1050,7 @@ Test checkpoints — only when a "Test checkpoint weeks" list follows this promp
 - When a later checkpoint week re-tests the same measure as an earlier one in this same response, it MUST use the EXACT SAME exercise name as that earlier test (character-for-character) so the two results can be matched up later — do not rename "5RM Back Squat" to "Back Squat 5-Rep Max" partway through.
 
 Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
-{"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
+{"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "rationale": string, "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
 Omit "checkpoints" (or return an empty array) when no "Test checkpoint weeks" list was given.`;
 
 export interface ProgrammeSkeletonDay {
@@ -1075,6 +1076,11 @@ export interface ProgrammeSkeletonCheckpoint {
 
 export interface ProgrammeSkeleton {
   splitStyle: string;
+  /** Why this split/balance fits the member's goal, and an honest read on
+      how demanding it'll feel — shown in the mobile programme preview.
+      Always non-empty: parseProgrammeSkeleton falls back to a short
+      deterministic sentence if the model omits it. */
+  rationale: string;
   days: ProgrammeSkeletonDay[];
   checkpoints: ProgrammeSkeletonCheckpoint[];
 }
@@ -1199,9 +1205,18 @@ export function parseProgrammeSkeleton(
     });
   }
   const checkpoints = [...checkpointsByWeek.values()].sort((a, b) => a.weekNumber - b.weekNumber);
+  const splitStyle =
+    typeof obj.splitStyle === "string" && obj.splitStyle.trim() ? obj.splitStyle.trim().slice(0, 60) : "Custom Split";
 
   return {
-    splitStyle: typeof obj.splitStyle === "string" && obj.splitStyle.trim() ? obj.splitStyle.trim().slice(0, 60) : "Custom Split",
+    splitStyle,
+    // Falls back rather than failing the whole generation — a missing
+    // explanation is a much smaller problem than losing an otherwise-valid
+    // programme over one optional field.
+    rationale:
+      typeof obj.rationale === "string" && obj.rationale.trim()
+        ? obj.rationale.trim().slice(0, 800)
+        : `A ${splitStyle.toLowerCase()} programme built around your stated goal.`,
     days: safeDays.slice(0, Math.max(1, Math.min(14, daysPerWeek || safeDays.length))),
     checkpoints,
   };
@@ -1276,8 +1291,13 @@ Proposing an adjustment:
 - Otherwise, adjustmentProposal is null — most cycles won't have one, and that's the expected, healthy default. Don't manufacture a reason to propose something.
 - rationale is 1-2 plain sentences explaining the proposal using the real numbers from the data block — never a fabricated statistic or study.
 
+Exercise-variety refresh — only when a "Refresh eligible" line follows this prompt:
+- This is a scheduled, deterministic moment (not your decision to make) — a "Refresh eligible" line means it's genuinely time, so exerciseRefreshProposal should essentially always be filled in when that line is present.
+- Your only job here is the rationale: 1-2 warm, motivating sentences on why refreshing exercises now (same muscle groups, different movements) suits this point in their programme — general variety/novel-stimulus framing, grounded the same way as everything else, never a fabricated statistic.
+- No "Refresh eligible" line means exerciseRefreshProposal must be null, full stop — this isn't something to propose on your own judgment.
+
 Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
-{"feedbackText": string, "adjustmentProposal": {"type": "accelerate"|"hold_back"|"expedite_timeline", "rationale": string, "proposedTotalWeeks": number|null} | null}`;
+{"feedbackText": string, "adjustmentProposal": {"type": "accelerate"|"hold_back"|"expedite_timeline", "rationale": string, "proposedTotalWeeks": number|null} | null, "exerciseRefreshProposal": {"rationale": string} | null}`;
 
 export interface ProgrammeAdjustmentProposal {
   type: "accelerate" | "hold_back" | "expedite_timeline";
@@ -1285,15 +1305,24 @@ export interface ProgrammeAdjustmentProposal {
   proposedTotalWeeks?: number;
 }
 
+export interface ProgrammeExerciseRefreshProposal {
+  rationale: string;
+}
+
 export interface ProgrammeCheckInResult {
   feedbackText: string;
   adjustmentProposal: ProgrammeAdjustmentProposal | null;
+  exerciseRefreshProposal: ProgrammeExerciseRefreshProposal | null;
 }
 
 // Exported for tests. Defensive against malformed JSON and invalid
 // proposal shapes — an invalid or nonsensical proposal is dropped (null)
 // rather than trusted, the feedback text itself still stands on its own.
-export function parseProgrammeCheckIn(text: string, currentTotalWeeks: number | null): ProgrammeCheckInResult | null {
+export function parseProgrammeCheckIn(
+  text: string,
+  currentTotalWeeks: number | null,
+  refreshEligible = false
+): ProgrammeCheckInResult | null {
   const trimmed = text
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -1342,28 +1371,43 @@ export function parseProgrammeCheckIn(text: string, currentTotalWeeks: number | 
     }
   }
 
-  return { feedbackText, adjustmentProposal };
+  // Only trusted when the deterministic eligibility check actually says so —
+  // same "never trust an unrequested AI decision" discipline as checkpoint
+  // weeks in parseProgrammeSkeleton. A stray value on an ineligible week is
+  // dropped, not applied.
+  let exerciseRefreshProposal: ProgrammeExerciseRefreshProposal | null = null;
+  if (refreshEligible && typeof obj.exerciseRefreshProposal === "object" && obj.exerciseRefreshProposal !== null) {
+    const r = obj.exerciseRefreshProposal as Record<string, unknown>;
+    const rationale = typeof r.rationale === "string" && r.rationale.trim() ? r.rationale.trim().slice(0, 400) : "";
+    if (rationale) exerciseRefreshProposal = { rationale };
+  }
+
+  return { feedbackText, adjustmentProposal, exerciseRefreshProposal };
 }
 
 export async function generateProgrammeCheckIn(
   contextText: string,
   currentTotalWeeks: number | null,
-  userId: string | null
+  userId: string | null,
+  refreshEligible = false
 ): Promise<ProgrammeCheckInResult | null> {
   if (!isAiConfigured()) {
     throw new Error(AI_NOT_CONFIGURED_MESSAGE);
   }
 
   const client = getClient();
+  const fullContext = refreshEligible
+    ? `Cycle data:\n\n${contextText}\n\nRefresh eligible: yes — it's been long enough that a fresh set of exercises (same muscle groups) is worth offering.`
+    : `Cycle data:\n\n${contextText}`;
   const message = await client.messages.create({
     model: COACH_MODEL,
     max_tokens: 1200,
     thinking: { type: "adaptive" },
     output_config: { effort: "low" },
     system: [{ type: "text", text: PROGRAMME_CHECKIN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-    messages: [{ role: "user", content: `Cycle data:\n\n${contextText}` }],
+    messages: [{ role: "user", content: fullContext }],
   });
   recordAiUsageFromResponse({ userId, feature: "programme_checkin", model: COACH_MODEL, usage: message.usage });
 
-  return parseProgrammeCheckIn(textFromMessage(message), currentTotalWeeks);
+  return parseProgrammeCheckIn(textFromMessage(message), currentTotalWeeks, refreshEligible);
 }

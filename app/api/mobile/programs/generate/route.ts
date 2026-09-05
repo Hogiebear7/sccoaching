@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
         aiMeta: {
           goal: cleanGoal,
           splitStyle: skeleton.splitStyle,
+          rationale: skeleton.rationale,
           daysPerWeek: cleanDaysPerWeek,
           sessionMinutes: cleanSessionMinutes,
           equipmentSlugs: cleanEquipmentSlugs,

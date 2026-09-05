@@ -15,6 +15,8 @@ import {
   type WorkoutSetType,
 } from "./db";
 import type { ProgrammeSkeletonCheckpoint } from "./ai";
+import type { ExerciseLibraryRecord } from "./exercise-library/types";
+import { pickExercisesForDay } from "./programme-exercise-picker";
 import { removeSyncedProgrammeSessions } from "./programme-weekly-sync";
 import { buildHistoryIndex, formatKg, latestEntryForOption, roundToStep, type SessionTier } from "./workout-helper";
 
@@ -281,6 +283,15 @@ export function computeCheckpointWeeks(totalWeeks: number): number[] {
   return weeks;
 }
 
+// Same deterministic cadence as test checkpoints, minus week 1 — nothing to
+// refresh on day one. One schedule concept reused for two different offers
+// (a checkpoint retest and an exercise-variety refresh) rather than
+// inventing a second one.
+export function isExerciseRefreshEligible(weekNumber: number, totalWeeks: number | null): boolean {
+  if (!totalWeeks || weekNumber <= 1) return false;
+  return computeCheckpointWeeks(totalWeeks).includes(weekNumber);
+}
+
 // Re-validates the testCheckpoints the client echoes back from /generate's
 // preview to /save — same "never trust the client" discipline as
 // parseProgramDays, since a save call carries no second AI response to
@@ -414,6 +425,73 @@ export function applyProgrammeAdjustment(
     testCheckpoints: [...pastCheckpoints, ...remapped].sort((a, b) => a.weekNumber - b.weekNumber),
     updatedAt: new Date().toISOString(),
   };
+}
+
+// Recovers which REP_SCHEME_TARGETS bucket a day was generated with, purely
+// from its own already-stored exercises — avoids needing a new stored field
+// just for this. Falls back to "hypertrophy" (parseProgrammeSkeleton's own
+// fallback) when nothing matches, e.g. a day with no targetReps logged yet.
+function inferRepScheme(exercises: PrescribedExercise[]): ProgrammeRepScheme {
+  const sample = exercises.find((e) => e.targetReps)?.targetReps;
+  for (const scheme of Object.keys(REP_SCHEME_TARGETS) as ProgrammeRepScheme[]) {
+    if (sample === REP_SCHEME_TARGETS[scheme].reps) return scheme;
+  }
+  return "hypertrophy";
+}
+
+// Applies an accepted exercise-variety-refresh proposal (see
+// isExerciseRefreshEligible above and generateProgrammeCheckIn in
+// lib/ai.ts) — swaps every workout day's exercises for DIFFERENT ones
+// within the SAME muscle groups, using the exact same deterministic picker
+// and history-anchored target resolution as the programme's original
+// generation. No second AI exercise decision anywhere in this path; the
+// only thing the AI ever contributed was the check-in's rationale text for
+// why now's a good moment.
+//
+// Target body parts are re-derived from each day's own current exercises'
+// muscleTags (pickExercisesForDay always stamps one at pick time) rather
+// than a new stored field — one exclusion set shared across every day's
+// pick call, mirroring how a single full-programme generation call shares
+// one alreadyChosenIds set, so a refreshed week still never repeats an
+// exercise across its own days.
+//
+// Pure, no save — same split as computeAdvancedProgram/
+// applyProgrammeAdjustment above. Equipment/exercise-library data are the
+// caller's job to fetch (same shape pickExercisesForDay itself expects),
+// since this module has no API/db access of its own.
+export function applyExerciseRefresh(
+  program: TrainingProgramRecord,
+  libraryExercises: ExerciseLibraryRecord[],
+  equipmentSlugs: string[],
+  sessions: WorkoutSessionRecord[]
+): TrainingProgramRecord {
+  const alreadyChosenAcrossDays = new Set<string>();
+  const sessionMinutes = program.aiMeta?.sessionMinutes ?? null;
+
+  const days = program.days.map((day) => {
+    if (day.type !== "workout" || day.exercises.length === 0) return day;
+
+    for (const ex of day.exercises) {
+      if (ex.exerciseId) alreadyChosenAcrossDays.add(ex.exerciseId);
+    }
+
+    const bodyParts = [...new Set(day.exercises.flatMap((ex) => ex.muscleTags))];
+    if (bodyParts.length === 0) return day; // nothing to target off of — leave this day untouched rather than guessing
+
+    const picked = pickExercisesForDay({
+      exercises: libraryExercises,
+      primaryBodyParts: bodyParts,
+      secondaryBodyParts: [],
+      equipmentSlugs,
+      timeMinutes: sessionMinutes ?? day.exercises.length * 8,
+      alreadyChosenIds: alreadyChosenAcrossDays,
+    });
+    if (picked.length === 0) return day; // nothing else available in these muscle groups/equipment — leave as-is
+
+    return { ...day, exercises: resolveInitialProgrammeTargets(picked, inferRepScheme(day.exercises), sessions) };
+  });
+
+  return { ...program, days, updatedAt: new Date().toISOString() };
 }
 
 // Advances the member's cursor to the next day (wrapping to the start),

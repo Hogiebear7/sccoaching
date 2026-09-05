@@ -111,6 +111,25 @@ describe("parseProgrammeSkeleton", () => {
     const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
     expect(result?.checkpoints).toEqual([]);
   });
+
+  it("uses the AI-authored rationale when given", () => {
+    const raw = JSON.stringify({
+      splitStyle: "Full Body",
+      rationale: "This balances your goal with a sustainable weekly volume.",
+      days: [{ label: "Day A", type: "workout", primaryBodyParts: ["chest"], secondaryBodyParts: [], repScheme: "strength" }],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
+    expect(result?.rationale).toBe("This balances your goal with a sustainable weekly volume.");
+  });
+
+  it("falls back to a deterministic sentence when rationale is missing, rather than failing generation", () => {
+    const raw = JSON.stringify({
+      splitStyle: "Full Body",
+      days: [{ label: "Day A", type: "workout", primaryBodyParts: ["chest"], secondaryBodyParts: [], repScheme: "strength" }],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
+    expect(result?.rationale).toBe("A full body programme built around your stated goal.");
+  });
 });
 
 describe("parseProgrammeCheckIn", () => {
@@ -125,7 +144,7 @@ describe("parseProgrammeCheckIn", () => {
 
   it("accepts a null adjustment proposal", () => {
     const result = parseProgrammeCheckIn(JSON.stringify({ feedbackText: "Solid week.", adjustmentProposal: null }), 8);
-    expect(result).toEqual({ feedbackText: "Solid week.", adjustmentProposal: null });
+    expect(result).toEqual({ feedbackText: "Solid week.", adjustmentProposal: null, exerciseRefreshProposal: null });
   });
 
   it("accepts an accelerate/hold_back proposal without a week count", () => {
@@ -170,5 +189,36 @@ describe("parseProgrammeCheckIn", () => {
       adjustmentProposal: { type: "double_the_weight", rationale: "..." },
     });
     expect(parseProgrammeCheckIn(raw, 8)?.adjustmentProposal).toBeNull();
+  });
+
+  it("drops an exerciseRefreshProposal when the week wasn't actually refresh-eligible", () => {
+    const raw = JSON.stringify({
+      feedbackText: "Fine week.",
+      adjustmentProposal: null,
+      exerciseRefreshProposal: { rationale: "Time for something new." },
+    });
+    // refreshEligible defaults to false — a stray proposal must never be trusted.
+    expect(parseProgrammeCheckIn(raw, 8)?.exerciseRefreshProposal).toBeNull();
+  });
+
+  it("accepts an exerciseRefreshProposal only when the week is actually refresh-eligible", () => {
+    const raw = JSON.stringify({
+      feedbackText: "Great consistency this month.",
+      adjustmentProposal: null,
+      exerciseRefreshProposal: { rationale: "You've run these same movements for a month — time to mix it up." },
+    });
+    const result = parseProgrammeCheckIn(raw, 8, true);
+    expect(result?.exerciseRefreshProposal).toEqual({
+      rationale: "You've run these same movements for a month — time to mix it up.",
+    });
+  });
+
+  it("drops an exerciseRefreshProposal with an empty rationale even when eligible", () => {
+    const raw = JSON.stringify({
+      feedbackText: "Great week.",
+      adjustmentProposal: null,
+      exerciseRefreshProposal: { rationale: "  " },
+    });
+    expect(parseProgrammeCheckIn(raw, 8, true)?.exerciseRefreshProposal).toBeNull();
   });
 });

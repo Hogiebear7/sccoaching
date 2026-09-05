@@ -277,6 +277,10 @@ export interface TrainingProgramRecord {
     gymProfileId: string | null;
     notes: string | null;
     generatedAt: string;
+    /** Why this split/balance fits the member's goal, and an honest read on
+        how demanding it'll feel — shown in the mobile programme preview.
+        Undefined for programmes saved before this field existed. */
+    rationale?: string | null;
   } | null;
   /** Baseline + periodic retest days, computed at generation time (weeks are
       deterministic — see computeCheckpointWeeks in lib/training-programs.ts —
@@ -302,6 +306,16 @@ export interface TrainingProgramRecord {
       proposedTotalWeeks?: number;
     } | null;
     adjustmentDecision: "accepted" | "declined" | null;
+    /** A separate, independent proposal from adjustmentProposal above —
+        offered only on a refresh-eligible week (see computeCheckpointWeeks
+        in lib/training-programs.ts, same cadence minus week 1), regardless
+        of whether a pace/timeline adjustment is also on offer that cycle.
+        Accepting swaps every workout day's exercises for different ones
+        within the same muscle groups (see applyExerciseRefresh) — it never
+        touches which exercises get PICKED via a second AI decision, only
+        whether/when the offer appears. */
+    exerciseRefreshProposal: { rationale: string } | null;
+    exerciseRefreshDecision: "accepted" | "declined" | null;
   }[];
 }
 

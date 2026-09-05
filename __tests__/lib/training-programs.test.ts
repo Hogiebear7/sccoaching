@@ -1,17 +1,45 @@
 import { describe, expect, it } from "vitest";
 
 import type { PrescribedExercise, TrainingProgramRecord, WorkoutSessionRecord } from "@/lib/db";
+import type { ExerciseLibraryRecord } from "@/lib/exercise-library/types";
 import {
+  applyExerciseRefresh,
   applyProgrammeAdjustment,
   applyTierModifier,
   buildTestCheckpoints,
   computeAdvancedProgram,
   computeCheckpointWeeks,
+  isExerciseRefreshEligible,
   parseProgramDays,
   parseTestCheckpoints,
   resolveInitialProgrammeTargets,
   resolveNextCycleTargets,
 } from "@/lib/training-programs";
+
+function makeLibraryExercise(overrides: Partial<ExerciseLibraryRecord> = {}): ExerciseLibraryRecord {
+  return {
+    id: overrides.id ?? "lib-1",
+    source: "test",
+    sourceId: null,
+    slug: overrides.id ?? "lib-1",
+    name: overrides.name ?? "Test Exercise",
+    aliases: [],
+    bodyPart: overrides.bodyPart ?? "upper legs",
+    targetMuscle: null,
+    secondaryMuscles: [],
+    equipment: overrides.equipment ?? null,
+    category: null,
+    difficulty: null,
+    description: null,
+    instructions: [],
+    taxonomy: null,
+    isCustom: false,
+    approved: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
 
 function makeSession(
   date: string,
@@ -371,6 +399,120 @@ describe("applyProgrammeAdjustment", () => {
     const program = makeProgram({ totalWeeks: 12 });
     expect(applyProgrammeAdjustment(program, "expedite_timeline")).toEqual(program);
     expect(applyProgrammeAdjustment(program, "expedite_timeline", 0)).toEqual(program);
+  });
+});
+
+describe("isExerciseRefreshEligible", () => {
+  it("is never eligible on week 1 — nothing to refresh on day one", () => {
+    expect(isExerciseRefreshEligible(1, 12)).toBe(false);
+  });
+
+  it("matches computeCheckpointWeeks exactly, minus week 1", () => {
+    // computeCheckpointWeeks(8) = [1, 5, 8]
+    expect(isExerciseRefreshEligible(5, 8)).toBe(true);
+    expect(isExerciseRefreshEligible(8, 8)).toBe(true);
+    expect(isExerciseRefreshEligible(3, 8)).toBe(false);
+  });
+
+  it("is false with no totalWeeks", () => {
+    expect(isExerciseRefreshEligible(5, null)).toBe(false);
+    expect(isExerciseRefreshEligible(5, 0)).toBe(false);
+  });
+});
+
+describe("applyExerciseRefresh", () => {
+  const library: ExerciseLibraryRecord[] = [
+    makeLibraryExercise({ id: "squat", name: "Back Squat", bodyPart: "upper legs" }),
+    makeLibraryExercise({ id: "lunge", name: "Dumbbell Lunge", bodyPart: "upper legs" }),
+    makeLibraryExercise({ id: "legpress", name: "Leg Press", bodyPart: "upper legs" }),
+    makeLibraryExercise({ id: "bench", name: "Bench Press", bodyPart: "chest" }),
+    makeLibraryExercise({ id: "flye", name: "Dumbbell Flye", bodyPart: "chest" }),
+  ];
+
+  it("swaps a workout day's exercises for different ones in the same muscle group", () => {
+    const program = makeProgram({
+      days: [
+        { id: "day-1", label: "Day A", type: "workout", exercises: [makeExercise({ exerciseId: "squat", name: "Back Squat", muscleTags: ["upper legs"] })] },
+      ],
+    });
+
+    const updated = applyExerciseRefresh(program, library, [], []);
+    const [ex] = updated.days[0].exercises;
+    expect(ex.exerciseId).not.toBe("squat");
+    expect(["lunge", "legpress"]).toContain(ex.exerciseId);
+    expect(ex.muscleTags).toEqual(["upper legs"]);
+  });
+
+  it("shares one exclusion set across days so two days never end up with the same exercise", () => {
+    // Four candidates for two refreshing days (each excluding its own
+    // current pick) guarantees the pool never runs dry, isolating the
+    // exclusion-sharing behavior from the separate "pool exhausted, leave
+    // unchanged" case covered below.
+    const roomyLibrary: ExerciseLibraryRecord[] = [
+      ...library,
+      makeLibraryExercise({ id: "splitsquat", name: "Split Squat", bodyPart: "upper legs" }),
+    ];
+    const program = makeProgram({
+      days: [
+        { id: "day-1", label: "Day A", type: "workout", exercises: [makeExercise({ exerciseId: "squat", name: "Back Squat", muscleTags: ["upper legs"] })] },
+        { id: "day-2", label: "Day B", type: "workout", exercises: [makeExercise({ exerciseId: "lunge", name: "Dumbbell Lunge", muscleTags: ["upper legs"] })] },
+      ],
+    });
+
+    const updated = applyExerciseRefresh(program, roomyLibrary, [], []);
+    const ids = updated.days.map((d) => d.exercises[0]?.exerciseId);
+    expect(new Set(ids).size).toBe(2); // no repeat across days
+    expect(ids).not.toContain("squat");
+    expect(ids).not.toContain("lunge");
+  });
+
+  it("re-seeds targets from history for the newly picked exercise, never inventing one", () => {
+    const sessions = [makeSession("2026-01-01", [{ name: "Leg Press", weight: "120", reps: 10, sets: 3 }])];
+    const program = makeProgram({
+      days: [
+        {
+          id: "day-1",
+          label: "Day A",
+          type: "workout",
+          exercises: [makeExercise({ exerciseId: "squat", name: "Back Squat", muscleTags: ["upper legs"], targetReps: "8-12" })],
+        },
+      ],
+    });
+
+    // Exclude the other upper-legs options so the picker lands on Leg Press deterministically.
+    const narrowLibrary = library.filter((e) => e.id !== "squat" && e.id !== "lunge");
+    const updated = applyExerciseRefresh(program, narrowLibrary, [], sessions);
+    const [ex] = updated.days[0].exercises;
+    expect(ex.name).toBe("Leg Press");
+    expect(ex.targetWeight).toBe("120 kg"); // anchored to the real logged history
+    expect(ex.targetReps).toBe("8-12"); // repScheme (hypertrophy) correctly inferred from the original "8-12"
+  });
+
+  it("leaves rest and test days, and a day with no muscleTags, untouched", () => {
+    const rest = { id: "rest-1", label: "Rest", type: "rest" as const, exercises: [] };
+    const test = {
+      id: "test-1",
+      label: "Baseline",
+      type: "test" as const,
+      exercises: [makeExercise({ id: "cp-ex", exerciseId: null, name: "5RM Back Squat", muscleTags: [] })],
+    };
+    const noTags = { id: "day-3", label: "Day C", type: "workout" as const, exercises: [makeExercise({ muscleTags: [] })] };
+    const program = makeProgram({ days: [rest, test, noTags] });
+
+    const updated = applyExerciseRefresh(program, library, [], []);
+    expect(updated.days[0]).toEqual(rest);
+    expect(updated.days[1]).toEqual(test);
+    expect(updated.days[2]).toEqual(noTags);
+  });
+
+  it("leaves a day unchanged when nothing else is available in its muscle group/equipment", () => {
+    const onlyOption: ExerciseLibraryRecord[] = [makeLibraryExercise({ id: "squat", name: "Back Squat", bodyPart: "upper legs" })];
+    const program = makeProgram({
+      days: [{ id: "day-1", label: "Day A", type: "workout", exercises: [makeExercise({ exerciseId: "squat", muscleTags: ["upper legs"] })] }],
+    });
+
+    const updated = applyExerciseRefresh(program, onlyOption, [], []);
+    expect(updated.days[0].exercises[0].exerciseId).toBe("squat"); // nothing else to swap to
   });
 });
 
