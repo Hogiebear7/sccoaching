@@ -130,6 +130,41 @@ describe("parseProgrammeSkeleton", () => {
     const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
     expect(result?.rationale).toBe("A full body programme built around your stated goal.");
   });
+
+  it("in structured mode, ignores any AI-supplied body parts/splitStyle and uses a fixed label instead", () => {
+    const raw = JSON.stringify({
+      splitStyle: "Push Pull Legs", // should be ignored entirely
+      days: [
+        { label: "Day A", type: "workout", primaryBodyParts: ["chest", "back"], secondaryBodyParts: ["shoulders"], repScheme: "strength" },
+      ],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1, [], "fullBody");
+    expect(result?.splitStyle).toBe("Full Body");
+    expect(result?.days[0].primaryBodyParts).toEqual([]);
+    expect(result?.days[0].secondaryBodyParts).toEqual([]);
+    // repScheme is still the model's job in structured mode.
+    expect(result?.days[0].repScheme).toBe("strength");
+  });
+
+  it("in upperLower structured mode, uses the 'Upper/Lower Split' fixed label", () => {
+    const raw = JSON.stringify({
+      days: [{ label: "Day A", type: "workout", repScheme: "hypertrophy" }],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1, [], "upperLower");
+    expect(result?.splitStyle).toBe("Upper/Lower Split");
+  });
+
+  it("in structured mode, does not force a fallback body part onto an empty-body-part workout day", () => {
+    const raw = JSON.stringify({
+      days: [{ label: "Day A", type: "workout", repScheme: null }],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1, [], "fullBody");
+    expect(result?.days[0].primaryBodyParts).toEqual([]);
+    // Structured mode doesn't need the freeform fallback's repScheme default
+    // either — the picker doesn't consume repScheme at all here (the route
+    // defaults it separately when resolving targets).
+    expect(result?.days[0].repScheme).toBeNull();
+  });
 });
 
 describe("parseProgrammeCheckIn", () => {

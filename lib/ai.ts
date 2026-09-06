@@ -27,6 +27,7 @@ import {
 } from "@/lib/db";
 import { recordAiUsageFromResponse } from "@/lib/ai-usage";
 import { formatWorkoutReviewContext, type WorkoutReviewData } from "@/lib/workout-review";
+import type { SplitMode } from "@/lib/programme-exercise-picker";
 
 export function isAiConfigured(): boolean {
   return Boolean(getConfiguredAnthropicApiKey());
@@ -1031,7 +1032,7 @@ export async function extractTrackerStats(request: TrackerImportRequest): Promis
 // (lib/training-programs.ts's resolveInitialProgrammeTargets /
 // resolveNextCycleTargets) — same "never invent a number" discipline as
 // buildWorkoutPlan() and the single-workout Generate mode.
-const PROGRAMME_SKELETON_SYSTEM_PROMPT = `You design multi-week training programme structures for S&C Performance Coaching, a strength & conditioning gym app. A member gives you a goal, how many days a week they can train, and how long each session should be — you propose the STRUCTURE of a one-week training block: how many days, what each day focuses on, and a rep-scheme category. You never name a specific exercise and never propose a specific weight — a separate system picks real exercises from the gym's actual exercise library and calculates weights from the member's own logged history; your job is the plan's shape, not its content.
+const PROGRAMME_SKELETON_SYSTEM_PROMPT_FREEFORM = `You design multi-week training programme structures for S&C Performance Coaching, a strength & conditioning gym app. A member gives you a goal, how many days a week they can train, and how long each session should be — you propose the STRUCTURE of a one-week training block: how many days, what each day focuses on, and a rep-scheme category. You never name a specific exercise and never propose a specific weight — a separate system picks real exercises from the gym's actual exercise library and calculates weights from the member's own logged history; your job is the plan's shape, not its content.
 
 Grounding rules — strict:
 - A "Valid body parts" list follows this prompt. Every entry in primaryBodyParts/secondaryBodyParts on every day MUST come from that exact list — never invent a body-part value that isn't in it.
@@ -1051,6 +1052,33 @@ Test checkpoints — only when a "Test checkpoint weeks" list follows this promp
 
 Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
 {"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "rationale": string, "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
+Omit "checkpoints" (or return an empty array) when no "Test checkpoint weeks" list was given.`;
+
+// Used whenever splitMode !== "freeform" — the app's own compound-first
+// movement-pattern template (lib/movement-buckets.ts +
+// lib/programme-exercise-picker.ts's pickStructuredExercisesForDay) already
+// decides which movement patterns and which exercises fill each day, so
+// this narrower prompt drops splitStyle/body-part balance from its job
+// entirely — it only decides the workout/rest sequence, rep-scheme, the
+// rationale, and checkpoints.
+const PROGRAMME_SKELETON_SYSTEM_PROMPT_STRUCTURED = `You design multi-week training programme structures for S&C Performance Coaching, a strength & conditioning gym app. A member gives you a goal, how many days a week they can train, and how long each session should be. The exercise structure itself (which movement patterns, which exercises, compound-lift-first ordering) is fixed by the app's own template — NOT your job. Your job is narrower: decide which days are workout days vs rest days, a rep-scheme category per workout day, an honest rationale, and (when asked) test checkpoints.
+
+Grounding rules — strict:
+- Produce EXACTLY the number of days the member asked for (days per week) as entries in the days array — this includes any rest days you choose to include within that count.
+- repScheme is exactly one of "strength", "hypertrophy", or "endurance" — pick based on the member's stated goal (strength/power goals -> "strength"; muscle/size goals -> "hypertrophy"; fat loss/conditioning/general fitness goals -> "endurance" or "hypertrophy" depending on emphasis).
+- A rest day (type "rest") needs no repScheme — leave it null.
+- A "Member's notes" block may follow with extra context the member typed themselves (an upcoming event, a target date, a specific PB, a competition, or what they already train outside the gym — a sport, running) — when present, let it genuinely shape rest-day placement and the repScheme choice (e.g. a named race or match date argues for more "endurance" days as it approaches; existing heavy sport/running days argue for placing rest or lighter days around them; a stated strength PB argues for "strength" repScheme). Treat it as real signal, not filler — but it never overrides the strict rule above (still exactly the requested day count).
+- ${SCIENTIFIC_GROUNDING_CLAUSE}
+- rationale is 2-4 plain sentences, written to the member directly: why this day count/rep-scheme balance fits their stated goal (and notes, if given), plus an honest read on how demanding it'll feel. Plain prose, no markdown, no bullet points, no fabricated statistics.
+
+Test checkpoints — only when a "Test checkpoint weeks" list follows this prompt:
+- Propose EXACTLY one checkpoint per week number listed, no more, no fewer — this is a fitness/performance test, not a training day, so it has no repScheme and isn't counted in the days-per-week total.
+- Pick 2-4 tests appropriate to the goal: sports performance -> sprint/agility/change-of-direction/conditioning-style tests; strength/power -> a rep-max attempt (e.g. "5RM") on the programme's own main lifts; hypertrophy/general fitness/fat loss -> a short fitness battery (e.g. a timed conditioning piece plus a couple of compound-lift rep-max or max-rep checks). Let the member's notes shape this exactly as they shape the days above.
+- Never give a test a target/goal number — describe only the protocol to perform (e.g. "5RM Back Squat", "Max reps push-ups in 60s", "12-minute run for distance"). There is nothing to hit, only something to measure.
+- When a later checkpoint week re-tests the same measure as an earlier one in this same response, it MUST use the EXACT SAME exercise name as that earlier test (character-for-character) so the two results can be matched up later — do not rename "5RM Back Squat" to "Back Squat 5-Rep Max" partway through.
+
+Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
+{"rationale": string, "days": [{"label": string, "type": "workout"|"rest", "repScheme": "strength"|"hypertrophy"|"endurance"|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
 Omit "checkpoints" (or return an empty array) when no "Test checkpoint weeks" list was given.`;
 
 export interface ProgrammeSkeletonDay {
@@ -1099,6 +1127,11 @@ export interface ProgrammeSkeletonRequest {
       lib/training-programs.ts — when present, the model is asked to propose
       a test checkpoint for each listed week number. Omit/empty for none. */
   checkpointWeeks?: number[];
+  /** Decided by code (goal + the member's explicit split preference), never
+      by this model — "freeform" uses the prompt below unchanged; anything
+      else uses the narrower structured prompt that drops body-part/split
+      decisions entirely, since the app's own template already owns those. */
+  splitMode: SplitMode;
   userId: string | null;
 }
 
@@ -1109,8 +1142,10 @@ export function parseProgrammeSkeleton(
   text: string,
   validBodyParts: string[],
   daysPerWeek: number,
-  checkpointWeeks: number[] = []
+  checkpointWeeks: number[] = [],
+  splitMode: SplitMode = "freeform"
 ): ProgrammeSkeleton | null {
+  const structured = splitMode !== "freeform";
   const trimmed = text
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -1137,12 +1172,20 @@ export function parseProgrammeSkeleton(
     .filter((d): d is Record<string, unknown> => typeof d === "object" && d !== null)
     .map((d) => {
       const type: "workout" | "rest" = d.type === "rest" ? "rest" : "workout";
-      const primaryBodyParts = Array.isArray(d.primaryBodyParts)
-        ? d.primaryBodyParts.filter((v): v is string => typeof v === "string" && validSet.has(v)).slice(0, 6)
-        : [];
-      const secondaryBodyParts = Array.isArray(d.secondaryBodyParts)
-        ? d.secondaryBodyParts.filter((v): v is string => typeof v === "string" && validSet.has(v)).slice(0, 6)
-        : [];
+      // Structured modes never ask the model for body parts — the
+      // compound-first template picks exercises by movement pattern, not
+      // body part — so ignore anything it returns here rather than
+      // validating it against validBodyParts.
+      const primaryBodyParts = structured
+        ? []
+        : Array.isArray(d.primaryBodyParts)
+          ? d.primaryBodyParts.filter((v): v is string => typeof v === "string" && validSet.has(v)).slice(0, 6)
+          : [];
+      const secondaryBodyParts = structured
+        ? []
+        : Array.isArray(d.secondaryBodyParts)
+          ? d.secondaryBodyParts.filter((v): v is string => typeof v === "string" && validSet.has(v)).slice(0, 6)
+          : [];
       const repScheme =
         typeof d.repScheme === "string" && repSchemes.has(d.repScheme)
           ? (d.repScheme as "strength" | "hypertrophy" | "endurance")
@@ -1164,13 +1207,16 @@ export function parseProgrammeSkeleton(
   // A workout day with no valid body parts left (model hallucinated ones we
   // dropped, or left them empty) can't be turned into exercises — fall back
   // to the library's first real body part rather than silently producing an
-  // empty workout day.
+  // empty workout day. Not needed in structured mode: the compound-first
+  // picker never uses body parts at all.
   const fallbackBodyPart = validBodyParts[0];
-  const safeDays = days.map((d) =>
-    d.type === "workout" && d.primaryBodyParts.length === 0 && fallbackBodyPart
-      ? { ...d, primaryBodyParts: [fallbackBodyPart], repScheme: d.repScheme ?? "hypertrophy" }
-      : d
-  );
+  const safeDays = structured
+    ? days
+    : days.map((d) =>
+        d.type === "workout" && d.primaryBodyParts.length === 0 && fallbackBodyPart
+          ? { ...d, primaryBodyParts: [fallbackBodyPart], repScheme: d.repScheme ?? "hypertrophy" }
+          : d
+      );
 
   // Exactly one checkpoint per requested week — a requested week the model
   // didn't return is simply dropped rather than fabricated; a week it
@@ -1205,8 +1251,15 @@ export function parseProgrammeSkeleton(
     });
   }
   const checkpoints = [...checkpointsByWeek.values()].sort((a, b) => a.weekNumber - b.weekNumber);
-  const splitStyle =
-    typeof obj.splitStyle === "string" && obj.splitStyle.trim() ? obj.splitStyle.trim().slice(0, 60) : "Custom Split";
+  // Structured modes get a fixed, code-supplied label — the split isn't the
+  // model's decision here, so it isn't asked for splitStyle at all.
+  const splitStyle = structured
+    ? splitMode === "upperLower"
+      ? "Upper/Lower Split"
+      : "Full Body"
+    : typeof obj.splitStyle === "string" && obj.splitStyle.trim()
+      ? obj.splitStyle.trim().slice(0, 60)
+      : "Custom Split";
 
   return {
     splitStyle,
@@ -1242,15 +1295,20 @@ export async function generateProgrammeSkeleton(request: ProgrammeSkeletonReques
   }
   const instruction = instructionParts.join("\n");
 
+  const structured = request.splitMode !== "freeform";
+  const system = structured
+    ? [{ type: "text" as const, text: PROGRAMME_SKELETON_SYSTEM_PROMPT_STRUCTURED, cache_control: { type: "ephemeral" as const } }]
+    : [
+        { type: "text" as const, text: PROGRAMME_SKELETON_SYSTEM_PROMPT_FREEFORM, cache_control: { type: "ephemeral" as const } },
+        { type: "text" as const, text: `Valid body parts:\n\n${request.validBodyParts.join(", ")}` },
+      ];
+
   const message = await client.messages.create({
     model: COACH_MODEL,
     max_tokens: 2000,
     thinking: { type: "adaptive" },
     output_config: { effort: "low" },
-    system: [
-      { type: "text", text: PROGRAMME_SKELETON_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
-      { type: "text", text: `Valid body parts:\n\n${request.validBodyParts.join(", ")}` },
-    ],
+    system,
     messages: [{ role: "user", content: instruction }],
   });
   recordAiUsageFromResponse({
@@ -1260,7 +1318,13 @@ export async function generateProgrammeSkeleton(request: ProgrammeSkeletonReques
     usage: message.usage,
   });
 
-  return parseProgrammeSkeleton(textFromMessage(message), request.validBodyParts, request.daysPerWeek, checkpointWeeks);
+  return parseProgrammeSkeleton(
+    textFromMessage(message),
+    request.validBodyParts,
+    request.daysPerWeek,
+    checkpointWeeks,
+    request.splitMode
+  );
 }
 
 // ─── AI Programme Builder — end-of-cycle check-in ──────────────────────

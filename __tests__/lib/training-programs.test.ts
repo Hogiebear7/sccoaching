@@ -462,8 +462,13 @@ describe("applyExerciseRefresh", () => {
     const updated = applyExerciseRefresh(program, roomyLibrary, [], []);
     const ids = updated.days.map((d) => d.exercises[0]?.exerciseId);
     expect(new Set(ids).size).toBe(2); // no repeat across days
-    expect(ids).not.toContain("squat");
-    expect(ids).not.toContain("lunge");
+    // Days are processed in order, and each day's own current id is added
+    // to the shared exclusion set right before it's processed — so day-1
+    // (processed first) is only guaranteed to avoid ITS OWN original
+    // ("squat"); day-2's original ("lunge") only becomes off-limits once
+    // day-2 itself is reached, so day-1 is free to legitimately land on it.
+    expect(ids[0]).not.toBe("squat");
+    expect(ids[1]).not.toBe("lunge");
   });
 
   it("re-seeds targets from history for the newly picked exercise, never inventing one", () => {
@@ -513,6 +518,84 @@ describe("applyExerciseRefresh", () => {
 
     const updated = applyExerciseRefresh(program, onlyOption, [], []);
     expect(updated.days[0].exercises[0].exerciseId).toBe("squat"); // nothing else to swap to
+  });
+
+  const structuredAiMeta = {
+    goal: "Build strength",
+    splitStyle: "Full Body",
+    rationale: "test",
+    daysPerWeek: 3,
+    sessionMinutes: 48,
+    equipmentSlugs: [],
+    gymProfileId: null,
+    notes: null,
+    generatedAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  it("with aiMeta.splitMode 'fullBody', refreshes via the structured picker instead of muscleTags", () => {
+    const structuredLibrary: ExerciseLibraryRecord[] = [
+      makeLibraryExercise({ id: "squat", name: "Back Squat", taxonomy: { forceType: "knee_dominant", primaryRegion: "lower_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "front-squat", name: "Front Squat", taxonomy: { forceType: "knee_dominant", primaryRegion: "lower_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "row", name: "Barbell Row", taxonomy: { forceType: "pull", primaryRegion: "upper_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "pullup2", name: "Pull-Up", taxonomy: { forceType: "pull", primaryRegion: "upper_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "deadlift", name: "Deadlift", taxonomy: { forceType: "hip_dominant", primaryRegion: "lower_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "rdl", name: "Romanian Deadlift", taxonomy: { forceType: "hip_dominant", primaryRegion: "lower_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "pushup", name: "Push-Up", taxonomy: { forceType: "push", primaryRegion: "upper_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "bench2", name: "Bench Press", taxonomy: { forceType: "push", primaryRegion: "upper_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "battle-ropes", name: "Battle Ropes", taxonomy: { forceType: "locomotion", primaryRegion: "cardio", mechanic: "cardio" } }),
+      makeLibraryExercise({ id: "row-machine", name: "Rowing Machine", taxonomy: { forceType: "locomotion", primaryRegion: "cardio", mechanic: "cardio" } }),
+      makeLibraryExercise({ id: "plank", name: "Plank", taxonomy: { forceType: "core_stability", primaryRegion: "core", mechanic: "core" } }),
+      makeLibraryExercise({ id: "deadbug", name: "Dead Bug", taxonomy: { forceType: "core_stability", primaryRegion: "core", mechanic: "core" } }),
+    ];
+    const currentExerciseIds = ["squat", "row", "deadlift", "pushup", "battle-ropes", "plank"];
+    const program = makeProgram({
+      aiMeta: { ...structuredAiMeta, splitMode: "fullBody" },
+      days: [
+        {
+          id: "day-1",
+          label: "Full Body",
+          type: "workout",
+          exercises: currentExerciseIds.map((id, i) => makeExercise({ id: `ex-${i}`, exerciseId: id, name: id, muscleTags: [] })),
+        },
+      ],
+    });
+
+    const updated = applyExerciseRefresh(program, structuredLibrary, [], []);
+    const newIds = updated.days[0].exercises.map((e) => e.exerciseId);
+    expect(newIds).toHaveLength(6);
+    for (const id of currentExerciseIds) expect(newIds).not.toContain(id);
+    for (const id of newIds) expect(["front-squat", "pullup2", "rdl", "bench2", "row-machine", "deadbug"]).toContain(id);
+  });
+
+  it("with aiMeta.splitMode 'upperLower', re-derives the day's half from current exercises and never crosses into the other half", () => {
+    const structuredLibrary: ExerciseLibraryRecord[] = [
+      makeLibraryExercise({ id: "bench", name: "Bench Press", taxonomy: { forceType: "push", primaryRegion: "upper_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "pushup", name: "Push-Up", taxonomy: { forceType: "push", primaryRegion: "upper_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "row", name: "Barbell Row", taxonomy: { forceType: "pull", primaryRegion: "upper_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "pullup", name: "Pull-Up", taxonomy: { forceType: "pull", primaryRegion: "upper_body", mechanic: "compound" } }),
+      // Lower-body alternatives that must never appear in an upper-half refresh.
+      makeLibraryExercise({ id: "squat", name: "Back Squat", taxonomy: { forceType: "knee_dominant", primaryRegion: "lower_body", mechanic: "compound" } }),
+      makeLibraryExercise({ id: "deadlift", name: "Deadlift", taxonomy: { forceType: "hip_dominant", primaryRegion: "lower_body", mechanic: "compound" } }),
+    ];
+    const program = makeProgram({
+      aiMeta: { ...structuredAiMeta, sessionMinutes: 16, splitMode: "upperLower" },
+      days: [
+        {
+          id: "day-1",
+          label: "Upper Body",
+          type: "workout",
+          exercises: [
+            makeExercise({ id: "ex-0", exerciseId: "bench", name: "Bench Press", muscleTags: [] }),
+            makeExercise({ id: "ex-1", exerciseId: "row", name: "Barbell Row", muscleTags: [] }),
+          ],
+        },
+      ],
+    });
+
+    const updated = applyExerciseRefresh(program, structuredLibrary, [], []);
+    const newIds = updated.days[0].exercises.map((e) => e.exerciseId);
+    expect(newIds.length).toBeGreaterThan(0);
+    for (const id of newIds) expect(["squat", "deadlift"]).not.toContain(id);
   });
 });
 

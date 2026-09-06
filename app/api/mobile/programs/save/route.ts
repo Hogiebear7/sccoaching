@@ -17,6 +17,7 @@ interface AiMetaInput {
   gymProfileId: string | null;
   notes: string | null;
   generatedAt: string;
+  splitMode: "fullBody" | "upperLower" | "freeform" | null;
 }
 
 function parseAiMeta(input: unknown): AiMetaInput | null {
@@ -33,6 +34,7 @@ function parseAiMeta(input: unknown): AiMetaInput | null {
     gymProfileId: typeof m.gymProfileId === "string" ? m.gymProfileId : null,
     notes: typeof m.notes === "string" && m.notes.trim() ? m.notes.trim().slice(0, 500) : null,
     generatedAt: typeof m.generatedAt === "string" ? m.generatedAt : new Date().toISOString(),
+    splitMode: m.splitMode === "fullBody" || m.splitMode === "upperLower" || m.splitMode === "freeform" ? m.splitMode : null,
   };
 }
 

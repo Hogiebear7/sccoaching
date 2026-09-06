@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { generateProgrammeSkeleton, isAiConfigured } from "@/lib/ai";
-import { findUserById, findWorkoutSessionsByUserId } from "@/lib/db";
+import { findUserById, findWeeklyTrainingScheduleByUserId, findWorkoutSessionsByUserId } from "@/lib/db";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import { pickExercisesForDay } from "@/lib/programme-exercise-picker";
+import { pickExercisesForDay, pickStructuredExercisesForDay, resolveSplitMode } from "@/lib/programme-exercise-picker";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   buildTestCheckpoints,
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, configured: true, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { goal, weeks, daysPerWeek, sessionMinutes, equipmentSlugs, gymProfileId, notes } = (body ?? {}) as Record<
+  const { goal, weeks, daysPerWeek, sessionMinutes, equipmentSlugs, gymProfileId, notes, splitPreference } = (body ?? {}) as Record<
     string,
     unknown
   >;
@@ -100,6 +100,8 @@ export async function POST(request: NextRequest) {
     : [];
   const cleanGymProfileId = typeof gymProfileId === "string" ? gymProfileId : null;
   const cleanNotes = typeof notes === "string" && notes.trim() ? notes.trim().slice(0, 500) : null;
+  const cleanSplitPreference: "fullBody" | "upperLower" | null =
+    splitPreference === "fullBody" || splitPreference === "upperLower" ? splitPreference : null;
 
   if (!cleanGoal || !cleanWeeks || !cleanDaysPerWeek) {
     return NextResponse.json(
@@ -123,14 +125,41 @@ export async function POST(request: NextRequest) {
   const validBodyParts = [...new Set(exercises.map((e) => e.bodyPart).filter((v): v is string => !!v))];
 
   try {
+    const splitMode = resolveSplitMode(cleanGoal, cleanSplitPreference);
+
+    // Sports-performance members may already have their sport/running
+    // logged in the pre-existing Weekly Training feature — surface it as
+    // extra AI context (same "notes are real signal" mechanism already used
+    // for member-typed notes) so rest-day placement/rep-scheme can account
+    // for it, without a new onboarding question and without binding
+    // skeleton days to real calendar weekdays (that stays a separate,
+    // already-shipped post-save step — useSyncProgrammeToWeeklySchedule).
+    let notesForAi = cleanNotes;
+    if (cleanGoal === "Sports performance") {
+      const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const schedule = findWeeklyTrainingScheduleByUserId(user.id);
+      const relevant = (schedule?.sessions ?? []).filter((s) => s.activityType === "sport" || s.activityType === "cardio");
+      if (relevant.length > 0) {
+        const summary = relevant
+          .map((s) => {
+            const label = s.label.trim() || (s.activityType === "sport" ? "Sport" : "Cardio");
+            const day = DAY_LABELS[s.dayOfWeek] ?? "";
+            return s.intensity ? `${label} (${day}, ${s.intensity})` : `${label} (${day})`;
+          })
+          .join("; ");
+        notesForAi = [cleanNotes, `Also trains outside the gym: ${summary}.`].filter((v): v is string => !!v).join(" ").slice(0, 900);
+      }
+    }
+
     const checkpointWeeks = computeCheckpointWeeks(cleanWeeks);
     const skeleton = await generateProgrammeSkeleton({
       goal: cleanGoal,
       daysPerWeek: cleanDaysPerWeek,
       sessionMinutes: cleanSessionMinutes,
       validBodyParts,
-      notes: cleanNotes,
+      notes: notesForAi,
       checkpointWeeks,
+      splitMode,
       userId: user.id,
     });
 
@@ -144,24 +173,48 @@ export async function POST(request: NextRequest) {
     const sessions = findWorkoutSessionsByUserId(user.id);
     const alreadyChosenIds = new Set<string>();
 
+    // Upper/Lower alternates strictly across workout-type days only (rest
+    // days don't consume a turn), starting with Upper.
+    let workoutDayIndex = 0;
+
     const days = skeleton.days.map((day) => {
       if (day.type === "rest") {
         return { label: day.label, type: "rest" as const, exercises: [] };
       }
 
-      const picked = pickExercisesForDay({
+      const repScheme: ProgrammeRepScheme = day.repScheme ?? "hypertrophy";
+
+      if (splitMode === "freeform") {
+        const picked = pickExercisesForDay({
+          exercises,
+          primaryBodyParts: day.primaryBodyParts,
+          secondaryBodyParts: day.secondaryBodyParts,
+          equipmentSlugs: cleanEquipmentSlugs,
+          timeMinutes: cleanSessionMinutes,
+          alreadyChosenIds,
+        });
+        const targeted = resolveInitialProgrammeTargets(picked, repScheme, sessions);
+        return { label: day.label, type: "workout" as const, exercises: targeted };
+      }
+
+      // Structured (fullBody/upperLower) — the compound-first movement-
+      // pattern picker owns exercise selection entirely; body parts never
+      // enter into it, so the label reflects the actual structure rather
+      // than whatever generic label the AI wrote.
+      const half: "upper" | "lower" = workoutDayIndex % 2 === 0 ? "upper" : "lower";
+      workoutDayIndex++;
+
+      const picked = pickStructuredExercisesForDay({
         exercises,
-        primaryBodyParts: day.primaryBodyParts,
-        secondaryBodyParts: day.secondaryBodyParts,
+        daySpec: splitMode === "upperLower" ? { mode: "upperLower", half } : { mode: "fullBody" },
         equipmentSlugs: cleanEquipmentSlugs,
         timeMinutes: cleanSessionMinutes,
         alreadyChosenIds,
       });
-
-      const repScheme: ProgrammeRepScheme = day.repScheme ?? "hypertrophy";
       const targeted = resolveInitialProgrammeTargets(picked, repScheme, sessions);
+      const label = splitMode === "upperLower" ? (half === "upper" ? "Upper Body" : "Lower Body") : "Full Body";
 
-      return { label: day.label, type: "workout" as const, exercises: targeted };
+      return { label, type: "workout" as const, exercises: targeted };
     });
 
     const validated = parseProgramDays(days);
@@ -189,6 +242,7 @@ export async function POST(request: NextRequest) {
           gymProfileId: cleanGymProfileId,
           notes: cleanNotes,
           generatedAt: new Date().toISOString(),
+          splitMode,
         },
       },
     });

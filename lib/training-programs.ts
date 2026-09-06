@@ -16,7 +16,8 @@ import {
 } from "./db";
 import type { ProgrammeSkeletonCheckpoint } from "./ai";
 import type { ExerciseLibraryRecord } from "./exercise-library/types";
-import { pickExercisesForDay } from "./programme-exercise-picker";
+import { bodyHalfOfBucket, classifyMovementBucket, MAIN_MOVEMENT_BUCKETS, type MainMovementBucket } from "./movement-buckets";
+import { pickExercisesForDay, pickStructuredExercisesForDay, type StructuredDaySpec } from "./programme-exercise-picker";
 import { removeSyncedProgrammeSessions } from "./programme-weekly-sync";
 import { buildHistoryIndex, formatKg, latestEntryForOption, roundToStep, type SessionTier } from "./workout-helper";
 
@@ -467,12 +468,47 @@ export function applyExerciseRefresh(
 ): TrainingProgramRecord {
   const alreadyChosenAcrossDays = new Set<string>();
   const sessionMinutes = program.aiMeta?.sessionMinutes ?? null;
+  // Undefined on programmes saved before splitMode existed reads as
+  // "freeform" — exactly the old body-part rederivation path below, so old
+  // programmes keep refreshing exactly as they always have.
+  const splitMode = program.aiMeta?.splitMode ?? "freeform";
+  const libraryById = new Map(libraryExercises.map((e) => [e.id, e]));
 
   const days = program.days.map((day) => {
     if (day.type !== "workout" || day.exercises.length === 0) return day;
 
     for (const ex of day.exercises) {
       if (ex.exerciseId) alreadyChosenAcrossDays.add(ex.exerciseId);
+    }
+
+    const timeMinutes = sessionMinutes ?? day.exercises.length * 8;
+
+    if (splitMode !== "freeform") {
+      // Re-derive which half this day belongs to from its current
+      // exercises' own taxonomy — no per-day schema change needed, same
+      // "derive from what's actually there" spirit as the freeform path's
+      // muscleTags rederivation below.
+      const mainHalves = day.exercises
+        .map((ex) => (ex.exerciseId ? libraryById.get(ex.exerciseId) : undefined))
+        .map((rec) => (rec ? classifyMovementBucket(rec.taxonomy) : null))
+        .filter((bucket): bucket is MainMovementBucket => !!bucket && (MAIN_MOVEMENT_BUCKETS as string[]).includes(bucket))
+        .map(bodyHalfOfBucket);
+      const lowerCount = mainHalves.filter((h) => h === "lower").length;
+      const upperCount = mainHalves.length - lowerCount;
+
+      const daySpec: StructuredDaySpec =
+        splitMode === "upperLower" ? { mode: "upperLower", half: lowerCount > upperCount ? "lower" : "upper" } : { mode: "fullBody" };
+
+      const picked = pickStructuredExercisesForDay({
+        exercises: libraryExercises,
+        daySpec,
+        equipmentSlugs,
+        timeMinutes,
+        alreadyChosenIds: alreadyChosenAcrossDays,
+      });
+      if (picked.length === 0) return day; // nothing else available in these buckets/equipment — leave as-is
+
+      return { ...day, exercises: resolveInitialProgrammeTargets(picked, inferRepScheme(day.exercises), sessions) };
     }
 
     const bodyParts = [...new Set(day.exercises.flatMap((ex) => ex.muscleTags))];
@@ -483,7 +519,7 @@ export function applyExerciseRefresh(
       primaryBodyParts: bodyParts,
       secondaryBodyParts: [],
       equipmentSlugs,
-      timeMinutes: sessionMinutes ?? day.exercises.length * 8,
+      timeMinutes,
       alreadyChosenIds: alreadyChosenAcrossDays,
     });
     if (picked.length === 0) return day; // nothing else available in these muscle groups/equipment — leave as-is

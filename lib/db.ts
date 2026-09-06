@@ -281,6 +281,12 @@ export interface TrainingProgramRecord {
         how demanding it'll feel — shown in the mobile programme preview.
         Undefined for programmes saved before this field existed. */
     rationale?: string | null;
+    /** Which exercise-picking template generated this programme's days —
+        "fullBody"/"upperLower" use the compound-first movement-pattern
+        picker, "freeform" is the older AI-driven body-part balance.
+        Undefined for programmes saved before this field existed, which is
+        equivalent to "freeform" everywhere this is read. */
+    splitMode?: "fullBody" | "upperLower" | "freeform" | null;
   } | null;
   /** Baseline + periodic retest days, computed at generation time (weeks are
       deterministic — see computeCheckpointWeeks in lib/training-programs.ts —
