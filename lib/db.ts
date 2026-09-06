@@ -194,7 +194,7 @@ export interface ClassWorkoutRecord {
 // day complete — it does not lock to calendar dates, matching the reference
 // app's "just do the next one" model rather than a rigid weekly schedule.
 export type ProgramDayType = "workout" | "rest" | "test";
-export type TrainingProgramStatus = "active" | "archived";
+export type TrainingProgramStatus = "active" | "paused" | "archived";
 
 export interface PrescribedSet {
   reps: string | null;
@@ -2234,6 +2234,16 @@ export function findTrainingProgramsByUserId(userId: string): TrainingProgramRec
 
 export function findActiveTrainingProgramByUserId(userId: string): TrainingProgramRecord | undefined {
   return readDb().trainingPrograms.find((p) => p.userId === userId && p.status === "active");
+}
+
+// Used only by GET /api/mobile/programs (the "my programme" lookup) so a
+// paused programme still surfaces to the member as a resumable card instead
+// of silently vanishing like an archived one. Every other call site that
+// means "the one truly in progress" (advance, apply-adjustment, the
+// sync-weekly-schedule guard) keeps using the strict active-only lookup
+// above, unchanged.
+export function findActiveOrPausedTrainingProgramByUserId(userId: string): TrainingProgramRecord | undefined {
+  return readDb().trainingPrograms.find((p) => p.userId === userId && (p.status === "active" || p.status === "paused"));
 }
 
 export function findAllTrainingPrograms(): TrainingProgramRecord[] {

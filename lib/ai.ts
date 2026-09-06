@@ -1049,6 +1049,7 @@ Test checkpoints — only when a "Test checkpoint weeks" list follows this promp
 - Pick 2-4 tests appropriate to the goal: sports performance -> sprint/agility/change-of-direction/conditioning-style tests; strength/power -> a rep-max attempt (e.g. "5RM") on the programme's own main lifts; hypertrophy/general fitness/fat loss -> a short fitness battery (e.g. a timed conditioning piece plus a couple of compound-lift rep-max or max-rep checks). Let the member's notes shape this exactly as they shape the days above.
 - Never give a test a target/goal number — describe only the protocol to perform (e.g. "5RM Back Squat", "Max reps push-ups in 60s", "12-minute run for distance"). There is nothing to hit, only something to measure.
 - When a later checkpoint week re-tests the same measure as an earlier one in this same response, it MUST use the EXACT SAME exercise name as that earlier test (character-for-character) so the two results can be matched up later — do not rename "5RM Back Squat" to "Back Squat 5-Rep Max" partway through.
+- resultType is "reps_weight" for a rep-max or AMRAP-style test the member logs as weight/reps (e.g. "5RM Back Squat", "Max reps push-ups in 60s"), or "time_distance" for anything measured in time or distance instead (e.g. "400m time trial", "12-minute run for distance", "Standing Broad Jump" measured by distance) — this decides which input fields the member sees, so classify it accurately.
 
 Conditioning/running protocol days — use RARELY:
 - The exercise library is gym equipment only — it has no running/track content. Most programmes, including most Sports Performance goals, should leave conditioningProtocol null on EVERY day — only set it when the goal or the member's notes genuinely call for prescribed running/interval training a gym exercise can't cover: a named running distance/event, a stated race-pace or PB goal, or explicit sport-conditioning demands. A strength/hypertrophy/general-fitness goal should almost never use this.
@@ -1060,7 +1061,7 @@ Conditioning/running protocol days — use RARELY:
 - description is 1-2 sentences covering recovery time and intensity/pacing cues. NEVER state a specific pace, split time, or heart-rate number you weren't already given — describe intensity qualitatively (e.g. "at your target race pace", "comfortably hard") or reference a number the member themselves stated in their notes, never one you calculated or guessed.
 
 Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
-{"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "rationale": string, "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null, "conditioningProtocol": {"name": string, "structure": "intervals"|"continuous", "reps": number|null, "distanceMeters": number|null, "description": string}|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
+{"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "rationale": string, "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null, "conditioningProtocol": {"name": string, "structure": "intervals"|"continuous", "reps": number|null, "distanceMeters": number|null, "description": string}|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string, "resultType": "reps_weight"|"time_distance"}]}]}
 Omit "checkpoints" (or return an empty array) when no "Test checkpoint weeks" list was given.`;
 
 // Used whenever splitMode !== "freeform" — the app's own compound-first
@@ -1085,6 +1086,7 @@ Test checkpoints — only when a "Test checkpoint weeks" list follows this promp
 - Pick 2-4 tests appropriate to the goal: sports performance -> sprint/agility/change-of-direction/conditioning-style tests; strength/power -> a rep-max attempt (e.g. "5RM") on the programme's own main lifts; hypertrophy/general fitness/fat loss -> a short fitness battery (e.g. a timed conditioning piece plus a couple of compound-lift rep-max or max-rep checks). Let the member's notes shape this exactly as they shape the days above.
 - Never give a test a target/goal number — describe only the protocol to perform (e.g. "5RM Back Squat", "Max reps push-ups in 60s", "12-minute run for distance"). There is nothing to hit, only something to measure.
 - When a later checkpoint week re-tests the same measure as an earlier one in this same response, it MUST use the EXACT SAME exercise name as that earlier test (character-for-character) so the two results can be matched up later — do not rename "5RM Back Squat" to "Back Squat 5-Rep Max" partway through.
+- resultType is "reps_weight" for a rep-max or AMRAP-style test the member logs as weight/reps (e.g. "5RM Back Squat", "Max reps push-ups in 60s"), or "time_distance" for anything measured in time or distance instead (e.g. "400m time trial", "12-minute run for distance", "Standing Broad Jump" measured by distance) — this decides which input fields the member sees, so classify it accurately.
 
 Conditioning/running protocol days — use RARELY:
 - The exercise library is gym equipment only — it has no running/track content. Most programmes, including most Sports Performance goals, should leave conditioningProtocol null on EVERY day — only set it when the goal or the member's notes genuinely call for prescribed running/interval training a gym exercise can't cover: a named running distance/event, a stated race-pace or PB goal, or explicit sport-conditioning demands. A strength/hypertrophy/general-fitness goal should almost never use this.
@@ -1096,7 +1098,7 @@ Conditioning/running protocol days — use RARELY:
 - description is 1-2 sentences covering recovery time and intensity/pacing cues. NEVER state a specific pace, split time, or heart-rate number you weren't already given — describe intensity qualitatively (e.g. "at your target race pace", "comfortably hard") or reference a number the member themselves stated in their notes, never one you calculated or guessed.
 
 Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
-{"rationale": string, "days": [{"label": string, "type": "workout"|"rest", "repScheme": "strength"|"hypertrophy"|"endurance"|null, "conditioningProtocol": {"name": string, "structure": "intervals"|"continuous", "reps": number|null, "distanceMeters": number|null, "description": string}|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
+{"rationale": string, "days": [{"label": string, "type": "workout"|"rest", "repScheme": "strength"|"hypertrophy"|"endurance"|null, "conditioningProtocol": {"name": string, "structure": "intervals"|"continuous", "reps": number|null, "distanceMeters": number|null, "description": string}|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string, "resultType": "reps_weight"|"time_distance"}]}]}
 Omit "checkpoints" (or return an empty array) when no "Test checkpoint weeks" list was given.`;
 
 export interface ProgrammeConditioningProtocol {
@@ -1130,6 +1132,13 @@ export interface ProgrammeSkeletonDay {
 export interface ProgrammeSkeletonCheckpointExercise {
   name: string;
   protocol: string;
+  /** "reps_weight" for a rep-max/AMRAP-style test (log weight/reps — e.g.
+      "5RM Back Squat", "Max push-ups in 60s"); "time_distance" for anything
+      measured in time or distance (a run, a timed hold, a jump/throw
+      distance — e.g. "400m time trial", "Standing Broad Jump"). Decides
+      whether this seeds into a strength exercise row or a Run entry on the
+      logging screen (see buildTestCheckpoints in lib/training-programs.ts). */
+  resultType: "reps_weight" | "time_distance";
 }
 
 export interface ProgrammeSkeletonCheckpoint {
@@ -1319,6 +1328,7 @@ export function parseProgrammeSkeleton(
           .map((e) => ({
             name: typeof e.name === "string" ? e.name.trim().slice(0, 60) : "",
             protocol: typeof e.protocol === "string" ? e.protocol.trim().slice(0, 80) : "",
+            resultType: e.resultType === "time_distance" ? ("time_distance" as const) : ("reps_weight" as const),
           }))
           .filter((e) => e.name && e.protocol)
           .slice(0, 4)

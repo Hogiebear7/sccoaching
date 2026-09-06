@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
   if (!program || program.userId !== user.id) {
     return NextResponse.json({ success: false, message: "Program not found." }, { status: 404 });
   }
+  if (program.status !== "active") {
+    return NextResponse.json({ success: false, message: `Can't advance a ${program.status} programme.` }, { status: 400 });
+  }
 
   // Only needed for an AI programme's cycle-wrap overload recompute (see
   // advanceProgramDay) — harmless to fetch unconditionally, this route

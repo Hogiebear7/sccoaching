@@ -47,6 +47,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!program || program.userId !== user.id) {
     return NextResponse.json({ success: false, message: "Programme not found." }, { status: 404 });
   }
+  if (program.status !== "active") {
+    return NextResponse.json({ success: false, message: `Can't adjust a ${program.status} programme.` }, { status: 400 });
+  }
 
   const checkIns = program.checkIns ?? [];
   const entryIndex = checkIns.findIndex((c) => c.cycleIndex === cycleIndex);

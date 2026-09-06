@@ -92,6 +92,31 @@ describe("parseProgrammeSkeleton", () => {
     expect(result?.checkpoints[0].label).toBe("Baseline");
   });
 
+  it("classifies a checkpoint exercise's resultType, defaulting to reps_weight when omitted or invalid", () => {
+    const raw = JSON.stringify({
+      splitStyle: "Full Body",
+      days: [{ label: "Day A", type: "workout", primaryBodyParts: ["chest"], secondaryBodyParts: [], repScheme: "strength" }],
+      checkpoints: [
+        {
+          weekNumber: 1,
+          label: "Baseline",
+          exercises: [
+            { name: "5RM Back Squat", protocol: "5RM", resultType: "reps_weight" },
+            { name: "Standing Broad Jump", protocol: "Max horizontal distance, best of 3", resultType: "time_distance" },
+            { name: "No resultType given", protocol: "n/a" },
+            { name: "Bogus resultType", protocol: "n/a", resultType: "something_else" },
+          ],
+        },
+      ],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1, [1]);
+    const exercises = result?.checkpoints[0].exercises ?? [];
+    expect(exercises.find((e) => e.name === "5RM Back Squat")?.resultType).toBe("reps_weight");
+    expect(exercises.find((e) => e.name === "Standing Broad Jump")?.resultType).toBe("time_distance");
+    expect(exercises.find((e) => e.name === "No resultType given")?.resultType).toBe("reps_weight");
+    expect(exercises.find((e) => e.name === "Bogus resultType")?.resultType).toBe("reps_weight");
+  });
+
   it("drops a checkpoint left with no valid exercises", () => {
     const raw = JSON.stringify({
       splitStyle: "Full Body",

@@ -11,6 +11,7 @@ import {
   type ProgramDayRecord,
   type ProgramDayType,
   type TrainingProgramRecord,
+  type TrainingProgramStatus,
   type WorkoutSessionRecord,
   type WorkoutSetType,
 } from "./db";
@@ -320,6 +321,30 @@ export function isExerciseRefreshEligible(weekNumber: number, totalWeeks: number
   return computeCheckpointWeeks(totalWeeks).includes(weekNumber);
 }
 
+// Every status change a member can make to their own programme goes through
+// this one gate — Pause/Resume/Cancel in the mobile app all resolve to a
+// requested TrainingProgramStatus, and this is the single place that decides
+// whether that transition is actually allowed. Archived is terminal via
+// this path (un-archiving is a staff-only action elsewhere); same-status
+// "changes" are rejected as a no-op rather than silently succeeding.
+export function resolveProgramStatusTransition(
+  current: TrainingProgramStatus,
+  requested: TrainingProgramStatus
+): { ok: true } | { ok: false; message: string } {
+  const allowed: Record<TrainingProgramStatus, TrainingProgramStatus[]> = {
+    active: ["paused", "archived"],
+    paused: ["active", "archived"],
+    archived: [],
+  };
+  if (current === requested) {
+    return { ok: false, message: `This programme is already ${requested}.` };
+  }
+  if (!allowed[current].includes(requested)) {
+    return { ok: false, message: `Can't move a ${current} programme to ${requested}.` };
+  }
+  return { ok: true };
+}
+
 // Re-validates the testCheckpoints the client echoes back from /generate's
 // preview to /save — same "never trust the client" discipline as
 // parseProgramDays, since a save call carries no second AI response to
@@ -365,7 +390,17 @@ export function buildTestCheckpoints(
       label: cp.label,
       type: "test" as const,
       exercises: parsePrescribedExercises(
-        cp.exercises.map((e) => ({ name: e.name, targetReps: e.protocol, exerciseId: null }))
+        cp.exercises.map((e) =>
+          e.resultType === "time_distance"
+            ? {
+                name: e.name,
+                targetReps: null,
+                exerciseId: null,
+                notes: e.protocol,
+                conditioningProtocol: { structure: "continuous", reps: null, distanceMeters: null, description: e.protocol },
+              }
+            : { name: e.name, targetReps: e.protocol, exerciseId: null }
+        )
       ),
     },
   }));

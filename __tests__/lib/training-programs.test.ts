@@ -14,6 +14,7 @@ import {
   parseTestCheckpoints,
   resolveInitialProgrammeTargets,
   resolveNextCycleTargets,
+  resolveProgramStatusTransition,
 } from "@/lib/training-programs";
 
 function makeLibraryExercise(overrides: Partial<ExerciseLibraryRecord> = {}): ExerciseLibraryRecord {
@@ -367,9 +368,14 @@ describe("resolveNextCycleTargets with progressBias", () => {
 });
 
 describe("buildTestCheckpoints", () => {
-  it("turns AI-authored checkpoint proposals into test-type ProgramDayRecords with no invented target", () => {
+  it("turns a reps_weight checkpoint into a normal test-type exercise with no invented target", () => {
     const checkpoints = buildTestCheckpoints([
-      { weekNumber: 1, label: "Baseline", focusLabel: null, exercises: [{ name: "5RM Back Squat", protocol: "5RM" }] },
+      {
+        weekNumber: 1,
+        label: "Baseline",
+        focusLabel: null,
+        exercises: [{ name: "5RM Back Squat", protocol: "5RM", resultType: "reps_weight" }],
+      },
     ]);
     expect(checkpoints).toHaveLength(1);
     const [cp] = checkpoints!;
@@ -379,6 +385,30 @@ describe("buildTestCheckpoints", () => {
     expect(cp.day.exercises[0].targetReps).toBe("5RM");
     expect(cp.day.exercises[0].targetWeight).toBeNull();
     expect(cp.day.exercises[0].exerciseId).toBeNull();
+    expect(cp.day.exercises[0].conditioningProtocol).toBeFalsy();
+  });
+
+  it("turns a time_distance checkpoint into a Run-seeding exercise via conditioningProtocol, never a rep target", () => {
+    const checkpoints = buildTestCheckpoints([
+      {
+        weekNumber: 1,
+        label: "Baseline",
+        focusLabel: null,
+        exercises: [{ name: "Standing Broad Jump", protocol: "Max horizontal distance, best of 3", resultType: "time_distance" }],
+      },
+    ]);
+    const [cp] = checkpoints!;
+    const [ex] = cp.day.exercises;
+    expect(ex.name).toBe("Standing Broad Jump");
+    expect(ex.targetReps).toBeNull();
+    expect(ex.exerciseId).toBeNull();
+    expect(ex.notes).toBe("Max horizontal distance, best of 3");
+    expect(ex.conditioningProtocol).toEqual({
+      structure: "continuous",
+      reps: null,
+      distanceMeters: null,
+      description: "Max horizontal distance, best of 3",
+    });
   });
 });
 
@@ -462,6 +492,35 @@ describe("isExerciseRefreshEligible", () => {
   it("is false with no totalWeeks", () => {
     expect(isExerciseRefreshEligible(5, null)).toBe(false);
     expect(isExerciseRefreshEligible(5, 0)).toBe(false);
+  });
+});
+
+describe("resolveProgramStatusTransition", () => {
+  it("allows active <-> paused in both directions", () => {
+    expect(resolveProgramStatusTransition("active", "paused")).toEqual({ ok: true });
+    expect(resolveProgramStatusTransition("paused", "active")).toEqual({ ok: true });
+  });
+
+  it("allows cancelling from either active or paused", () => {
+    expect(resolveProgramStatusTransition("active", "archived")).toEqual({ ok: true });
+    expect(resolveProgramStatusTransition("paused", "archived")).toEqual({ ok: true });
+  });
+
+  it("rejects any transition out of archived — it's terminal via this path", () => {
+    expect(resolveProgramStatusTransition("archived", "active").ok).toBe(false);
+    expect(resolveProgramStatusTransition("archived", "paused").ok).toBe(false);
+    expect(resolveProgramStatusTransition("archived", "archived").ok).toBe(false);
+  });
+
+  it("rejects a same-status request as a no-op rather than silently succeeding", () => {
+    expect(resolveProgramStatusTransition("active", "active").ok).toBe(false);
+    expect(resolveProgramStatusTransition("paused", "paused").ok).toBe(false);
+  });
+
+  it("returns a human-readable message on rejection", () => {
+    const result = resolveProgramStatusTransition("archived", "active");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toMatch(/archived/);
   });
 });
 
