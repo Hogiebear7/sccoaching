@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
     // days don't consume a turn), starting with Upper.
     let workoutDayIndex = 0;
 
-    const days = skeleton.days.map((day) => {
+    const days = skeleton.days.map((day, dayIndex) => {
       if (day.type === "rest") {
         return { label: day.label, type: "rest" as const, exercises: [] };
       }
@@ -212,7 +212,8 @@ export async function POST(request: NextRequest) {
         alreadyChosenIds,
       });
       const targeted = resolveInitialProgrammeTargets(picked, repScheme, sessions);
-      const label = splitMode === "upperLower" ? (half === "upper" ? "Upper Body" : "Lower Body") : "Full Body";
+      const focus = splitMode === "upperLower" ? (half === "upper" ? "Upper Body" : "Lower Body") : "Full Body";
+      const label = `Day ${dayIndex + 1} - ${focus}`;
 
       return { label, type: "workout" as const, exercises: targeted };
     });
