@@ -16,6 +16,7 @@ import {
   type WorkoutSetType,
 } from "./db";
 import type { ProgrammeSkeletonCheckpoint } from "./ai";
+import { exerciseMatchesEquipmentSlugs } from "./equipment-matching";
 import type { ExerciseLibraryRecord } from "./exercise-library/types";
 import { bodyHalfOfBucket, classifyMovementBucket, MAIN_MOVEMENT_BUCKETS, type MainMovementBucket } from "./movement-buckets";
 import { pickExercisesForDay, pickStructuredExercisesForDay, type StructuredDaySpec } from "./programme-exercise-picker";
@@ -591,6 +592,95 @@ export function applyExerciseRefresh(
     if (picked.length === 0) return day; // nothing else available in these muscle groups/equipment — leave as-is
 
     return { ...day, exercises: resolveInitialProgrammeTargets(picked, inferRepScheme(day.exercises), sessions) };
+  });
+
+  return { ...program, days, updatedAt: new Date().toISOString() };
+}
+
+// Finds one exercise addressed by dayId + exerciseId. Returns null if either
+// doesn't exist, the day isn't a plain workout day, or the exercise is a
+// conditioning/run entry — none of those are "same muscle group, different
+// exercise" swap candidates (same exclusions applyExerciseRefresh already
+// makes above, just scoped to one exercise instead of the whole programme).
+function findSwappableExercise(
+  program: TrainingProgramRecord,
+  dayId: string,
+  exerciseId: string
+): { day: ProgramDayRecord; exercise: PrescribedExercise } | null {
+  const day = program.days.find((d) => d.id === dayId);
+  if (!day || day.type !== "workout") return null;
+
+  const exercise = day.exercises.find((e) => e.id === exerciseId);
+  if (!exercise || exercise.conditioningProtocol) return null;
+
+  return { day, exercise };
+}
+
+// Builds the candidate pool for a single-exercise swap — the same muscle
+// group(s) as the exercise being replaced, matching the programme's own
+// equipment, excluding exercises already used elsewhere in that day and the
+// exercise itself. Capped and shuffled so the AI (or the no-AI fallback in
+// the route) always sees a small, varied set rather than the whole library.
+const MAX_SWAP_CANDIDATES = 20;
+
+export function buildExerciseAlternativeCandidates(
+  program: TrainingProgramRecord,
+  dayId: string,
+  exerciseId: string,
+  libraryExercises: ExerciseLibraryRecord[],
+  equipmentSlugs: string[]
+): ExerciseLibraryRecord[] {
+  const found = findSwappableExercise(program, dayId, exerciseId);
+  if (!found) return [];
+  const { day, exercise } = found;
+
+  const muscleTags = new Set(exercise.muscleTags);
+  if (muscleTags.size === 0) return [];
+
+  const excludeIds = new Set(day.exercises.map((e) => e.exerciseId).filter((id): id is string => id !== null));
+
+  const candidates = libraryExercises.filter(
+    (e) =>
+      e.id !== exercise.exerciseId &&
+      !excludeIds.has(e.id) &&
+      e.bodyPart !== null &&
+      muscleTags.has(e.bodyPart) &&
+      exerciseMatchesEquipmentSlugs(e.equipment, equipmentSlugs)
+  );
+
+  const shuffled = [...candidates];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, MAX_SWAP_CANDIDATES);
+}
+
+// Commits a swap: replaces just one exercise's identity (exerciseId, name,
+// muscleTags) in place, keeping its PrescribedExercise.id and its existing
+// prescription (sets/reps/weight/setType) untouched — a same-slot identity
+// swap, not a re-target. Pure, no save (matches applyExerciseRefresh's own
+// split above); returns the program unchanged if dayId/exerciseId don't
+// resolve to a real, swappable exercise.
+export function replaceProgramDayExercise(
+  program: TrainingProgramRecord,
+  dayId: string,
+  exerciseId: string,
+  newExercise: ExerciseLibraryRecord
+): TrainingProgramRecord {
+  const found = findSwappableExercise(program, dayId, exerciseId);
+  if (!found) return program;
+
+  const days = program.days.map((day) => {
+    if (day.id !== dayId) return day;
+    return {
+      ...day,
+      exercises: day.exercises.map((ex) =>
+        ex.id === exerciseId
+          ? { ...ex, exerciseId: newExercise.id, name: newExercise.name, muscleTags: newExercise.bodyPart ? [newExercise.bodyPart] : [] }
+          : ex
+      ),
+    };
   });
 
   return { ...program, days, updatedAt: new Date().toISOString() };

@@ -40,6 +40,7 @@ const FEATURE_LABEL: Record<string, string> = {
   tracker_import: "Tracker import",
   programme_generation: "Programme generation",
   programme_checkin: "Programme check-in",
+  exercise_alternatives: "Exercise alternatives",
 };
 
 // Small totals (most single ranges) round to nothing at 2dp, so show more

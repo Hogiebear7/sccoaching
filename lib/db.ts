@@ -1338,7 +1338,8 @@ export type AiFeature =
   | "workout_review"
   | "tracker_import"
   | "programme_generation"
-  | "programme_checkin";
+  | "programme_checkin"
+  | "exercise_alternatives";
 
 export interface AiUsageLogRecord {
   id: string;

@@ -1567,3 +1567,112 @@ export async function generateProgrammeCheckIn(
 
   return parseProgrammeCheckIn(textFromMessage(message), currentTotalWeeks, refreshEligible);
 }
+
+// ── Single-exercise swap suggestions ─────────────────────────────────────
+// Narrower and the opposite shape from the check-in "exercise refresh" above
+// (applyExerciseRefresh in lib/training-programs.ts) — that one deterministically
+// replaces every exercise in every remaining day with no AI input at all. Here
+// the member has flagged ONE exercise they can't do or don't like, so the AI's
+// judgment is the actual point (weighing an optional reason like "shoulder
+// pain" against the options), not just picking randomly. It can only choose
+// from a candidate list the caller already filtered by muscle group and
+// equipment (see buildExerciseAlternativeCandidates in
+// lib/training-programs.ts) — it never invents an exercise name, so a bad
+// response can only fail to use everything given, never hallucinate.
+
+const EXERCISE_ALTERNATIVES_SYSTEM_PROMPT = `You are a strength coach helping a gym member swap out one prescribed exercise for a different one that trains the same muscles.
+
+You will be given the exercise being replaced, the muscle group(s) it targets, an optional reason the member gave for wanting a change, and a list of candidate exercises already filtered to match the member's available equipment and the same muscle group. Pick the best 3-4 candidates from that list ONLY — never suggest anything not in the list — and give one short, specific sentence for each on why it's a good swap given the member's reason (if any).
+
+Reply with ONLY a JSON object, no markdown fences, no commentary:
+{"alternatives": [{"id": string, "rationale": string}]}
+
+id must exactly match a candidate's id from the list you were given. rationale is one sentence, under 25 words, plain text. ${SCIENTIFIC_GROUNDING_CLAUSE}`;
+
+export interface ExerciseAlternativeCandidate {
+  id: string;
+  name: string;
+}
+
+export interface ExerciseAlternativeSuggestion {
+  id: string;
+  rationale: string;
+}
+
+// Exported for tests. Drops any id the model returned that isn't actually in
+// the candidate set it was given (never trust an id it wasn't offered) and
+// any rationale that's empty after trimming; returns null if nothing
+// survives rather than an empty, unhelpful list.
+export function parseExerciseAlternatives(
+  text: string,
+  candidateIds: Set<string>
+): ExerciseAlternativeSuggestion[] | null {
+  const trimmed = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+  if (!trimmed) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+
+  const list = (parsed as Record<string, unknown>).alternatives;
+  if (!Array.isArray(list)) return null;
+
+  const out: ExerciseAlternativeSuggestion[] = [];
+  for (const item of list) {
+    if (typeof item !== "object" || item === null) continue;
+    const { id, rationale } = item as Record<string, unknown>;
+    if (typeof id !== "string" || !candidateIds.has(id)) continue;
+    const cleanRationale = typeof rationale === "string" ? rationale.trim().slice(0, 200) : "";
+    if (!cleanRationale) continue;
+    out.push({ id, rationale: cleanRationale });
+  }
+
+  return out.length > 0 ? out : null;
+}
+
+export async function generateExerciseAlternatives(input: {
+  exerciseName: string;
+  muscleTags: string[];
+  reason: string | null;
+  candidates: ExerciseAlternativeCandidate[];
+  userId: string | null;
+}): Promise<ExerciseAlternativeSuggestion[] | null> {
+  if (!isAiConfigured()) {
+    throw new Error(AI_NOT_CONFIGURED_MESSAGE);
+  }
+  if (input.candidates.length === 0) return null;
+
+  const client = getClient();
+  const candidateList = input.candidates.map((c) => `- ${c.id}: ${c.name}`).join("\n");
+  const contextText = `Exercise being replaced: ${input.exerciseName}
+Muscle group(s): ${input.muscleTags.join(", ") || "unspecified"}
+Member's reason: ${input.reason?.trim() || "No reason given — they'd just like a different option."}
+
+Candidates:
+${candidateList}`;
+
+  const message = await client.messages.create({
+    model: COACH_MODEL,
+    max_tokens: 1000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system: EXERCISE_ALTERNATIVES_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: contextText }],
+  });
+  recordAiUsageFromResponse({
+    userId: input.userId,
+    feature: "exercise_alternatives",
+    model: COACH_MODEL,
+    usage: message.usage,
+  });
+
+  return parseExerciseAlternatives(textFromMessage(message), new Set(input.candidates.map((c) => c.id)));
+}

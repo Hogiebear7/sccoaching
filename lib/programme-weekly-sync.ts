@@ -28,11 +28,16 @@ function todayISO(): string {
 // see lib/db.ts's TrainingProgramRecord comment). Rest days are skipped
 // entirely (no schedule entry). Sessions run from the current week for
 // totalWeeks weeks; any testCheckpoints entry due within that range gets its
-// own session too, placed on that week's first mapped weekday.
+// own session too, placed on that week's first mapped weekday. timeOfDay is
+// the member's own "usual training time" pick from that same screen — null
+// (Any time) if they didn't say. Intensity always defaults to "moderate"
+// rather than being left blank; the member can edit either field afterward
+// in Weekly Training like any other session.
 export function syncProgrammeToWeeklyTraining(
   userId: string,
   program: TrainingProgramRecord,
-  weekdayMap: TrainingDayOfWeek[]
+  weekdayMap: TrainingDayOfWeek[],
+  timeOfDay: WeeklyTrainingSession["timeOfDay"] = null
 ): void {
   const workoutDays = program.days.filter((d) => d.type === "workout");
   if (workoutDays.length === 0 || weekdayMap.length !== workoutDays.length) return;
@@ -51,8 +56,8 @@ export function syncProgrammeToWeeklyTraining(
         dayOfWeek: weekdayMap[i],
         label: day.label,
         activityType: "gym",
-        timeOfDay: null,
-        intensity: null,
+        timeOfDay,
+        intensity: "moderate",
         estimatedDurationMins: null,
         notes: null,
         recurring: false,
@@ -69,8 +74,8 @@ export function syncProgrammeToWeeklyTraining(
         dayOfWeek: weekdayMap[0],
         label: checkpoint.day.label,
         activityType: "gym",
-        timeOfDay: null,
-        intensity: null,
+        timeOfDay,
+        intensity: "moderate",
         estimatedDurationMins: null,
         notes: null,
         recurring: false,

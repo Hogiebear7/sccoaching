@@ -3,8 +3,10 @@ import type { NextRequest } from "next/server";
 
 import { findTrainingProgramById, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import type { TrainingDayOfWeek } from "@/lib/profile-schema";
+import type { TrainingDayOfWeek, TrainingTimeOfDay } from "@/lib/profile-schema";
 import { syncProgrammeToWeeklyTraining } from "@/lib/programme-weekly-sync";
+
+const TIME_OF_DAY_VALUES: TrainingTimeOfDay[] = ["morning", "afternoon", "evening"];
 
 // Called once, right after a member saves an AI programme, when they choose
 // to auto-add it to their Weekly Training schedule — weekdayMap has one
@@ -26,10 +28,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { id, weekdayMap } = (body ?? {}) as Record<string, unknown>;
+  const { id, weekdayMap, timeOfDay } = (body ?? {}) as Record<string, unknown>;
   if (typeof id !== "string" || !id.trim()) {
     return NextResponse.json({ success: false, message: "id is required." }, { status: 400 });
   }
+  const cleanTimeOfDay: TrainingTimeOfDay | null =
+    typeof timeOfDay === "string" && TIME_OF_DAY_VALUES.includes(timeOfDay as TrainingTimeOfDay)
+      ? (timeOfDay as TrainingTimeOfDay)
+      : null;
 
   const program = findTrainingProgramById(id);
   if (!program || program.userId !== user.id) {
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  syncProgrammeToWeeklyTraining(user.id, program, cleanWeekdayMap as TrainingDayOfWeek[]);
+  syncProgrammeToWeeklyTraining(user.id, program, cleanWeekdayMap as TrainingDayOfWeek[], cleanTimeOfDay);
 
   return NextResponse.json({ success: true, message: "Added to your weekly schedule." });
 }

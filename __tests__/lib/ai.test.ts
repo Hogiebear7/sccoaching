@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseProgrammeCheckIn, parseProgrammeSkeleton } from "@/lib/ai";
+import { parseExerciseAlternatives, parseProgrammeCheckIn, parseProgrammeSkeleton } from "@/lib/ai";
 
 const VALID_BODY_PARTS = ["chest", "back", "upper legs", "shoulders", "upper arms"];
 
@@ -377,5 +377,38 @@ describe("parseProgrammeCheckIn", () => {
       exerciseRefreshProposal: { rationale: "  " },
     });
     expect(parseProgrammeCheckIn(raw, 8, true)?.exerciseRefreshProposal).toBeNull();
+  });
+});
+
+describe("parseExerciseAlternatives", () => {
+  const candidateIds = new Set(["legpress", "hacksquat", "lunge"]);
+
+  it("keeps only alternatives whose id is actually in the candidate set", () => {
+    const raw = JSON.stringify({
+      alternatives: [
+        { id: "legpress", rationale: "Same muscle group, easier on the lower back." },
+        { id: "not-a-real-candidate", rationale: "This one was never offered." },
+        { id: "hacksquat", rationale: "Machine-guided, good if balance is a concern." },
+      ],
+    });
+    const result = parseExerciseAlternatives(raw, candidateIds);
+    expect(result).toHaveLength(2);
+    expect(result?.map((a) => a.id)).toEqual(["legpress", "hacksquat"]);
+  });
+
+  it("drops an entry with an empty rationale", () => {
+    const raw = JSON.stringify({ alternatives: [{ id: "legpress", rationale: "   " }] });
+    expect(parseExerciseAlternatives(raw, candidateIds)).toBeNull();
+  });
+
+  it("returns null for malformed or empty responses", () => {
+    expect(parseExerciseAlternatives("not json", candidateIds)).toBeNull();
+    expect(parseExerciseAlternatives(JSON.stringify({ alternatives: [] }), candidateIds)).toBeNull();
+    expect(parseExerciseAlternatives(JSON.stringify({ somethingElse: true }), candidateIds)).toBeNull();
+  });
+
+  it("strips markdown code fences before parsing", () => {
+    const raw = "```json\n" + JSON.stringify({ alternatives: [{ id: "lunge", rationale: "Unilateral, trains the same muscles." }] }) + "\n```";
+    expect(parseExerciseAlternatives(raw, candidateIds)?.[0].id).toBe("lunge");
   });
 });

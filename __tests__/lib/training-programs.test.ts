@@ -6,12 +6,14 @@ import {
   applyExerciseRefresh,
   applyProgrammeAdjustment,
   applyTierModifier,
+  buildExerciseAlternativeCandidates,
   buildTestCheckpoints,
   computeAdvancedProgram,
   computeCheckpointWeeks,
   isExerciseRefreshEligible,
   parseProgramDays,
   parseTestCheckpoints,
+  replaceProgramDayExercise,
   resolveInitialProgrammeTargets,
   resolveNextCycleTargets,
   resolveProgramStatusTransition,
@@ -743,6 +745,98 @@ describe("applyExerciseRefresh", () => {
     const program = makeProgram({ aiMeta: { ...structuredAiMeta, splitMode: "fullBody" }, days: [protocolDay] });
     const updated = applyExerciseRefresh(program, structuredLibrary, [], []);
     expect(updated.days[0]).toEqual(protocolDay);
+  });
+});
+
+describe("buildExerciseAlternativeCandidates", () => {
+  const library: ExerciseLibraryRecord[] = [
+    makeLibraryExercise({ id: "squat", name: "Back Squat", bodyPart: "upper legs" }),
+    makeLibraryExercise({ id: "lunge", name: "Dumbbell Lunge", bodyPart: "upper legs" }),
+    makeLibraryExercise({ id: "legpress", name: "Leg Press", bodyPart: "upper legs", equipment: "dumbbell" }),
+    makeLibraryExercise({ id: "hacksquat", name: "Hack Squat", bodyPart: "upper legs", equipment: "barbell" }),
+    makeLibraryExercise({ id: "bench", name: "Bench Press", bodyPart: "chest" }),
+  ];
+
+  it("excludes the exercise itself, anything else already in the same day, and non-matching muscle groups", () => {
+    const program = makeProgram({
+      days: [
+        {
+          id: "day-1",
+          label: "Day A",
+          type: "workout",
+          exercises: [
+            makeExercise({ id: "ex-1", exerciseId: "squat", name: "Back Squat", muscleTags: ["upper legs"] }),
+            makeExercise({ id: "ex-2", exerciseId: "lunge", name: "Dumbbell Lunge", muscleTags: ["upper legs"] }),
+          ],
+        },
+      ],
+    });
+
+    const candidates = buildExerciseAlternativeCandidates(program, "day-1", "ex-1", library, []);
+    const ids = candidates.map((c) => c.id);
+    expect(ids).not.toContain("squat"); // the exercise itself
+    expect(ids).not.toContain("lunge"); // already used elsewhere in the same day
+    expect(ids).not.toContain("bench"); // different muscle group
+    expect(ids).toEqual(expect.arrayContaining(["legpress", "hacksquat"]));
+  });
+
+  it("respects the programme's equipment constraint", () => {
+    const program = makeProgram({
+      days: [{ id: "day-1", label: "Day A", type: "workout", exercises: [makeExercise({ id: "ex-1", exerciseId: "squat", muscleTags: ["upper legs"] })] }],
+    });
+
+    const candidates = buildExerciseAlternativeCandidates(program, "day-1", "ex-1", library, ["dumbbells"]);
+    const ids = candidates.map((c) => c.id);
+    expect(ids).toContain("legpress"); // dumbbell — matches
+    expect(ids).not.toContain("hacksquat"); // barbell — doesn't match a dumbbells-only selection
+  });
+
+  it("returns nothing for a conditioning-protocol exercise or an unknown day/exercise id", () => {
+    const protocolExercise = makeExercise({
+      id: "ex-1",
+      conditioningProtocol: { structure: "continuous", reps: null, distanceMeters: null, description: "Run easy." },
+    });
+    const program = makeProgram({ days: [{ id: "day-1", label: "Day A", type: "workout", exercises: [protocolExercise] }] });
+
+    expect(buildExerciseAlternativeCandidates(program, "day-1", "ex-1", library, [])).toEqual([]);
+    expect(buildExerciseAlternativeCandidates(program, "no-such-day", "ex-1", library, [])).toEqual([]);
+    expect(buildExerciseAlternativeCandidates(program, "day-1", "no-such-exercise", library, [])).toEqual([]);
+  });
+});
+
+describe("replaceProgramDayExercise", () => {
+  const newExercise = makeLibraryExercise({ id: "legpress", name: "Leg Press", bodyPart: "upper legs" });
+
+  it("swaps only identity fields, keeping the exercise's id and existing prescription", () => {
+    const program = makeProgram({
+      days: [
+        {
+          id: "day-1",
+          label: "Day A",
+          type: "workout",
+          exercises: [makeExercise({ id: "ex-1", exerciseId: "squat", name: "Back Squat", muscleTags: ["upper legs"], targetSets: 4, targetReps: "6-8", targetWeight: "100 kg" })],
+        },
+      ],
+    });
+
+    const updated = replaceProgramDayExercise(program, "day-1", "ex-1", newExercise);
+    const [ex] = updated.days[0].exercises;
+    expect(ex.id).toBe("ex-1"); // stable id preserved
+    expect(ex.exerciseId).toBe("legpress");
+    expect(ex.name).toBe("Leg Press");
+    expect(ex.muscleTags).toEqual(["upper legs"]);
+    // Prescription untouched — a same-slot identity swap, not a re-target.
+    expect(ex.targetSets).toBe(4);
+    expect(ex.targetReps).toBe("6-8");
+    expect(ex.targetWeight).toBe("100 kg");
+  });
+
+  it("leaves the programme unchanged for an unknown day/exercise id", () => {
+    const program = makeProgram({
+      days: [{ id: "day-1", label: "Day A", type: "workout", exercises: [makeExercise({ id: "ex-1" })] }],
+    });
+    expect(replaceProgramDayExercise(program, "no-such-day", "ex-1", newExercise)).toBe(program);
+    expect(replaceProgramDayExercise(program, "day-1", "no-such-exercise", newExercise)).toBe(program);
   });
 });
 
