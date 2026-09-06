@@ -165,6 +165,103 @@ describe("parseProgrammeSkeleton", () => {
     // defaults it separately when resolving targets).
     expect(result?.days[0].repScheme).toBeNull();
   });
+
+  it("accepts a valid intervals conditioningProtocol and forces repScheme to null", () => {
+    const raw = JSON.stringify({
+      splitStyle: "Full Body",
+      days: [
+        {
+          label: "Day A",
+          type: "workout",
+          repScheme: "endurance",
+          conditioningProtocol: { name: "400m Repeats", structure: "intervals", reps: 6, distanceMeters: 400, description: "3 min jog recovery between reps, aim for even splits at your target race pace." },
+        },
+      ],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
+    expect(result?.days[0].conditioningProtocol).toEqual({
+      name: "400m Repeats",
+      structure: "intervals",
+      reps: 6,
+      distanceMeters: 400,
+      description: "3 min jog recovery between reps, aim for even splits at your target race pace.",
+    });
+    expect(result?.days[0].repScheme).toBeNull();
+  });
+
+  it("accepts a valid continuous conditioningProtocol with reps forced to null", () => {
+    const raw = JSON.stringify({
+      splitStyle: "Full Body",
+      days: [
+        {
+          label: "Day A",
+          type: "workout",
+          repScheme: "endurance",
+          conditioningProtocol: { name: "Tempo Run", structure: "continuous", reps: 3, distanceMeters: null, description: "20 minutes at a comfortably hard, sustainable pace." },
+        },
+      ],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
+    expect(result?.days[0].conditioningProtocol?.reps).toBeNull();
+    expect(result?.days[0].conditioningProtocol?.structure).toBe("continuous");
+  });
+
+  it("drops an intervals conditioningProtocol missing reps rather than guessing a count", () => {
+    const raw = JSON.stringify({
+      days: [
+        {
+          label: "Day A",
+          type: "workout",
+          conditioningProtocol: { name: "400m Repeats", structure: "intervals", reps: null, distanceMeters: 400, description: "Recover fully between reps." },
+        },
+      ],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
+    expect(result?.days[0].conditioningProtocol).toBeNull();
+  });
+
+  it("drops a conditioningProtocol missing a description or an invalid structure", () => {
+    const missingDescription = JSON.stringify({
+      days: [{ label: "Day A", type: "workout", conditioningProtocol: { name: "Tempo Run", structure: "continuous", reps: null, distanceMeters: null, description: "" } }],
+    });
+    expect(parseProgrammeSkeleton(missingDescription, VALID_BODY_PARTS, 1)?.days[0].conditioningProtocol).toBeNull();
+
+    const invalidStructure = JSON.stringify({
+      days: [{ label: "Day A", type: "workout", conditioningProtocol: { name: "Tempo Run", structure: "fartlek", reps: null, distanceMeters: null, description: "Run easy." } }],
+    });
+    expect(parseProgrammeSkeleton(invalidStructure, VALID_BODY_PARTS, 1)?.days[0].conditioningProtocol).toBeNull();
+  });
+
+  it("clamps reps and distanceMeters to a sane range rather than trusting the model", () => {
+    const raw = JSON.stringify({
+      days: [
+        {
+          label: "Day A",
+          type: "workout",
+          conditioningProtocol: { name: "400m Repeats", structure: "intervals", reps: 999, distanceMeters: 999999, description: "Recover fully between reps." },
+        },
+      ],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 1);
+    expect(result?.days[0].conditioningProtocol?.reps).toBe(50);
+    expect(result?.days[0].conditioningProtocol?.distanceMeters).toBe(50000);
+  });
+
+  it("keeps only the first conditioningProtocol day, capping at one per week regardless of what the model returns", () => {
+    const raw = JSON.stringify({
+      days: [
+        { label: "Day A", type: "workout", conditioningProtocol: { name: "400m Repeats", structure: "intervals", reps: 6, distanceMeters: 400, description: "Recover fully." } },
+        { label: "Day B", type: "workout", conditioningProtocol: { name: "Tempo Run", structure: "continuous", reps: null, distanceMeters: null, description: "20 minutes easy." } },
+      ],
+    });
+    const result = parseProgrammeSkeleton(raw, VALID_BODY_PARTS, 2);
+    expect(result?.days[0].conditioningProtocol?.name).toBe("400m Repeats");
+    expect(result?.days[1].conditioningProtocol).toBeNull();
+    // The second day falls through to normal workout handling once its
+    // protocol is stripped — it should still get the freeform fallback body
+    // part rather than being left with none.
+    expect(result?.days[1].primaryBodyParts).toEqual([VALID_BODY_PARTS[0]]);
+  });
 });
 
 describe("parseProgrammeCheckIn", () => {

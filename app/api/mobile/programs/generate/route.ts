@@ -1,8 +1,10 @@
+import { randomUUID } from "crypto";
+
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { generateProgrammeSkeleton, isAiConfigured } from "@/lib/ai";
-import { findUserById, findWeeklyTrainingScheduleByUserId, findWorkoutSessionsByUserId } from "@/lib/db";
+import { generateProgrammeSkeleton, isAiConfigured, type ProgrammeConditioningProtocol } from "@/lib/ai";
+import { findUserById, findWeeklyTrainingScheduleByUserId, findWorkoutSessionsByUserId, type PrescribedExercise } from "@/lib/db";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
 import { hasAccess } from "@/lib/member-access";
@@ -30,6 +32,45 @@ const GENERATE_RATE_WINDOW_MS = 60 * 60 * 1000;
 // lib/training-programs.ts already handles any totalWeeks generically.
 const MIN_WEEKS = 1;
 const MAX_WEEKS = 26;
+
+// Turns an AI-authored conditioning protocol into the one PrescribedExercise
+// that represents a whole day — exerciseId stays null (no library exercise
+// to link, same convention as a test-checkpoint protocol) and targetReps
+// carries a short human summary for the existing preview-card rendering
+// (ProgramDayCard already falls back to printing targetReps alone when
+// targetSets is null). The mobile app seeds conditioningProtocol into a Run
+// log entry instead of a normal exercise row — see log-workout.tsx.
+function buildConditioningProtocolExercise(protocol: ProgrammeConditioningProtocol): PrescribedExercise {
+  const distanceLabel = protocol.distanceMeters
+    ? protocol.distanceMeters >= 1000
+      ? `${(protocol.distanceMeters / 1000).toFixed(protocol.distanceMeters % 1000 === 0 ? 0 : 1)}km`
+      : `${protocol.distanceMeters}m`
+    : null;
+  const summary =
+    protocol.structure === "intervals" && protocol.reps
+      ? [`${protocol.reps} ×`, distanceLabel].filter(Boolean).join(" ")
+      : (distanceLabel ?? "Continuous effort");
+
+  return {
+    id: randomUUID(),
+    exerciseId: null,
+    name: protocol.name,
+    muscleTags: [],
+    targetSets: null,
+    targetReps: summary,
+    targetWeight: null,
+    setType: null,
+    sets: null,
+    supersetGroup: null,
+    notes: protocol.description,
+    conditioningProtocol: {
+      structure: protocol.structure,
+      reps: protocol.reps,
+      distanceMeters: protocol.distanceMeters,
+      description: protocol.description,
+    },
+  };
+}
 
 // POST /api/mobile/programs/generate
 // The "preview" half of the AI programme builder — everything here is
@@ -180,6 +221,20 @@ export async function POST(request: NextRequest) {
     const days = skeleton.days.map((day, dayIndex) => {
       if (day.type === "rest") {
         return { label: day.label, type: "rest" as const, exercises: [] };
+      }
+
+      // A running/conditioning protocol day replaces this day's content
+      // entirely — bypasses both exercise pickers and, crucially,
+      // resolveInitialProgrammeTargets (which would otherwise overwrite the
+      // protocol's targetReps summary with a rep-scheme default). Doesn't
+      // consume an Upper/Lower alternation turn either, since it isn't a
+      // strength day.
+      if (day.conditioningProtocol) {
+        return {
+          label: `Day ${dayIndex + 1} - ${day.conditioningProtocol.name}`,
+          type: "workout" as const,
+          exercises: [buildConditioningProtocolExercise(day.conditioningProtocol)],
+        };
       }
 
       const repScheme: ProgrammeRepScheme = day.repScheme ?? "hypertrophy";

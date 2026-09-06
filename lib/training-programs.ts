@@ -41,6 +41,27 @@ function parsePrescribedSets(input: unknown): PrescribedSet[] | null {
   return sets.length > 0 ? sets : null;
 }
 
+// Re-validated on the generate-preview -> /api/mobile/programs/save round
+// trip, same as every other PrescribedExercise field — dropped (not
+// trusted) on any missing/invalid required piece.
+function parseConditioningProtocol(input: unknown): PrescribedExercise["conditioningProtocol"] {
+  if (typeof input !== "object" || input === null) return null;
+  const c = input as Record<string, unknown>;
+  const structure = c.structure === "intervals" || c.structure === "continuous" ? c.structure : null;
+  const description = str(c.description);
+  if (!structure || !description) return null;
+
+  const repsRaw = typeof c.reps === "number" && Number.isFinite(c.reps) ? Math.round(c.reps) : null;
+  const distanceRaw = typeof c.distanceMeters === "number" && Number.isFinite(c.distanceMeters) ? Math.round(c.distanceMeters) : null;
+
+  return {
+    structure,
+    reps: structure === "continuous" ? null : repsRaw,
+    distanceMeters: distanceRaw,
+    description,
+  };
+}
+
 export function parsePrescribedExercises(input: unknown): PrescribedExercise[] {
   if (!Array.isArray(input)) return [];
 
@@ -66,6 +87,7 @@ export function parsePrescribedExercises(input: unknown): PrescribedExercise[] {
         sets: parsePrescribedSets(e.sets),
         supersetGroup: str(e.supersetGroup),
         notes: str(e.notes),
+        conditioningProtocol: parseConditioningProtocol(e.conditioningProtocol),
       } satisfies PrescribedExercise,
     ];
   });
@@ -194,6 +216,11 @@ export function resolveNextCycleTargets(
   const comfortableRir = COMFORTABLE_RIR_THRESHOLD[progressBias];
 
   return exercises.map((exercise) => {
+    // A running/conditioning protocol has no weight/reps to progress —
+    // history matching would never find it anyway (session history here
+    // only scans logged strength exercises, not logged runs), but this
+    // guard makes that explicit rather than relying on that accident.
+    if (exercise.conditioningProtocol) return exercise;
     const entry = latestEntryForOption(history, exercise.name);
     if (!entry || entry.rir === null) return exercise;
 
@@ -476,6 +503,10 @@ export function applyExerciseRefresh(
 
   const days = program.days.map((day) => {
     if (day.type !== "workout" || day.exercises.length === 0) return day;
+    // A running/conditioning protocol day isn't a "swap for a different
+    // exercise in the same muscle group" candidate at all — leave it
+    // untouched rather than silently replacing it with gym exercises.
+    if (day.exercises.some((ex) => ex.conditioningProtocol)) return day;
 
     for (const ex of day.exercises) {
       if (ex.exerciseId) alreadyChosenAcrossDays.add(ex.exerciseId);

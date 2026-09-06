@@ -60,18 +60,25 @@ export function buildProgrammeCheckInData(
   const workoutDays = program.days.filter((d) => d.type === "workout");
 
   const exerciseTrends: ProgrammeCheckInExerciseTrend[] = workoutDays.flatMap((day) =>
-    day.exercises.map((ex) => {
-      const nameKey = ex.name.trim().toLowerCase();
-      const entry = sessionsThisCycle
-        .flatMap((s) => s.exercises.map((e) => ({ ...e, date: s.date })))
-        .filter((e) => e.name.trim().toLowerCase() === nameKey)
-        .sort((a, b) => b.date.localeCompare(a.date))[0];
-      return {
-        name: ex.name,
-        rir: entry && typeof entry.rir === "number" ? entry.rir : null,
-        hitTarget: entry ? entry.reps !== null : null,
-      };
-    })
+    // Conditioning-protocol (running) days are excluded entirely rather than
+    // matched — their completed work lands in a logged session's `runs`,
+    // never its `exercises`, so a name-based lookup here would always come
+    // up empty and misreport a genuinely-logged run as "not logged" on
+    // every single cycle.
+    day.exercises
+      .filter((ex) => !ex.conditioningProtocol)
+      .map((ex) => {
+        const nameKey = ex.name.trim().toLowerCase();
+        const entry = sessionsThisCycle
+          .flatMap((s) => s.exercises.map((e) => ({ ...e, date: s.date })))
+          .filter((e) => e.name.trim().toLowerCase() === nameKey)
+          .sort((a, b) => b.date.localeCompare(a.date))[0];
+        return {
+          name: ex.name,
+          rir: entry && typeof entry.rir === "number" ? entry.rir : null,
+          hitTarget: entry ? entry.reps !== null : null,
+        };
+      })
   );
 
   // Checkpoint retest comparison — only when the checkpoint due THIS week

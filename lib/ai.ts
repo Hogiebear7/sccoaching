@@ -1050,8 +1050,17 @@ Test checkpoints — only when a "Test checkpoint weeks" list follows this promp
 - Never give a test a target/goal number — describe only the protocol to perform (e.g. "5RM Back Squat", "Max reps push-ups in 60s", "12-minute run for distance"). There is nothing to hit, only something to measure.
 - When a later checkpoint week re-tests the same measure as an earlier one in this same response, it MUST use the EXACT SAME exercise name as that earlier test (character-for-character) so the two results can be matched up later — do not rename "5RM Back Squat" to "Back Squat 5-Rep Max" partway through.
 
+Conditioning/running protocol days — use RARELY:
+- The exercise library is gym equipment only — it has no running/track content. Most programmes, including most Sports Performance goals, should leave conditioningProtocol null on EVERY day — only set it when the goal or the member's notes genuinely call for prescribed running/interval training a gym exercise can't cover: a named running distance/event, a stated race-pace or PB goal, or explicit sport-conditioning demands. A strength/hypertrophy/general-fitness goal should almost never use this.
+- At most ONE conditioning-protocol day per week.
+- When set on a day, it REPLACES that day's content entirely — don't also expect normal exercises that day, and set that day's repScheme to null.
+- structure is "intervals" (repeated efforts with recovery between, e.g. "6 x 400m") or "continuous" (one sustained effort, e.g. a 20-minute tempo run).
+- reps is the number of repeats — a real number, REQUIRED when structure is "intervals"; must be null when structure is "continuous".
+- distanceMeters is the distance per rep (intervals) or total distance (continuous) — use null only for a purely time-based continuous effort with no distance target.
+- description is 1-2 sentences covering recovery time and intensity/pacing cues. NEVER state a specific pace, split time, or heart-rate number you weren't already given — describe intensity qualitatively (e.g. "at your target race pace", "comfortably hard") or reference a number the member themselves stated in their notes, never one you calculated or guessed.
+
 Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
-{"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "rationale": string, "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
+{"splitStyle": string (a short human name for the split, e.g. "Upper/Lower Split", "Push/Pull/Legs", "Full Body"), "rationale": string, "days": [{"label": string, "type": "workout"|"rest", "focusLabel": string|null, "primaryBodyParts": string[], "secondaryBodyParts": string[], "repScheme": "strength"|"hypertrophy"|"endurance"|null, "conditioningProtocol": {"name": string, "structure": "intervals"|"continuous", "reps": number|null, "distanceMeters": number|null, "description": string}|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
 Omit "checkpoints" (or return an empty array) when no "Test checkpoint weeks" list was given.`;
 
 // Used whenever splitMode !== "freeform" — the app's own compound-first
@@ -1077,9 +1086,32 @@ Test checkpoints — only when a "Test checkpoint weeks" list follows this promp
 - Never give a test a target/goal number — describe only the protocol to perform (e.g. "5RM Back Squat", "Max reps push-ups in 60s", "12-minute run for distance"). There is nothing to hit, only something to measure.
 - When a later checkpoint week re-tests the same measure as an earlier one in this same response, it MUST use the EXACT SAME exercise name as that earlier test (character-for-character) so the two results can be matched up later — do not rename "5RM Back Squat" to "Back Squat 5-Rep Max" partway through.
 
+Conditioning/running protocol days — use RARELY:
+- The exercise library is gym equipment only — it has no running/track content. Most programmes, including most Sports Performance goals, should leave conditioningProtocol null on EVERY day — only set it when the goal or the member's notes genuinely call for prescribed running/interval training a gym exercise can't cover: a named running distance/event, a stated race-pace or PB goal, or explicit sport-conditioning demands. A strength/hypertrophy/general-fitness goal should almost never use this.
+- At most ONE conditioning-protocol day per week.
+- When set on a day, it REPLACES that day's content entirely — don't also expect normal exercises that day, and set that day's repScheme to null.
+- structure is "intervals" (repeated efforts with recovery between, e.g. "6 x 400m") or "continuous" (one sustained effort, e.g. a 20-minute tempo run).
+- reps is the number of repeats — a real number, REQUIRED when structure is "intervals"; must be null when structure is "continuous".
+- distanceMeters is the distance per rep (intervals) or total distance (continuous) — use null only for a purely time-based continuous effort with no distance target.
+- description is 1-2 sentences covering recovery time and intensity/pacing cues. NEVER state a specific pace, split time, or heart-rate number you weren't already given — describe intensity qualitatively (e.g. "at your target race pace", "comfortably hard") or reference a number the member themselves stated in their notes, never one you calculated or guessed.
+
 Reply with ONLY a JSON object — no prose before or after, no markdown code fence. Exactly this shape:
-{"rationale": string, "days": [{"label": string, "type": "workout"|"rest", "repScheme": "strength"|"hypertrophy"|"endurance"|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
+{"rationale": string, "days": [{"label": string, "type": "workout"|"rest", "repScheme": "strength"|"hypertrophy"|"endurance"|null, "conditioningProtocol": {"name": string, "structure": "intervals"|"continuous", "reps": number|null, "distanceMeters": number|null, "description": string}|null}], "checkpoints": [{"weekNumber": number, "label": string, "focusLabel": string|null, "exercises": [{"name": string, "protocol": string}]}]}
 Omit "checkpoints" (or return an empty array) when no "Test checkpoint weeks" list was given.`;
+
+export interface ProgrammeConditioningProtocol {
+  name: string;
+  structure: "intervals" | "continuous";
+  /** Number of repeats — always non-null when structure is "intervals",
+      always null when "continuous". */
+  reps: number | null;
+  /** Distance per rep (intervals) or total distance (continuous) — null for
+      a purely time-based continuous effort. */
+  distanceMeters: number | null;
+  /** Recovery/pacing/intensity cues — never a fabricated pace, split, or
+      heart-rate number; see the prompt's "never invent a number" rule. */
+  description: string;
+}
 
 export interface ProgrammeSkeletonDay {
   label: string;
@@ -1088,6 +1120,11 @@ export interface ProgrammeSkeletonDay {
   primaryBodyParts: string[];
   secondaryBodyParts: string[];
   repScheme: "strength" | "hypertrophy" | "endurance" | null;
+  /** Replaces the day's exercise content entirely when set — see
+      pickStructuredExercisesForDay/pickExercisesForDay callers, which skip
+      exercise picking altogether for a day carrying this. Rare by design;
+      the exercise library has no running/track content to draw from. */
+  conditioningProtocol: ProgrammeConditioningProtocol | null;
 }
 
 export interface ProgrammeSkeletonCheckpointExercise {
@@ -1135,6 +1172,36 @@ export interface ProgrammeSkeletonRequest {
   userId: string | null;
 }
 
+const CONDITIONING_MIN_REPS = 1;
+const CONDITIONING_MAX_REPS = 50;
+const CONDITIONING_MIN_DISTANCE_M = 50;
+const CONDITIONING_MAX_DISTANCE_M = 50000;
+
+// Whole field becomes null (never a partially-valid protocol) on any
+// missing/invalid required piece — same "drop rather than guess" discipline
+// as the rest of this parser. structure/reps interaction is validated
+// explicitly here rather than left to implicit null semantics, since that's
+// exactly the kind of encoding a model gets backwards under prompt pressure.
+function parseConditioningProtocol(input: unknown): ProgrammeConditioningProtocol | null {
+  if (typeof input !== "object" || input === null) return null;
+  const c = input as Record<string, unknown>;
+
+  const name = typeof c.name === "string" && c.name.trim() ? c.name.trim().slice(0, 60) : null;
+  const description = typeof c.description === "string" && c.description.trim() ? c.description.trim().slice(0, 300) : null;
+  const structure = c.structure === "intervals" || c.structure === "continuous" ? c.structure : null;
+  if (!name || !description || !structure) return null;
+
+  const repsRaw = typeof c.reps === "number" && Number.isFinite(c.reps) ? Math.round(c.reps) : null;
+  const reps = repsRaw !== null ? Math.max(CONDITIONING_MIN_REPS, Math.min(CONDITIONING_MAX_REPS, repsRaw)) : null;
+  if (structure === "intervals" && reps === null) return null;
+
+  const distanceRaw = typeof c.distanceMeters === "number" && Number.isFinite(c.distanceMeters) ? Math.round(c.distanceMeters) : null;
+  const distanceMeters =
+    distanceRaw !== null ? Math.max(CONDITIONING_MIN_DISTANCE_M, Math.min(CONDITIONING_MAX_DISTANCE_M, distanceRaw)) : null;
+
+  return { name, structure, reps: structure === "continuous" ? null : reps, distanceMeters, description };
+}
+
 // Exported for tests. Defensive against malformed JSON, wrong field types,
 // and invalid body-part values (dropped rather than trusted) — same
 // discipline as parseMealSuggestions/parseTrackerStatsExtraction above.
@@ -1172,6 +1239,7 @@ export function parseProgrammeSkeleton(
     .filter((d): d is Record<string, unknown> => typeof d === "object" && d !== null)
     .map((d) => {
       const type: "workout" | "rest" = d.type === "rest" ? "rest" : "workout";
+      const conditioningProtocol = type === "workout" ? parseConditioningProtocol(d.conditioningProtocol) : null;
       // Structured modes never ask the model for body parts — the
       // compound-first template picks exercises by movement pattern, not
       // body part — so ignore anything it returns here rather than
@@ -1197,7 +1265,8 @@ export function parseProgrammeSkeleton(
         focusLabel: typeof d.focusLabel === "string" && d.focusLabel.trim() ? d.focusLabel.trim().slice(0, 40) : null,
         primaryBodyParts,
         secondaryBodyParts,
-        repScheme,
+        repScheme: conditioningProtocol ? null : repScheme,
+        conditioningProtocol,
       } satisfies ProgrammeSkeletonDay;
     })
     .slice(0, 14);
@@ -1209,11 +1278,24 @@ export function parseProgrammeSkeleton(
   // to the library's first real body part rather than silently producing an
   // empty workout day. Not needed in structured mode: the compound-first
   // picker never uses body parts at all.
+  // Defensive cap matching the prompt's "at most one per week" rule — don't
+  // trust the model to actually follow it. Keeps only the first; a day that
+  // loses its protocol this way falls through to normal exercise handling
+  // below (including the fallback-body-part injection, since this step
+  // runs first).
+  let keptConditioningProtocol = false;
+  const daysCapped = days.map((d) => {
+    if (!d.conditioningProtocol) return d;
+    if (keptConditioningProtocol) return { ...d, conditioningProtocol: null };
+    keptConditioningProtocol = true;
+    return d;
+  });
+
   const fallbackBodyPart = validBodyParts[0];
   const safeDays = structured
-    ? days
-    : days.map((d) =>
-        d.type === "workout" && d.primaryBodyParts.length === 0 && fallbackBodyPart
+    ? daysCapped
+    : daysCapped.map((d) =>
+        d.type === "workout" && !d.conditioningProtocol && d.primaryBodyParts.length === 0 && fallbackBodyPart
           ? { ...d, primaryBodyParts: [fallbackBodyPart], repScheme: d.repScheme ?? "hypertrophy" }
           : d
       );

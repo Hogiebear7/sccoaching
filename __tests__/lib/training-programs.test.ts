@@ -162,6 +162,17 @@ describe("resolveNextCycleTargets", () => {
     const [ex] = resolveNextCycleTargets([makeExercise({ targetWeight: "80 kg" })], sessions, cycleStart);
     expect(ex.targetWeight).toBe("80 kg");
   });
+
+  it("leaves a conditioning-protocol exercise completely untouched", () => {
+    const sessions = [makeSession("2026-02-03", [{ name: "400m Repeats", weight: "80", reps: 12, sets: 3, rir: 4 }])];
+    const protocolExercise = makeExercise({
+      name: "400m Repeats",
+      targetWeight: null,
+      conditioningProtocol: { structure: "intervals", reps: 6, distanceMeters: 400, description: "Recover fully." },
+    });
+    const [ex] = resolveNextCycleTargets([protocolExercise], sessions, cycleStart);
+    expect(ex).toEqual(protocolExercise);
+  });
 });
 
 describe("applyTierModifier", () => {
@@ -283,6 +294,40 @@ describe("parseProgramDays", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.days[0].exercises[0].setType).toBeNull();
+  });
+
+  it("round-trips conditioningProtocol through the generate-preview -> save re-validation path", () => {
+    const result = parseProgramDays([
+      {
+        label: "Day 3 - 400m Repeats",
+        exercises: [
+          {
+            name: "400m Repeats",
+            exerciseId: null,
+            targetReps: "6 × 400m",
+            notes: "3 min jog recovery between reps, aim for even splits at your target race pace.",
+            conditioningProtocol: { structure: "intervals", reps: 6, distanceMeters: 400, description: "3 min jog recovery between reps, aim for even splits at your target race pace." },
+          },
+        ],
+      },
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.days[0].exercises[0].conditioningProtocol).toEqual({
+      structure: "intervals",
+      reps: 6,
+      distanceMeters: 400,
+      description: "3 min jog recovery between reps, aim for even splits at your target race pace.",
+    });
+  });
+
+  it("drops an invalid conditioningProtocol (missing description) rather than trusting it", () => {
+    const result = parseProgramDays([
+      { label: "Workout A", exercises: [{ name: "400m Repeats", conditioningProtocol: { structure: "intervals", reps: 6, distanceMeters: 400, description: "" } }] },
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.days[0].exercises[0].conditioningProtocol).toBeNull();
   });
 });
 
@@ -596,6 +641,49 @@ describe("applyExerciseRefresh", () => {
     const newIds = updated.days[0].exercises.map((e) => e.exerciseId);
     expect(newIds.length).toBeGreaterThan(0);
     for (const id of newIds) expect(["squat", "deadlift"]).not.toContain(id);
+  });
+
+  it("leaves a conditioning-protocol day completely untouched in freeform mode", () => {
+    const protocolDay = {
+      id: "day-1",
+      label: "Day 3 - 400m Repeats",
+      type: "workout" as const,
+      exercises: [
+        makeExercise({
+          exerciseId: null,
+          name: "400m Repeats",
+          muscleTags: [],
+          targetReps: "6 × 400m",
+          conditioningProtocol: { structure: "intervals" as const, reps: 6, distanceMeters: 400, description: "Recover fully between reps." },
+        }),
+      ],
+    };
+    const program = makeProgram({ days: [protocolDay] });
+    const updated = applyExerciseRefresh(program, library, [], []);
+    expect(updated.days[0]).toEqual(protocolDay);
+  });
+
+  it("leaves a conditioning-protocol day completely untouched in a structured split, never replacing it with gym exercises", () => {
+    const structuredLibrary: ExerciseLibraryRecord[] = [
+      makeLibraryExercise({ id: "squat", name: "Back Squat", taxonomy: { forceType: "knee_dominant", primaryRegion: "lower_body", mechanic: "compound" } }),
+    ];
+    const protocolDay = {
+      id: "day-1",
+      label: "Day 3 - 400m Repeats",
+      type: "workout" as const,
+      exercises: [
+        makeExercise({
+          exerciseId: null,
+          name: "400m Repeats",
+          muscleTags: [],
+          targetReps: "6 × 400m",
+          conditioningProtocol: { structure: "intervals" as const, reps: 6, distanceMeters: 400, description: "Recover fully between reps." },
+        }),
+      ],
+    };
+    const program = makeProgram({ aiMeta: { ...structuredAiMeta, splitMode: "fullBody" }, days: [protocolDay] });
+    const updated = applyExerciseRefresh(program, structuredLibrary, [], []);
+    expect(updated.days[0]).toEqual(protocolDay);
   });
 });
 

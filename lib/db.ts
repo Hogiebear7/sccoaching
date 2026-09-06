@@ -220,6 +220,20 @@ export interface PrescribedExercise {
       prescribed as a superset. */
   supersetGroup: string | null;
   notes: string | null;
+  /** Present only for an AI-prescribed running/conditioning protocol day
+      (see ProgrammeConditioningProtocol in lib/ai.ts) — its presence, not a
+      separate kind/type field, is what marks this as a run rather than a
+      strength exercise. Mobile seeds this into a Run log entry instead of a
+      normal exercise row; every other function that rebuilds or matches
+      PrescribedExercise[] (applyExerciseRefresh, resolveNextCycleTargets,
+      programme-checkin's exerciseTrends) must treat its presence as a
+      reason to skip/exclude, not process as a strength exercise. */
+  conditioningProtocol?: {
+    structure: "intervals" | "continuous";
+    reps: number | null;
+    distanceMeters: number | null;
+    description: string;
+  } | null;
 }
 
 export interface ProgramDayRecord {
