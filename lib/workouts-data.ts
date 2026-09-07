@@ -20,6 +20,9 @@ export interface WorkoutSessionSummary {
       /api/workouts/edit, class-synced sessions through their own
       same-day correction path (see WorkoutSessionRecord). */
   classId: string | null;
+  /** Hides this session from the member's followers' Community feed — see
+      app/api/mobile/workouts/[id]/visibility/route.ts. */
+  isPrivate: boolean;
 }
 
 export interface ExerciseLibraryEntry {
@@ -68,6 +71,7 @@ export function getWorkoutsData(userId: string | undefined): WorkoutsData | null
       exercises: s.exercises,
       runs: s.runs,
       classId: s.classId ?? null,
+      isPrivate: s.isPrivate ?? false,
     })),
     personalBests,
     exerciseLibrary: findExercises().map((e) => ({ id: e.id, name: e.name, section: e.section })),

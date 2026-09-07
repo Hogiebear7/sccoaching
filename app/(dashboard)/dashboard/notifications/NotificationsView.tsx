@@ -20,6 +20,10 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   no_show: "Missed class",
   training_reminder: "Training reminder",
   training_checkin: "Weekly check-in",
+  new_follower: "New follower",
+  workout_liked: "Workout liked",
+  workout_commented: "New comment",
+  mentioned_in_comment: "Mentioned you",
 };
 
 const TYPE_ICON: Record<NotificationType, string> = {
@@ -47,6 +51,13 @@ const TYPE_ICON: Record<NotificationType, string> = {
     "M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
   training_reminder: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
   training_checkin: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+  new_follower: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+  workout_liked:
+    "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
+  workout_commented:
+    "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+  mentioned_in_comment:
+    "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
 };
 
 // Time-sensitive types get their own "Needs a response" group ahead of
@@ -69,6 +80,10 @@ const TYPE_IS_URGENT: Record<NotificationType, boolean> = {
   no_show: false,
   training_reminder: false,
   training_checkin: false,
+  new_follower: false,
+  workout_liked: false,
+  workout_commented: false,
+  mentioned_in_comment: false,
 };
 
 function formatRelativeTime(iso: string): string {

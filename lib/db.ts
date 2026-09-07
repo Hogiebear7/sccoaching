@@ -183,6 +183,10 @@ export interface WorkoutSessionRecord {
       doesn't change after logging. */
   reviewText?: string | null;
   reviewGeneratedAt?: string | null;
+  /** Hides this one session from the member's followers' Community feed —
+      a per-post opt-out, distinct from CommunityPrivacyRecord's blanket
+      leaderboard toggle. Undefined/false = visible. */
+  isPrivate?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -1230,6 +1234,66 @@ export interface MessageRecord {
   createdAt: string;
 }
 
+// ─── Community (follow / feed / leaderboard) ────────────────────────────
+// Open follow, no approval step — anyone can follow anyone (single-tenant
+// app, every member is a valid target; see findMembers()).
+export interface FollowRecord {
+  id: string;
+  followerId: string;
+  followingId: string;
+  createdAt: string;
+}
+
+// Same {userId, boolean opt-in flags, timestamps} shape as
+// CyclePrivacyPreferencesRecord (lib/profile-schema.ts) — private-by-default
+// patterns elsewhere in this app all follow this template. Here the
+// defaults are the opposite (visible-by-default, confirmed with the
+// member): a MISSING record means visible/real-name, so existing members
+// need no migration/backfill.
+export interface CommunityPrivacyRecord {
+  userId: string;
+  leaderboardVisible: boolean;
+  showRealName: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// A comment on a WorkoutSessionRecord. No edit, no soft-delete — mirrors
+// MessageRecord's own pure-append convention (no update function exists for
+// messages either); the only mutation besides create is the author
+// hard-deleting their own comment. mentionedUserIds is captured
+// structurally by the composer's @-picker, never parsed out of body text
+// (ambiguous with spaces/duplicate names) — see the mobile CommentSheet.
+export interface CommentRecord {
+  id: string;
+  workoutSessionId: string;
+  userId: string;
+  body: string;
+  mentionedUserIds: string[];
+  createdAt: string;
+}
+
+export interface LikeRecord {
+  id: string;
+  workoutSessionId: string;
+  userId: string;
+  createdAt: string;
+}
+
+// Member-reported comment, same report→queue→resolve shape as
+// FoodModerationRequest — resolving means staff deleted the comment;
+// dismissing means no action, just closes the report.
+export interface CommentReportRecord {
+  id: string;
+  commentId: string;
+  reporterId: string;
+  reason: string;
+  status: "open" | "resolved" | "dismissed";
+  resolvedByStaffId: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
 // A lead submitted through the public marketing site's contact form.
 // Unauthenticated by design — anyone can submit, so this is never linked to
 // a userId. Staff read these manually for now; no UI surfaces them yet.
@@ -1279,7 +1343,11 @@ export type NotificationType =
   | "cancellation_credit_restored"
   | "no_show"
   | "training_reminder"
-  | "training_checkin";
+  | "training_checkin"
+  | "new_follower"
+  | "workout_liked"
+  | "workout_commented"
+  | "mentioned_in_comment";
 
 export interface NotificationRecord {
   id: string;
@@ -1624,6 +1692,11 @@ interface Database {
   profiles: ProfileRecord[];
   resetTokens: ResetTokenRecord[];
   mobileHandoffTokens: MobileHandoffTokenRecord[];
+  follows: FollowRecord[];
+  communityPrivacy: CommunityPrivacyRecord[];
+  workoutComments: CommentRecord[];
+  workoutLikes: LikeRecord[];
+  commentReports: CommentReportRecord[];
   emailChangeRequests: EmailChangeRequestRecord[];
   invites: InviteRecord[];
   programmes: ProgrammeRecord[];
@@ -1751,6 +1824,11 @@ function readDb(): Database {
       profiles: [],
       resetTokens: [],
       mobileHandoffTokens: [],
+      follows: [],
+      communityPrivacy: [],
+      workoutComments: [],
+      workoutLikes: [],
+      commentReports: [],
       emailChangeRequests: [],
       invites: [],
       programmes: [],
@@ -1863,6 +1941,11 @@ function readDb(): Database {
     })),
     resetTokens: parsed.resetTokens ?? [],
     mobileHandoffTokens: parsed.mobileHandoffTokens ?? [],
+    follows: parsed.follows ?? [],
+    communityPrivacy: parsed.communityPrivacy ?? [],
+    workoutComments: parsed.workoutComments ?? [],
+    workoutLikes: parsed.workoutLikes ?? [],
+    commentReports: parsed.commentReports ?? [],
     emailChangeRequests: parsed.emailChangeRequests ?? [],
     invites: parsed.invites ?? [],
     programmes: parsed.programmes ?? [],
@@ -2125,7 +2208,8 @@ export function setUserArchived(userId: string, archived: boolean): boolean {
 // "permanent" deletion silently left their food diary behind. If you add a
 // new `{ userId, ... }` collection to the DB schema, add it here too.
 const MEMBER_OWNED_COLLECTIONS = [
-  "profiles", "resetTokens", "mobileHandoffTokens", "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
+  "profiles", "resetTokens", "mobileHandoffTokens", "communityPrivacy", "workoutComments", "workoutLikes",
+  "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
   "workoutSessions", "aiMessages", "bodyWeightLogs", "bodyFatLogs", "bookings", "noShows",
   "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
@@ -2174,6 +2258,20 @@ export function deleteUserAndOwnedRecords(userId: string): Record<string, number
   db.messages = db.messages.filter((m) => m.memberId !== userId);
   const msgRemoved = msgBefore - db.messages.length;
   if (msgRemoved > 0) summary.messages = msgRemoved;
+
+  // Follows use followerId/followingId, not userId — this member's own
+  // "who I follow" AND anyone else's "I follow this member" rows both need
+  // to go, so the generic userId-keyed loop above can't handle it.
+  const followsBefore = db.follows.length;
+  db.follows = db.follows.filter((f) => f.followerId !== userId && f.followingId !== userId);
+  const followsRemoved = followsBefore - db.follows.length;
+  if (followsRemoved > 0) summary.follows = followsRemoved;
+
+  // Comment reports use reporterId, not userId, for the same reason.
+  const reportsBefore = db.commentReports.length;
+  db.commentReports = db.commentReports.filter((r) => r.reporterId !== userId);
+  const reportsRemoved = reportsBefore - db.commentReports.length;
+  if (reportsRemoved > 0) summary.commentReports = reportsRemoved;
 
   writeDb(db);
   return summary;
@@ -3038,6 +3136,118 @@ export function findMessagesByMemberId(memberId: string): MessageRecord[] {
 export function createMessage(message: MessageRecord) {
   const db = readDb();
   db.messages.push(message);
+  writeDb(db);
+}
+
+// ─── Community (follow / feed / leaderboard) ────────────────────────────
+
+export function followUser(followerId: string, followingId: string): void {
+  const db = readDb();
+  if (db.follows.some((f) => f.followerId === followerId && f.followingId === followingId)) return;
+  db.follows.push({ id: randomUUID(), followerId, followingId, createdAt: new Date().toISOString() });
+  writeDb(db);
+}
+
+export function unfollowUser(followerId: string, followingId: string): void {
+  const db = readDb();
+  db.follows = db.follows.filter((f) => !(f.followerId === followerId && f.followingId === followingId));
+  writeDb(db);
+}
+
+export function isFollowing(followerId: string, followingId: string): boolean {
+  return readDb().follows.some((f) => f.followerId === followerId && f.followingId === followingId);
+}
+
+export function findFollowingIds(userId: string): string[] {
+  return readDb().follows.filter((f) => f.followerId === userId).map((f) => f.followingId);
+}
+
+export function findFollowerIds(userId: string): string[] {
+  return readDb().follows.filter((f) => f.followingId === userId).map((f) => f.followerId);
+}
+
+export function findCommunityPrivacyByUserId(userId: string): CommunityPrivacyRecord | undefined {
+  return readDb().communityPrivacy.find((p) => p.userId === userId);
+}
+
+export function saveCommunityPrivacy(prefs: CommunityPrivacyRecord): void {
+  const db = readDb();
+  const index = db.communityPrivacy.findIndex((p) => p.userId === prefs.userId);
+  if (index === -1) db.communityPrivacy.push(prefs);
+  else db.communityPrivacy[index] = prefs;
+  writeDb(db);
+}
+
+export function findCommentsByWorkoutSessionId(workoutSessionId: string): CommentRecord[] {
+  return readDb()
+    .workoutComments.filter((c) => c.workoutSessionId === workoutSessionId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function findCommentById(id: string): CommentRecord | undefined {
+  return readDb().workoutComments.find((c) => c.id === id);
+}
+
+export function countCommentsByWorkoutSessionId(workoutSessionId: string): number {
+  return readDb().workoutComments.filter((c) => c.workoutSessionId === workoutSessionId).length;
+}
+
+export function createComment(comment: CommentRecord): void {
+  const db = readDb();
+  db.workoutComments.push(comment);
+  writeDb(db);
+}
+
+// Also removes any reports filed against this comment — a report pointing
+// at a since-deleted comment has nothing left to review (see the staff
+// resolve route, which calls this for the "remove the comment" action).
+export function deleteComment(id: string): void {
+  const db = readDb();
+  db.workoutComments = db.workoutComments.filter((c) => c.id !== id);
+  db.commentReports = db.commentReports.filter((r) => r.commentId !== id);
+  writeDb(db);
+}
+
+export function countLikesByWorkoutSessionId(workoutSessionId: string): number {
+  return readDb().workoutLikes.filter((l) => l.workoutSessionId === workoutSessionId).length;
+}
+
+export function hasLikedWorkoutSession(userId: string, workoutSessionId: string): boolean {
+  return readDb().workoutLikes.some((l) => l.userId === userId && l.workoutSessionId === workoutSessionId);
+}
+
+// Returns the new state: true if this call added a like, false if it removed one.
+export function toggleWorkoutLike(userId: string, workoutSessionId: string): boolean {
+  const db = readDb();
+  const index = db.workoutLikes.findIndex((l) => l.userId === userId && l.workoutSessionId === workoutSessionId);
+  if (index === -1) {
+    db.workoutLikes.push({ id: randomUUID(), userId, workoutSessionId, createdAt: new Date().toISOString() });
+    writeDb(db);
+    return true;
+  }
+  db.workoutLikes.splice(index, 1);
+  writeDb(db);
+  return false;
+}
+
+export function createCommentReport(report: CommentReportRecord): void {
+  const db = readDb();
+  db.commentReports.push(report);
+  writeDb(db);
+}
+
+export function findAllCommentReports(): CommentReportRecord[] {
+  return [...readDb().commentReports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findCommentReportById(id: string): CommentReportRecord | undefined {
+  return readDb().commentReports.find((r) => r.id === id);
+}
+
+export function saveCommentReport(report: CommentReportRecord): void {
+  const db = readDb();
+  const index = db.commentReports.findIndex((r) => r.id === report.id);
+  if (index !== -1) db.commentReports[index] = report;
   writeDb(db);
 }
 

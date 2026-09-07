@@ -68,6 +68,7 @@ const navSections: StaffNavSection[] = [
     items: [
       { label: "Staff",        href: "/staff/staff-users",           capability: NAV_CAPABILITY["/staff/staff-users"] },
       { label: "Food Reviews", href: "/staff/nutrition-submissions", capability: NAV_CAPABILITY["/staff/nutrition-submissions"] },
+      { label: "Community reports", href: "/staff/community-reports", capability: NAV_CAPABILITY["/staff/community-reports"] },
       // TRIAL-ONLY — see docs/bug-reports.md.
       { label: "Bug reports",  href: "/staff/bug-reports",           capability: NAV_CAPABILITY["/staff/bug-reports"] },
     ],

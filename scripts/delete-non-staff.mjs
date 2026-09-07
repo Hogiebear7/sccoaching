@@ -41,7 +41,8 @@ if (staff.length === 0) {
 // Collections keyed by a member's user id → drop rows owned by a doomed user.
 // Mirrors MEMBER_OWNED_COLLECTIONS in lib/db.ts — keep in sync.
 const BY_USER_ID = [
-  "profiles", "resetTokens", "mobileHandoffTokens", "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
+  "profiles", "resetTokens", "mobileHandoffTokens", "communityPrivacy", "workoutComments", "workoutLikes",
+  "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
   "workoutSessions", "aiMessages", "bodyWeightLogs", "bodyFatLogs", "bookings", "noShows",
   "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
@@ -60,6 +61,9 @@ for (const key of BY_USER_ID) {
 report.messages = (db.messages ?? []).filter((m) => doomedIds.has(m.memberId)).length;
 // Custom foods use ownerUserId, not userId — see lib/db.ts's deleteUserAndOwnedRecords.
 report.customFoods = (db.customFoods ?? []).filter((f) => doomedIds.has(f.ownerUserId)).length;
+// Follows use followerId/followingId; comment reports use reporterId — neither has userId.
+report.follows = (db.follows ?? []).filter((f) => doomedIds.has(f.followerId) || doomedIds.has(f.followingId)).length;
+report.commentReports = (db.commentReports ?? []).filter((r) => doomedIds.has(r.reporterId)).length;
 report.users = doomed.length;
 
 // Orphan check: a kept class coached by a doomed user would break. Shouldn't
@@ -95,6 +99,8 @@ for (const key of BY_USER_ID) {
 }
 db.messages = (db.messages ?? []).filter((m) => !doomedIds.has(m.memberId));
 if (Array.isArray(db.customFoods)) db.customFoods = db.customFoods.filter((f) => !doomedIds.has(f.ownerUserId));
+if (Array.isArray(db.follows)) db.follows = db.follows.filter((f) => !doomedIds.has(f.followerId) && !doomedIds.has(f.followingId));
+if (Array.isArray(db.commentReports)) db.commentReports = db.commentReports.filter((r) => !doomedIds.has(r.reporterId));
 
 writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
 

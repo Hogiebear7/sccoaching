@@ -58,7 +58,8 @@ export type Capability =
   | "programs.manage" // assign/edit member training programs (Workout A/B/C/D blocks)
   | "nutrition.manage" // assign/edit member nutrition targets (calories/macros)
   | "foodCatalog.manage" // moderate the shared common/branded food catalog
-  | "bugReports.manage"; // TRIAL-ONLY — triage trial-period bug reports, see docs/bug-reports.md
+  | "bugReports.manage" // TRIAL-ONLY — triage trial-period bug reports, see docs/bug-reports.md
+  | "comments.moderate"; // review/remove reported Community comments
 
 // The MINIMUM role each capability requires. Because roles are hierarchical, a
 // higher role automatically satisfies everything a lower one can do.
@@ -94,6 +95,8 @@ const CAPABILITY_MIN_ROLE: Record<Capability, StaffRole> = {
   "foodCatalog.manage": "admin",
   // All-hands triage during the trial period — same tier as classes.manage.
   "bugReports.manage": "coach",
+  // Any coach can act on a reported comment — same tier as bugReports.manage.
+  "comments.moderate": "coach",
 };
 
 export function can(role: UserRole | string | null | undefined, capability: Capability): boolean {
@@ -117,4 +120,5 @@ export const NAV_CAPABILITY: Record<string, Capability> = {
   "/staff/reports": "reports.view",
   "/staff/nutrition-submissions": "foodCatalog.manage",
   "/staff/bug-reports": "bugReports.manage",
+  "/staff/community-reports": "comments.moderate",
 };
