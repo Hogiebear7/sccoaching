@@ -23,6 +23,20 @@ interface ResetTokenRecord {
   createdAt: string;
 }
 
+// Single-use, 60s-lived token that hands a member's identity across the OS
+// browser boundary when the mobile app opens a web page that needs a real
+// session (e.g. "Manage membership on web") — mints via an authenticated
+// mobile call, redeemed once by app/api/auth/web-handoff/route.ts to set the
+// real session cookie. Same tokenHash-only-on-disk discipline as
+// ResetTokenRecord, just far shorter-lived since it's consumed within one
+// browser hop rather than emailed and held onto.
+interface MobileHandoffTokenRecord {
+  tokenHash: string;
+  userId: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
 // A member requesting a change of their account email — the new address is
 // only ever applied once they click the link sent TO THAT NEW ADDRESS (never
 // the old one), which is what actually proves they control it. Same
@@ -1609,6 +1623,7 @@ interface Database {
   users: StoredUser[];
   profiles: ProfileRecord[];
   resetTokens: ResetTokenRecord[];
+  mobileHandoffTokens: MobileHandoffTokenRecord[];
   emailChangeRequests: EmailChangeRequestRecord[];
   invites: InviteRecord[];
   programmes: ProgrammeRecord[];
@@ -1688,6 +1703,7 @@ const configuredDataDir = getConfiguredDataDir();
 const DATA_DIR = configuredDataDir ? path.resolve(configuredDataDir) : path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
+const MOBILE_HANDOFF_TOKEN_TTL_MS = 60 * 1000;
 const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // Longer than a password reset — this is a member deliberately checking a
 // different inbox, not an urgent security action, so a tighter window would
@@ -1734,6 +1750,7 @@ function readDb(): Database {
       users: [],
       profiles: [],
       resetTokens: [],
+      mobileHandoffTokens: [],
       emailChangeRequests: [],
       invites: [],
       programmes: [],
@@ -1845,6 +1862,7 @@ function readDb(): Database {
       country: p.country ?? null,
     })),
     resetTokens: parsed.resetTokens ?? [],
+    mobileHandoffTokens: parsed.mobileHandoffTokens ?? [],
     emailChangeRequests: parsed.emailChangeRequests ?? [],
     invites: parsed.invites ?? [],
     programmes: parsed.programmes ?? [],
@@ -2107,7 +2125,7 @@ export function setUserArchived(userId: string, archived: boolean): boolean {
 // "permanent" deletion silently left their food diary behind. If you add a
 // new `{ userId, ... }` collection to the DB schema, add it here too.
 const MEMBER_OWNED_COLLECTIONS = [
-  "profiles", "resetTokens", "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
+  "profiles", "resetTokens", "mobileHandoffTokens", "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
   "workoutSessions", "aiMessages", "bodyWeightLogs", "bodyFatLogs", "bookings", "noShows",
   "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
@@ -3237,6 +3255,52 @@ export function consumeResetToken(token: string): string | undefined {
   writeDb(db);
 
   return userId;
+}
+
+// ─── Mobile → web session handoff ───────────────────────────────────────
+// See MobileHandoffTokenRecord above — same shape as the reset-token pair
+// just above, minted fresh for every handoff rather than reused.
+
+export function createMobileHandoffToken(userId: string): { token: string; expiresAt: string } {
+  const db = readDb();
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + MOBILE_HANDOFF_TOKEN_TTL_MS).toISOString();
+
+  db.mobileHandoffTokens.push({
+    tokenHash: hashToken(token),
+    userId,
+    expiresAt,
+    createdAt: new Date().toISOString(),
+  });
+
+  writeDb(db);
+
+  return { token, expiresAt };
+}
+
+export function consumeMobileHandoffToken(token: string): string | undefined {
+  const db = readDb();
+  const now = new Date().toISOString();
+
+  // Drop expired tokens before checking the submitted one.
+  db.mobileHandoffTokens = db.mobileHandoffTokens.filter((entry) => entry.expiresAt > now);
+
+  const tokenHash = hashToken(token);
+  const match = db.mobileHandoffTokens.find((entry) => entry.tokenHash === tokenHash);
+
+  if (!match) {
+    writeDb(db);
+    return undefined;
+  }
+
+  // Single-use — remove just this entry (unlike a reset token, there's no
+  // reason another outstanding handoff token for the same user would be
+  // stale/dangerous, so siblings are left alone).
+  db.mobileHandoffTokens = db.mobileHandoffTokens.filter((entry) => entry.tokenHash !== tokenHash);
+
+  writeDb(db);
+
+  return match.userId;
 }
 
 // ─── Email change ───────────────────────────────────────────────────────

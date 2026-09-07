@@ -48,13 +48,13 @@ const doomedIds = new Set(doomed.map((u) => u.id));
 
 // Mirrors MEMBER_OWNED_COLLECTIONS in lib/db.ts — keep in sync.
 const BY_USER_ID = [
-  "profiles", "resetTokens", "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
+  "profiles", "resetTokens", "mobileHandoffTokens", "emailChangeRequests", "programmes", "trainingPrograms", "gymProfiles",
   "workoutSessions", "aiMessages", "bodyWeightLogs", "bodyFatLogs", "bookings", "noShows",
   "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
   "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
-  "recipes", "shoppingListItems",
+  "recipes", "shoppingListItems", "googlePlayPurchases",
 ];
 
 const report = {};
