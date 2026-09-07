@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { getConfiguredAppUrl } from "@/lib/app-config";
 import { consumeMobileHandoffToken } from "@/lib/db";
 import { signSession } from "@/lib/session";
 
@@ -21,16 +22,22 @@ function safeNextPath(value: string | null): string {
 // token degrades to the normal login screen — same as if the member had
 // just tapped the button with no token at all — rather than erroring out.
 export async function GET(request: NextRequest) {
+  // Built from APP_URL rather than request.url: behind Hostinger's reverse
+  // proxy, request.url reflects the Node process's internal bind address
+  // (e.g. 0.0.0.0:3000), not the public domain — same issue already fixed
+  // in app/api/auth/logout/route.ts. Falling back to request.url only
+  // matters locally (dev has no proxy in front of it).
+  const base = getConfiguredAppUrl() || request.url;
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
   const next = safeNextPath(url.searchParams.get("next"));
 
   const userId = token ? consumeMobileHandoffToken(token) : undefined;
   if (!userId) {
-    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, request.url));
+    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, base));
   }
 
-  const response = NextResponse.redirect(new URL(next, request.url));
+  const response = NextResponse.redirect(new URL(next, base));
 
   response.cookies.set("session", signSession({ userId }), {
     httpOnly: true,
