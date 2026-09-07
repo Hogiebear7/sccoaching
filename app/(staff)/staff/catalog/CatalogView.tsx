@@ -345,7 +345,7 @@ function RowActions({
 // ── Forms ──
 function Field({ label: l, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className={label}>{l}</span>
       {children}
       {hint ? <span className="mt-1 block text-[11px] leading-snug text-muted-foreground/80">{hint}</span> : null}
@@ -446,7 +446,7 @@ function PackageForm({
         onAltChange={setImageAlt}
         hint="Optional — shown on the public landing page card. A placeholder is used if none is set."
       />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         <Field label="Type" hint="Membership = recurring; Pass/Top-up = one-off.">
           <select className={input} value={packageType} onChange={(e) => setType(e.target.value as typeof packageType)}><option value="membership">Membership</option><option value="pass">Pass</option><option value="top_up">Top-up</option></select>
         </Field>
@@ -471,7 +471,7 @@ function PackageForm({
         </div>
         <span className="mt-1 block text-[11px] leading-snug text-muted-foreground/80">Leave none selected to allow all class types.</span>
       </fieldset>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         <Field label="Sort"><input type="number" className={input} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></Field>
         <Field label="Stripe product ID" hint="Optional. Paste from your Stripe dashboard to link this package to a Stripe Product.">
           <input className={input} value={stripeProductId} onChange={(e) => setStripeProductId(e.target.value)} placeholder="prod_…" />
@@ -484,7 +484,7 @@ function PackageForm({
           change checkout behaviour. Leave as In-person / Stripe (website) for normal Tier 1 gym memberships and
           class passes; use App-only for a Tier 2 subscription sold through Apple/Google.
         </p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid gap-2 sm:grid-cols-3">
           <Field label="Delivery">
             <select className={input} value={deliveryChannel} onChange={(e) => setDeliveryChannel(e.target.value as DeliveryChannel)}>
               {DELIVERY_CHANNEL_OPTIONS.map((c) => <option key={c} value={c}>{DELIVERY_CHANNEL_LABEL[c]}</option>)}
@@ -543,7 +543,7 @@ function BillingOptionForm({
       className={option ? "space-y-2" : "rounded-2xl border border-border/60 bg-white/[0.02] p-3 space-y-2"}
     >
       <h4 className="text-xs font-semibold text-muted-foreground">{option ? "Edit billing option" : "New billing option — a way to pay for this package"}</h4>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         <Field label="Label" hint="What members see, e.g. Monthly.">
           <input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Monthly" />
         </Field>
@@ -551,7 +551,7 @@ function BillingOptionForm({
           <select className={input} value={billingType} onChange={(e) => setBillingType(e.target.value as typeof billingType)}><option value="recurring">Recurring</option><option value="one_time">One-time</option></select>
         </Field>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         {billingType === "recurring" ? (
           <Field label="Renews every"><select className={input} value={interval} onChange={(e) => setInterval(e.target.value)}><option value="monthly">Month</option><option value="quarterly">3 months</option><option value="annual">Year</option></select></Field>
         ) : <div />}
@@ -560,7 +560,7 @@ function BillingOptionForm({
           <div className="w-20"><Field label="Currency" hint="ISO code."><input className={input} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3} placeholder="EUR" /></Field></div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         <Field label="Sort"><input type="number" className={input} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></Field>
         <Field label="Stripe price ID" hint="Optional. Paste a Stripe Price ID to charge that exact price; leave blank to charge the amount above.">
           <input className={input} value={stripePriceId} onChange={(e) => setStripePriceId(e.target.value)} placeholder="price_…" />
