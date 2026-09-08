@@ -320,7 +320,7 @@ function RowActions({
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   return (
-    <div className="flex shrink-0 flex-col items-end gap-2">
+    <div className={`flex min-w-0 flex-col items-end gap-2 ${editing ? "" : "shrink-0"}`}>
       <div className="flex flex-wrap justify-end gap-1.5">
         <button type="button" onClick={() => setEditing((e) => !e)} className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-accent">
           {editing ? "Close" : "Edit"}
