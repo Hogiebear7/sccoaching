@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
     data: {
+      discoverable: prefs?.discoverable ?? true,
       leaderboardVisible: prefs?.leaderboardVisible ?? true,
       showRealName: prefs?.showRealName ?? true,
     },
@@ -41,10 +42,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { leaderboardVisible, showRealName } = (body ?? {}) as Record<string, unknown>;
-  if (typeof leaderboardVisible !== "boolean" || typeof showRealName !== "boolean") {
+  const { discoverable, leaderboardVisible, showRealName } = (body ?? {}) as Record<string, unknown>;
+  if (
+    typeof discoverable !== "boolean" ||
+    typeof leaderboardVisible !== "boolean" ||
+    typeof showRealName !== "boolean"
+  ) {
     return NextResponse.json(
-      { success: false, message: "leaderboardVisible and showRealName must be booleans." },
+      { success: false, message: "discoverable, leaderboardVisible and showRealName must be booleans." },
       { status: 400 }
     );
   }
@@ -53,6 +58,7 @@ export async function POST(request: NextRequest) {
   const now = new Date().toISOString();
   saveCommunityPrivacy({
     userId: me.id,
+    discoverable,
     leaderboardVisible,
     showRealName,
     createdAt: existing?.createdAt ?? now,

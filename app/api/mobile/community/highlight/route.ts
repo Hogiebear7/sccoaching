@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
+import { communityDisplayName } from "@/lib/community-display-name";
 import { findRecentWin } from "@/lib/community-highlight";
 import {
   findBodyWeightLogsByUserId,
@@ -33,9 +34,15 @@ export async function GET(request: NextRequest) {
 
   const followingIds = findFollowingIds(me.id);
   if (followingIds.length > 0) {
+    // No discoverable gating here — this only ever surfaces a member the
+    // viewer already follows, which the discoverability policy grandfathers.
+    // showRealName still applies, same as every other Community surface.
     const members = followingIds.map((id) => ({
       userId: id,
-      fullName: findProfileByUserId(id)?.fullName?.trim() || "A member you follow",
+      fullName: communityDisplayName(
+        findProfileByUserId(id)?.fullName?.trim() || "A member you follow",
+        findCommunityPrivacyByUserId(id)
+      ),
       allSessions: findWorkoutSessionsByUserId(id),
     }));
 

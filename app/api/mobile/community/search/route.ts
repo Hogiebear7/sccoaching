@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findMembers, findProfileByUserId, findUserById, isFollowing } from "@/lib/db";
+import { communityDisplayName, isDiscoverable } from "@/lib/community-display-name";
+import { findCommunityPrivacyByUserId, findMembers, findProfileByUserId, findUserById, isFollowing } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_RESULTS = 20;
@@ -37,10 +38,12 @@ export async function GET(request: NextRequest) {
 
     const results = findMembers()
       .filter((u) => u.id !== me.id && !u.archivedAt && !isFollowing(me.id, u.id))
+      .map((u) => ({ user: u, privacy: findCommunityPrivacyByUserId(u.id) }))
+      .filter(({ privacy }) => isDiscoverable(privacy))
       .slice(0, MAX_SUGGESTIONS)
-      .map((u) => ({
-        userId: u.id,
-        fullName: findProfileByUserId(u.id)?.fullName ?? "Member",
+      .map(({ user, privacy }) => ({
+        userId: user.id,
+        fullName: communityDisplayName(findProfileByUserId(user.id)?.fullName ?? "Member", privacy),
         isFollowing: false,
       }));
 
@@ -49,12 +52,13 @@ export async function GET(request: NextRequest) {
 
   const results = findMembers()
     .filter((u) => u.id !== me.id && !u.archivedAt)
-    .map((u) => ({ user: u, profile: findProfileByUserId(u.id) }))
+    .map((u) => ({ user: u, profile: findProfileByUserId(u.id), privacy: findCommunityPrivacyByUserId(u.id) }))
     .filter(({ profile }) => (profile?.fullName ?? "").toLowerCase().includes(q))
+    .filter(({ privacy }) => isDiscoverable(privacy))
     .slice(0, MAX_RESULTS)
-    .map(({ user, profile }) => ({
+    .map(({ user, profile, privacy }) => ({
       userId: user.id,
-      fullName: profile?.fullName ?? "Member",
+      fullName: communityDisplayName(profile?.fullName ?? "Member", privacy),
       isFollowing: isFollowing(me.id, user.id),
     }));
 

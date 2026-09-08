@@ -7,11 +7,13 @@ import {
   createComment,
   createNotification,
   findCommentsByWorkoutSessionId,
+  findCommunityPrivacyByUserId,
   findProfileByUserId,
   findUserById,
   findWorkoutSessionById,
   type NotificationRecord,
 } from "@/lib/db";
+import { communityDisplayName } from "@/lib/community-display-name";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
 
@@ -33,7 +35,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const comments = findCommentsByWorkoutSessionId(id).map((c) => ({
     id: c.id,
     userId: c.userId,
-    authorName: findProfileByUserId(c.userId)?.fullName?.trim() || "Member",
+    authorName: communityDisplayName(
+      findProfileByUserId(c.userId)?.fullName?.trim() || "Member",
+      findCommunityPrivacyByUserId(c.userId)
+    ),
     body: c.body,
     mentionedUserIds: c.mentionedUserIds,
     createdAt: c.createdAt,
@@ -93,7 +98,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   };
   createComment(comment);
 
-  const myName = findProfileByUserId(me.id)?.fullName?.trim() || "Someone";
+  const myName = communityDisplayName(
+    findProfileByUserId(me.id)?.fullName?.trim() || "Someone",
+    findCommunityPrivacyByUserId(me.id)
+  );
   // Native-only route, no web dashboard equivalent — mobile's
   // mapLinkHrefToRoute passes any /community/... href through unchanged.
   const linkHref = `/community/workout/${target.id}`;

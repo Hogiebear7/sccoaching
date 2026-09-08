@@ -6,6 +6,7 @@
 // layer — recomputed per request, same as lib/workouts.ts's
 // computePersonalBests, which is fine at single-gym scale.
 
+import { communityDisplayName } from "./community-display-name";
 import { workoutVolumeKg } from "./member-stats";
 import { computePersonalBests, findPersonalBestByKeywords } from "./workouts";
 import type { CommunityPrivacyRecord, WorkoutSessionRecord } from "./db";
@@ -43,18 +44,6 @@ export interface LeaderboardEntry {
   bodyweightPct: number | null;
 }
 
-// Real name, or first name + last initial when the member has opted out —
-// same "quiet degrade rather than hide entirely" spirit as everywhere else
-// privacy is handled in this app.
-function displayNameFor(fullName: string, privacy: CommunityPrivacyRecord | undefined): string {
-  const trimmed = fullName.trim();
-  if (privacy?.showRealName !== false) return trimmed;
-
-  const parts = trimmed.split(/\s+/).filter(Boolean);
-  if (parts.length <= 1) return trimmed;
-  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
-}
-
 export function computeLeaderboard(
   metric: LeaderboardMetric,
   members: LeaderboardMemberInput[]
@@ -66,7 +55,7 @@ export function computeLeaderboard(
     // confirmed with the member; only an explicit false hides them.
     if (privacy?.leaderboardVisible === false) continue;
 
-    const displayName = displayNameFor(fullName, privacy);
+    const displayName = communityDisplayName(fullName, privacy);
 
     if (metric === "volume") {
       const value = sessions.reduce((sum, session) => sum + workoutVolumeKg(session), 0);

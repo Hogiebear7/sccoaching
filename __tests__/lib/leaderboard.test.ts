@@ -43,6 +43,7 @@ function member(overrides: Partial<LeaderboardMemberInput> = {}): LeaderboardMem
 function privacy(overrides: Partial<CommunityPrivacyRecord> = {}): CommunityPrivacyRecord {
   return {
     userId: "user-1",
+    discoverable: true,
     leaderboardVisible: true,
     showRealName: true,
     createdAt: "2026-01-01T00:00:00.000Z",

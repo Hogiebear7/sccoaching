@@ -1248,10 +1248,20 @@ export interface FollowRecord {
 // CyclePrivacyPreferencesRecord (lib/profile-schema.ts) — private-by-default
 // patterns elsewhere in this app all follow this template. Here the
 // defaults are the opposite (visible-by-default, confirmed with the
-// member): a MISSING record means visible/real-name, so existing members
-// need no migration/backfill.
+// member): a MISSING record means all three fields are true, so existing
+// members need no migration/backfill.
+//
+// The three fields are independent axes, never implying one another:
+// `discoverable` gates being found (search, suggested-members, new follow
+// attempts) — it never restricts what the member can do themselves, and
+// never affects an already-existing follow relationship. `leaderboardVisible`
+// gates leaderboard ranking presence only. `showRealName` is a uniform
+// display rule applied wherever this member's name appears in Community
+// (leaderboard, search, suggested-members, activity feed, comments) —
+// never whether they appear, only how their name is rendered when they do.
 export interface CommunityPrivacyRecord {
   userId: string;
+  discoverable: boolean;
   leaderboardVisible: boolean;
   showRealName: boolean;
   createdAt: string;

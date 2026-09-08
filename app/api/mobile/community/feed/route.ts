@@ -4,12 +4,14 @@ import type { NextRequest } from "next/server";
 import {
   countCommentsByWorkoutSessionId,
   countLikesByWorkoutSessionId,
+  findCommunityPrivacyByUserId,
   findFollowingIds,
   findProfileByUserId,
   findUserById,
   findWorkoutSessionsByUserId,
   hasLikedWorkoutSession,
 } from "@/lib/db";
+import { communityDisplayName } from "@/lib/community-display-name";
 import { sessionPbExerciseName } from "@/lib/community-highlight";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computePersonalBests } from "@/lib/workouts";
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest) {
     return {
       id: s.id,
       userId: s.userId,
-      authorName: profile?.fullName?.trim() || "Member",
+      authorName: communityDisplayName(profile?.fullName?.trim() || "Member", findCommunityPrivacyByUserId(s.userId)),
       date: s.date,
       title: s.title,
       exercises: s.exercises,
