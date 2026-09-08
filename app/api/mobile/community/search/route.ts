@@ -5,6 +5,7 @@ import { findMembers, findProfileByUserId, findUserById, isFollowing } from "@/l
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_RESULTS = 20;
+const MAX_SUGGESTIONS = 5;
 
 // GET /api/mobile/community/search?q=
 // Member-facing "find someone to follow" search — the only member-facing
@@ -22,9 +23,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
-  const q = (new URL(request.url).searchParams.get("q") ?? "").trim().toLowerCase();
+  const url = new URL(request.url);
+  const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+
+  // Blank query: the search sheet itself asks for nothing back (a member
+  // hasn't typed anything to search for yet). The Community screen's empty
+  // Activity state asks for a small set of members to follow instead — a
+  // few real people, not a "find people" void — via `suggested=1`.
   if (!q) {
-    return NextResponse.json({ success: true, data: { results: [] } });
+    if (url.searchParams.get("suggested") !== "1") {
+      return NextResponse.json({ success: true, data: { results: [] } });
+    }
+
+    const results = findMembers()
+      .filter((u) => u.id !== me.id && !u.archivedAt && !isFollowing(me.id, u.id))
+      .slice(0, MAX_SUGGESTIONS)
+      .map((u) => ({
+        userId: u.id,
+        fullName: findProfileByUserId(u.id)?.fullName ?? "Member",
+        isFollowing: false,
+      }));
+
+    return NextResponse.json({ success: true, data: { results } });
   }
 
   const results = findMembers()
