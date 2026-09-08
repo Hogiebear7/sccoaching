@@ -168,9 +168,6 @@ export function CatalogBrowser({
                           <span className="text-display text-[22px] leading-none tabular-nums text-zinc-50">
                             {formatPriceCents(from.amountCents)}
                           </span>
-                          {from.billingType === "one_time" ? (
-                            <span className="ml-1 text-xs text-muted-foreground">one-off</span>
-                          ) : null}
                         </>
                       ) : (
                         <span className="text-xs text-muted-foreground">Coming soon</span>
