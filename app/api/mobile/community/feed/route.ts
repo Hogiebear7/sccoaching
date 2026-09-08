@@ -10,7 +10,9 @@ import {
   findWorkoutSessionsByUserId,
   hasLikedWorkoutSession,
 } from "@/lib/db";
+import { sessionPbExerciseName } from "@/lib/community-highlight";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { computePersonalBests } from "@/lib/workouts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -36,14 +38,25 @@ export async function GET(request: NextRequest) {
 
   const followingIds = findFollowingIds(me.id);
 
-  const allSessions = followingIds
-    .flatMap((id) => findWorkoutSessionsByUserId(id).filter((s) => !s.isPrivate))
+  // Cache each followed member's full session history + all-time bests once
+  // — the feed page only needs a handful of sessions, but "is this a PB"
+  // requires knowing the author's complete history, not just this page.
+  const sessionsByAuthor = new Map(followingIds.map((id) => [id, findWorkoutSessionsByUserId(id)]));
+  const bestsByAuthor = new Map(
+    followingIds.map((id) => [id, computePersonalBests(sessionsByAuthor.get(id) ?? [])])
+  );
+
+  const allSessions = [...sessionsByAuthor.values()]
+    .flat()
+    .filter((s) => !s.isPrivate)
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 
   const page = allSessions.slice(offset, offset + limit);
 
   const items = page.map((s) => {
     const profile = findProfileByUserId(s.userId);
+    const bests = bestsByAuthor.get(s.userId) ?? [];
+    const personalBestExercise = sessionPbExerciseName(s, bests);
     return {
       id: s.id,
       userId: s.userId,
@@ -56,6 +69,8 @@ export async function GET(request: NextRequest) {
       likeCount: countLikesByWorkoutSessionId(s.id),
       commentCount: countCommentsByWorkoutSessionId(s.id),
       likedByMe: hasLikedWorkoutSession(me.id, s.id),
+      isPersonalBest: personalBestExercise !== null,
+      personalBestExercise,
       createdAt: s.createdAt,
     };
   });

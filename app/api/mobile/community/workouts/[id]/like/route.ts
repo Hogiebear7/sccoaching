@@ -38,6 +38,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (liked && target.userId !== me.id) {
     const myProfile = findProfileByUserId(me.id);
+    // /community/workout/[id] is a native-only route (no web dashboard
+    // equivalent) — mobile's mapLinkHrefToRoute passes any /community/...
+    // href through unchanged, same as the existing /log-workout passthrough.
+    const linkHref = `/community/workout/${target.id}`;
     const notification: NotificationRecord = {
       id: randomUUID(),
       userId: target.userId,
@@ -45,7 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       title: `${myProfile?.fullName?.trim() || "Someone"} liked your workout`,
       body: target.title,
       readAt: null,
-      linkHref: null,
+      linkHref,
       dedupeKey: null,
       createdAt: new Date().toISOString(),
     };
@@ -53,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const ownerProfile = findProfileByUserId(target.userId);
     if (ownerProfile?.pushNotificationsEnabled !== false) {
-      void sendPush(target.userId, { title: notification.title, body: notification.body, linkHref: "" });
+      void sendPush(target.userId, { title: notification.title, body: notification.body, linkHref });
     }
   }
 

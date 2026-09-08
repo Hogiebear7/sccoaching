@@ -49,6 +49,8 @@ export async function POST(request: NextRequest) {
   followUser(me.id, userId);
 
   const myProfile = findProfileByUserId(me.id);
+  // No specific content to deep-link to (there's no per-member profile
+  // screen) — the Community root is the honest target here.
   const notification: NotificationRecord = {
     id: randomUUID(),
     userId,
@@ -56,7 +58,7 @@ export async function POST(request: NextRequest) {
     title: `${myProfile?.fullName?.trim() || "Someone"} started following you`,
     body: "Check out their profile in Community.",
     readAt: null,
-    linkHref: null,
+    linkHref: "/community",
     dedupeKey: null,
     createdAt: new Date().toISOString(),
   };
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
 
   const targetProfile = findProfileByUserId(userId);
   if (targetProfile?.pushNotificationsEnabled !== false) {
-    void sendPush(userId, { title: notification.title, body: notification.body, linkHref: "" });
+    void sendPush(userId, { title: notification.title, body: notification.body, linkHref: "/community" });
   }
 
   return NextResponse.json({ success: true, message: "Following." });

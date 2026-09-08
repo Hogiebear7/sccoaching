@@ -94,6 +94,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   createComment(comment);
 
   const myName = findProfileByUserId(me.id)?.fullName?.trim() || "Someone";
+  // Native-only route, no web dashboard equivalent — mobile's
+  // mapLinkHrefToRoute passes any /community/... href through unchanged.
+  const linkHref = `/community/workout/${target.id}`;
 
   // Notify the workout owner (unless they're commenting on their own),
   // then each mentioned member (skipping the owner if also mentioned, to
@@ -109,14 +112,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       title: `${myName} commented on your workout`,
       body: cleanBody,
       readAt: null,
-      linkHref: null,
+      linkHref,
       dedupeKey: null,
       createdAt: now,
     };
     createNotification(notification);
     const ownerProfile = findProfileByUserId(target.userId);
     if (ownerProfile?.pushNotificationsEnabled !== false) {
-      void sendPush(target.userId, { title: notification.title, body: notification.body, linkHref: "" });
+      void sendPush(target.userId, { title: notification.title, body: notification.body, linkHref });
     }
   }
 
@@ -129,14 +132,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       title: `${myName} mentioned you in a comment`,
       body: cleanBody,
       readAt: null,
-      linkHref: null,
+      linkHref,
       dedupeKey: null,
       createdAt: now,
     };
     createNotification(notification);
     const mentionedProfile = findProfileByUserId(mentionedId);
     if (mentionedProfile?.pushNotificationsEnabled !== false) {
-      void sendPush(mentionedId, { title: notification.title, body: notification.body, linkHref: "" });
+      void sendPush(mentionedId, { title: notification.title, body: notification.body, linkHref });
     }
   }
 
