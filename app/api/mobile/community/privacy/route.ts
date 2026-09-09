@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
       discoverable: prefs?.discoverable ?? true,
       leaderboardVisible: prefs?.leaderboardVisible ?? true,
       showRealName: prefs?.showRealName ?? true,
+      // Only meaningful for a staff account — absent/false for a member is
+      // fine since this field is never read for them.
+      communityOptIn: prefs?.communityOptIn ?? false,
     },
   });
 }
@@ -42,7 +45,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { discoverable, leaderboardVisible, showRealName } = (body ?? {}) as Record<string, unknown>;
+  const { discoverable, leaderboardVisible, showRealName, communityOptIn } = (body ?? {}) as Record<
+    string,
+    unknown
+  >;
   if (
     typeof discoverable !== "boolean" ||
     typeof leaderboardVisible !== "boolean" ||
@@ -53,14 +59,19 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-
+  // Optional and lenient (unlike the three above) — already-shipped mobile
+  // clients don't send it yet, and it's only ever meaningful for staff.
+  // Falls back to whatever was already stored, defaulting false.
   const existing = findCommunityPrivacyByUserId(me.id);
+  const resolvedCommunityOptIn = typeof communityOptIn === "boolean" ? communityOptIn : existing?.communityOptIn ?? false;
+
   const now = new Date().toISOString();
   saveCommunityPrivacy({
     userId: me.id,
     discoverable,
     leaderboardVisible,
     showRealName,
+    communityOptIn: resolvedCommunityOptIn,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });

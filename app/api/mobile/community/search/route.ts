@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { communityDisplayName, isDiscoverable } from "@/lib/community-display-name";
-import { findCommunityPrivacyByUserId, findMembers, findProfileByUserId, findUserById, isFollowing } from "@/lib/db";
+import {
+  findCommunityEligibleUsers,
+  findCommunityPrivacyByUserId,
+  findProfileByUserId,
+  findUserById,
+  isFollowing,
+} from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_RESULTS = 20;
@@ -36,7 +42,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: { results: [] } });
     }
 
-    const results = findMembers()
+    const results = findCommunityEligibleUsers()
       .filter((u) => u.id !== me.id && !u.archivedAt && !isFollowing(me.id, u.id))
       .map((u) => ({ user: u, privacy: findCommunityPrivacyByUserId(u.id) }))
       .filter(({ privacy }) => isDiscoverable(privacy))
@@ -50,7 +56,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: { results } });
   }
 
-  const results = findMembers()
+  const results = findCommunityEligibleUsers()
     .filter((u) => u.id !== me.id && !u.archivedAt)
     .map((u) => ({ user: u, profile: findProfileByUserId(u.id), privacy: findCommunityPrivacyByUserId(u.id) }))
     .filter(({ profile }) => (profile?.fullName ?? "").toLowerCase().includes(q))

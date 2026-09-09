@@ -3,8 +3,8 @@ import type { NextRequest } from "next/server";
 
 import {
   findBodyWeightLogsByUserId,
+  findCommunityEligibleUsers,
   findCommunityPrivacyByUserId,
-  findMembers,
   findProfileByUserId,
   findUserById,
   findWorkoutSessionsByUserId,
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     ? (metricParam as LeaderboardMetric)
     : "volume";
 
-  const members: LeaderboardMemberInput[] = findMembers()
+  const members: LeaderboardMemberInput[] = findCommunityEligibleUsers()
     .filter((u) => !u.archivedAt)
     .map((u) => {
       const profile = findProfileByUserId(u.id);

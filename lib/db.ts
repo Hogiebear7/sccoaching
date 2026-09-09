@@ -1259,11 +1259,19 @@ export interface FollowRecord {
 // display rule applied wherever this member's name appears in Community
 // (leaderboard, search, suggested-members, activity feed, comments) —
 // never whether they appear, only how their name is rendered when they do.
+// `communityOptIn` is the reverse-default fourth field: it only means
+// anything for a staff account (coach/admin/admin_manager). A member is
+// always Community-eligible — this field is unused/ignored for them.
+// Staff are excluded by default and must explicitly opt in; once they do,
+// the other three fields apply to them exactly as they would a member
+// (full parity), defaulting true the same way. Absent = false for staff,
+// the one field on this record where absence does NOT mean "on."
 export interface CommunityPrivacyRecord {
   userId: string;
   discoverable: boolean;
   leaderboardVisible: boolean;
   showRealName: boolean;
+  communityOptIn?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -2140,6 +2148,26 @@ export function findAnyStaffUser(): StoredUser | undefined {
 export function findMembers(): StoredUser[] {
   const db = readDb();
   return db.users.filter((user) => user.role === "member");
+}
+
+// Every member (always eligible) plus any staff user who has explicitly
+// opted into Community via CommunityPrivacyRecord.communityOptIn — the
+// candidate pool for every Community surface (search, suggested-members,
+// leaderboard, follow targets), in place of findMembers() specifically
+// within lib/api/mobile/community/**.
+export function findCommunityEligibleUsers(): StoredUser[] {
+  const db = readDb();
+  const optedInStaffIds = new Set(
+    db.communityPrivacy.filter((p) => p.communityOptIn === true).map((p) => p.userId)
+  );
+  return db.users.filter((user) => user.role === "member" || optedInStaffIds.has(user.id));
+}
+
+// Whether this specific user can be a NEW follow/community target — a
+// member always can; a staff user only if they've opted in.
+export function isCommunityEligible(user: StoredUser): boolean {
+  if (user.role === "member") return true;
+  return findCommunityPrivacyByUserId(user.id)?.communityOptIn === true;
 }
 
 // How many users currently hold a given role.

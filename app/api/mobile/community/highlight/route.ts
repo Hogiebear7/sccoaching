@@ -6,9 +6,9 @@ import { communityDisplayName } from "@/lib/community-display-name";
 import { findRecentWin } from "@/lib/community-highlight";
 import {
   findBodyWeightLogsByUserId,
+  findCommunityEligibleUsers,
   findCommunityPrivacyByUserId,
   findFollowingIds,
-  findMembers,
   findProfileByUserId,
   findUserById,
   findWorkoutSessionsByUserId,
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 
   // Fall back to the member's own Volume leaderboard position — still
   // "community," still motivating, still grounded in real data.
-  const leaderboardMembers: LeaderboardMemberInput[] = findMembers()
+  const leaderboardMembers: LeaderboardMemberInput[] = findCommunityEligibleUsers()
     .filter((u) => !u.archivedAt)
     .map((u) => {
       const profile = findProfileByUserId(u.id);

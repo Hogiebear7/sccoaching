@@ -9,6 +9,7 @@ import {
   findProfileByUserId,
   findUserById,
   followUser,
+  isCommunityEligible,
   isFollowing,
   type NotificationRecord,
 } from "@/lib/db";
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
   }
 
   const target = findUserById(userId);
-  if (!target || target.role !== "member") {
+  if (!target || !isCommunityEligible(target)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
 
