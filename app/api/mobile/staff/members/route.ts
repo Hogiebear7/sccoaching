@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { getStaffMembersData } from "@/lib/staff-members-data";
@@ -17,5 +18,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }
 
-  return NextResponse.json({ success: true, data: getStaffMembersData() });
+  const members = getStaffMembersData().filter((m) => sameGym(staffUser, { gymId: findUserById(m.userId)?.gymId }));
+  return NextResponse.json({ success: true, data: members });
 }

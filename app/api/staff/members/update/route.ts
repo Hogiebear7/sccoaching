@@ -7,6 +7,7 @@ import {
   saveProfile,
   updateUserEmail,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import {
   isFemaleGender,
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
 
   const targetUser = findUserById(userId);
 
-  if (!targetUser) {
+  if (!targetUser || !sameGym(staffUser, targetUser)) {
     return NextResponse.json(
       { success: false, message: "Member not found." },
       { status: 404 }

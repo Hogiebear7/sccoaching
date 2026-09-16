@@ -11,6 +11,7 @@ import type {
   UserRole,
   WeeklyTrainingScheduleRecord,
 } from "@/lib/profile-schema";
+import type { GymRecord } from "@/lib/gyms-schema";
 import { isStaffRole } from "@/lib/permissions";
 import { getConfiguredDataDir } from "@/lib/app-config";
 
@@ -1750,6 +1751,7 @@ interface Database {
   coachNotes: CoachNoteRecord[];
   membershipCategories: MembershipCategoryRecord[];
   membershipPackages: MembershipPackageRecord[];
+  gyms: GymRecord[];
   membershipBillingOptions: MembershipBillingOptionRecord[];
   subscriptions: SubscriptionRecord[];
   googlePlayPurchases: GooglePlayPurchaseRecord[];
@@ -1879,6 +1881,7 @@ function readDb(): Database {
       coachNotes: [],
       membershipCategories: [],
       membershipPackages: [],
+      gyms: [],
       membershipBillingOptions: [],
       subscriptions: [],
       googlePlayPurchases: [],
@@ -2019,6 +2022,7 @@ function readDb(): Database {
     attendanceWatchlist: parsed.attendanceWatchlist ?? [],
     coachNotes: parsed.coachNotes ?? [],
     membershipCategories: parsed.membershipCategories ?? [],
+    gyms: parsed.gyms ?? [],
     membershipPackages: (parsed.membershipPackages ?? []).map((pkg) => ({
       ...pkg,
       eligibleClassTypes: pkg.eligibleClassTypes ?? [],
@@ -2191,7 +2195,8 @@ export function createUser(email: string, passwordHash: string): StoredUser {
 export function createUserWithRole(
   email: string,
   passwordHash: string,
-  role: UserRole
+  role: UserRole,
+  gymId: string | null = null
 ): StoredUser {
   const db = readDb();
   const now = new Date().toISOString();
@@ -2202,6 +2207,7 @@ export function createUserWithRole(
     passwordHash,
     role,
     archivedAt: null,
+    gymId,
     createdAt: now,
     updatedAt: now,
   };
@@ -2232,6 +2238,21 @@ export function setUserArchived(userId: string, archived: boolean): boolean {
   if (!user) return false;
 
   user.archivedAt = archived ? new Date().toISOString() : null;
+  user.updatedAt = new Date().toISOString();
+  writeDb(db);
+  return true;
+}
+
+// Only ever called once, right after app/api/gyms/signup creates both the
+// new GymRecord and its owner's user account — the two can't be created
+// with the final cross-reference already in place (each needs the other's
+// freshly-generated id), so the owner's gymId is stamped on afterward.
+export function setUserGymId(userId: string, gymId: string | null): boolean {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return false;
+
+  user.gymId = gymId;
   user.updatedAt = new Date().toISOString();
   writeDb(db);
   return true;
@@ -4258,6 +4279,32 @@ export function saveMembershipPackage(pkg: MembershipPackageRecord) {
 export function deleteMembershipPackage(id: string) {
   const db = readDb();
   db.membershipPackages = db.membershipPackages.filter((p) => p.id !== id);
+  writeDb(db);
+}
+
+export function findGyms(): GymRecord[] {
+  return readDb().gyms.slice();
+}
+
+export function findGymById(id: string): GymRecord | undefined {
+  return readDb().gyms.find((g) => g.id === id);
+}
+
+export function findGymBySlug(slug: string): GymRecord | undefined {
+  return readDb().gyms.find((g) => g.slug === slug);
+}
+
+export function createGym(gym: GymRecord) {
+  const db = readDb();
+  db.gyms.push(gym);
+  writeDb(db);
+}
+
+export function saveGym(gym: GymRecord) {
+  const db = readDb();
+  const i = db.gyms.findIndex((g) => g.id === gym.id);
+  if (i === -1) db.gyms.push(gym);
+  else db.gyms[i] = gym;
   writeDb(db);
 }
 

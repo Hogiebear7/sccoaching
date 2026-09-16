@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { AI_USAGE_RANGES, summarizeAiUsage, type AiUsageRange } from "@/lib/ai-usage";
 import { findAiUsageLogsByUserId, findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { userId } = await params;
   const member = findUserById(userId);
-  if (!member) {
+  if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
   if (!staffCanViewMemberData(userId)) {

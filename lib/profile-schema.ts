@@ -47,6 +47,15 @@ export interface UserRecord {
   // ledger) stays intact and auditable. Optional so pre-existing records
   // without the field read as "not archived".
   archivedAt?: string | null;
+  // Which gym (lib/gyms-schema.ts) this account belongs to — a member's own
+  // training relationship, or a staff account's employer. Optional/null
+  // means "the primary gym" (S&C Performance Coaching, see
+  // lib/primary-gym.ts) — every pre-existing account implicitly belongs
+  // there, so this needs no backfill migration; only a self-serve gym
+  // signup ever sets a real value. Scoping is checked via
+  // lib/gym-scope.ts's sameGym(), never by comparing this field directly,
+  // so "null means primary" stays a single well-known rule.
+  gymId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findMessagesByMemberId, findProfileByUserId, findUserById, markMemberMessagesReadByStaff } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { memberId } = await params;
   const member = findUserById(memberId);
-  if (!member) {
+  if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
   if (!staffCanViewMemberData(memberId)) {

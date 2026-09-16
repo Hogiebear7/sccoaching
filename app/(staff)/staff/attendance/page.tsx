@@ -1,4 +1,5 @@
 import { findAllBookings, findAttendanceWatchlist, findMembers, findProfileByUserId } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { can } from "@/lib/permissions";
@@ -8,7 +9,7 @@ export default async function StaffAttendancePage() {
   const staffUser = await requireStaffPage("members.view");
   const canManageWatchlist = can(staffUser.role, "classes.manage");
 
-  const allMembers = findMembers();
+  const allMembers = findMembers().filter((m) => sameGym(staffUser, m));
   // Attendance is coaching insight into a member's own activity — walled the
   // same as everything else in lib/member-tier-wall.ts.
   const activeMembers = allMembers.filter((m) => !m.archivedAt && staffCanViewMemberData(m.id));
@@ -33,7 +34,9 @@ export default async function StaffAttendancePage() {
     .sort((a, b) => b.classesAttended - a.classesAttended || a.name.localeCompare(b.name));
 
   const watchlist = findAttendanceWatchlist()
-    .filter((entry) => staffCanViewMemberData(entry.userId))
+    // allMembers is already gym-scoped, so checking membership there covers
+    // the gym check; staffCanViewMemberData covers the tier wall.
+    .filter((entry) => allMembers.some((m) => m.id === entry.userId) && staffCanViewMemberData(entry.userId))
     .map((entry) => {
       const member = allMembers.find((m) => m.id === entry.userId);
       const profile = findProfileByUserId(entry.userId);

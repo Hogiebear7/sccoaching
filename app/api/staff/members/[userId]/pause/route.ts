@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findSubscriptionByUserId, findUserById, saveSubscription } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { pauseProviderSubscription, resumeProviderSubscription } from "@/lib/billing";
@@ -34,7 +35,7 @@ export async function POST(
 
   const { userId } = await params;
   const member = findUserById(userId);
-  if (!member) {
+  if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
 

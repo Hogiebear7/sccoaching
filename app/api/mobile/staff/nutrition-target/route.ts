@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findNutritionTargetByUserId, findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -20,6 +21,10 @@ export async function GET(request: NextRequest) {
   const userId = request.nextUrl.searchParams.get("userId");
   if (!userId) {
     return NextResponse.json({ success: false, message: "userId is required." }, { status: 400 });
+  }
+  const target = findUserById(userId);
+  if (!target || !sameGym(staffUser, target)) {
+    return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
   if (!staffCanViewMemberData(userId)) {
     return NextResponse.json(

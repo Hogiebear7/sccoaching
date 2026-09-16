@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -20,11 +21,17 @@ export async function GET(request: NextRequest) {
 
   const userId = request.nextUrl.searchParams.get("userId") ?? undefined;
 
-  if (userId && !staffCanViewMemberData(userId)) {
-    return NextResponse.json(
-      { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
-      { status: 403 }
-    );
+  if (userId) {
+    const target = findUserById(userId);
+    if (!target || !sameGym(staffUser, target)) {
+      return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
+    }
+    if (!staffCanViewMemberData(userId)) {
+      return NextResponse.json(
+        { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
+        { status: 403 }
+      );
+    }
   }
 
   // Unfiltered when no userId — same "collapse, don't hide" treatment as the
@@ -32,6 +39,11 @@ export async function GET(request: NextRequest) {
   const programs = getStaffTrainingPrograms(userId);
   return NextResponse.json({
     success: true,
-    data: userId ? programs : programs.filter((p) => staffCanViewMemberData(p.userId)),
+    data: userId
+      ? programs
+      : programs.filter((p) => {
+          const owner = findUserById(p.userId);
+          return !!owner && sameGym(staffUser, owner) && staffCanViewMemberData(p.userId);
+        }),
   });
 }

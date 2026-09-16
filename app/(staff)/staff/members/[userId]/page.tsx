@@ -1,5 +1,6 @@
 import { resolveMemberTier, resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
+import { sameGym } from "@/lib/gym-scope";
 import { can } from "@/lib/permissions";
 import { requireStaffPage } from "@/lib/staff-auth";
 import Link from "next/link";
@@ -70,7 +71,10 @@ export default async function StaffMemberDetailPage({
   const { userId } = await params;
   const user = findUserById(userId);
 
-  if (!user) {
+  // A member at a different gym reads as "not found," not "found but
+  // walled" — see lib/gym-scope.ts. Distinct from the tier wall below,
+  // which does show that a (same-gym) member exists.
+  if (!user || !sameGym(staffUser, user)) {
     return (
       <section className="space-y-6">
         <Link href="/staff/members" className="text-sm text-gold transition hover:text-gold/80">

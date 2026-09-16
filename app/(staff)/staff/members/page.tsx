@@ -1,5 +1,6 @@
 import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { AGE_BRACKETS, AGE_BRACKET_LABEL, ageBracketForAge, ageFromDateOfBirth } from "@/lib/finance-shared";
+import { sameGym } from "@/lib/gym-scope";
 import { can } from "@/lib/permissions";
 import { requireStaffPage } from "@/lib/staff-auth";
 import {
@@ -16,7 +17,11 @@ export default async function StaffMembersPage() {
   const canManageBilling = can(staffUser.role, "members.billing");
   const packages = findMembershipPackages().filter((p) => p.visible);
 
-  const members = findMembers();
+  // A staff account only ever sees members at their own gym — see
+  // lib/gym-scope.ts. Every pre-existing account (staff and member alike)
+  // implicitly belongs to the primary gym, so this is a no-op until a
+  // second gym's staff/members actually exist.
+  const members = findMembers().filter((m) => sameGym(staffUser, m));
 
   const rows = members.map((member) => {
     const profile = findProfileByUserId(member.id);

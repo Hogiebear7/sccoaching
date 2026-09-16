@@ -9,6 +9,7 @@ import {
   type NutritionTargetMode,
   type NutritionTargetRecord,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "A member must be selected." }, { status: 400 });
   }
   const member = findUserById(userId);
-  if (!member) {
+  if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
   if (!staffCanViewMemberData(member.id)) {
