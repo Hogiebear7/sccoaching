@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { findMessageThreadSummaries, findProfileByUserId, findUserById } from "@/lib/db";
+import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { requireStaffPage } from "@/lib/staff-auth";
 
 function relativeTime(iso: string): string {
@@ -22,6 +23,11 @@ export default async function StaffMessagesPage() {
     .map((summary) => {
       const member = findUserById(summary.memberId);
       if (!member) return null;
+      // Free/App Subscription tier members' threads stay behind the same
+      // wall as the rest of their data (see lib/member-tier-wall.ts) — this
+      // mostly matters for pre-existing history from before an upgrade or
+      // downgrade, since the send route already blocks new messages.
+      if (!staffCanViewMemberData(member.id)) return null;
       const profile = findProfileByUserId(member.id);
       return {
         ...summary,

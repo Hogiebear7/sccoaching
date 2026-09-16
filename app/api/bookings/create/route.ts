@@ -75,6 +75,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Free/App Subscription tier members never see this in the first place
+  // (booking is a Membership-tier feature); this is specifically about a
+  // Membership-tier member who hasn't completed the post-upgrade emergency
+  // contact prompt yet (see complete-membership.tsx) — the one place that
+  // prompt is a hard block rather than skippable, since booking means
+  // actually being seen in person.
+  if (user.role === "member") {
+    const bookingUserProfile = findProfileByUserId(user.id);
+    if (!bookingUserProfile?.emergencyContactName || !bookingUserProfile?.emergencyContactPhone) {
+      return NextResponse.json(
+        { success: false, message: "Add an emergency contact before booking a class." },
+        { status: 403 }
+      );
+    }
+  }
+
   const { classId } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof classId !== "string" || !classId.trim()) {

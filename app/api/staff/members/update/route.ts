@@ -7,6 +7,7 @@ import {
   saveProfile,
   updateUserEmail,
 } from "@/lib/db";
+import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import {
   isFemaleGender,
   shouldShowSportPlayed,
@@ -97,6 +98,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, message: "No profile found for this member." },
       { status: 404 }
+    );
+  }
+
+  if (!staffCanViewMemberData(userId)) {
+    return NextResponse.json(
+      { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
+      { status: 403 }
     );
   }
 

@@ -86,15 +86,8 @@ export async function POST(request: Request) {
   if (typeof phone !== "string" || !phone.trim()) {
     return NextResponse.json({ success: false, message: "Phone number is required." }, { status: 400 });
   }
-  if (typeof emergencyContactName !== "string" || !emergencyContactName.trim()) {
-    return NextResponse.json({ success: false, message: "Emergency contact name is required." }, { status: 400 });
-  }
-  if (typeof emergencyContactPhone !== "string" || !emergencyContactPhone.trim()) {
-    return NextResponse.json(
-      { success: false, message: "Emergency contact phone number is required." },
-      { status: 400 }
-    );
-  }
+  // Emergency contact is not collected at signup — see the matching comment
+  // in app/api/auth/signup/route.ts.
   if (typeof gender !== "string" || !GENDER_VALUES.includes(gender as Gender)) {
     return NextResponse.json({ success: false, message: "A valid gender is required." }, { status: 400 });
   }
@@ -159,8 +152,10 @@ export async function POST(request: Request) {
     currentWeightKg: weightValue !== null && !Number.isNaN(weightValue) ? weightValue : null,
     heightCm: heightValue !== null && !Number.isNaN(heightValue) && heightValue > 0 ? heightValue : null,
     additionalInfo: typeof additionalInfo === "string" && additionalInfo.trim() ? additionalInfo.trim() : null,
-    emergencyContactName: (emergencyContactName as string).trim(),
-    emergencyContactPhone: (emergencyContactPhone as string).trim(),
+    emergencyContactName:
+      typeof emergencyContactName === "string" && emergencyContactName.trim() ? emergencyContactName.trim() : null,
+    emergencyContactPhone:
+      typeof emergencyContactPhone === "string" && emergencyContactPhone.trim() ? emergencyContactPhone.trim() : null,
     emergencyContact2Name:
       typeof emergencyContact2Name === "string" && emergencyContact2Name.trim() ? emergencyContact2Name.trim() : null,
     emergencyContact2Phone:

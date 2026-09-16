@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findUserById } from "@/lib/db";
+import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { getStaffMemberDetail } from "@/lib/staff-members-data";
@@ -21,6 +22,12 @@ export async function GET(
   }
 
   const { userId } = await params;
+  if (!staffCanViewMemberData(userId)) {
+    return NextResponse.json(
+      { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
+      { status: 403 }
+    );
+  }
   const data = getStaffMemberDetail(userId);
   if (!data) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });

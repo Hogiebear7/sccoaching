@@ -1,4 +1,5 @@
 import { findAllBookings, findAttendanceWatchlist, findMembers, findProfileByUserId } from "@/lib/db";
+import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { can } from "@/lib/permissions";
 import { AttendanceView } from "./AttendanceView";
@@ -8,7 +9,9 @@ export default async function StaffAttendancePage() {
   const canManageWatchlist = can(staffUser.role, "classes.manage");
 
   const allMembers = findMembers();
-  const activeMembers = allMembers.filter((m) => !m.archivedAt);
+  // Attendance is coaching insight into a member's own activity — walled the
+  // same as everything else in lib/member-tier-wall.ts.
+  const activeMembers = allMembers.filter((m) => !m.archivedAt && staffCanViewMemberData(m.id));
   const bookings = findAllBookings();
 
   const attendedCounts = new Map<string, number>();
@@ -29,19 +32,21 @@ export default async function StaffAttendancePage() {
     })
     .sort((a, b) => b.classesAttended - a.classesAttended || a.name.localeCompare(b.name));
 
-  const watchlist = findAttendanceWatchlist().map((entry) => {
-    const member = allMembers.find((m) => m.id === entry.userId);
-    const profile = findProfileByUserId(entry.userId);
-    return {
-      id: entry.id,
-      userId: entry.userId,
-      name: profile?.fullName ?? member?.email ?? "Unknown member",
-      email: member?.email ?? null,
-      monthKey: entry.monthKey,
-      missCount: entry.missCount,
-      addedAt: entry.addedAt,
-    };
-  });
+  const watchlist = findAttendanceWatchlist()
+    .filter((entry) => staffCanViewMemberData(entry.userId))
+    .map((entry) => {
+      const member = allMembers.find((m) => m.id === entry.userId);
+      const profile = findProfileByUserId(entry.userId);
+      return {
+        id: entry.id,
+        userId: entry.userId,
+        name: profile?.fullName ?? member?.email ?? "Unknown member",
+        email: member?.email ?? null,
+        monthKey: entry.monthKey,
+        missCount: entry.missCount,
+        addedAt: entry.addedAt,
+      };
+    });
 
   return <AttendanceView leaderboard={leaderboard} watchlist={watchlist} canManageWatchlist={canManageWatchlist} />;
 }
