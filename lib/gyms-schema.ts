@@ -36,6 +36,16 @@ export interface GymRecord {
       out). Never set to "active" by the signup flow itself — see
       lib/permissions.ts's "gyms.moderate" capability. */
   status: GymStatus;
+  /** The gym's OWN voluntary short-term availability — full, on a break, not
+      taking new enquiries right now — deliberately separate from `status`
+      above, which is S&C's admin moderation of the listing itself. Optional
+      so every pre-existing row (nothing has ever set this) reads as visible
+      without a backfill; check via `gym.acceptingNewEnquiries !== false`,
+      never a bare truthiness check, so `undefined` means "visible." Managed
+      via lib/permissions.ts's "gym.manageAvailability" capability and
+      app/api/mobile/gyms/my-gym/visibility/route.ts — no UI reaches this
+      yet (backend foundation only; see that route's own header comment). */
+  acceptingNewEnquiries?: boolean;
   createdAt: string;
   updatedAt: string;
 }
