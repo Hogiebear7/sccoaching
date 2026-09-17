@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   );
   const latestMemberMessage = memberMessages[memberMessages.length - 1]?.body ?? null;
 
-  const draft = await draftReply({ memberId: member.id, latestMemberMessage });
+  const draft = await draftReply({ memberId: member.id, latestMemberMessage, staffUserId: staffUser.id });
 
   return NextResponse.json(
     { success: true, configured: isAiConfigured(), draft },

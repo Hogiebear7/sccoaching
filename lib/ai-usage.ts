@@ -1,6 +1,14 @@
 import { randomUUID } from "crypto";
 
 import { createAiUsageLog, type AiFeature, type AiUsageLogRecord } from "./db";
+import { USD_TO_EUR, usdToEur } from "./finance-shared";
+
+// Re-exported for existing importers (e.g. __tests__/lib/ai-usage.test.ts) —
+// USD_TO_EUR/usdToEur now live in lib/finance-shared.ts (client-safe, no
+// Node dependency) since Finances' client view needs a client-safe currency
+// conversion too, and this file already imports createAiUsageLog from ./db
+// (Node's `fs`), making it unsafe to import from a "use client" file.
+export { USD_TO_EUR, usdToEur };
 
 // Per-million-token USD pricing, keyed by the exact model id passed to the
 // Anthropic API (see COACH_MODEL in lib/ai.ts). Anthropic bills in USD, so
@@ -18,16 +26,6 @@ const DEFAULT_PRICING = PRICING_USD_PER_MTOK["claude-opus-4-8"];
 
 function priceFor(model: string): { input: number; output: number } {
   return PRICING_USD_PER_MTOK[model] ?? DEFAULT_PRICING;
-}
-
-// Approximate mid-market USD->EUR rate — applied only at display time
-// (summarizeUsage below), never baked into a stored log, so updating this
-// constant never rewrites already-logged cost history in a currency the
-// call was never actually billed in.
-export const USD_TO_EUR = 0.86;
-
-export function usdToEur(usd: number): number {
-  return usd * USD_TO_EUR;
 }
 
 // Cache write/read multipliers on the base input rate — every prompt in
@@ -160,6 +158,12 @@ export interface AiUsageFeatureBreakdown {
 
 export interface AiUsageSummary {
   range: AiUsageRange;
+  /** The exact bounds this summary was filtered by (rangeBoundsISO's own
+      output) — carried through to the client so a displayed date label can
+      never drift from what the server actually filtered by. end is
+      exclusive, per rangeBoundsISO's contract. */
+  rangeStartISO: string | null;
+  rangeEndISO: string | null;
   totalCalls: number;
   totalCostEur: number;
   byFeature: AiUsageFeatureBreakdown[];
@@ -192,6 +196,8 @@ export function summarizeAiUsage(
 
   return {
     range,
+    rangeStartISO: start,
+    rangeEndISO: end,
     totalCalls: filtered.length,
     totalCostEur: usdToEur(totalCostUsd),
     byFeature,

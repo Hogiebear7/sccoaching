@@ -207,4 +207,18 @@ describe("summarizeAiUsage", () => {
     const logs = [makeLog({ createdAt: "2020-01-01T00:00:00.000Z" })];
     expect(summarizeAiUsage(logs, "all", now).totalCalls).toBe(1);
   });
+
+  it("carries the exact bounds it filtered by, for client-side display", () => {
+    const monthSummary = summarizeAiUsage([], "month", now);
+    expect(monthSummary.rangeStartISO).toBe(new Date(2026, 5, 1).toISOString());
+    expect(monthSummary.rangeEndISO).toBeNull();
+
+    const lastMonthSummary = summarizeAiUsage([], "last_month", now);
+    expect(lastMonthSummary.rangeStartISO).toBe(new Date(2026, 4, 1).toISOString());
+    expect(lastMonthSummary.rangeEndISO).toBe(new Date(2026, 5, 1).toISOString());
+
+    const allSummary = summarizeAiUsage([], "all", now);
+    expect(allSummary.rangeStartISO).toBeNull();
+    expect(allSummary.rangeEndISO).toBeNull();
+  });
 });

@@ -1444,12 +1444,13 @@ export type AiFeature =
 
 export interface AiUsageLogRecord {
   id: string;
-  /** The member this usage is attributed to. Null only for features with
-      no specific member subject (e.g. exercise-content generation, which
-      writes to the shared exercise library, not a member's own data).
-      Staff-initiated calls that are ABOUT a member (staff summary, staff
-      draft reply) are attributed to that member — the cost exists because
-      of their data, not the staff user who happened to trigger it. */
+  /** Who this usage is attributed to — a member's own AI feature use is
+      attributed to them; a staff-triggered feature (staff_member_summary,
+      staff_draft_reply — see lib/ai.ts) is attributed to the staff user who
+      triggered it, not the member it's about, since the cost exists because
+      of the coach's action, not something the member did. Null only for
+      features with no specific subject at all (e.g. exercise-content
+      generation, which writes to the shared exercise library). */
   userId: string | null;
   feature: AiFeature;
   model: string;
@@ -1505,7 +1506,13 @@ export type FinanceExpenseType =
   | "utilities"
   | "marketing"
   | "tax"
-  | "misc";
+  | "misc"
+  // Auto-generated from AiUsageLogRecord by lib/finance.ts's
+  // buildFinanceLedgerLines — never manually selectable (see
+  // finance-shared.ts's FINANCE_EXPENSE_TYPE_OPTIONS, which omits it), so a
+  // staff member can never duplicate an entry that's already computed from
+  // real usage.
+  | "ai_infrastructure";
 export type FinanceFeeType = "stripe_fee" | "apple_fee" | "google_fee" | "tax_withheld" | "other_fee";
 // "cleared" = money has actually moved (received or paid out) — the only
 // status counted in money-in/out/net totals and forecasts. "estimate" is for
@@ -2152,6 +2159,18 @@ export function findAnyStaffUser(): StoredUser | undefined {
 export function findMembers(): StoredUser[] {
   const db = readDb();
   return db.users.filter((user) => user.role === "member");
+}
+
+// Members list + AI-usage-tracking pool: role === "member" plus every staff
+// account (coach/admin/admin_manager) — so a coach's own AI usage (e.g.
+// staff_member_summary/staff_draft_reply, see lib/ai.ts) is visible from the
+// same place a member's is. Distinct from findMembers() (member-only), which
+// many other call sites (attendance, messages, tier-wall logic) must keep
+// using unchanged — do not fold this into findMembers() or touch its
+// existing callers.
+export function findMembersAndStaff(): StoredUser[] {
+  const db = readDb();
+  return db.users.filter((user) => user.role === "member" || isStaffRole(user.role));
 }
 
 // Every member (always eligible) plus any staff user who has explicitly

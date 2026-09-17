@@ -1,7 +1,7 @@
 import { resolveMemberTier, resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { sameGym } from "@/lib/gym-scope";
-import { can } from "@/lib/permissions";
+import { can, STAFF_ROLE_LABEL, type StaffRole } from "@/lib/permissions";
 import { requireStaffPage } from "@/lib/staff-auth";
 import Link from "next/link";
 
@@ -33,8 +33,6 @@ import { formatMembershipDate } from "@/lib/membership-status";
 import { buildDrinkMix, buildDrinkPlan } from "@/lib/nutrition";
 import { purchasedPassBalance } from "@/lib/payments";
 import { classPassBalance } from "@/lib/scheduling-status";
-import { formatExerciseLoad } from "@/lib/workout-entries";
-import { formatRun } from "@/app/(dashboard)/dashboard/workouts/shared/formatters";
 import {
   computePersonalBests,
   findPersonalBestByKeywords,
@@ -46,6 +44,7 @@ import { ChangeTierPanel } from "@/components/staff/ChangeTierPanel";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
 import { MemberAccountPanel } from "@/components/staff/MemberAccountPanel";
 import { MembershipStatusPanel } from "@/components/staff/MembershipStatusPanel";
+import { WorkoutHistoryPanel } from "@/components/staff/WorkoutHistoryPanel";
 import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
 import { DietaryRequirementsSummary } from "@/components/profile/DietaryRequirementsSummary";
 import { StaffMemberEditor } from "./StaffMemberEditor";
@@ -87,6 +86,47 @@ export default async function StaffMemberDetailPage({
             This member account no longer exists.
           </p>
         </div>
+      </section>
+    );
+  }
+
+  // A staff account (found via findMembersAndStaff on the list page) gets a
+  // deliberately minimal view here — none of the tier-wall/subscription/
+  // programme/workout machinery below applies to it. Account lifecycle
+  // (archive, role change) already has its own dedicated surface at
+  // /staff/staff-users, gated by staffUsers.manage — this branch links
+  // there rather than duplicating management UI that doesn't work for a
+  // staff row (app/api/staff/members/[userId]/archive/route.ts explicitly
+  // rejects non-member accounts).
+  if (user.role !== "member") {
+    const staffProfile = findProfileByUserId(user.id);
+    const canManageStaffUsers = can(staffUser.role, "staffUsers.manage");
+    return (
+      <section className="space-y-6">
+        <Link href="/staff/members" className="text-sm text-gold transition hover:text-gold/80">
+          ← Back to members
+        </Link>
+        <div>
+          <p className="label-caps">Staff account</p>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <h2 className="text-display text-[28px] leading-tight">{staffProfile?.fullName ?? user.email}</h2>
+            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+              {STAFF_ROLE_LABEL[user.role as StaffRole] ?? "Staff"}
+            </span>
+            {user.archivedAt ? (
+              <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+                Archived
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{user.email}</p>
+          {canManageStaffUsers ? (
+            <Link href="/staff/staff-users" className="mt-2 inline-block text-sm text-gold transition hover:text-gold/80">
+              Manage staff accounts →
+            </Link>
+          ) : null}
+        </div>
+        <AiUsagePanel memberId={user.id} />
       </section>
     );
   }
@@ -464,57 +504,7 @@ export default async function StaffMemberDetailPage({
           </div>
 
           {/* Workout history */}
-          <div className="panel p-6">
-            <h3 className="text-lg font-semibold">Workout history</h3>
-            {sessions.length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">No workouts logged yet.</p>
-            ) : (
-              <div className="mt-5 space-y-3">
-                {sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="well p-4"
-                  >
-                    <p className="text-xs text-muted-foreground">{session.date}</p>
-                    <h4 className="mt-1 text-base font-semibold">{session.title}</h4>
-                    {session.notes ? (
-                      <p className="mt-2 text-sm text-muted-foreground">{session.notes}</p>
-                    ) : null}
-                    {session.exercises.length > 0 || session.runs.length > 0 ? (
-                      <div className="mt-3 space-y-1 border-t border-border pt-3">
-                        {session.exercises.map((ex, i) => {
-                          const load = formatExerciseLoad(ex);
-                          return (
-                            <div key={i} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                              <span className="font-medium text-foreground">{ex.name}</span>
-                              {load ? <span className="text-xs text-muted-foreground">{load}</span> : null}
-                              {ex.notes ? (
-                                <span className="text-xs text-muted-foreground">— {ex.notes}</span>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                        {session.runs.map((run, i) => (
-                          <div key={`run-${i}`} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                            <span className="font-medium text-foreground">Run</span>
-                            <span className="text-xs text-muted-foreground">{formatRun(run)}</span>
-                            {run.notes ? (
-                              <span className="text-xs text-muted-foreground">— {run.notes}</span>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {session.durationMins !== null ? (
-                      <span className="mt-3 inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                        {session.durationMins} min
-                      </span>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <WorkoutHistoryPanel sessions={sessions} />
 
           {/* Recovery */}
           <div className="panel p-6">

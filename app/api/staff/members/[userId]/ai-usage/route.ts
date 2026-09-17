@@ -34,7 +34,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
-  if (!staffCanViewMemberData(userId)) {
+  // The tier wall only ever makes sense for a member-tier account — a staff
+  // account has no subscription tier at all, and staffCanViewMemberData
+  // would otherwise misread it as "free" and 403 nonsensically. sameGym and
+  // members.view above still gate a staff row's AI usage exactly like a
+  // member's.
+  if (member.role === "member" && !staffCanViewMemberData(userId)) {
     return NextResponse.json(
       { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
       { status: 403 }

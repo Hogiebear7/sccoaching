@@ -4,7 +4,7 @@ import { sameGym } from "@/lib/gym-scope";
 import { can } from "@/lib/permissions";
 import { requireStaffPage } from "@/lib/staff-auth";
 import {
-  findMembers,
+  findMembersAndStaff,
   findMembershipPackages,
   findProfileByUserId,
   findSubscriptionByUserId,
@@ -17,16 +17,22 @@ export default async function StaffMembersPage() {
   const canManageBilling = can(staffUser.role, "members.billing");
   const packages = findMembershipPackages().filter((p) => p.visible);
 
-  // A staff account only ever sees members at their own gym — see
-  // lib/gym-scope.ts. Every pre-existing account (staff and member alike)
-  // implicitly belongs to the primary gym, so this is a no-op until a
-  // second gym's staff/members actually exist.
-  const members = findMembers().filter((m) => sameGym(staffUser, m));
+  // A staff account only ever sees members (and other staff) at their own
+  // gym — see lib/gym-scope.ts. Every pre-existing account (staff and
+  // member alike) implicitly belongs to the primary gym, so this is a no-op
+  // until a second gym's staff/members actually exist. findMembersAndStaff
+  // (not findMembers) so every staff account's own AI usage is reachable
+  // from this same list — see lib/db.ts's comment on that function.
+  const members = findMembersAndStaff().filter((m) => sameGym(staffUser, m));
 
   const rows = members.map((member) => {
     const profile = findProfileByUserId(member.id);
-    const sub = findSubscriptionByUserId(member.id);
-    const plan = resolveSubscriptionEntitlement(sub);
+    const isStaffRow = member.role !== "member";
+    // Subscription/billing concepts don't apply to a staff account — left
+    // null rather than relying on these lookups implicitly returning
+    // nothing for a staff id.
+    const sub = isStaffRow ? undefined : findSubscriptionByUserId(member.id);
+    const plan = isStaffRow ? undefined : resolveSubscriptionEntitlement(sub);
 
     return {
       userId: member.id,
@@ -34,17 +40,19 @@ export default async function StaffMembersPage() {
       fullName: profile?.fullName ?? null,
       joinedAt: member.createdAt,
       archivedAt: member.archivedAt ?? null,
-      currentPackageId: sub?.packageId ?? null,
-      currentPlanName: plan?.name ?? null,
-      currentStatus: sub?.status ?? null,
-      currentPeriodEnd: sub?.currentPeriodEnd ?? null,
-      currentRemainingSessions: plan && sub ? remainingSessions(plan, sub) : null,
+      role: member.role,
+      currentPackageId: isStaffRow ? null : (sub?.packageId ?? null),
+      currentPlanName: isStaffRow ? null : (plan?.name ?? null),
+      currentStatus: isStaffRow ? null : (sub?.status ?? null),
+      currentPeriodEnd: isStaffRow ? null : (sub?.currentPeriodEnd ?? null),
+      currentRemainingSessions: isStaffRow ? null : (plan && sub ? remainingSessions(plan, sub) : null),
     };
   });
 
-  // Demographics, not billing — active members only (archived accounts skew
-  // the "who's actually here" picture this breakdown is meant to answer).
-  const activeMembers = members.filter((m) => !m.archivedAt);
+  // Demographics, not billing — active MEMBERS only (archived accounts skew
+  // the "who's actually here" picture this breakdown is meant to answer,
+  // and staff have no meaningful demographic bracket for it at all).
+  const activeMembers = members.filter((m) => !m.archivedAt && m.role === "member");
   const bracketCounts = new Map<string, number>();
   for (const member of activeMembers) {
     const profile = findProfileByUserId(member.id);

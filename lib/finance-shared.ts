@@ -98,6 +98,7 @@ export const FINANCE_EXPENSE_TYPE_LABEL: Record<FinanceExpenseType, string> = {
   marketing: "Marketing",
   tax: "Tax",
   misc: "Misc",
+  ai_infrastructure: "AI infrastructure",
 };
 
 export const FINANCE_FEE_TYPE_LABEL: Record<FinanceFeeType, string> = {
@@ -145,9 +146,11 @@ export interface FinanceLine {
   notes: string | null;
   ageBracket: AgeBracket;
   /** Where this line actually came from — useful for the ledger table (e.g.
-      only allow edit/delete on "ledger" rows, never on webhook-derived
-      ones). */
-  origin: "revenue_event" | "purchase" | "ledger";
+      only allow edit/delete on "ledger" rows, never on webhook-derived or
+      usage-derived ones). "ai_usage" is a day-aggregated AiUsageLogRecord
+      total, synthesized by lib/finance.ts's buildFinanceLedgerLines —
+      never staff-editable, same as "revenue_event"/"purchase". */
+  origin: "revenue_event" | "purchase" | "ledger" | "ai_usage";
 }
 
 function isCleared(line: FinanceLine): boolean {
@@ -512,3 +515,36 @@ export function groupByAgeBracket(
     ...map.get(bracket)!,
   }));
 }
+
+// ─── AI usage cost (shared with lib/ai-usage.ts) ───────────────────────
+//
+// Lives here, not in lib/ai-usage.ts, because lib/ai-usage.ts imports
+// createAiUsageLog from ./db (Node's `fs`) at module scope — anything
+// exported from it is unsafe to import from a "use client" file. This file
+// is the one place already proven safe for the Finances client view to pull
+// from, so lib/ai-usage.ts imports usdToEur back from here rather than
+// defining its own copy.
+
+// Approximate mid-market USD->EUR rate — applied only at display time,
+// never baked into a stored AiUsageLogRecord, so updating this constant
+// never rewrites already-logged cost history in a currency the call was
+// never actually billed in.
+export const USD_TO_EUR = 0.86;
+
+export function usdToEur(usd: number): number {
+  return usd * USD_TO_EUR;
+}
+
+// Who an AiUsageLogRecord's cost is attributable to, for the Finances page's
+// "AI costs" breakdown — resolved server-side (app/(staff)/staff/finances/
+// page.tsx) from each log's userId via resolveMemberTier/isStaffRole, since
+// that resolution needs lib/db.ts and can't happen in this client-safe file.
+export type AiUsageCohort = "membership" | "app_subscription" | "staff" | "free" | "unattributed";
+
+export const AI_USAGE_COHORT_LABEL: Record<AiUsageCohort, string> = {
+  membership: "Membership tier",
+  app_subscription: "App Subscription tier",
+  staff: "Staff",
+  free: "Free tier",
+  unattributed: "Unattributed",
+};
