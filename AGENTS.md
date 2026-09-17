@@ -404,3 +404,11 @@ verify minimally,
 report clearly,
 
 then pause.
+
+White-label / tenant-scope reading requirement
+Before any work touching tenant or gym scope, branding, payments,
+memberships, staff permissions, provider discovery, messages, metrics, or
+multi-gym/white-label behaviour: read docs/white-label-platform-master-plan.md,
+docs/tenant-boundary-audit-2026-09.md, and docs/tenant-scope-checklist.md
+first. The master plan defines direction and constraints, not approval to
+implement it — work only the specific slice requested.
