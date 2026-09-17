@@ -11,6 +11,7 @@ import type {
   UserRole,
   WeeklyTrainingScheduleRecord,
 } from "@/lib/profile-schema";
+import type { GymRecord } from "@/lib/gyms-schema";
 import { isStaffRole } from "@/lib/permissions";
 import { getConfiguredDataDir } from "@/lib/app-config";
 
@@ -1443,12 +1444,13 @@ export type AiFeature =
 
 export interface AiUsageLogRecord {
   id: string;
-  /** The member this usage is attributed to. Null only for features with
-      no specific member subject (e.g. exercise-content generation, which
-      writes to the shared exercise library, not a member's own data).
-      Staff-initiated calls that are ABOUT a member (staff summary, staff
-      draft reply) are attributed to that member — the cost exists because
-      of their data, not the staff user who happened to trigger it. */
+  /** Who this usage is attributed to — a member's own AI feature use is
+      attributed to them; a staff-triggered feature (staff_member_summary,
+      staff_draft_reply — see lib/ai.ts) is attributed to the staff user who
+      triggered it, not the member it's about, since the cost exists because
+      of the coach's action, not something the member did. Null only for
+      features with no specific subject at all (e.g. exercise-content
+      generation, which writes to the shared exercise library). */
   userId: string | null;
   feature: AiFeature;
   model: string;
@@ -1504,7 +1506,13 @@ export type FinanceExpenseType =
   | "utilities"
   | "marketing"
   | "tax"
-  | "misc";
+  | "misc"
+  // Auto-generated from AiUsageLogRecord by lib/finance.ts's
+  // buildFinanceLedgerLines — never manually selectable (see
+  // finance-shared.ts's FINANCE_EXPENSE_TYPE_OPTIONS, which omits it), so a
+  // staff member can never duplicate an entry that's already computed from
+  // real usage.
+  | "ai_infrastructure";
 export type FinanceFeeType = "stripe_fee" | "apple_fee" | "google_fee" | "tax_withheld" | "other_fee";
 // "cleared" = money has actually moved (received or paid out) — the only
 // status counted in money-in/out/net totals and forecasts. "estimate" is for
@@ -1750,6 +1758,7 @@ interface Database {
   coachNotes: CoachNoteRecord[];
   membershipCategories: MembershipCategoryRecord[];
   membershipPackages: MembershipPackageRecord[];
+  gyms: GymRecord[];
   membershipBillingOptions: MembershipBillingOptionRecord[];
   subscriptions: SubscriptionRecord[];
   googlePlayPurchases: GooglePlayPurchaseRecord[];
@@ -1879,6 +1888,7 @@ function readDb(): Database {
       coachNotes: [],
       membershipCategories: [],
       membershipPackages: [],
+      gyms: [],
       membershipBillingOptions: [],
       subscriptions: [],
       googlePlayPurchases: [],
@@ -2019,6 +2029,7 @@ function readDb(): Database {
     attendanceWatchlist: parsed.attendanceWatchlist ?? [],
     coachNotes: parsed.coachNotes ?? [],
     membershipCategories: parsed.membershipCategories ?? [],
+    gyms: parsed.gyms ?? [],
     membershipPackages: (parsed.membershipPackages ?? []).map((pkg) => ({
       ...pkg,
       eligibleClassTypes: pkg.eligibleClassTypes ?? [],
@@ -2150,6 +2161,18 @@ export function findMembers(): StoredUser[] {
   return db.users.filter((user) => user.role === "member");
 }
 
+// Members list + AI-usage-tracking pool: role === "member" plus every staff
+// account (coach/admin/admin_manager) — so a coach's own AI usage (e.g.
+// staff_member_summary/staff_draft_reply, see lib/ai.ts) is visible from the
+// same place a member's is. Distinct from findMembers() (member-only), which
+// many other call sites (attendance, messages, tier-wall logic) must keep
+// using unchanged — do not fold this into findMembers() or touch its
+// existing callers.
+export function findMembersAndStaff(): StoredUser[] {
+  const db = readDb();
+  return db.users.filter((user) => user.role === "member" || isStaffRole(user.role));
+}
+
 // Every member (always eligible) plus any staff user who has explicitly
 // opted into Community via CommunityPrivacyRecord.communityOptIn — the
 // candidate pool for every Community surface (search, suggested-members,
@@ -2191,7 +2214,8 @@ export function createUser(email: string, passwordHash: string): StoredUser {
 export function createUserWithRole(
   email: string,
   passwordHash: string,
-  role: UserRole
+  role: UserRole,
+  gymId: string | null = null
 ): StoredUser {
   const db = readDb();
   const now = new Date().toISOString();
@@ -2202,6 +2226,7 @@ export function createUserWithRole(
     passwordHash,
     role,
     archivedAt: null,
+    gymId,
     createdAt: now,
     updatedAt: now,
   };
@@ -2232,6 +2257,21 @@ export function setUserArchived(userId: string, archived: boolean): boolean {
   if (!user) return false;
 
   user.archivedAt = archived ? new Date().toISOString() : null;
+  user.updatedAt = new Date().toISOString();
+  writeDb(db);
+  return true;
+}
+
+// Only ever called once, right after app/api/gyms/signup creates both the
+// new GymRecord and its owner's user account — the two can't be created
+// with the final cross-reference already in place (each needs the other's
+// freshly-generated id), so the owner's gymId is stamped on afterward.
+export function setUserGymId(userId: string, gymId: string | null): boolean {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return false;
+
+  user.gymId = gymId;
   user.updatedAt = new Date().toISOString();
   writeDb(db);
   return true;
@@ -4258,6 +4298,32 @@ export function saveMembershipPackage(pkg: MembershipPackageRecord) {
 export function deleteMembershipPackage(id: string) {
   const db = readDb();
   db.membershipPackages = db.membershipPackages.filter((p) => p.id !== id);
+  writeDb(db);
+}
+
+export function findGyms(): GymRecord[] {
+  return readDb().gyms.slice();
+}
+
+export function findGymById(id: string): GymRecord | undefined {
+  return readDb().gyms.find((g) => g.id === id);
+}
+
+export function findGymBySlug(slug: string): GymRecord | undefined {
+  return readDb().gyms.find((g) => g.slug === slug);
+}
+
+export function createGym(gym: GymRecord) {
+  const db = readDb();
+  db.gyms.push(gym);
+  writeDb(db);
+}
+
+export function saveGym(gym: GymRecord) {
+  const db = readDb();
+  const i = db.gyms.findIndex((g) => g.id === gym.id);
+  if (i === -1) db.gyms.push(gym);
+  else db.gyms[i] = gym;
   writeDb(db);
 }
 

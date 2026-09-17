@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { createMessage, createNotification, findProfileByUserId, findUserById, type MessageRecord, type NotificationRecord } from "@/lib/db";
+import { isMembershipTier } from "@/lib/member-access";
+import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { sendPush } from "@/lib/push";
 import { isStaffRole } from "@/lib/permissions";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -70,6 +72,17 @@ export async function POST(request: NextRequest) {
     resolvedMemberId = member.id;
   } else {
     resolvedMemberId = sender.id;
+
+    // Messaging a coach is a Membership-tier perk — Free and App Subscription
+    // members never reach a human here (see lib/member-tier-wall.ts for the
+    // matching staff-side read wall). Staff replying into an existing thread
+    // is unaffected; this only gates a member-initiated send.
+    if (!isMembershipTier(resolveMemberTierForUser(sender.id))) {
+      return NextResponse.json(
+        { success: false, message: "Messaging a coach is available on the Membership tier." },
+        { status: 403 }
+      );
+    }
   }
 
   const now = new Date().toISOString();

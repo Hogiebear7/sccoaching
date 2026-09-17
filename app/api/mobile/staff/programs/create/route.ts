@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findUserById, saveTrainingProgram, type TrainingProgramRecord } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
+import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { archiveOtherActivePrograms, parseProgramDays } from "@/lib/training-programs";
@@ -31,8 +33,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "A member must be selected." }, { status: 400 });
   }
   const member = findUserById(userId);
-  if (!member) {
+  if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
+  }
+  if (!staffCanViewMemberData(member.id)) {
+    return NextResponse.json(
+      { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
+      { status: 403 }
+    );
   }
 
   if (typeof name !== "string" || !name.trim()) {

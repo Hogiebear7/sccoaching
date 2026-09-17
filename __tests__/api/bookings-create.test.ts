@@ -22,6 +22,7 @@ const {
   mockFindPassLedgerByBookingId,
   mockFindWeeklyTrainingScheduleByUserId,
   mockSaveWeeklyTrainingSchedule,
+  mockFindProfileByUserId,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindClassById: vi.fn(),
@@ -41,13 +42,12 @@ const {
   mockFindPassLedgerByBookingId: vi.fn(),
   mockFindWeeklyTrainingScheduleByUserId: vi.fn(),
   mockSaveWeeklyTrainingSchedule: vi.fn(),
+  mockFindProfileByUserId: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
-  // Booking-confirmation email helper reads the member profile; undefined here
-  // makes the fire-and-forget email a no-op (these tests assert booking logic).
-  findProfileByUserId: vi.fn(),
+  findProfileByUserId: mockFindProfileByUserId,
   isTransactionalEmailEnabled: vi.fn(() => true),
   findClassById: mockFindClassById,
   findBookingsByUserId: mockFindBookingsByUserId,
@@ -83,6 +83,15 @@ vi.mock("@/lib/membership-entitlement", async (importActual) => ({
 }));
 
 const MEMBER_USER = { id: "user-1", email: "athlete@example.com", role: "member" as const };
+
+// Has an emergency contact by default so the existing booking-flow tests
+// below (none of which are about the emergency-contact gate) aren't
+// incidentally blocked by it — see the dedicated "emergency contact" tests
+// further down for that gate itself.
+const MEMBER_PROFILE_WITH_EMERGENCY_CONTACT = {
+  emergencyContactName: "Jane Smith",
+  emergencyContactPhone: "+353 83 000 0000",
+};
 
 const SOME_CLASS = {
   id: "class-1",
@@ -158,11 +167,13 @@ describe("POST /api/bookings/create", () => {
     mockFindPassLedgerByBookingId.mockReset();
     mockFindWeeklyTrainingScheduleByUserId.mockReset();
     mockSaveWeeklyTrainingSchedule.mockReset();
+    mockFindProfileByUserId.mockReset();
     mockFindWaitlistEntriesByClassId.mockReturnValue([]);
     mockFindPassLedgerByUserId.mockReturnValue([]);
     mockFindPassLedgerByBookingId.mockReturnValue([]);
     mockFindWeeklyTrainingScheduleByUserId.mockReturnValue(undefined);
     mockFindUserById.mockReturnValue(MEMBER_USER);
+    mockFindProfileByUserId.mockReturnValue(MEMBER_PROFILE_WITH_EMERGENCY_CONTACT);
     // No packages configured by default, so membership gating doesn't apply —
     // matches the pre-Block-B behavior for all the existing tests below.
     mockFindMembershipPackages.mockReturnValue([]);
@@ -184,6 +195,31 @@ describe("POST /api/bookings/create", () => {
 
     expect(res.status).toBe(400);
     expect(mockCreateBooking).not.toHaveBeenCalled();
+  });
+
+  it("blocks a member with no emergency contact from booking", async () => {
+    mockFindProfileByUserId.mockReturnValue({ emergencyContactName: null, emergencyContactPhone: null });
+    mockFindClassById.mockReturnValue(SOME_CLASS);
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    const res = await callBookingsCreate({ classId: "class-1" }, cookie);
+    const data = await res.json();
+
+    expect(res.status).toBe(403);
+    expect(data.message).toBe("Add an emergency contact before booking a class.");
+    expect(mockCreateBooking).not.toHaveBeenCalled();
+  });
+
+  it("allows a member with an emergency contact set to book", async () => {
+    mockFindClassById.mockReturnValue(SOME_CLASS);
+    mockFindBookingsByUserId.mockReturnValue([]);
+    mockFindBookingsByClassId.mockReturnValue([]);
+    const cookie = signSession({ userId: MEMBER_USER.id });
+
+    const res = await callBookingsCreate({ classId: "class-1" }, cookie);
+
+    expect(res.status).toBe(201);
+    expect(mockCreateBooking).toHaveBeenCalledTimes(1);
   });
 
   it("returns 404 when the class does not exist", async () => {

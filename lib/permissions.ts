@@ -59,7 +59,9 @@ export type Capability =
   | "nutrition.manage" // assign/edit member nutrition targets (calories/macros)
   | "foodCatalog.manage" // moderate the shared common/branded food catalog
   | "bugReports.manage" // TRIAL-ONLY — triage trial-period bug reports, see docs/bug-reports.md
-  | "comments.moderate"; // review/remove reported Community comments
+  | "comments.moderate" // review/remove reported Community comments
+  | "gyms.moderate" // approve/suspend a self-serve gym signup in the directory
+  | "gym.manageAvailability"; // toggle a gym's own acceptingNewEnquiries flag
 
 // The MINIMUM role each capability requires. Because roles are hierarchical, a
 // higher role automatically satisfies everything a lower one can do.
@@ -97,6 +99,13 @@ const CAPABILITY_MIN_ROLE: Record<Capability, StaffRole> = {
   "bugReports.manage": "coach",
   // Any coach can act on a reported comment — same tier as bugReports.manage.
   "comments.moderate": "coach",
+  // Approving a brand-new, unvetted third-party business onto the platform
+  // is at least as consequential as staffUsers.manage/finance.view — top
+  // role only.
+  "gyms.moderate": "admin_manager",
+  // Pulling a whole business off the discovery directory is a business-level
+  // decision, not a per-coach one — admin, same tier as catalog.manage.
+  "gym.manageAvailability": "admin",
 };
 
 export function can(role: UserRole | string | null | undefined, capability: Capability): boolean {

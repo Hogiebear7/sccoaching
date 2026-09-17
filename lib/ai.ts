@@ -236,11 +236,17 @@ export function createNutritionCoachChatStream(request: NutritionCoachChatReques
 
 export interface CoachSummaryContext {
   memberId: string;
+  /** The coach/admin generating this summary — AI cost is billed to them,
+      not the member being summarized (see recordAiUsageFromResponse below):
+      this is a staff action, not something the member incurred. */
+  staffUserId: string;
 }
 
 export interface DraftReplyContext {
   memberId: string;
   latestMemberMessage: string | null;
+  /** Same reasoning as CoachSummaryContext.staffUserId. */
+  staffUserId: string;
 }
 
 // Same grounding as the member chat (buildCoachingContext), built for a
@@ -306,7 +312,7 @@ export async function generateCoachSummary(
     messages: [{ role: "user", content: "Summarize this member for their coach." }],
   });
   recordAiUsageFromResponse({
-    userId: context.memberId,
+    userId: context.staffUserId,
     feature: "staff_member_summary",
     model: COACH_MODEL,
     usage: message.usage,
@@ -349,7 +355,7 @@ export async function draftReply(context: DraftReplyContext): Promise<string> {
     ],
   });
   recordAiUsageFromResponse({
-    userId: context.memberId,
+    userId: context.staffUserId,
     feature: "staff_draft_reply",
     model: COACH_MODEL,
     usage: message.usage,

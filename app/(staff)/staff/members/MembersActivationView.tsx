@@ -13,6 +13,8 @@ import {
   SUBSCRIPTION_STATUS_LABEL,
   SUBSCRIPTION_STATUS_STYLE,
 } from "@/lib/membership-status";
+import { STAFF_ROLE_LABEL, type StaffRole } from "@/lib/permissions";
+import type { UserRole } from "@/lib/profile-schema";
 import { formatRemainingSessions } from "@/lib/scheduling-status";
 
 export type MemberRow = {
@@ -21,6 +23,7 @@ export type MemberRow = {
   fullName: string | null;
   joinedAt: string;
   archivedAt: string | null;
+  role: UserRole;
   currentPackageId: string | null;
   currentPlanName: string | null;
   currentStatus: SubscriptionStatus | null;
@@ -89,12 +92,19 @@ export function MembersActivationView({
   const [page, setPage] = useState(0);
 
   const archivedCount = rows.filter((row) => row.archivedAt !== null).length;
+  const memberCount = rows.filter((row) => row.role === "member").length;
+  const staffCount = rows.length - memberCount;
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     const filtered = rows.filter((row) => {
       if (!showArchived && row.archivedAt !== null) return false;
+      // None of the expiry filters mean anything for a staff row (no
+      // subscription period to expire) — excluded rather than silently
+      // falling into "No expiry set", which would misleadingly imply they
+      // once had a subscription.
+      if (row.role !== "member" && expiryFilter !== "all") return false;
       if (!matchesExpiry(row, expiryFilter)) return false;
       if (!query) return true;
       // First name, last name, or email — a plain substring match covers all
@@ -138,7 +148,8 @@ export function MembersActivationView({
         <p className="label-caps">Staff</p>
         <h1 className="text-display mt-1 text-[28px] leading-tight">Members</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          {rows.length} member{rows.length === 1 ? "" : "s"} · use the detail link for full profile
+          {memberCount} member{memberCount === 1 ? "" : "s"}
+          {staffCount > 0 ? ` · ${staffCount} staff` : ""} · use the detail link for full profile
           and coach notes.
         </p>
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-300">
@@ -382,7 +393,11 @@ function MemberCard({
                 Archived
               </span>
             ) : null}
-            {row.currentStatus ? (
+            {row.role !== "member" ? (
+              <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
+                {STAFF_ROLE_LABEL[row.role as StaffRole] ?? "Staff"}
+              </span>
+            ) : row.currentStatus ? (
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                   periodLapsed
@@ -431,7 +446,7 @@ function MemberCard({
           >
             Details →
           </Link>
-          {canManageBilling && packages.length > 0 && row.archivedAt === null ? (
+          {canManageBilling && packages.length > 0 && row.archivedAt === null && row.role === "member" ? (
             <button
               type="button"
               onClick={() => {

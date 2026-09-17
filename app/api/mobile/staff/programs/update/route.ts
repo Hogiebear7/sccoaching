@@ -8,6 +8,8 @@ import {
   type TrainingProgramRecord,
   type TrainingProgramStatus,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
+import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { archiveOtherActivePrograms, parseProgramDays } from "@/lib/training-programs";
@@ -40,6 +42,16 @@ export async function POST(request: NextRequest) {
   const existing = findTrainingProgramById(id);
   if (!existing) {
     return NextResponse.json({ success: false, message: "Program not found." }, { status: 404 });
+  }
+  const owner = findUserById(existing.userId);
+  if (!owner || !sameGym(staffUser, owner)) {
+    return NextResponse.json({ success: false, message: "Program not found." }, { status: 404 });
+  }
+  if (!staffCanViewMemberData(existing.userId)) {
+    return NextResponse.json(
+      { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
+      { status: 403 }
+    );
   }
 
   if (typeof name !== "string" || !name.trim()) {

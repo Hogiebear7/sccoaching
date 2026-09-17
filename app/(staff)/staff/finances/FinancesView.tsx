@@ -7,6 +7,7 @@ import { formatPriceCents } from "@/lib/billing";
 import type { FinanceSettings } from "@/lib/db";
 import { formatMembershipDate } from "@/lib/membership-status";
 import {
+  AI_USAGE_COHORT_LABEL,
   FINANCE_ENTRY_STATUS_OPTIONS,
   FINANCE_EXPENSE_TYPE_LABEL,
   FINANCE_EXPENSE_TYPE_OPTIONS,
@@ -33,6 +34,8 @@ import {
   groupByIncomeType,
   groupByPackage,
   periodBoundsForPreset,
+  usdToEur,
+  type AiUsageCohort,
   type FinanceLine,
   type FinanceLineKind,
   type FinanceLineStatus,
@@ -57,7 +60,21 @@ async function post(url: string, body: unknown): Promise<{ ok: boolean; message:
   }
 }
 
-export function FinancesView({ lines, settings }: { lines: FinanceLine[]; settings: FinanceSettings }) {
+interface AiUsageCohortLog {
+  costUsd: number;
+  createdAt: string;
+  cohort: AiUsageCohort;
+}
+
+export function FinancesView({
+  lines,
+  settings,
+  aiUsageByCohort,
+}: {
+  lines: FinanceLine[];
+  settings: FinanceSettings;
+  aiUsageByCohort: AiUsageCohortLog[];
+}) {
   const [banner, setBanner] = useState<{ ok: boolean; message: string } | null>(null);
 
   async function run(fn: () => Promise<{ ok: boolean; message: string }>) {
@@ -109,6 +126,34 @@ export function FinancesView({ lines, settings }: { lines: FinanceLine[]; settin
   const byExpenseType = useMemo(() => groupByExpenseType(rangeLines), [rangeLines]);
   const byFeeType = useMemo(() => groupByFeeType(rangeLines), [rangeLines]);
   const byAge = useMemo(() => groupByAgeBracket(rangeLines), [rangeLines]);
+
+  // "Which cohort is driving the AI infrastructure expense already counted
+  // in Money out above" — filtered by the exact same range bounds as
+  // rangeLines, so this total always reconciles with the "AI infrastructure"
+  // row under Expenses by type rather than reading as a second, separate
+  // figure.
+  const aiUsageByCohortInRange = useMemo(
+    () =>
+      aiUsageByCohort.filter(
+        (l) => (!rangeFromISO || l.createdAt >= rangeFromISO) && (!rangeToISO || l.createdAt < rangeToISO)
+      ),
+    [aiUsageByCohort, rangeFromISO, rangeToISO]
+  );
+  const aiCostByCohort = useMemo(() => {
+    const map = new Map<AiUsageCohort, { calls: number; costUsd: number }>();
+    let totalCostUsd = 0;
+    for (const log of aiUsageByCohortInRange) {
+      totalCostUsd += log.costUsd;
+      const existing = map.get(log.cohort) ?? { calls: 0, costUsd: 0 };
+      existing.calls += 1;
+      existing.costUsd += log.costUsd;
+      map.set(log.cohort, existing);
+    }
+    const rows = [...map.entries()]
+      .map(([cohort, v]) => ({ cohort, calls: v.calls, costCents: Math.round(usdToEur(v.costUsd) * 100) }))
+      .sort((a, b) => b.costCents - a.costCents);
+    return { rows, totalCalls: aiUsageByCohortInRange.length, totalCostCents: Math.round(usdToEur(totalCostUsd) * 100) };
+  }, [aiUsageByCohortInRange]);
 
   const payrollCents = byExpenseType.find((r) => r.label === "payroll")?.amountCents ?? 0;
   const businessExpenseCents = rangeTotals.moneyOutCents - payrollCents;
@@ -270,6 +315,32 @@ export function FinancesView({ lines, settings }: { lines: FinanceLine[]; settin
               <Row key={row.label} label={FINANCE_EXPENSE_TYPE_LABEL[row.label as keyof typeof FINANCE_EXPENSE_TYPE_LABEL] ?? row.label} count={row.count} amountCents={row.amountCents} />
             ))}
           </div>
+        )}
+      </div>
+
+      {/* ── AI costs by cohort ── */}
+      <div className="panel p-6">
+        <h3 className="text-lg font-semibold">AI costs</h3>
+        <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+          Already included in Expenses by type above, under &quot;AI infrastructure&quot; — broken down here by who&apos;s
+          driving it.
+        </p>
+        {aiCostByCohort.rows.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">No AI usage in this range.</p>
+        ) : (
+          <>
+            <div className="mt-4 flex items-baseline gap-3">
+              <span className="text-2xl font-semibold tabular-nums">{formatPriceCents(aiCostByCohort.totalCostCents)}</span>
+              <span className="text-sm text-muted-foreground">
+                {aiCostByCohort.totalCalls} call{aiCostByCohort.totalCalls === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {aiCostByCohort.rows.map((row) => (
+                <Row key={row.cohort} label={AI_USAGE_COHORT_LABEL[row.cohort]} count={row.calls} amountCents={row.costCents} />
+              ))}
+            </div>
+          </>
         )}
       </div>
 

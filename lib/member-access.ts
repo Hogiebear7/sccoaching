@@ -50,6 +50,15 @@ export function hasAccess(tier: MemberTier, feature: MemberFeature): boolean {
   return TIER_RANK[tier] >= TIER_RANK[FEATURE_MIN_TIER[feature]];
 }
 
+// A second, deliberately separate axis from hasAccess()/TIER_RANK, whose
+// whole contract is "app_subscription and membership are interchangeable."
+// Some surfaces (human coach messaging, staff visibility into member data)
+// are membership-only — folding that into TIER_RANK would force auditing
+// every existing FEATURE_MIN_TIER entry, so it stays its own function.
+export function isMembershipTier(tier: MemberTier): boolean {
+  return tier === "membership";
+}
+
 // Free tier's custom-food/quick-add cap — enforced both server-side
 // (food/custom/create route) and, softer, client-side for an early heads-up
 // before the member fills out the whole form.

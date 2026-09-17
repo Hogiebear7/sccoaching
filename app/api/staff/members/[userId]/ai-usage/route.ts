@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 
 import { AI_USAGE_RANGES, summarizeAiUsage, type AiUsageRange } from "@/lib/ai-usage";
 import { findAiUsageLogsByUserId, findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
+import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -29,8 +31,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { userId } = await params;
   const member = findUserById(userId);
-  if (!member) {
+  if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
+  }
+  // The tier wall only ever makes sense for a member-tier account — a staff
+  // account has no subscription tier at all, and staffCanViewMemberData
+  // would otherwise misread it as "free" and 403 nonsensically. sameGym and
+  // members.view above still gate a staff row's AI usage exactly like a
+  // member's.
+  if (member.role === "member" && !staffCanViewMemberData(userId)) {
+    return NextResponse.json(
+      { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
+      { status: 403 }
+    );
   }
 
   const rangeParam = request.nextUrl.searchParams.get("range");

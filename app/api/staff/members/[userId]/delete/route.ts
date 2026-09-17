@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { deleteUserAndOwnedRecords, findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
 
 // PERMANENT deletion of an archived member and all of their owned records.
@@ -21,7 +22,7 @@ export async function POST(
   const { userId } = await params;
   const target = findUserById(userId);
 
-  if (!target) {
+  if (!target || !sameGym(auth.user, target)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
   if (target.role !== "member") {

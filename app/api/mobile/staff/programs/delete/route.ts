@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { deleteTrainingProgram, findTrainingProgramById, findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
+import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -27,8 +29,19 @@ export async function POST(request: NextRequest) {
   if (typeof id !== "string" || !id.trim()) {
     return NextResponse.json({ success: false, message: "id is required." }, { status: 400 });
   }
-  if (!findTrainingProgramById(id)) {
+  const existing = findTrainingProgramById(id);
+  if (!existing) {
     return NextResponse.json({ success: false, message: "Program not found." }, { status: 404 });
+  }
+  const owner = findUserById(existing.userId);
+  if (!owner || !sameGym(staffUser, owner)) {
+    return NextResponse.json({ success: false, message: "Program not found." }, { status: 404 });
+  }
+  if (!staffCanViewMemberData(existing.userId)) {
+    return NextResponse.json(
+      { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
+      { status: 403 }
+    );
   }
 
   deleteTrainingProgram(id);

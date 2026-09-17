@@ -10,6 +10,8 @@ interface AiUsageFeatureBreakdown {
 
 interface AiUsageSummary {
   range: string;
+  rangeStartISO: string | null;
+  rangeEndISO: string | null;
   totalCalls: number;
   totalCostEur: number;
   byFeature: AiUsageFeatureBreakdown[];
@@ -42,6 +44,25 @@ const FEATURE_LABEL: Record<string, string> = {
   programme_checkin: "Programme check-in",
   exercise_alternatives: "Exercise alternatives",
 };
+
+// Formats the exact bounds the server filtered by (see AiUsageSummary above)
+// so "Last month" etc. never has to be taken on faith — the server is the
+// single source of truth for what it actually filtered, this only formats
+// what it's given, so there's no way for the label to drift from the real
+// filter. rangeEndISO is exclusive per rangeBoundsISO's contract, hence the
+// -1 day to show the inclusive last day.
+function formatRangeLabel(startISO: string | null, endISO: string | null): string | null {
+  if (!startISO && !endISO) return null; // "all" — no bounds to show
+  const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  if (startISO && endISO) {
+    const inclusiveEnd = new Date(new Date(endISO).getTime() - 86_400_000);
+    const start = new Date(startISO);
+    const sameMonth = start.getMonth() === inclusiveEnd.getMonth() && start.getFullYear() === inclusiveEnd.getFullYear();
+    return sameMonth ? `${start.getDate()}–${fmt(inclusiveEnd)}` : `${fmt(start)} – ${fmt(inclusiveEnd)}`;
+  }
+  if (startISO) return `since ${fmt(new Date(startISO))}`;
+  return null;
+}
 
 // Small totals (most single ranges) round to nothing at 2dp, so show more
 // precision below €1 and settle to normal currency formatting above it.
@@ -87,6 +108,8 @@ export function AiUsagePanel({ memberId }: { memberId: string }) {
     };
   }, [memberId, range]);
 
+  const rangeLabel = summary ? formatRangeLabel(summary.rangeStartISO, summary.rangeEndISO) : null;
+
   return (
     <div className="panel p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -108,6 +131,8 @@ export function AiUsagePanel({ memberId }: { memberId: string }) {
           ))}
         </div>
       </div>
+
+      {rangeLabel ? <p className="mt-2 text-xs text-muted-foreground">{rangeLabel}</p> : null}
 
       {error ? (
         <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">

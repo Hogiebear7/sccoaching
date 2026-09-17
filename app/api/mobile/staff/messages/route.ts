@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findMessageThreadSummaries, findProfileByUserId, findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
+import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -23,6 +25,8 @@ export async function GET(request: NextRequest) {
     .map((summary) => {
       const member = findUserById(summary.memberId);
       if (!member) return null;
+      if (!sameGym(staffUser, member)) return null;
+      if (!staffCanViewMemberData(member.id)) return null;
       const profile = findProfileByUserId(member.id);
       return {
         memberId: summary.memberId,

@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const summary = await generateCoachSummary({ memberId: member.id });
+  const summary = await generateCoachSummary({ memberId: member.id, staffUserId: staffUser.id });
 
   return NextResponse.json(
     { success: true, configured: isAiConfigured(), summary },

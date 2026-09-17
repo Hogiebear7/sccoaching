@@ -22,13 +22,14 @@
 // components. Only import this file from server components/routes.
 
 import {
+  findAllAiUsageLogs,
   findAllFinanceLedgerEntries,
   findAllPurchases,
   findAllRevenueEvents,
   findMembershipPackageById,
   findProfileByUserId,
 } from "@/lib/db";
-import { ageBracketForAge, ageFromDateOfBirth, type AgeBracket, type FinanceLine } from "@/lib/finance-shared";
+import { ageBracketForAge, ageFromDateOfBirth, usdToEur, type AgeBracket, type FinanceLine } from "@/lib/finance-shared";
 
 export * from "@/lib/finance-shared";
 
@@ -113,5 +114,48 @@ export function buildFinanceLedgerLines(): FinanceLine[] {
     origin: "ledger",
   }));
 
-  return [...renewals, ...passPurchases, ...ledgerLines].sort((a, b) => b.date.localeCompare(a.date));
+  // AI infrastructure cost — real spend, treated as a real business expense
+  // (folds into Money out/Net after fees/forecasts below), aggregated one
+  // FinanceLine per calendar day with usage rather than one per call: an
+  // individual call is often a fraction of a cent, and hundreds of them
+  // would clutter the Transactions table at a granularity no other expense
+  // in this ledger uses. Attributed to no single member (a day spans many),
+  // so memberId/ageBracket stay null/"unknown" — see FinancesView.tsx's
+  // separate cohort breakdown for "who actually drove this."
+  const aiUsageByDay = new Map<string, { costUsd: number; calls: number }>();
+  for (const log of findAllAiUsageLogs()) {
+    const day = log.createdAt.slice(0, 10);
+    const existing = aiUsageByDay.get(day) ?? { costUsd: 0, calls: 0 };
+    existing.costUsd += log.costUsd;
+    existing.calls += 1;
+    aiUsageByDay.set(day, existing);
+  }
+  const aiUsageLines: FinanceLine[] = [...aiUsageByDay.entries()].map(([day, { costUsd, calls }]) => {
+    // Midday UTC — same anchoring LedgerEntryForm already uses for a
+    // manually-picked date, so range filtering treats this identically to
+    // every other date-only-precision line in the ledger.
+    const grossCents = Math.round(usdToEur(costUsd) * 100);
+    return {
+      id: `ai-usage-${day}`,
+      kind: "expense",
+      status: "cleared",
+      date: `${day}T12:00:00.000Z`,
+      currency: "eur",
+      grossCents,
+      feeCents: 0,
+      netCents: grossCents,
+      incomeSource: null,
+      incomeType: null,
+      expenseType: "ai_infrastructure",
+      feeType: null,
+      memberId: null,
+      packageName: null,
+      reference: null,
+      notes: `${calls} AI call${calls === 1 ? "" : "s"}`,
+      ageBracket: "unknown",
+      origin: "ai_usage",
+    };
+  });
+
+  return [...renewals, ...passPurchases, ...ledgerLines, ...aiUsageLines].sort((a, b) => b.date.localeCompare(a.date));
 }

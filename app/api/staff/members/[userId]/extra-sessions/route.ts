@@ -8,6 +8,7 @@ import {
   findUserById,
   saveSubscription,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { remainingSessions } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -49,7 +50,7 @@ export async function POST(
   const { userId } = await params;
   const member = findUserById(userId);
 
-  if (!member) {
+  if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json(
       { success: false, message: "Member not found." },
       { status: 404 }

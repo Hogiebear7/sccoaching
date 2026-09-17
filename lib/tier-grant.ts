@@ -35,7 +35,19 @@ export interface GrantTierResult {
 export async function grantMemberTier(
   userId: string,
   tier: MemberTier,
-  options?: { packageId?: string }
+  options?: {
+    packageId?: string;
+    billingOptionId?: string | null;
+    /** Defaults to "none" (manual/invite grant). Pass "google_play" when this
+        grant is the result of a verified Play Billing purchase. */
+    provider?: SubscriptionRecord["provider"];
+    providerSubscriptionId?: string | null;
+    currentPeriodEnd?: string | null;
+    /** Overrides the tier's normal resolved status — used to grant
+        "past_due" (Play grace period, member keeps access) or "paused"
+        rather than the default "active". */
+    status?: SubscriptionRecord["status"];
+  }
 ): Promise<GrantTierResult> {
   const existingSubscription = findSubscriptionByUserId(userId);
 
@@ -47,7 +59,7 @@ export async function grantMemberTier(
       return { ok: true, message: "This member is already on the Free tier.", tier: "free" };
     }
     resolvedPackageId = existingSubscription.packageId ?? null;
-    resolvedStatus = "canceled";
+    resolvedStatus = options?.status ?? "canceled";
   } else if (tier === "app_subscription") {
     const pkg = findMembershipPackages().find((p) => p.slug === APP_SUBSCRIPTION_PACKAGE_SLUG);
     if (!pkg) {
@@ -57,7 +69,7 @@ export async function grantMemberTier(
       };
     }
     resolvedPackageId = pkg.id;
-    resolvedStatus = "active";
+    resolvedStatus = options?.status ?? "active";
   } else {
     let pkg: MembershipPackageRecord | undefined;
     if (options?.packageId) {
@@ -80,10 +92,9 @@ export async function grantMemberTier(
     resolvedStatus === "active" &&
     (existingSubscription?.status !== "active" || existingSubscription?.packageId !== resolvedPackageId);
 
-  // A manual/invite grant always records provider: "none", but a live
-  // Stripe subscription being walked away from locally needs cancelling at
-  // the provider too, or Stripe keeps billing with nothing surfacing the
-  // mismatch.
+  // A manual/invite grant (the default, provider: "none") walking away from
+  // a live Stripe subscription needs to cancel it at the provider too, or
+  // Stripe keeps billing with nothing surfacing the mismatch.
   let providerCancelWarning: string | null = null;
 
   if (existingSubscription?.provider === "stripe" && existingSubscription.providerSubscriptionId) {
@@ -100,15 +111,20 @@ export async function grantMemberTier(
   const subscription: SubscriptionRecord = {
     userId,
     packageId: resolvedPackageId,
-    billingOptionId: existingSubscription?.billingOptionId ?? null,
+    billingOptionId:
+      options?.billingOptionId !== undefined ? options.billingOptionId : existingSubscription?.billingOptionId ?? null,
     status: resolvedStatus,
     pausedUntil: null,
     statusBeforePause: null,
-    provider: "none",
+    provider: options?.provider ?? "none",
     providerCustomerId: existingSubscription?.providerCustomerId ?? null,
-    providerSubscriptionId: existingSubscription?.providerSubscriptionId ?? null,
+    providerSubscriptionId:
+      options?.providerSubscriptionId !== undefined
+        ? options.providerSubscriptionId
+        : existingSubscription?.providerSubscriptionId ?? null,
     providerSetupOrderId: existingSubscription?.providerSetupOrderId ?? null,
-    currentPeriodEnd: existingSubscription?.currentPeriodEnd ?? null,
+    currentPeriodEnd:
+      options?.currentPeriodEnd !== undefined ? options.currentPeriodEnd : existingSubscription?.currentPeriodEnd ?? null,
     lastWebhookEventAt: existingSubscription?.lastWebhookEventAt ?? null,
     sessionsUsedThisPeriod: isEnteringFreshActivePeriod ? 0 : existingSubscription?.sessionsUsedThisPeriod ?? 0,
     extraSessionGrants: isEnteringFreshActivePeriod ? [] : existingSubscription?.extraSessionGrants ?? [],
