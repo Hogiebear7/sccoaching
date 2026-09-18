@@ -13,7 +13,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const h = vi.hoisted(() => ({
   findUserById: vi.fn(),
@@ -65,7 +65,7 @@ const GYM_A_COACH = { id: "coach-a", email: "coacha@x.test", role: "coach" as co
 const GYM_B_COACH = { id: "coach-b", email: "coachb@x.test", role: "coach" as const, gymId: "gym-b", archivedAt: null };
 const MEMBER_USER = { id: "member-1", email: "member@x.test", role: "member" as const, gymId: null, archivedAt: null };
 
-const auth = signSession({ userId: GYM_A_STAFF.id });
+const auth = signSession({ userId: GYM_A_STAFF.id }, MEMBER_SESSION_LIFETIME_MS);
 
 function usersById(...users: { id: string }[]) {
   const map = new Map(users.map((u) => [u.id, u]));
@@ -83,7 +83,7 @@ async function call(
   { body, params, sessionUserId = GYM_A_STAFF.id }: { body?: unknown; params?: Record<string, string>; sessionUserId?: string } = {}
 ) {
   const mod = routeFile === "" ? await import("@/app/api/staff/classes/route") : await import(`@/app/api/staff/classes/${routeFile}/route`);
-  const token = signSession({ userId: sessionUserId });
+  const token = signSession({ userId: sessionUserId }, MEMBER_SESSION_LIFETIME_MS);
   const req = new NextRequest(`http://localhost/api/staff/classes/${routeFile}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: `session=${token}` },

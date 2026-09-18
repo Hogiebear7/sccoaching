@@ -10,7 +10,7 @@ import {
 } from "@/lib/db";
 import type { GymRecord } from "@/lib/gyms-schema";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
-import { signSession } from "@/lib/session";
+import { STAFF_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -104,11 +104,12 @@ export async function POST(request: Request) {
     { status: 201 }
   );
 
-  response.cookies.set("session", signSession({ userId: owner.id }), {
+  response.cookies.set("session", signSession({ userId: owner.id }, STAFF_SESSION_LIFETIME_MS), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
     secure: process.env.NODE_ENV === "production",
+    maxAge: STAFF_SESSION_LIFETIME_MS / 1000,
   });
 
   return response;

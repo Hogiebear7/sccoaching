@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockIsAiConfigured, mockGenerateExerciseContent } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -55,7 +55,7 @@ describe("POST /api/staff/exercises/generate", () => {
     mockFindUserById.mockReturnValue(MEMBER_USER);
     const forbidden = await callGenerate(
       { name: "Deadlift", section: "lower_pull" },
-      signSession({ userId: MEMBER_USER.id })
+      signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(forbidden.status).toBe(403);
 
@@ -63,7 +63,7 @@ describe("POST /api/staff/exercises/generate", () => {
     mockIsAiConfigured.mockReturnValue(false);
     const unconfigured = await callGenerate(
       { name: "Deadlift", section: "lower_pull" },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(unconfigured.status).toBe(503);
     expect(mockGenerateExerciseContent).not.toHaveBeenCalled();
@@ -72,7 +72,7 @@ describe("POST /api/staff/exercises/generate", () => {
   it("returns the draft for staff to review", async () => {
     const res = await callGenerate(
       { name: "Deadlift", section: "lower_pull" },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     const data = await res.json();
 
@@ -86,13 +86,13 @@ describe("POST /api/staff/exercises/generate", () => {
   });
 
   it("requires a name and maps unknown exercises to 422", async () => {
-    const noName = await callGenerate({ section: "core" }, signSession({ userId: STAFF_USER.id }));
+    const noName = await callGenerate({ section: "core" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(noName.status).toBe(400);
 
     mockGenerateExerciseContent.mockResolvedValue(null);
     const unknown = await callGenerate(
       { name: "Zzzzz", section: "core" },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(unknown.status).toBe(422);
   });
@@ -101,7 +101,7 @@ describe("POST /api/staff/exercises/generate", () => {
     mockGenerateExerciseContent.mockRejectedValue(new Error("boom"));
     const res = await callGenerate(
       { name: "Deadlift", section: "lower_pull" },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res.status).toBe(502);
   });

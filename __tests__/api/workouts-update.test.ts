@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindWorkoutSessionById, mockSaveWorkoutSession } = vi.hoisted(
   () => ({
@@ -69,7 +69,7 @@ describe("POST /api/workouts/update (class workout correction)", () => {
   });
 
   it("lets the member correct a class workout on the day of the class", async () => {
-    const res = await callUpdate(VALID_BODY, signSession({ userId: MEMBER.id }));
+    const res = await callUpdate(VALID_BODY, signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS));
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -85,7 +85,7 @@ describe("POST /api/workouts/update (class workout correction)", () => {
   it("still lets the member correct a class workout well after the class day — coaches don't always fill in weights promptly", async () => {
     mockFindWorkoutSessionById.mockReturnValue(classSession({ date: "2026-07-01" }));
 
-    const res = await callUpdate(VALID_BODY, signSession({ userId: MEMBER.id }));
+    const res = await callUpdate(VALID_BODY, signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS));
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -95,11 +95,11 @@ describe("POST /api/workouts/update (class workout correction)", () => {
 
   it("refuses non-class sessions and other members' sessions", async () => {
     mockFindWorkoutSessionById.mockReturnValue(classSession({ classId: null }));
-    const selfLogged = await callUpdate(VALID_BODY, signSession({ userId: MEMBER.id }));
+    const selfLogged = await callUpdate(VALID_BODY, signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(selfLogged.status).toBe(403);
 
     mockFindWorkoutSessionById.mockReturnValue(classSession({ userId: "member-2" }));
-    const notMine = await callUpdate(VALID_BODY, signSession({ userId: MEMBER.id }));
+    const notMine = await callUpdate(VALID_BODY, signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(notMine.status).toBe(404);
 
     expect(mockSaveWorkoutSession).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe("POST /api/workouts/update (class workout correction)", () => {
   it("requires at least one exercise", async () => {
     const res = await callUpdate(
       { sessionId: "session-1", exercises: [] },
-      signSession({ userId: MEMBER.id })
+      signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res.status).toBe(400);
   });

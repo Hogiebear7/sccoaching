@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { findUserByEmail } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
-import { signSession } from "@/lib/session";
+import { isStaffRole } from "@/lib/permissions";
+import { MEMBER_SESSION_LIFETIME_MS, STAFF_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 // Same credential/rate-limit rules as the web login route (app/api/auth/
@@ -50,7 +51,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = signSession({ userId: user.id });
+  // Staff/admin also log in through this endpoint (that's how the
+  // /api/mobile/staff/* routes get authenticated) — pick the lifetime from
+  // the actual role, not a flat member assumption.
+  const lifetimeMs = isStaffRole(user.role) ? STAFF_SESSION_LIFETIME_MS : MEMBER_SESSION_LIFETIME_MS;
+  const token = signSession({ userId: user.id }, lifetimeMs);
 
   return NextResponse.json({
     success: true,

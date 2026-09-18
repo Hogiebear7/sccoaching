@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindProfileByUserId, mockSaveProfile } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -55,23 +55,23 @@ describe("POST /api/profile/appearance", () => {
   });
 
   it("saves a preset palette and rejects unknown ones", async () => {
-    const ok = await callAppearance({ palette: "ocean" }, signSession({ userId: USER.id }));
+    const ok = await callAppearance({ palette: "ocean" }, signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(ok.status).toBe(200);
     expect(mockSaveProfile.mock.calls[0][0].palette).toBe("ocean");
 
     mockSaveProfile.mockClear();
-    const bad = await callAppearance({ palette: "hotpink" }, signSession({ userId: USER.id }));
+    const bad = await callAppearance({ palette: "hotpink" }, signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(bad.status).toBe(400);
     expect(mockSaveProfile).not.toHaveBeenCalled();
   });
 
   it("saves a preset theme and rejects unknown ones", async () => {
-    const ok = await callAppearance({ theme: "forest" }, signSession({ userId: USER.id }));
+    const ok = await callAppearance({ theme: "forest" }, signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(ok.status).toBe(200);
     expect(mockSaveProfile.mock.calls[0][0].theme).toBe("forest");
 
     mockSaveProfile.mockClear();
-    const bad = await callAppearance({ theme: "neon" }, signSession({ userId: USER.id }));
+    const bad = await callAppearance({ theme: "neon" }, signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(bad.status).toBe(400);
     expect(mockSaveProfile).not.toHaveBeenCalled();
   });
@@ -79,7 +79,7 @@ describe("POST /api/profile/appearance", () => {
   it("saves theme and palette together in one request", async () => {
     const res = await callAppearance(
       { theme: "plum", palette: "ember" },
-      signSession({ userId: USER.id })
+      signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res.status).toBe(200);
     expect(mockSaveProfile.mock.calls[0][0]).toMatchObject({ theme: "plum", palette: "ember" });
@@ -88,7 +88,7 @@ describe("POST /api/profile/appearance", () => {
   it("saves a valid raster data URL and removes with null", async () => {
     const ok = await callAppearance(
       { avatarDataUrl: VALID_AVATAR },
-      signSession({ userId: USER.id })
+      signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(ok.status).toBe(200);
     expect(mockSaveProfile.mock.calls[0][0].avatarDataUrl).toBe(VALID_AVATAR);
@@ -96,14 +96,14 @@ describe("POST /api/profile/appearance", () => {
     mockSaveProfile.mockClear();
     const removed = await callAppearance(
       { avatarDataUrl: null },
-      signSession({ userId: USER.id })
+      signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(removed.status).toBe(200);
     expect(mockSaveProfile.mock.calls[0][0].avatarDataUrl).toBeNull();
   });
 
   it("rejects SVG, external URLs, and oversized payloads", async () => {
-    const cookie = signSession({ userId: USER.id });
+    const cookie = signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     for (const avatarDataUrl of [
       "data:image/svg+xml;base64,AAAA",
@@ -117,7 +117,7 @@ describe("POST /api/profile/appearance", () => {
   });
 
   it("rejects an empty update", async () => {
-    const res = await callAppearance({}, signSession({ userId: USER.id }));
+    const res = await callAppearance({}, signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(res.status).toBe(400);
     expect(mockSaveProfile).not.toHaveBeenCalled();
   });

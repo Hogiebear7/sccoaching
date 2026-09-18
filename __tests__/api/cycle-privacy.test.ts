@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -80,7 +80,7 @@ describe("POST /api/cycle/privacy", () => {
       ...ELIGIBLE_PROFILE,
       cycleTrackingEligible: false,
     });
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callPrivacy(
       { shareCurrentPhaseWithCoach: true, shareExactDatesWithCoach: false, shareNotesWithCoach: false },
@@ -92,7 +92,7 @@ describe("POST /api/cycle/privacy", () => {
   });
 
   it("saves all-false prefs and returns 200 (privacy-by-default check)", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callPrivacy(
       { shareCurrentPhaseWithCoach: false, shareExactDatesWithCoach: false, shareNotesWithCoach: false },
@@ -111,7 +111,7 @@ describe("POST /api/cycle/privacy", () => {
   });
 
   it("saves explicit true values correctly", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     await callPrivacy(
       { shareCurrentPhaseWithCoach: true, shareExactDatesWithCoach: true, shareNotesWithCoach: false },
@@ -126,7 +126,7 @@ describe("POST /api/cycle/privacy", () => {
   });
 
   it("treats missing fields as false (Boolean coercion)", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     await callPrivacy({}, cookie);
 
@@ -145,7 +145,7 @@ describe("POST /api/cycle/privacy", () => {
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-01T00:00:00.000Z",
     });
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     await callPrivacy(
       { shareCurrentPhaseWithCoach: true, shareExactDatesWithCoach: false, shareNotesWithCoach: false },

@@ -12,7 +12,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const h = vi.hoisted(() => ({
   findUserById: vi.fn(),
@@ -43,7 +43,7 @@ function usersById(...users: { id: string }[]) {
 
 async function post(path: string, { body, params, sessionUserId = GYM_A_STAFF.id }: { body?: unknown; params?: Record<string, string>; sessionUserId?: string } = {}) {
   const mod = await import(`@/app/api/staff/invites${path}/route`);
-  const token = signSession({ userId: sessionUserId });
+  const token = signSession({ userId: sessionUserId }, MEMBER_SESSION_LIFETIME_MS);
   const req = new NextRequest(`http://localhost/api/staff/invites${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: `session=${token}` },
@@ -54,7 +54,7 @@ async function post(path: string, { body, params, sessionUserId = GYM_A_STAFF.id
 
 async function get(sessionUserId = GYM_A_STAFF.id) {
   const mod = await import("@/app/api/staff/invites/route");
-  const token = signSession({ userId: sessionUserId });
+  const token = signSession({ userId: sessionUserId }, MEMBER_SESSION_LIFETIME_MS);
   const req = new NextRequest("http://localhost/api/staff/invites", {
     headers: { Cookie: `session=${token}` },
   });

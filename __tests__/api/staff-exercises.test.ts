@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindExerciseById, mockFindExercises, mockSaveExercise } = vi.hoisted(
   () => ({
@@ -47,7 +47,7 @@ describe("POST /api/staff/exercises", () => {
     mockFindUserById.mockReturnValue(MEMBER_USER);
     const res = await callExercises(
       { name: "Deadlift", section: "lower_pull" },
-      signSession({ userId: MEMBER_USER.id })
+      signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res.status).toBe(403);
   });
@@ -56,7 +56,7 @@ describe("POST /api/staff/exercises", () => {
     for (const section of ["core", "cardio"]) {
       const res = await callExercises(
         { name: `Test ${section}`, section },
-        signSession({ userId: STAFF_USER.id })
+        signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
       );
       expect(res.status).toBe(200);
     }
@@ -71,7 +71,7 @@ describe("POST /api/staff/exercises", () => {
         description: "  Hip hinge loading the posterior chain.  ",
         cues: "Brace before you pull\nPush the floor away",
       },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
 
     expect(res.status).toBe(200);
@@ -83,7 +83,7 @@ describe("POST /api/staff/exercises", () => {
     mockSaveExercise.mockClear();
     await callExercises(
       { name: "Row", section: "upper_pull", description: "   ", cues: "" },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(mockSaveExercise.mock.calls[0][0]).toMatchObject({ description: null, cues: null });
   });
@@ -92,14 +92,14 @@ describe("POST /api/staff/exercises", () => {
     const long = "x".repeat(1001);
     const res = await callExercises(
       { name: "Deadlift", section: "lower_pull", description: long },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res.status).toBe(400);
 
     const longCues = "x".repeat(601);
     const res2 = await callExercises(
       { name: "Deadlift", section: "lower_pull", cues: longCues },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res2.status).toBe(400);
     expect(mockSaveExercise).not.toHaveBeenCalled();
@@ -111,7 +111,7 @@ describe("POST /api/staff/exercises", () => {
     ]);
     const dup = await callExercises(
       { name: "deadlift", section: "lower_pull" },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(dup.status).toBe(400);
 
@@ -124,7 +124,7 @@ describe("POST /api/staff/exercises", () => {
     });
     const edit = await callExercises(
       { id: "ex-1", name: "Deadlift", section: "lower_pull", description: "Updated." },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(edit.status).toBe(200);
     const saved = mockSaveExercise.mock.calls[0][0];

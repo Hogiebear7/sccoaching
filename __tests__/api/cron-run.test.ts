@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockRunAllJobs } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -78,7 +78,7 @@ describe("GET /api/cron/run", () => {
   it("accepts a staff session and runs as manual", async () => {
     delete process.env.CRON_SECRET;
     mockFindUserById.mockReturnValue({ id: "staff-1", email: "coach@example.com", role: "staff" });
-    const cookie = signSession({ userId: "staff-1" });
+    const cookie = signSession({ userId: "staff-1" }, MEMBER_SESSION_LIFETIME_MS);
     const { GET } = await import("@/app/api/cron/run/route");
 
     const res = await GET(makeRequest({}, cookie));
@@ -92,7 +92,7 @@ describe("GET /api/cron/run", () => {
   it("rejects a member session", async () => {
     delete process.env.CRON_SECRET;
     mockFindUserById.mockReturnValue({ id: "member-1", email: "member@example.com", role: "member" });
-    const cookie = signSession({ userId: "member-1" });
+    const cookie = signSession({ userId: "member-1" }, MEMBER_SESSION_LIFETIME_MS);
     const { GET } = await import("@/app/api/cron/run/route");
 
     const res = await GET(makeRequest({}, cookie));

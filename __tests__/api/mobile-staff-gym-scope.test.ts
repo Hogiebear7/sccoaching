@@ -14,7 +14,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const h = vi.hoisted(() => ({
   findUserById: vi.fn(),
@@ -66,7 +66,7 @@ const GYM_A_STAFF = { id: "staff-a", email: "staffa@x.test", role: "admin_manage
 const GYM_A_MEMBER = { id: "member-a", email: "membera@x.test", role: "member" as const, gymId: null, archivedAt: null };
 const GYM_B_MEMBER = { id: "member-b", email: "memberb@x.test", role: "member" as const, gymId: "gym-b", archivedAt: null };
 
-const auth = signSession({ userId: GYM_A_STAFF.id });
+const auth = signSession({ userId: GYM_A_STAFF.id }, MEMBER_SESSION_LIFETIME_MS);
 
 function usersById(...users: { id: string }[]) {
   const map = new Map(users.map((u) => [u.id, u]));

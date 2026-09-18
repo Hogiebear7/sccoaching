@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindWorkoutSessionById, mockDeleteWorkoutSession } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -58,27 +58,27 @@ describe("POST /api/workouts/delete", () => {
   });
 
   it("rejects a missing id with 400", async () => {
-    const res = await callDelete({}, signSession({ userId: MEMBER.id }));
+    const res = await callDelete({}, signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(res.status).toBe(400);
   });
 
   it("returns 404 for a session that doesn't exist", async () => {
     mockFindWorkoutSessionById.mockReturnValue(undefined);
-    const res = await callDelete({ id: "missing" }, signSession({ userId: MEMBER.id }));
+    const res = await callDelete({ id: "missing" }, signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(res.status).toBe(404);
     expect(mockDeleteWorkoutSession).not.toHaveBeenCalled();
   });
 
   it("returns 404 for another member's session rather than revealing it exists", async () => {
     mockFindWorkoutSessionById.mockReturnValue(session({ userId: "someone-else" }));
-    const res = await callDelete({ id: "session-1" }, signSession({ userId: MEMBER.id }));
+    const res = await callDelete({ id: "session-1" }, signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(res.status).toBe(404);
     expect(mockDeleteWorkoutSession).not.toHaveBeenCalled();
   });
 
   it("deletes a self-logged session the member owns", async () => {
     mockFindWorkoutSessionById.mockReturnValue(session());
-    const res = await callDelete({ id: "session-1" }, signSession({ userId: MEMBER.id }));
+    const res = await callDelete({ id: "session-1" }, signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS));
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -88,7 +88,7 @@ describe("POST /api/workouts/delete", () => {
 
   it("deletes a class-synced session the member owns — no classId restriction on delete", async () => {
     mockFindWorkoutSessionById.mockReturnValue(session({ classId: "class-1", recordedByStaffId: "staff-1" }));
-    const res = await callDelete({ id: "session-1" }, signSession({ userId: MEMBER.id }));
+    const res = await callDelete({ id: "session-1" }, signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(200);
     expect(mockDeleteWorkoutSession).toHaveBeenCalledWith("session-1");

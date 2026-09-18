@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindProfileByUserId, mockSaveProfile } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -58,14 +58,14 @@ describe("POST /api/profile/drink-settings", () => {
   it("returns 404 when the account has no profile", async () => {
     mockFindProfileByUserId.mockReturnValue(undefined);
 
-    const res = await callSave({ sport: "rugby" }, signSession({ userId: MEMBER_USER.id }));
+    const res = await callSave({ sport: "rugby" }, signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(404);
     expect(mockSaveProfile).not.toHaveBeenCalled();
   });
 
   it("rejects a non-object body", async () => {
-    const res = await callSave("rugby", signSession({ userId: MEMBER_USER.id }));
+    const res = await callSave("rugby", signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(400);
     expect(mockSaveProfile).not.toHaveBeenCalled();
@@ -83,7 +83,7 @@ describe("POST /api/profile/drink-settings", () => {
         junk: "dropped",
         role: "cm", // invalid for run → normalized away
       },
-      signSession({ userId: MEMBER_USER.id })
+      signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     const data = await res.json();
 
@@ -112,7 +112,7 @@ describe("POST /api/profile/drink-settings", () => {
   it("coerces fully invalid fields to safe defaults rather than rejecting", async () => {
     const res = await callSave(
       { sport: "cricket", bottleMl: 9000, sweat: "soaked" },
-      signSession({ userId: MEMBER_USER.id })
+      signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
 
     expect(res.status).toBe(200);

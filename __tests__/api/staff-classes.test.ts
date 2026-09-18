@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindClassById, mockSaveClass, mockFindClassCategories, mockIssueWaitlistOffer, mockFindClassSeriesById, mockSaveClassSeries, mockGenerateOccurrences } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -97,7 +97,7 @@ describe("POST /api/staff/classes", () => {
 
   it("rejects a member session with 403", async () => {
     mockFindUserById.mockReturnValue(MEMBER_USER);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -119,7 +119,7 @@ describe("POST /api/staff/classes", () => {
 
   it("rejects a missing class name with 400", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       { title: "", category: "general", date: FUTURE_DATE, startTime: "18:00", durationMins: "60", capacity: "10" },
@@ -132,7 +132,7 @@ describe("POST /api/staff/classes", () => {
 
   it("rejects an invalid class category with 400", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -154,7 +154,7 @@ describe("POST /api/staff/classes", () => {
 
   it("rejects a past date/time with 400", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -176,7 +176,7 @@ describe("POST /api/staff/classes", () => {
 
   it("rejects a non-positive duration with 400", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -196,7 +196,7 @@ describe("POST /api/staff/classes", () => {
 
   it("rejects a non-positive capacity with 400", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -217,7 +217,7 @@ describe("POST /api/staff/classes", () => {
   it("creates a new class with the creating staff member as coach", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -255,7 +255,7 @@ describe("POST /api/staff/classes", () => {
   it("accepts durationMins/capacity sent as real numbers, not just strings", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -280,7 +280,7 @@ describe("POST /api/staff/classes", () => {
   it("updates an existing class, preserving id, coachUserId, and createdAt", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue(EXISTING_CLASS);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -313,7 +313,7 @@ describe("POST /api/staff/classes", () => {
   it("repeat=weekly creates a series and generates occurrences", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -352,7 +352,7 @@ describe("POST /api/staff/classes", () => {
   it("bounded weekly repeat stores the end date and mentions it", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -378,7 +378,7 @@ describe("POST /api/staff/classes", () => {
   it("rejects weekly repeats with no weekdays, bad weekday values, or an end before the start", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const base = {
       title: "Bad Series",
@@ -411,7 +411,7 @@ describe("POST /api/staff/classes", () => {
       id: "series-1",
       skippedDates: [],
     });
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -438,7 +438,7 @@ describe("POST /api/staff/classes", () => {
   it("editing a series occurrence without a date change leaves the series alone", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue({ ...EXISTING_CLASS, seriesId: "series-1" });
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {
@@ -460,7 +460,7 @@ describe("POST /api/staff/classes", () => {
   it("attempts waitlist promotion when capacity is raised on an existing class", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindClassById.mockReturnValue(EXISTING_CLASS);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callStaffClasses(
       {

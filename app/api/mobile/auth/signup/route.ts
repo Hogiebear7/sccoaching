@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createUser, findUserByEmail, saveProfile, saveCycleSettings, saveCyclePrivacy } from "@/lib/db";
 import { redeemInviteForUser } from "@/lib/invites";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 import {
   isFemaleGender,
   shouldShowSportPlayed,
@@ -219,7 +219,7 @@ export async function POST(request: Request) {
     await redeemInviteForUser(inviteToken.trim(), user);
   }
 
-  const token = signSession({ userId: user.id });
+  const token = signSession({ userId: user.id }, MEMBER_SESSION_LIFETIME_MS);
 
   return NextResponse.json(
     {

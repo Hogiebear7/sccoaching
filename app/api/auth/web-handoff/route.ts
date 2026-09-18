@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { getConfiguredAppUrl } from "@/lib/app-config";
-import { consumeMobileHandoffToken } from "@/lib/db";
-import { signSession } from "@/lib/session";
+import { consumeMobileHandoffToken, findUserById } from "@/lib/db";
+import { isStaffRole } from "@/lib/permissions";
+import { MEMBER_SESSION_LIFETIME_MS, STAFF_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const DEFAULT_NEXT = "/dashboard/membership";
 
@@ -33,17 +34,25 @@ export async function GET(request: NextRequest) {
   const next = safeNextPath(url.searchParams.get("next"));
 
   const userId = token ? consumeMobileHandoffToken(token) : undefined;
-  if (!userId) {
+  const user = userId ? findUserById(userId) : undefined;
+  if (!user) {
     return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, base));
   }
 
+  // The handoff token itself carries no role — it can be minted by any
+  // currently mobile-authenticated user, not just members — so the lifetime
+  // has to be classified from the resolved account, same as the shared
+  // login route.
+  const lifetimeMs = isStaffRole(user.role) ? STAFF_SESSION_LIFETIME_MS : MEMBER_SESSION_LIFETIME_MS;
+
   const response = NextResponse.redirect(new URL(next, base));
 
-  response.cookies.set("session", signSession({ userId }), {
+  response.cookies.set("session", signSession({ userId: user.id }, lifetimeMs), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
     secure: process.env.NODE_ENV === "production",
+    maxAge: lifetimeMs / 1000,
   });
 
   return response;

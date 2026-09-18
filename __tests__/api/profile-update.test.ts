@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -87,7 +87,7 @@ describe("POST /api/profile/update", () => {
   });
 
   it("updates editable fields while preserving immutable ones", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callProfileUpdate(VALID_BODY, cookie);
 
@@ -105,7 +105,7 @@ describe("POST /api/profile/update", () => {
   });
 
   it("rejects a missing full name with 400", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callProfileUpdate({ ...VALID_BODY, fullName: "" }, cookie);
 
@@ -114,7 +114,7 @@ describe("POST /api/profile/update", () => {
   });
 
   it("rejects a missing date of birth with 400", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callProfileUpdate({ ...VALID_BODY, dateOfBirth: "" }, cookie);
 
@@ -125,7 +125,7 @@ describe("POST /api/profile/update", () => {
   });
 
   it("rejects a future or malformed date of birth with 400", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const future = new Date();
     future.setFullYear(future.getFullYear() + 1);
@@ -139,7 +139,7 @@ describe("POST /api/profile/update", () => {
   });
 
   it("ignores manually submitted weight — read-only after signup", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
     mockFindBodyWeightLogs.mockReturnValue([
       { id: "log-1", userId: "user-1", date: "2026-07-01", weightKg: 78.5, createdAt: "2026-07-01T08:00:00.000Z" },
     ]);
@@ -154,7 +154,7 @@ describe("POST /api/profile/update", () => {
   });
 
   it("keeps the profile weight synced to the latest log on every save", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
     mockFindBodyWeightLogs.mockReturnValue([
       { id: "log-old", userId: "user-1", date: "2026-06-01", weightKg: 84, createdAt: "2026-06-01T08:00:00.000Z" },
       { id: "log-new", userId: "user-1", date: "2026-07-05", weightKg: 77, createdAt: "2026-07-05T08:00:00.000Z" },
@@ -167,7 +167,7 @@ describe("POST /api/profile/update", () => {
   });
 
   it("falls back to the signup weight when no logs exist yet", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
     mockFindBodyWeightLogs.mockReturnValue([]);
 
     const res = await callProfileUpdate(VALID_BODY, cookie);

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -57,7 +57,7 @@ describe("POST /api/messages/send", () => {
   it("blocks a Free tier member from messaging a coach", async () => {
     mockFindUserById.mockReturnValue(MEMBER_USER);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callMessagesSend({ body: "Hi coach" }, cookie);
     const data = await res.json();
@@ -71,7 +71,7 @@ describe("POST /api/messages/send", () => {
     mockFindUserById.mockReturnValue(MEMBER_USER);
     mockFindSubscriptionByUserId.mockReturnValue({ packageId: "pkg-1", status: "active" });
     mockFindMembershipPackageById.mockReturnValue({ id: "pkg-1", deliveryChannel: "app_only" });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callMessagesSend({ body: "Hi coach" }, cookie);
 
@@ -83,7 +83,7 @@ describe("POST /api/messages/send", () => {
     mockFindUserById.mockReturnValue(MEMBER_USER);
     mockFindSubscriptionByUserId.mockReturnValue({ packageId: "pkg-2", status: "active" });
     mockFindMembershipPackageById.mockReturnValue({ id: "pkg-2", deliveryChannel: "in_person" });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callMessagesSend({ body: "Hi coach" }, cookie);
 
@@ -93,7 +93,7 @@ describe("POST /api/messages/send", () => {
 
   it("never gates staff replying into a member's thread, regardless of that member's tier", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callMessagesSend({ memberId: MEMBER_USER.id, body: "Hi there" }, cookie);
 

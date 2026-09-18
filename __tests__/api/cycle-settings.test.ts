@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -88,7 +88,7 @@ describe("POST /api/cycle/settings", () => {
       ...ELIGIBLE_PROFILE,
       cycleTrackingEligible: false,
     });
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callSettings(VALID_BODY, cookie);
 
@@ -97,7 +97,7 @@ describe("POST /api/cycle/settings", () => {
   });
 
   it("saves settings and returns 200 for a valid request", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callSettings(VALID_BODY, cookie);
     const data = await res.json();
@@ -116,7 +116,7 @@ describe("POST /api/cycle/settings", () => {
   });
 
   it("sets cycleTrackingEnabled on the profile when it was false", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     await callSettings(VALID_BODY, cookie);
 
@@ -129,7 +129,7 @@ describe("POST /api/cycle/settings", () => {
       ...ELIGIBLE_PROFILE,
       cycleTrackingEnabled: true,
     });
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     await callSettings(VALID_BODY, cookie);
 
@@ -147,7 +147,7 @@ describe("POST /api/cycle/settings", () => {
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-01T00:00:00.000Z",
     });
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     await callSettings(VALID_BODY, cookie);
 
@@ -157,7 +157,7 @@ describe("POST /api/cycle/settings", () => {
   });
 
   it("stores null for an unrecognised regularity value", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     await callSettings({ ...VALID_BODY, regularity: "SomethingInvalid" }, cookie);
 
@@ -165,7 +165,7 @@ describe("POST /api/cycle/settings", () => {
   });
 
   it("stores null for all empty optional fields", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     await callSettings(
       {

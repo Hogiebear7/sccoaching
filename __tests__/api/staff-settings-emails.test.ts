@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -58,7 +58,7 @@ describe("POST /api/staff/settings/emails", () => {
     mockFindUserById.mockReturnValue(COACH);
     const res = await callPost(
       { type: "noShow", enabled: false },
-      signSession({ userId: COACH.id })
+      signSession({ userId: COACH.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res.status).toBe(403);
     expect(mockSaveSettings).not.toHaveBeenCalled();
@@ -68,7 +68,7 @@ describe("POST /api/staff/settings/emails", () => {
     mockFindUserById.mockReturnValue(MEMBER);
     const res = await callPost(
       { type: "noShow", enabled: false },
-      signSession({ userId: MEMBER.id })
+      signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res.status).toBe(403);
   });
@@ -77,7 +77,7 @@ describe("POST /api/staff/settings/emails", () => {
     mockFindUserById.mockReturnValue(ADMIN);
     const res = await callPost(
       { type: "marketingBlast", enabled: false },
-      signSession({ userId: ADMIN.id })
+      signSession({ userId: ADMIN.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res.status).toBe(400);
     expect(mockSaveSettings).not.toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe("POST /api/staff/settings/emails", () => {
     mockFindUserById.mockReturnValue(ADMIN);
     const res = await callPost(
       { type: "noShow", enabled: "no" },
-      signSession({ userId: ADMIN.id })
+      signSession({ userId: ADMIN.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(res.status).toBe(400);
     expect(mockSaveSettings).not.toHaveBeenCalled();
@@ -97,7 +97,7 @@ describe("POST /api/staff/settings/emails", () => {
     mockFindUserById.mockReturnValue(ADMIN);
     const res = await callPost(
       { type: "noShow", enabled: false },
-      signSession({ userId: ADMIN.id })
+      signSession({ userId: ADMIN.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     const data = await res.json();
 

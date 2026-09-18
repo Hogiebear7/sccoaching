@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockSetUserArchived } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -49,7 +49,7 @@ describe("POST /api/staff/members/[userId]/archive", () => {
     const res = await callArchive(
       MEMBER_USER.id,
       { archived: true },
-      signSession({ userId: MEMBER_USER.id })
+      signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
 
     expect(res.status).toBe(403);
@@ -60,7 +60,7 @@ describe("POST /api/staff/members/[userId]/archive", () => {
     const res = await callArchive(
       MEMBER_USER.id,
       { archived: true },
-      signSession({ userId: COACH_USER.id })
+      signSession({ userId: COACH_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
 
     expect(res.status).toBe(403);
@@ -71,7 +71,7 @@ describe("POST /api/staff/members/[userId]/archive", () => {
     const res = await callArchive(
       STAFF_USER.id,
       { archived: true },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
 
     expect(res.status).toBe(400);
@@ -82,7 +82,7 @@ describe("POST /api/staff/members/[userId]/archive", () => {
     const res = await callArchive(
       MEMBER_USER.id,
       { archived: "yes" },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
 
     expect(res.status).toBe(400);
@@ -93,7 +93,7 @@ describe("POST /api/staff/members/[userId]/archive", () => {
     const archiveRes = await callArchive(
       MEMBER_USER.id,
       { archived: true },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(archiveRes.status).toBe(200);
     expect(mockSetUserArchived).toHaveBeenCalledWith(MEMBER_USER.id, true);
@@ -101,7 +101,7 @@ describe("POST /api/staff/members/[userId]/archive", () => {
     const restoreRes = await callArchive(
       MEMBER_USER.id,
       { archived: false },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     expect(restoreRes.status).toBe(200);
     expect(mockSetUserArchived).toHaveBeenCalledWith(MEMBER_USER.id, false);

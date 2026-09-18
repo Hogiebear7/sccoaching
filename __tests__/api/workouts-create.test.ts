@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockSaveWorkoutSession } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -41,7 +41,7 @@ describe("POST /api/workouts/create", () => {
   });
 
   it("rejects a missing title with 400", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callWorkoutsCreate({ title: "", date: "2026-06-19" }, cookie);
     const data = await res.json();
@@ -52,7 +52,7 @@ describe("POST /api/workouts/create", () => {
   });
 
   it("rejects a missing date with 400", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callWorkoutsCreate({ title: "Lower Body", date: "" }, cookie);
     const data = await res.json();
@@ -63,7 +63,7 @@ describe("POST /api/workouts/create", () => {
   });
 
   it("rejects a non-integer durationMins with 400", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callWorkoutsCreate(
       { title: "Lower Body", date: "2026-06-19", durationMins: "not-a-number" },
@@ -77,7 +77,7 @@ describe("POST /api/workouts/create", () => {
   });
 
   it("accepts valid input and creates a workout session owned by the caller", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callWorkoutsCreate(
       {
@@ -105,7 +105,7 @@ describe("POST /api/workouts/create", () => {
   });
 
   it("creates a second, independent record on a second valid call rather than overwriting the first", async () => {
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     await callWorkoutsCreate({ title: "Lower Body", date: "2026-06-18" }, cookie);
     await callWorkoutsCreate({ title: "Upper Body", date: "2026-06-19" }, cookie);
