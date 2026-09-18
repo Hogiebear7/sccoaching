@@ -12,6 +12,7 @@ import {
   saveClassSeries,
 } from "@/lib/db";
 import { classStartMs } from "@/lib/class-time";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -61,6 +62,17 @@ export async function POST(request: NextRequest) {
   const series = findClassSeriesById(id.trim());
 
   if (!series) {
+    return NextResponse.json(
+      { success: false, message: "This repeating class no longer exists." },
+      { status: 404 }
+    );
+  }
+
+  // A series with no coachUserId shouldn't exist (it's stamped at
+  // creation), but treat that as not-found rather than assume ownership.
+  // This must run before any occurrence/waitlist mutation below, so a
+  // denied cross-gym request has zero effect.
+  if (!series.coachUserId || !sameGymAsStaff(user, series.coachUserId)) {
     return NextResponse.json(
       { success: false, message: "This repeating class no longer exists." },
       { status: 404 }

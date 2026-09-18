@@ -19,6 +19,7 @@ import {
   type NotificationRecord,
 } from "@/lib/db";
 import { classStartMs } from "@/lib/class-time";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { reversePassConsumption } from "@/lib/payments";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -71,6 +72,17 @@ export async function POST(request: NextRequest) {
   const classRecord = findClassById(id.trim());
 
   if (!classRecord) {
+    return NextResponse.json(
+      { success: false, message: "This class no longer exists." },
+      { status: 404 }
+    );
+  }
+
+  // A class with no coachUserId shouldn't exist (it's stamped at creation),
+  // but treat that as not-found rather than assume ownership. This check
+  // must run before any of the booking-cancellation/waitlist/notification
+  // side effects below, so a denied cross-gym request has zero effect.
+  if (!classRecord.coachUserId || !sameGymAsStaff(user, classRecord.coachUserId)) {
     return NextResponse.json(
       { success: false, message: "This class no longer exists." },
       { status: 404 }
