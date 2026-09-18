@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindRecoveryLogsByUserId, mockFindWorkoutSessionsByUserId, mockFindWeeklyTrainingScheduleByUserId } =
   vi.hoisted(() => ({
@@ -50,7 +50,7 @@ describe("GET /api/mobile/workout-helper/tier", () => {
   });
 
   it("returns a standard tier when there's no recovery log and nothing planned today", async () => {
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
     const res = await callTierRoute(cookie);
     const data = await res.json();
 
@@ -101,7 +101,7 @@ describe("GET /api/mobile/workout-helper/tier", () => {
         },
       ],
     });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callTierRoute(cookie);
     const data = await res.json();

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -77,13 +77,13 @@ describe("POST /api/staff/classes/[classId]/workout", () => {
 
   it("rejects non-staff", async () => {
     mockFindUserById.mockReturnValue(MEMBER_USER);
-    const res = await callWorkout({ exercises: TEMPLATE }, signSession({ userId: MEMBER_USER.id }));
+    const res = await callWorkout({ exercises: TEMPLATE }, signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(res.status).toBe(403);
     expect(mockSaveClassWorkout).not.toHaveBeenCalled();
   });
 
   it("requires at least one template exercise", async () => {
-    const res = await callWorkout({ exercises: [] }, signSession({ userId: STAFF_USER.id }));
+    const res = await callWorkout({ exercises: [] }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(res.status).toBe(400);
   });
 
@@ -109,7 +109,7 @@ describe("POST /api/staff/classes/[classId]/workout", () => {
           },
         ],
       },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     const data = await res.json();
 
@@ -160,7 +160,7 @@ describe("POST /api/staff/classes/[classId]/workout", () => {
         exercises: TEMPLATE,
         results: [{ userId: "member-1", exercises: [{ name: "Back Squat", weight: "85", reps: 3, sets: 5 }] }],
       },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
 
     expect(res.status).toBe(200);
@@ -187,7 +187,7 @@ describe("POST /api/staff/classes/[classId]/workout", () => {
 
     const res = await callWorkout(
       { notes: "Strength block week 3", exercises: TEMPLATE },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     const data = await res.json();
 

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const h = vi.hoisted(() => ({
   findUserById: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock("@/lib/db", () => h);
 
 const STAFF = { id: "s1", email: "c@x.c", role: "staff" as const };
 const MEMBER = { id: "m1", email: "m@x.c", role: "member" as const };
-const staff = () => signSession({ userId: STAFF.id });
+const staff = () => signSession({ userId: STAFF.id }, MEMBER_SESSION_LIFETIME_MS);
 
 async function call(path: string, body: unknown, cookie?: string) {
   const mod = await import(`@/app/api/staff/catalog/${path}/route`);
@@ -50,7 +50,7 @@ describe("staff catalog CRUD", () => {
 
   it("rejects non-staff everywhere", async () => {
     h.findUserById.mockReturnValue(MEMBER);
-    const c = signSession({ userId: MEMBER.id });
+    const c = signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS);
     expect((await call("categories", { name: "X" }, c)).status).toBe(403);
     expect((await call("packages", { categoryId: "c1", name: "X", packageType: "membership", sessionAllowanceType: "unlimited" }, c)).status).toBe(403);
     expect((await call("billing-options", { packageId: "p1", name: "X", billingType: "recurring", priceEur: "10" }, c)).status).toBe(403);

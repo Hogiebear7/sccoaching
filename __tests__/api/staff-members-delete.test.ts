@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockDeleteUserAndOwnedRecords } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -29,7 +29,7 @@ async function callDelete(targetId: string, actorId: string) {
   const { POST } = await import("@/app/api/staff/members/[userId]/delete/route");
   const req = new NextRequest(`http://localhost/api/staff/members/${targetId}/delete`, {
     method: "POST",
-    headers: { Cookie: `session=${signSession({ userId: actorId })}` },
+    headers: { Cookie: `session=${signSession({ userId: actorId }, MEMBER_SESSION_LIFETIME_MS)}` },
   });
   return POST(req, { params: Promise.resolve({ userId: targetId }) });
 }

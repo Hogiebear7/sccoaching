@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindBookingById, mockUpdateBookingAttendance } = vi.hoisted(
   () => ({
@@ -57,7 +57,7 @@ describe("POST /api/staff/bookings/attendance", () => {
 
   it("rejects a member session with 403", async () => {
     mockFindUserById.mockReturnValue(MEMBER_USER);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callAttendance({ bookingId: "booking-1", attended: true }, cookie);
     const data = await res.json();
@@ -70,7 +70,7 @@ describe("POST /api/staff/bookings/attendance", () => {
   it("returns 404 when the booking does not exist", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindBookingById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callAttendance({ bookingId: "missing", attended: true }, cookie);
     const data = await res.json();
@@ -83,7 +83,7 @@ describe("POST /api/staff/bookings/attendance", () => {
   it("marks a booking attended", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindBookingById.mockReturnValue(SOME_BOOKING);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callAttendance({ bookingId: "booking-1", attended: true }, cookie);
     const data = await res.json();
@@ -96,7 +96,7 @@ describe("POST /api/staff/bookings/attendance", () => {
   it("unmarks a booking's attendance", async () => {
     mockFindUserById.mockReturnValue(STAFF_USER);
     mockFindBookingById.mockReturnValue(SOME_BOOKING);
-    const cookie = signSession({ userId: STAFF_USER.id });
+    const cookie = signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callAttendance({ bookingId: "booking-1", attended: false }, cookie);
     const data = await res.json();

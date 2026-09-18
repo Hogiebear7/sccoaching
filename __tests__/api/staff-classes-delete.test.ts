@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -130,7 +130,7 @@ describe("POST /api/staff/classes/delete", () => {
 
   it("rejects non-staff sessions", async () => {
     mockFindUserById.mockReturnValue(MEMBER_USER);
-    const res = await callDelete({ id: "class-1" }, signSession({ userId: MEMBER_USER.id }));
+    const res = await callDelete({ id: "class-1" }, signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(403);
     expect(mockDeleteClass).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe("POST /api/staff/classes/delete", () => {
 
   it("refuses to delete a class that has already started", async () => {
     mockFindClassById.mockReturnValue(PAST_CLASS);
-    const res = await callDelete({ id: "class-past" }, signSession({ userId: STAFF_USER.id }));
+    const res = await callDelete({ id: "class-past" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(409);
     expect(mockDeleteClass).not.toHaveBeenCalled();
@@ -146,7 +146,7 @@ describe("POST /api/staff/classes/delete", () => {
   });
 
   it("deletes an empty upcoming class without touching balances", async () => {
-    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -160,7 +160,7 @@ describe("POST /api/staff/classes/delete", () => {
     mockFindBookingsByClassId.mockReturnValue([BOOKING_A]);
     mockReversePassConsumption.mockReturnValue(true);
 
-    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -179,7 +179,7 @@ describe("POST /api/staff/classes/delete", () => {
     mockFindBookingsByClassId.mockReturnValue([BOOKING_B]);
     mockFindSubscriptionByUserId.mockReturnValue(SUBSCRIPTION);
 
-    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(200);
     expect(mockSaveSubscription).toHaveBeenCalledTimes(1);
@@ -190,7 +190,7 @@ describe("POST /api/staff/classes/delete", () => {
     mockFindBookingsByClassId.mockReturnValue([BOOKING_B]);
     mockFindSubscriptionByUserId.mockReturnValue({ ...SUBSCRIPTION, sessionsUsedThisPeriod: 0 });
 
-    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(200);
     expect(mockSaveSubscription).not.toHaveBeenCalled();
@@ -202,7 +202,7 @@ describe("POST /api/staff/classes/delete", () => {
     mockFindClassById.mockReturnValue({ ...FUTURE_CLASS, seriesId: "series-1" });
     mockFindClassSeriesById.mockReturnValue({ id: "series-1", skippedDates: ["2026-01-01"] });
 
-    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(200);
     const saved = mockSaveClassSeries.mock.calls[0][0];
@@ -219,7 +219,7 @@ describe("POST /api/staff/classes/delete", () => {
       { id: "wl-2", classId: "other-class", userId: "member-4" },
     ]);
 
-    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+    const res = await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(200);
     expect(mockCreateNotification).toHaveBeenCalledTimes(2);
@@ -237,7 +237,7 @@ describe("POST /api/staff/classes/delete", () => {
     mockFindBookingsByClassId.mockReturnValue([BOOKING_A]);
     mockReversePassConsumption.mockReturnValue(true); // credit genuinely restored
 
-    await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+    await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     const body = mockCreateNotification.mock.calls[0][0].body;
     expect(body).toContain("has been cancelled by the club.");
@@ -249,7 +249,7 @@ describe("POST /api/staff/classes/delete", () => {
     mockReversePassConsumption.mockReturnValue(false);
     mockFindSubscriptionByUserId.mockReturnValue(undefined); // nothing to refund
 
-    await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }));
+    await callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     const body = mockCreateNotification.mock.calls[0][0].body;
     expect(body).toContain("has been cancelled by the club.");

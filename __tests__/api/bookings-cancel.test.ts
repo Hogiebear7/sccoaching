@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -148,7 +148,7 @@ describe("POST /api/bookings/cancel", () => {
   });
 
   it("rejects a missing bookingId with 400", async () => {
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({}, cookie);
 
@@ -158,7 +158,7 @@ describe("POST /api/bookings/cancel", () => {
 
   it("returns 404 when the booking does not exist", async () => {
     mockFindBookingById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({ bookingId: "missing-booking" }, cookie);
     const data = await res.json();
@@ -171,7 +171,7 @@ describe("POST /api/bookings/cancel", () => {
   it("returns 403 when cancelling another user's booking", async () => {
     mockFindUserById.mockReturnValue(OTHER_USER);
     mockFindBookingById.mockReturnValue(SOME_BOOKING);
-    const cookie = signSession({ userId: OTHER_USER.id });
+    const cookie = signSession({ userId: OTHER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
     const data = await res.json();
@@ -184,7 +184,7 @@ describe("POST /api/bookings/cancel", () => {
   it("returns 409 when the class has already started", async () => {
     mockFindBookingById.mockReturnValue(SOME_BOOKING);
     mockFindClassById.mockReturnValue({ ...FUTURE_CLASS, date: "2020-01-01", startTime: "09:00" });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
     const data = await res.json();
@@ -201,7 +201,7 @@ describe("POST /api/bookings/cancel", () => {
     mockFindClassById.mockReturnValue(FUTURE_CLASS);
     mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
     mockIsCancellationEarly.mockReturnValue(true);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
     const data = await res.json();
@@ -253,7 +253,7 @@ describe("POST /api/bookings/cancel", () => {
         },
       ],
     });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     await callBookingsCancel({ bookingId: "booking-1" }, cookie);
 
@@ -288,7 +288,7 @@ describe("POST /api/bookings/cancel", () => {
         },
       ],
     });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     await callBookingsCancel({ bookingId: "booking-1" }, cookie);
 
@@ -304,7 +304,7 @@ describe("POST /api/bookings/cancel", () => {
     mockFindPassLedgerByBookingId.mockReturnValue([
       { id: "led-1", userId: MEMBER_USER.id, delta: -1, reason: "consume", purchaseId: null, bookingId: "booking-1", note: null, createdAt: "x" },
     ]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
 
@@ -326,7 +326,7 @@ describe("POST /api/bookings/cancel", () => {
     mockFindPassLedgerByBookingId.mockReturnValue([
       { id: "led-1", userId: MEMBER_USER.id, delta: -1, reason: "consume", purchaseId: null, bookingId: "booking-1", note: null, createdAt: "x" },
     ]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
 
@@ -340,7 +340,7 @@ describe("POST /api/bookings/cancel", () => {
     mockFindClassById.mockReturnValue(FUTURE_CLASS);
     mockFindSubscriptionByUserId.mockReturnValue(ACTIVE_SUBSCRIPTION);
     mockIsCancellationEarly.mockReturnValue(false);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
     const data = await res.json();
@@ -363,7 +363,7 @@ describe("POST /api/bookings/cancel", () => {
     mockFindClassById.mockReturnValue(FUTURE_CLASS);
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
     mockIsCancellationEarly.mockReturnValue(false);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
 
@@ -376,7 +376,7 @@ describe("POST /api/bookings/cancel", () => {
     mockFindClassById.mockReturnValue(FUTURE_CLASS);
     mockFindSubscriptionByUserId.mockReturnValue({ ...ACTIVE_SUBSCRIPTION, sessionsUsedThisPeriod: 0 });
     mockIsCancellationEarly.mockReturnValue(true);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     await callBookingsCancel({ bookingId: "booking-1" }, cookie);
 
@@ -386,7 +386,7 @@ describe("POST /api/bookings/cancel", () => {
   it("cancels a booking gracefully when its class no longer exists", async () => {
     mockFindBookingById.mockReturnValue(SOME_BOOKING);
     mockFindClassById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
     const data = await res.json();

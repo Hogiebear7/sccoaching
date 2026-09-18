@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -34,7 +34,7 @@ const MANAGER = { id: "mgr-1", email: "mgr@club.com", role: "admin_manager" as c
 const ADMIN = { id: "adm-1", email: "adm@club.com", role: "admin" as const, archivedAt: null };
 
 function cookieFor(userId: string) {
-  return signSession({ userId });
+  return signSession({ userId }, MEMBER_SESSION_LIFETIME_MS);
 }
 
 async function callCreate(body: unknown, userId: string) {

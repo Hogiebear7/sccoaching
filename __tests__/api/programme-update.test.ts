@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindProgrammeByUserId, mockSaveProgramme, mockFindProfileByUserId } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -66,7 +66,7 @@ describe("POST /api/programme/update", () => {
 
   it("creates a new programme owned by the caller when none exists", async () => {
     mockFindProgrammeByUserId.mockReturnValue(undefined);
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callProgrammeUpdate(
       { title: "First Block", currentWeek: "1", totalWeeks: "6" },
@@ -83,7 +83,7 @@ describe("POST /api/programme/update", () => {
 
   it("updates an existing programme, preserving id, userId, and createdAt", async () => {
     mockFindProgrammeByUserId.mockReturnValue(EXISTING_PROGRAMME);
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callProgrammeUpdate(
       { title: "Updated Block", status: "paused", currentWeek: "3", totalWeeks: "6" },
@@ -102,7 +102,7 @@ describe("POST /api/programme/update", () => {
 
   it("rejects a missing title with 400", async () => {
     mockFindProgrammeByUserId.mockReturnValue(undefined);
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callProgrammeUpdate({ title: "" }, cookie);
 
@@ -112,7 +112,7 @@ describe("POST /api/programme/update", () => {
 
   it("rejects an invalid status value with 400", async () => {
     mockFindProgrammeByUserId.mockReturnValue(undefined);
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callProgrammeUpdate({ title: "Valid Title", status: "bogus" }, cookie);
 
@@ -122,7 +122,7 @@ describe("POST /api/programme/update", () => {
 
   it("rejects with 403 when programme access isn't enabled for the member", async () => {
     mockFindProfileByUserId.mockReturnValue({ userId: "user-1", programmeEnabled: false });
-    const cookie = signSession({ userId: "user-1" });
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callProgrammeUpdate({ title: "Valid Title" }, cookie);
 

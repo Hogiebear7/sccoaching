@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const h = vi.hoisted(() => ({
   findUserById: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock("@/lib/db", () => h);
 
 const ADMIN_MANAGER = { id: "s1", email: "c@x.c", role: "admin_manager" as const, archivedAt: null };
 const COACH = { id: "s2", email: "coach@x.c", role: "coach" as const, archivedAt: null };
-const auth = (userId: string) => signSession({ userId });
+const auth = (userId: string) => signSession({ userId }, MEMBER_SESSION_LIFETIME_MS);
 
 async function post(path: string, body: unknown, cookie?: string) {
   const mod = await import(`@/app/api/staff/finance/ledger${path}/route`);

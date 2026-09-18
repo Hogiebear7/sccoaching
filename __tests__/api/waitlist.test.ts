@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -119,7 +119,7 @@ describe("POST /api/bookings/waitlist/join", () => {
 
   it("returns 404 when the class does not exist", async () => {
     mockFindClassById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callJoin({ classId: "missing" }, cookie);
     expect(res.status).toBe(404);
@@ -128,7 +128,7 @@ describe("POST /api/bookings/waitlist/join", () => {
   it("rejects joining a class that still has space", async () => {
     mockFindClassById.mockReturnValue(FULL_CLASS);
     mockFindBookingsByClassId.mockReturnValue([]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callJoin({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -142,7 +142,7 @@ describe("POST /api/bookings/waitlist/join", () => {
     mockFindClassById.mockReturnValue(FULL_CLASS);
     mockFindBookingsByClassId.mockReturnValue([{ id: "b1", classId: "class-1", userId: "other", attendedAt: null, createdAt: "now" }]);
     mockFindBookingsByUserId.mockReturnValue([{ id: "b2", classId: "class-1", userId: MEMBER_USER.id, attendedAt: null, createdAt: "now" }]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callJoin({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -155,7 +155,7 @@ describe("POST /api/bookings/waitlist/join", () => {
     mockFindClassById.mockReturnValue(FULL_CLASS);
     mockFindBookingsByClassId.mockReturnValue([{ id: "b1", classId: "class-1", userId: "other", attendedAt: null, createdAt: "now" }]);
     mockFindWaitlistEntryByClassAndUser.mockReturnValue({ id: "wl-1", classId: "class-1", userId: MEMBER_USER.id, createdAt: "now" });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callJoin({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -169,7 +169,7 @@ describe("POST /api/bookings/waitlist/join", () => {
     mockFindBookingsByClassId.mockReturnValue([{ id: "b1", classId: "class-1", userId: "other", attendedAt: null, createdAt: "now" }]);
     mockFindSubscriptionByUserId.mockReturnValue({ packageId: "pkg-mb", status: "active" });
     mockResolveEntitlement.mockReturnValue({ id: "pkg-mb", name: "Mother & Baby", allowedCategories: ["mother_and_baby"] });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callJoin({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -182,7 +182,7 @@ describe("POST /api/bookings/waitlist/join", () => {
   it("joins the waitlist for a full, eligible class", async () => {
     mockFindClassById.mockReturnValue(FULL_CLASS);
     mockFindBookingsByClassId.mockReturnValue([{ id: "b1", classId: "class-1", userId: "other", attendedAt: null, createdAt: "now" }]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callJoin({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -200,7 +200,7 @@ describe("POST /api/bookings/waitlist/join", () => {
       { id: "wl-1", classId: "class-1", userId: "other-1", offerState: "queued", createdAt: "now" },
       { id: "wl-2", classId: "class-1", userId: "other-2", offerState: "queued", createdAt: "now" },
     ]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callJoin({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -219,7 +219,7 @@ describe("POST /api/bookings/waitlist/join", () => {
       { id: "wl-1", classId: "class-1", userId: "other-1", offerState: "offered", createdAt: "now" },
       { id: "wl-2", classId: "class-1", userId: "other-2", offerState: "queued", createdAt: "now" },
     ]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callJoin({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -247,7 +247,7 @@ describe("POST /api/bookings/waitlist/leave", () => {
 
   it("returns 404 when not on the waitlist", async () => {
     mockFindWaitlistEntryByClassAndUser.mockReturnValue(undefined);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callLeave({ classId: "class-1" }, cookie);
     expect(res.status).toBe(404);
@@ -256,7 +256,7 @@ describe("POST /api/bookings/waitlist/leave", () => {
 
   it("removes the member's waitlist entry", async () => {
     mockFindWaitlistEntryByClassAndUser.mockReturnValue({ id: "wl-1", classId: "class-1", userId: MEMBER_USER.id, createdAt: "now" });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callLeave({ classId: "class-1" }, cookie);
     const data = await res.json();

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createUser, findUserByEmail, saveProfile, saveCycleSettings, saveCyclePrivacy } from "@/lib/db";
 import { redeemInviteForUser } from "@/lib/invites";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 import {
   isFemaleGender,
   shouldShowSportPlayed,
@@ -282,11 +282,12 @@ export async function POST(request: Request) {
     { status: 201 }
   );
 
-  response.cookies.set("session", signSession({ userId: user.id }), {
+  response.cookies.set("session", signSession({ userId: user.id }, MEMBER_SESSION_LIFETIME_MS), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
     secure: process.env.NODE_ENV === "production",
+    maxAge: MEMBER_SESSION_LIFETIME_MS / 1000,
   });
 
   return response;

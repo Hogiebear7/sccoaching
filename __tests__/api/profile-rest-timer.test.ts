@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const { mockFindUserById, mockFindProfileByUserId, mockSaveProfile } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
@@ -48,13 +48,13 @@ describe("POST /api/profile/rest-timer", () => {
   });
 
   it("saves a valid duration", async () => {
-    const res = await callRestTimer({ restTimerSeconds: 120 }, signSession({ userId: USER.id }));
+    const res = await callRestTimer({ restTimerSeconds: 120 }, signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(res.status).toBe(200);
     expect(mockSaveProfile.mock.calls[0][0]).toMatchObject({ restTimerSeconds: 120 });
   });
 
   it("rejects non-integers, out-of-range values, and missing input", async () => {
-    const cookie = signSession({ userId: USER.id });
+    const cookie = signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     for (const restTimerSeconds of [14, 601, 45.5, "90", null, undefined]) {
       const res = await callRestTimer({ restTimerSeconds }, cookie);
@@ -65,7 +65,7 @@ describe("POST /api/profile/rest-timer", () => {
 
   it("returns 404 when the profile doesn't exist", async () => {
     mockFindProfileByUserId.mockReturnValue(undefined);
-    const res = await callRestTimer({ restTimerSeconds: 90 }, signSession({ userId: USER.id }));
+    const res = await callRestTimer({ restTimerSeconds: 90 }, signSession({ userId: USER.id }, MEMBER_SESSION_LIFETIME_MS));
     expect(res.status).toBe(404);
   });
 });

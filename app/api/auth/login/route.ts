@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { findUserByEmail } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
-import { signSession } from "@/lib/session";
+import { isStaffRole } from "@/lib/permissions";
+import { MEMBER_SESSION_LIFETIME_MS, STAFF_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 // Keyed by the submitted email (not IP) — the goal is stopping credential
@@ -63,11 +64,18 @@ export async function POST(request: Request) {
     { status: 200 }
   );
 
-  response.cookies.set("session", signSession({ userId: user.id }), {
+  // Shared login for members and staff/admin alike — the lifetime must be
+  // chosen from the actual authenticated user's role, not assumed from the
+  // route (a stolen staff/admin token is higher-blast-radius, so it gets a
+  // shorter absolute lifetime).
+  const lifetimeMs = isStaffRole(user.role) ? STAFF_SESSION_LIFETIME_MS : MEMBER_SESSION_LIFETIME_MS;
+
+  response.cookies.set("session", signSession({ userId: user.id }, lifetimeMs), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
     secure: process.env.NODE_ENV === "production",
+    maxAge: lifetimeMs / 1000,
   });
 
   return response;

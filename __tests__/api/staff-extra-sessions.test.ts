@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -91,21 +91,21 @@ describe("POST /api/staff/members/[userId]/extra-sessions", () => {
   });
 
   it("rejects non-staff users", async () => {
-    const res = await callGrant({ amount: 2 }, signSession({ userId: MEMBER_USER.id }));
+    const res = await callGrant({ amount: 2 }, signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(403);
     expect(mockSaveSubscription).not.toHaveBeenCalled();
   });
 
   it("returns 404 for an unknown member", async () => {
-    const res = await callGrant({ amount: 2 }, signSession({ userId: STAFF_USER.id }), "nobody");
+    const res = await callGrant({ amount: 2 }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS), "nobody");
 
     expect(res.status).toBe(404);
     expect(mockSaveSubscription).not.toHaveBeenCalled();
   });
 
   it.each([0, -1, 2.5, 21, "3"])("rejects invalid amount %p", async (amount) => {
-    const res = await callGrant({ amount }, signSession({ userId: STAFF_USER.id }));
+    const res = await callGrant({ amount }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(400);
     expect(mockSaveSubscription).not.toHaveBeenCalled();
@@ -114,7 +114,7 @@ describe("POST /api/staff/members/[userId]/extra-sessions", () => {
   it("rejects when the member has no plan", async () => {
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
 
-    const res = await callGrant({ amount: 2 }, signSession({ userId: STAFF_USER.id }));
+    const res = await callGrant({ amount: 2 }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(400);
     expect(mockSaveSubscription).not.toHaveBeenCalled();
@@ -126,7 +126,7 @@ describe("POST /api/staff/members/[userId]/extra-sessions", () => {
       monthlySessionAllowance: null,
     });
 
-    const res = await callGrant({ amount: 2 }, signSession({ userId: STAFF_USER.id }));
+    const res = await callGrant({ amount: 2 }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(400);
     expect(mockSaveSubscription).not.toHaveBeenCalled();
@@ -135,7 +135,7 @@ describe("POST /api/staff/members/[userId]/extra-sessions", () => {
   it("appends a grant and returns the new remaining balance", async () => {
     const res = await callGrant(
       { amount: 3, note: "  Missed class goodwill  " },
-      signSession({ userId: STAFF_USER.id })
+      signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS)
     );
     const data = await res.json();
 
@@ -167,7 +167,7 @@ describe("POST /api/staff/members/[userId]/extra-sessions", () => {
       ],
     });
 
-    const res = await callGrant({ amount: 2 }, signSession({ userId: STAFF_USER.id }));
+    const res = await callGrant({ amount: 2 }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
 
     expect(res.status).toBe(200);
     const saved = mockSaveSubscription.mock.calls[0][0];

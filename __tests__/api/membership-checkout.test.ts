@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -69,7 +69,7 @@ async function call(body: unknown, cookie?: string) {
   return POST(req);
 }
 
-const cookie = () => signSession({ userId: MEMBER.id });
+const cookie = () => signSession({ userId: MEMBER.id }, MEMBER_SESSION_LIFETIME_MS);
 
 describe("POST /api/membership/checkout", () => {
   beforeEach(() => {

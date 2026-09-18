@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -35,7 +35,7 @@ async function callDelete(body: unknown, actorId: string | null) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(actorId ? { Cookie: `session=${signSession({ userId: actorId })}` } : {}),
+      ...(actorId ? { Cookie: `session=${signSession({ userId: actorId }, MEMBER_SESSION_LIFETIME_MS)}` } : {}),
     },
     body: JSON.stringify(body),
   });

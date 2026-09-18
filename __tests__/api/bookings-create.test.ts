@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signSession } from "@/lib/session";
+import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const {
   mockFindUserById,
@@ -189,7 +189,7 @@ describe("POST /api/bookings/create", () => {
   });
 
   it("rejects a missing classId with 400", async () => {
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({}, cookie);
 
@@ -200,7 +200,7 @@ describe("POST /api/bookings/create", () => {
   it("blocks a member with no emergency contact from booking", async () => {
     mockFindProfileByUserId.mockReturnValue({ emergencyContactName: null, emergencyContactPhone: null });
     mockFindClassById.mockReturnValue(SOME_CLASS);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -214,7 +214,7 @@ describe("POST /api/bookings/create", () => {
     mockFindClassById.mockReturnValue(SOME_CLASS);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
 
@@ -224,7 +224,7 @@ describe("POST /api/bookings/create", () => {
 
   it("returns 404 when the class does not exist", async () => {
     mockFindClassById.mockReturnValue(undefined);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "missing-class" }, cookie);
     const data = await res.json();
@@ -240,7 +240,7 @@ describe("POST /api/bookings/create", () => {
       date: "2020-01-01",
       startTime: "09:00",
     });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -255,7 +255,7 @@ describe("POST /api/bookings/create", () => {
     mockFindBookingsByUserId.mockReturnValue([
       { id: "booking-1", classId: "class-1", userId: "user-1", createdAt: "now" },
     ]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -272,7 +272,7 @@ describe("POST /api/bookings/create", () => {
       { id: "b1", classId: "class-1", userId: "other-1", createdAt: "now" },
       { id: "b2", classId: "class-1", userId: "other-2", createdAt: "now" },
     ]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -289,7 +289,7 @@ describe("POST /api/bookings/create", () => {
     mockFindBookingsByClassId.mockReturnValue([
       { id: "b1", classId: "class-1", userId: "other-1", createdAt: "now" },
     ]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -327,7 +327,7 @@ describe("POST /api/bookings/create", () => {
       { id: "pkg-1", visible: true, packageType: "membership" },
     ]);
     mockFindSubscriptionByUserId.mockReturnValue({ status: "inactive" });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -345,7 +345,7 @@ describe("POST /api/bookings/create", () => {
     mockFindClassById.mockReturnValue(SOME_CLASS);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
 
@@ -362,7 +362,7 @@ describe("POST /api/bookings/create", () => {
     mockFindClassById.mockReturnValue(SOME_CLASS);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
-    const cookie = signSession({ userId: "staff-1" });
+    const cookie = signSession({ userId: "staff-1" }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
 
@@ -382,7 +382,7 @@ describe("POST /api/bookings/create", () => {
     mockFindClassById.mockReturnValue(SOME_CLASS); // category: "strength"
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -406,7 +406,7 @@ describe("POST /api/bookings/create", () => {
       { id: "led-1", userId: "member-1", delta: 10, reason: "purchase", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-01T00:00:00.000Z" },
       { id: "led-2", userId: "member-1", delta: -5, reason: "staff_adjust", purchaseId: null, bookingId: null, note: null, createdAt: "2026-01-02T00:00:00.000Z" },
     ]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
 
@@ -434,7 +434,7 @@ describe("POST /api/bookings/create", () => {
     mockFindClassById.mockReturnValue(SOME_CLASS);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
     const data = await res.json();
@@ -455,7 +455,7 @@ describe("POST /api/bookings/create", () => {
     mockFindClassById.mockReturnValue(SOME_CLASS);
     mockFindBookingsByUserId.mockReturnValue([]);
     mockFindBookingsByClassId.mockReturnValue([]);
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
 
@@ -478,7 +478,7 @@ describe("POST /api/bookings/create", () => {
       userId: MEMBER_USER.id,
       createdAt: "now",
     });
-    const cookie = signSession({ userId: MEMBER_USER.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
 
     const res = await callBookingsCreate({ classId: "class-1" }, cookie);
 

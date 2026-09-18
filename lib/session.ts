@@ -6,6 +6,17 @@ export interface SessionPayload {
   userId: string;
 }
 
+// Internal signed shape only — iat/exp never reach callers (verifySession
+// returns just SessionPayload). They exist purely so the server can enforce
+// absolute expiry without a database-backed session store.
+interface SignedPayload extends SessionPayload {
+  iat: number;
+  exp: number;
+}
+
+export const MEMBER_SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+export const STAFF_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000;
+
 function getSessionSecret(): string {
   const secret = getConfiguredSessionSecret();
 
@@ -24,8 +35,14 @@ function sign(encodedPayload: string): string {
     .digest("hex");
 }
 
-export function signSession(payload: SessionPayload): string {
-  const encodedPayload = Buffer.from(JSON.stringify(payload), "utf-8").toString(
+// lifetimeMs is required (not optional/defaulted) so every caller must
+// deliberately choose a lifetime — see MEMBER_SESSION_LIFETIME_MS /
+// STAFF_SESSION_LIFETIME_MS rather than silently getting one.
+export function signSession(payload: SessionPayload, lifetimeMs: number): string {
+  const iat = Date.now();
+  const signed: SignedPayload = { userId: payload.userId, iat, exp: iat + lifetimeMs };
+
+  const encodedPayload = Buffer.from(JSON.stringify(signed), "utf-8").toString(
     "base64url"
   );
 
@@ -51,9 +68,14 @@ export function verifySession(
   try {
     const parsed = JSON.parse(
       Buffer.from(encodedPayload, "base64url").toString("utf-8")
-    ) as { userId?: unknown };
+    ) as { userId?: unknown; iat?: unknown; exp?: unknown };
 
-    return typeof parsed.userId === "string" ? { userId: parsed.userId } : null;
+    if (typeof parsed.userId !== "string") return null;
+    if (typeof parsed.iat !== "number" || !Number.isFinite(parsed.iat)) return null;
+    if (typeof parsed.exp !== "number" || !Number.isFinite(parsed.exp)) return null;
+    if (Date.now() >= parsed.exp) return null;
+
+    return { userId: parsed.userId };
   } catch {
     return null;
   }
