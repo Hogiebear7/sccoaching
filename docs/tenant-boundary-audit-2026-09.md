@@ -202,7 +202,7 @@ entirely disconnected sources of "brand truth" today.
 | Finances ledger has no gym filter | **Critical** (as designed, once tenant #2 exists) | Full cross-tenant revenue/expense leak by construction — every gym's money would appear in every other gym's ledger. Not exploitable today (one gym). |
 | Global payment architecture (one Stripe key, no Connect groundwork, `event.account` never read) | **Critical** (structural, blocks Phase 5) | Real rework required, not an added field — see §4. |
 | Queries with no explicit tenant scope (virtually every `findAll*`) | **High** | General form of the Finances issue — classes, exercises, catalog, community are all "select everything" by default. |
-| Client-supplied IDs trusted with no ownership check: community-report resolution, invite revocation, class/exercise-library mutation | **High** | Concrete named routes today: `app/api/staff/community/reports/[id]/resolve`, `app/api/staff/invites/[inviteId]/revoke`, `app/api/staff/classes/*`, `app/api/staff/exercise-library/*` — gated only by role capability, no gym comparison. |
+| Client-supplied IDs trusted with no ownership check: community-report resolution | **High** | Invite revocation and class mutations were closed by the cross-gym authorization fix merged in PR #4 (merge commit `e456e06`), with route-level denial tests. Exercise-library routes (`app/api/staff/exercise-library/*`) were never a gap — they operate on intentionally platform-global shared exercise-library data, not gym-owned records. Community-report resolution (`app/api/staff/community/reports/[id]/resolve`) remains open: Community's platform-global-vs-gym-scoped ownership model still needs a product decision before gym-scoping can be added without creating a moderation blind spot. The four page-level server components that also call `sameGym` remain untested (not unprotected) — deferred because no dedicated Server Component test harness exists in this repo. |
 | Messages/community crossing tenant boundaries | **Medium–High** | Staff-to-member messaging is correctly `sameGym`-gated; the community feed (comments/likes) is a platform-global feed by explicit design comment, with no gym field at all. |
 | Metrics/Finances visible to wrong tenant | **Critical** | Same root cause as the Finances row above. |
 | Payments attributed to wrong business | **Critical** | Every money record's gym is only derivable via the payer's own `gymId`, never stored on the transaction — exactly the ambiguity Connect exists to resolve, entirely unaddressed today. |
@@ -215,19 +215,58 @@ entirely disconnected sources of "brand truth" today.
 | Admin capabilities broader than intended (`gyms.moderate` can act on any gym by id) | **Medium** | Almost certainly correct as platform-operator-only by the code's own comment, but not currently reserved to a role distinct from any tenant's own `admin_manager`. |
 | "Primary gym" assumptions that may not scale | **Medium** | Several routes have S&C-as-primary-gym baked in as a named constant, not just a data row (availability toggle, nearby-search recommendation ranking). |
 
-## 7. Related but out-of-scope finding — separate security ticket
+## 7. Session-token expiry — resolved
 
-**Session tokens have no expiry claim, and the web cookie has no
-`maxAge`.** `SessionPayload` (`lib/session.ts`) is `{ userId }` only, with no
-`exp` field, and the login/signup/handoff routes set the session cookie with
-no `maxAge`/`expires`. A leaked session cookie or mobile bearer token
-remains valid indefinitely — there is no server-side expiry to fall back on.
+Originally recorded here in September 2026 as a related-but-out-of-scope
+finding: session tokens carried no expiry claim and the web cookie had no
+maxAge, so a leaked cookie or mobile bearer token remained valid
+indefinitely.
 
-This is **unrelated to the white-label/tenant work** — it is a pre-existing,
-already-live gap, not something introduced by or specific to multi-tenancy.
-Recorded here because it surfaced during this audit; treat as its own
-security hardening slice, not part of this Phase 0 or any tenant-architecture
-phase above.
+Status: closed. The fix was implemented on branch `fix/session-expiry` and
+merged into `redesign/index-html-blueprint` as merge commit `c8608bf`,
+containing implementation commit `220e053`.
+
+`lib/session.ts` now signs internal `iat` and `exp` claims. `verifySession()`
+enforces absolute expiry server-side: when `Date.now() >= exp`, the token is
+rejected through the existing invalid-session path. This is the shared
+verification point used by:
+
+- `verifyRequestSession()` for cookie and Bearer authentication;
+- `authorizeStaffRequest()`;
+- `requireStaffPage()`.
+
+Session lifetimes are tiered:
+
+- members: 7 days;
+- staff/admin: 24 hours.
+
+The lifetime is selected dynamically using `isStaffRole(user.role)` at the
+shared web-login, mobile-login, and web-handoff paths, and statically at the
+member signup and gym-owner signup paths. Web cookies receive a matching
+maxAge. Mobile Bearer tokens are subject to the same server-side expiry
+enforcement.
+
+Every token issued before this change lacked `iat` and `exp` and was
+rejected after deployment. This caused a one-time global reauthentication
+event for all existing web and mobile users, including members and staff.
+
+Deliberately deferred as separate future security decisions:
+
+- sliding or rolling renewal;
+- a database-backed session store;
+- server-side revocation;
+- logout-all-devices;
+- password-change invalidation;
+- refresh-token rotation;
+- risk-based reauthentication;
+- idle timeout;
+- a global web client-side 401 interceptor.
+
+Mobile already handles 401 responses globally. Web currently relies on
+per-request and per-page server-side checks. Expired sessions in long-lived
+open web tabs may therefore produce a raw 401 or an incomplete page state
+until the next navigation; this is recorded as a separate UX follow-up and
+is not part of the session-expiry fix.
 
 ## 8. Recommended future tenant model (proposal only — not implemented)
 
