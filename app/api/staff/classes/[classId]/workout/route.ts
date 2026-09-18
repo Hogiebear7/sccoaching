@@ -13,6 +13,7 @@ import {
   type WorkoutSessionRecord,
 } from "@/lib/db";
 import { syncClassWorkoutToAllBooked } from "@/lib/class-workout-sync";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { parseExerciseEntries } from "@/lib/workout-entries";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -48,6 +49,15 @@ export async function POST(
   const classRecord = findClassById(classId);
 
   if (!classRecord) {
+    return NextResponse.json(
+      { success: false, message: "This class no longer exists." },
+      { status: 404 }
+    );
+  }
+
+  // A class with no coachUserId shouldn't exist (it's stamped at creation),
+  // but treat that as not-found rather than assume ownership.
+  if (!classRecord.coachUserId || !sameGymAsStaff(user, classRecord.coachUserId)) {
     return NextResponse.json(
       { success: false, message: "This class no longer exists." },
       { status: 404 }

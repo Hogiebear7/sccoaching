@@ -3686,6 +3686,10 @@ export function findInvites(): InviteRecord[] {
   return readDb().invites.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+export function findInviteById(id: string): InviteRecord | undefined {
+  return readDb().invites.find((i) => i.id === id);
+}
+
 // Marks any pending invite past its expiry as "expired" — lazy, on-read
 // cleanup, same shape as consumeResetToken. Returns the number changed.
 function expireStaleInvites(db: Database): boolean {

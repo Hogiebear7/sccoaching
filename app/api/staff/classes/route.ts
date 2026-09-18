@@ -14,6 +14,7 @@ import {
   type ClassSeriesRecord,
 } from "@/lib/db";
 import { generateOccurrencesForSeries } from "@/lib/class-series";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isFutureDateTime } from "@/lib/scheduling-status";
@@ -152,6 +153,15 @@ export async function POST(request: NextRequest) {
 
   // ── Edit path: always a single occurrence ─────────────────────────────
   if (existingClass) {
+    // A class with no coachUserId shouldn't exist (it's stamped at
+    // creation), but treat that as not-found rather than assume ownership.
+    if (!existingClass.coachUserId || !sameGymAsStaff(user, existingClass.coachUserId)) {
+      return NextResponse.json(
+        { success: false, message: "This class no longer exists." },
+        { status: 404 }
+      );
+    }
+
     // Moving a series occurrence to another date leaves its original slot
     // vacant — tombstone it so rolling generation doesn't re-create it.
     if (existingClass.seriesId && existingClass.date !== date.trim()) {

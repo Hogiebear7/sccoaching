@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { createInvite, findInvites, findUserById } from "@/lib/db";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { sendEmail } from "@/lib/email";
 import { inviteEmail } from "@/lib/email-templates";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -18,15 +19,19 @@ function requireStaffBilling(request: NextRequest) {
   return staffUser;
 }
 
-// GET /api/staff/invites — list all invites, newest first, for the staff
-// invite-management UI.
+// GET /api/staff/invites — list invites for the caller's own gym, newest
+// first, for the staff invite-management UI. findInvites() itself returns
+// every gym's invites (it's a plain sorted dump), so the gym filter has to
+// happen here — never return another gym's invite emails/tiers/ids.
 export async function GET(request: NextRequest) {
   const staffUser = requireStaffBilling(request);
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "Only staff can manage invites." }, { status: 403 });
   }
 
-  return NextResponse.json({ success: true, data: findInvites() });
+  const invites = findInvites().filter((invite) => sameGymAsStaff(staffUser, invite.invitedByStaffId));
+
+  return NextResponse.json({ success: true, data: invites });
 }
 
 // POST /api/staff/invites — { email, tier } → creates an invite and emails a
