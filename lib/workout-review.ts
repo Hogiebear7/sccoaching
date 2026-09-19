@@ -76,6 +76,18 @@ function average(values: number[]): number | null {
   return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
 }
 
+// Coarse bucket for the AI review's food/water framing — never exact
+// clock-watching, just enough to avoid saying something like "grab
+// breakfast" about a workout that happened at 9pm.
+function timeOfDayLabel(hour: number): string {
+  if (hour >= 5 && hour < 8) return "early morning";
+  if (hour >= 8 && hour < 11) return "morning";
+  if (hour >= 11 && hour < 14) return "midday";
+  if (hour >= 14 && hour < 17) return "afternoon";
+  if (hour >= 17 && hour < 21) return "evening";
+  return "late night";
+}
+
 // Everything the AI synthesis (and the review screen itself) needs, computed
 // once from data that already exists elsewhere in the app — nothing here is
 // invented, it's all comparisons/lookups against real logged records.
@@ -162,6 +174,11 @@ export function formatWorkoutReviewContext(data: WorkoutReviewData): string {
       : "Session RPE: not reported."
   );
   if (session.feelingNotes) lines.push(`Member's own note about this session: "${session.feelingNotes}"`);
+  if (session.startedAtHour != null) {
+    lines.push(`This workout was trained in the ${timeOfDayLabel(session.startedAtHour)} (local time).`);
+  } else {
+    lines.push(`Time of day this workout happened is not known (logged after the fact, no live timer used) — do not guess or imply a time.`);
+  }
   lines.push(`Total volume this session (sum of weight x reps across all sets): ${comparison.thisVolume} kg.`);
 
   if (comparison.comparedSessionCount > 0) {
