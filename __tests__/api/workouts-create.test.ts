@@ -104,6 +104,33 @@ describe("POST /api/workouts/create", () => {
     expect(saved.createdAt).toBe(saved.updatedAt);
   });
 
+  it("rejects an out-of-range startedAtHour with 400", async () => {
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
+
+    const res = await callWorkoutsCreate(
+      { title: "Lower Body", date: "2026-06-19", startedAtHour: 24 },
+      cookie
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.message).toBe("Started-at hour must be between 0 and 23.");
+    expect(mockSaveWorkoutSession).not.toHaveBeenCalled();
+  });
+
+  it("persists startedAtHour when the live timer was used, and null when it wasn't", async () => {
+    const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
+
+    await callWorkoutsCreate({ title: "Lower Body", date: "2026-06-19", startedAtHour: 7 }, cookie);
+    await callWorkoutsCreate({ title: "Upper Body", date: "2026-06-19" }, cookie);
+
+    const liveSaved = mockSaveWorkoutSession.mock.calls[0][0];
+    const backfilledSaved = mockSaveWorkoutSession.mock.calls[1][0];
+
+    expect(liveSaved.startedAtHour).toBe(7);
+    expect(backfilledSaved.startedAtHour).toBeNull();
+  });
+
   it("creates a second, independent record on a second valid call rather than overwriting the first", async () => {
     const cookie = signSession({ userId: "user-1" }, MEMBER_SESSION_LIFETIME_MS);
 

@@ -177,6 +177,13 @@ export interface WorkoutSessionRecord {
       Feeds the workout review and the AI report. */
   sessionRpe?: number | null;
   feelingNotes?: string | null;
+  /** Device-local hour (0-23) the member's live workout timer was actually
+      started, sent as-is from the phone (already resolved to local time,
+      no timezone stored or needed server-side). Null/undefined for a
+      workout logged after the fact with no live timer run — deliberately
+      never backfilled or guessed. Feeds time-of-day framing in the AI
+      workout review (lib/workout-review.ts). */
+  startedAtHour?: number | null;
   /** Cached AI-generated session review paragraph (lib/workout-review.ts +
       generateWorkoutReview) — generated once on first request, not
       regenerated on every fetch. Cleared implicitly by never being set;

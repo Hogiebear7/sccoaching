@@ -31,6 +31,13 @@ function parseOptionalRpe(value: unknown): { ok: true; value: number | null } | 
   return { ok: true, value };
 }
 
+function parseOptionalHour(value: unknown): { ok: true; value: number | null } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== "number" || !Number.isInteger(value)) return { ok: false };
+  if (value < 0 || value > 23) return { ok: false };
+  return { ok: true, value };
+}
+
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
 
@@ -61,10 +68,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { title, date, durationMins, notes, exercises, runs, sessionRpe, feelingNotes } = (body ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const { title, date, durationMins, notes, exercises, runs, sessionRpe, feelingNotes, startedAtHour } = (body ??
+    {}) as Record<string, unknown>;
 
   if (typeof title !== "string" || !title.trim()) {
     return NextResponse.json(
@@ -94,6 +99,15 @@ export async function POST(request: NextRequest) {
   if (!rpeResult.ok) {
     return NextResponse.json(
       { success: false, message: "Session RPE must be between 1 and 10." },
+      { status: 400 }
+    );
+  }
+
+  const hourResult = parseOptionalHour(startedAtHour);
+
+  if (!hourResult.ok) {
+    return NextResponse.json(
+      { success: false, message: "Started-at hour must be between 0 and 23." },
       { status: 400 }
     );
   }
@@ -145,6 +159,7 @@ export async function POST(request: NextRequest) {
     runs: parsedRuns,
     sessionRpe: rpeResult.value,
     feelingNotes: typeof feelingNotes === "string" && feelingNotes.trim() ? feelingNotes.trim() : null,
+    startedAtHour: hourResult.value,
     createdAt: now,
     updatedAt: now,
   };
