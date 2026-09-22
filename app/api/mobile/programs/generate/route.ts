@@ -4,13 +4,27 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { generateProgrammeSkeleton, isAiConfigured, type ProgrammeConditioningProtocol } from "@/lib/ai";
-import { findUserById, findWeeklyTrainingScheduleByUserId, findWorkoutSessionsByUserId, type PrescribedExercise } from "@/lib/db";
+import { resolveCurrentWeightKg } from "@/lib/body-weight";
+import {
+  findBodyWeightLogsByUserId,
+  findProfileByUserId,
+  findUserById,
+  findWeeklyTrainingScheduleByUserId,
+  findWorkoutSessionsByUserId,
+  type PrescribedExercise,
+  type WorkoutSessionRecord,
+} from "@/lib/db";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import { pickExercisesForDay, pickStructuredExercisesForDay, resolveSplitMode } from "@/lib/programme-exercise-picker";
+import {
+  pickExercisesForDay,
+  pickStructuredExercisesForDay,
+  resolveSplitMode,
+  type ExerciseFrequencyMap,
+} from "@/lib/programme-exercise-picker";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   buildTestCheckpoints,
@@ -70,6 +84,68 @@ function buildConditioningProtocolExercise(protocol: ProgrammeConditioningProtoc
       description: protocol.description,
     },
   };
+}
+
+// Folds the member's saved goal timeline (Profile → Goal timeline card) into
+// AI context — same "notes are real signal" mechanism the Sports-performance
+// weekly-schedule fold-in below already uses. The generator never saw this
+// at all before; a member with a genuine cut/bulk/recomp goal just got a
+// generically-templated programme regardless. Doesn't prescribe numbers
+// (that's the nutrition target's job) — just gives the AI the direction and
+// pace so it can lean the rep scheme/volume appropriately (e.g. a tight
+// cutting timeline favours holding strength over chasing extra volume that
+// adds fatigue without much adaptation benefit at a deficit).
+function buildGoalContextForAi(userId: string): string | null {
+  const profile = findProfileByUserId(userId);
+  if (!profile) return null;
+
+  const currentWeightKg = resolveCurrentWeightKg(profile.currentWeightKg ?? null, findBodyWeightLogsByUserId(userId));
+  const goalWeightKg = profile.goalWeightKg ?? null;
+  const goalBodyFatPct = profile.goalBodyFatPct ?? null;
+  const goalTargetDate = profile.goalTargetDate ?? null;
+  const parts: string[] = [];
+
+  if (goalWeightKg !== null) {
+    if (currentWeightKg !== null) {
+      const diff = goalWeightKg - currentWeightKg;
+      const direction = Math.abs(diff) < 0.5 ? "maintain current weight" : diff < 0 ? "lose weight" : "gain weight";
+      parts.push(
+        `Member's goal is to ${direction} — currently ${currentWeightKg}kg, targeting ${goalWeightKg}kg` +
+          (goalTargetDate ? ` by ${goalTargetDate}` : "") +
+          "."
+      );
+    } else {
+      parts.push(`Member's goal weight is ${goalWeightKg}kg` + (goalTargetDate ? ` by ${goalTargetDate}` : "") + ".");
+    }
+  }
+  if (goalBodyFatPct !== null) {
+    parts.push(`Member's goal body fat is ${goalBodyFatPct}%.`);
+  }
+  if (parts.length === 0) return null;
+
+  parts.push(
+    "Bias rep scheme/volume toward this goal where it doesn't conflict with the stated training goal above — " +
+      "e.g. a tight cutting timeline favours holding strength/intensity over adding volume that mostly adds fatigue."
+  );
+  return parts.join(" ");
+}
+
+// How many of the member's own logged sessions include each exercise
+// (by normalized name, since a logged entry only optionally links back to a
+// real library exerciseId — matching on name is the same convention
+// getPersonalExerciseNames already uses client-side). Counts SESSIONS, not
+// individual sets, so an exercise logged many times in one session doesn't
+// outweigh one done consistently across many different sessions — frequency
+// here means "how often do they train this," not "how much volume."
+function buildExerciseFrequencyMap(sessions: WorkoutSessionRecord[]): ExerciseFrequencyMap {
+  const freq: ExerciseFrequencyMap = new Map();
+  for (const session of sessions) {
+    const namesThisSession = new Set(session.exercises.map((e) => e.name.trim().toLowerCase()).filter(Boolean));
+    for (const name of namesThisSession) {
+      freq.set(name, (freq.get(name) ?? 0) + 1);
+    }
+  }
+  return freq;
 }
 
 // POST /api/mobile/programs/generate
@@ -192,6 +268,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const goalContext = buildGoalContextForAi(user.id);
+    if (goalContext) {
+      notesForAi = [notesForAi, goalContext].filter((v): v is string => !!v).join(" ").slice(0, 900);
+    }
+
     const checkpointWeeks = computeCheckpointWeeks(cleanWeeks);
     const skeleton = await generateProgrammeSkeleton({
       goal: cleanGoal,
@@ -212,6 +293,7 @@ export async function POST(request: NextRequest) {
     }
 
     const sessions = findWorkoutSessionsByUserId(user.id);
+    const frequencyByExerciseName = buildExerciseFrequencyMap(sessions);
     const alreadyChosenIds = new Set<string>();
 
     // Upper/Lower alternates strictly across workout-type days only (rest
@@ -247,6 +329,7 @@ export async function POST(request: NextRequest) {
           equipmentSlugs: cleanEquipmentSlugs,
           timeMinutes: cleanSessionMinutes,
           alreadyChosenIds,
+          frequencyByExerciseName,
         });
         const targeted = resolveInitialProgrammeTargets(picked, repScheme, sessions);
         return { label: day.label, type: "workout" as const, exercises: targeted };
@@ -265,6 +348,7 @@ export async function POST(request: NextRequest) {
         equipmentSlugs: cleanEquipmentSlugs,
         timeMinutes: cleanSessionMinutes,
         alreadyChosenIds,
+        frequencyByExerciseName,
       });
       const targeted = resolveInitialProgrammeTargets(picked, repScheme, sessions);
       const focus = splitMode === "upperLower" ? (half === "upper" ? "Upper Body" : "Lower Body") : "Full Body";

@@ -65,6 +65,7 @@ export default async function StaffMemberDetailPage({
 }) {
   const staffUser = await requireStaffPage("members.view");
   const canEditBilling = can(staffUser.role, "members.billing");
+  const canGrantTier = can(staffUser.role, "members.grantTier");
   const canManageAccount = can(staffUser.role, "members.account");
   const canHardDelete = can(staffUser.role, "members.hardDelete");
   const { userId } = await params;
@@ -251,7 +252,7 @@ export default async function StaffMemberDetailPage({
       {/* Membership + billing is admin-only. A coach never sees this panel,
           and its API routes (subscription / extra-sessions) enforce the same
           members.billing capability server-side. */}
-      {canEditBilling ? (
+      {canGrantTier ? (
         <ChangeTierPanel memberId={user.id} currentTier={resolveMemberTier(subscription)} />
       ) : null}
 

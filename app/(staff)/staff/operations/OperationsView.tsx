@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -67,6 +68,23 @@ export function OperationsView({
   const fullClasses = classes.filter((c) => c.isFull);
   const waitlistedClasses = classes.filter((c) => c.waitlistCount > 0);
 
+  // Grouped by reason so the "Needs attention" card can filter down to one
+  // cause at a time — a member with multiple reasons appears in each group,
+  // so counts here can sum to more than attentionCount.
+  const attentionBreakdown = useMemo(() => {
+    const groups = new Map<string, MemberOperationalSummary[]>();
+    for (const member of members) {
+      for (const reason of member.attentionReasons) {
+        const group = groups.get(reason);
+        if (group) group.push(member);
+        else groups.set(reason, [member]);
+      }
+    }
+    return Array.from(groups.entries())
+      .map(([reason, group]) => ({ reason, members: group }))
+      .sort((a, b) => b.members.length - a.members.length);
+  }, [members]);
+
   const latestRunPerJob = useMemo(() => {
     const seen = new Map<string, JobRunRecord>();
     for (const run of jobRuns) {
@@ -117,11 +135,7 @@ export function OperationsView({
       {/* Summary stats */}
       <div className="grid gap-4 sm:grid-cols-3">
         <SummaryStat label="Members" value={String(members.length)} detail="Total member accounts." />
-        <SummaryStat
-          label="Needs attention"
-          value={String(attentionCount)}
-          detail="Lapsed, past due, no plan, no sessions, or awaiting a reply."
-        />
+        <AttentionCard count={attentionCount} breakdown={attentionBreakdown} />
         <SummaryStat
           label="Class pressure"
           value={String(fullClasses.length)}
@@ -212,6 +226,69 @@ function SummaryStat({ label, value, detail }: { label: string; value: string; d
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-3 text-display text-[28px] tabular-nums">{value}</p>
       <p className="mt-2 text-sm text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+// "Needs attention" as a menu rather than a static count: pick a reason to
+// see exactly who it applies to, without leaving the overview page.
+function AttentionCard({
+  count,
+  breakdown,
+}: {
+  count: number;
+  breakdown: { reason: string; members: MemberOperationalSummary[] }[];
+}) {
+  const [selectedReason, setSelectedReason] = useState<string>("all");
+
+  const selectedMembers =
+    selectedReason === "all"
+      ? null
+      : (breakdown.find((b) => b.reason === selectedReason)?.members ?? []);
+
+  return (
+    <div className="panel rounded-3xl p-5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">Needs attention</p>
+        {count > 0 ? (
+          <select
+            value={selectedReason}
+            onChange={(e) => setSelectedReason(e.target.value)}
+            aria-label="Filter members needing attention by reason"
+            className="input-field px-2 py-1 text-xs"
+          >
+            <option value="all">All reasons</option>
+            {breakdown.map(({ reason, members: group }) => (
+              <option key={reason} value={reason}>
+                {reason} ({group.length})
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+      <p className="mt-3 text-display text-[28px] tabular-nums">{count}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Lapsed, past due, no plan, no sessions, or awaiting a reply.
+      </p>
+
+      {selectedMembers ? (
+        <div className="mt-4 space-y-1.5 border-t border-border pt-3">
+          {selectedMembers.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No members currently match this reason.</p>
+          ) : (
+            selectedMembers.map((member) => (
+              <Link
+                key={member.userId}
+                href={`/staff/members/${member.userId}`}
+                className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs transition hover:bg-accent"
+              >
+                <span className="truncate text-foreground">{member.fullName ?? member.email}</span>
+                <span className="shrink-0 text-gold">View →</span>
+              </Link>
+            ))
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

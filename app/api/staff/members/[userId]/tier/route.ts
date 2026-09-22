@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "You must be signed in to manage memberships." }, { status: 401 });
   }
 
-  if (!can(staffUser.role, "members.billing")) {
+  if (!can(staffUser.role, "members.grantTier")) {
     return NextResponse.json({ success: false, message: "Only staff can manage memberships." }, { status: 403 });
   }
 

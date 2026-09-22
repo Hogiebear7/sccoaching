@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { InvitePanel } from "@/components/staff/InvitePanel";
 import { describePackageAllowance } from "@/lib/catalog";
 import type { MembershipPackageRecord, SubscriptionStatus } from "@/lib/db";
+import type { MemberTier } from "@/lib/member-access";
 import {
   formatMembershipDate,
   isPeriodLapsed,
@@ -48,6 +49,12 @@ const EXPIRY_LABEL: Record<ExpiryFilter, string> = {
   "no-expiry": "No expiry set",
 };
 
+const BULK_TIER_LABEL: Record<MemberTier, string> = {
+  free: "Free",
+  app_subscription: "App Subscription",
+  membership: "Membership",
+};
+
 function rowDisplayName(row: MemberRow): string {
   return row.fullName ?? row.email;
 }
@@ -75,37 +82,55 @@ export function MembersActivationView({
   rows,
   packages,
   canManageBilling,
+  canGrantTier,
   ageBreakdown,
 }: {
   rows: MemberRow[];
   packages: MembershipPackageRecord[];
   /** Admin+ only. Coaches see the member list but can't activate memberships. */
   canManageBilling: boolean;
+  /** Admin+ only. Gates the bulk/plan-filter "grant tier" tooling below. */
+  canGrantTier: boolean;
   /** Active-member headcount by age bracket — demographics, not billing. */
   ageBreakdown: { bracket: string; label: string; count: number }[];
 }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");
   const [expiryFilter, setExpiryFilter] = useState<ExpiryFilter>("all");
+  const [planFilter, setPlanFilter] = useState<string>("all");
   const [showArchived, setShowArchived] = useState(false);
   const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
   const [page, setPage] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkTier, setBulkTier] = useState<MemberTier>("membership");
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [bulkSummary, setBulkSummary] = useState<string | null>(null);
 
   const archivedCount = rows.filter((row) => row.archivedAt !== null).length;
   const memberCount = rows.filter((row) => row.role === "member").length;
   const staffCount = rows.length - memberCount;
+
+  const planOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const row of rows) {
+      if (row.role === "member" && row.currentPlanName) names.add(row.currentPlanName);
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     const filtered = rows.filter((row) => {
       if (!showArchived && row.archivedAt !== null) return false;
-      // None of the expiry filters mean anything for a staff row (no
+      // None of the expiry/plan filters mean anything for a staff row (no
       // subscription period to expire) — excluded rather than silently
       // falling into "No expiry set", which would misleadingly imply they
       // once had a subscription.
-      if (row.role !== "member" && expiryFilter !== "all") return false;
+      if (row.role !== "member" && (expiryFilter !== "all" || planFilter !== "all")) return false;
       if (!matchesExpiry(row, expiryFilter)) return false;
+      if (planFilter !== "all" && row.currentPlanName !== planFilter) return false;
       if (!query) return true;
       // First name, last name, or email — a plain substring match covers all
       // three without needing to split names.
@@ -127,11 +152,73 @@ export function MembersActivationView({
           return a.joinedAt.localeCompare(b.joinedAt);
       }
     });
-  }, [rows, search, sortOrder, expiryFilter, showArchived]);
+  }, [rows, search, sortOrder, expiryFilter, planFilter, showArchived]);
+
+  const selectableVisibleIds = useMemo(
+    () => visibleRows.filter((row) => row.role === "member").map((row) => row.userId),
+    [visibleRows]
+  );
+  const allVisibleSelected =
+    selectableVisibleIds.length > 0 && selectableVisibleIds.every((id) => selectedIds.has(id));
+
+  function toggleSelected(userId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      if (allVisibleSelected) {
+        const next = new Set(prev);
+        for (const id of selectableVisibleIds) next.delete(id);
+        return next;
+      }
+      return new Set([...prev, ...selectableVisibleIds]);
+    });
+  }
+
+  async function handleBulkGrant() {
+    setIsBulkSubmitting(true);
+    setBulkSummary(null);
+
+    try {
+      const res = await fetch("/api/staff/members/bulk-tier", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds: Array.from(selectedIds), tier: bulkTier }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setBulkSummary(data?.message ?? "Could not update members. Please try again.");
+        return;
+      }
+
+      const results: { userId: string; ok: boolean; message: string }[] = data?.data?.results ?? [];
+      const okCount = results.filter((r) => r.ok).length;
+      const failed = results.filter((r) => !r.ok);
+      setBulkSummary(
+        failed.length === 0
+          ? `Updated ${okCount} member${okCount === 1 ? "" : "s"} to ${BULK_TIER_LABEL[bulkTier]}.`
+          : `Updated ${okCount} member${okCount === 1 ? "" : "s"} — ${failed.length} failed: ${failed[0].message}${failed.length > 1 ? ` (+${failed.length - 1} more)` : ""}`
+      );
+      setSelectedIds(new Set());
+      router.refresh();
+    } catch {
+      setBulkSummary("Something went wrong. Please try again.");
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  }
 
   // Reset back to page 1 whenever the underlying result set could have
   // shifted out from under the current page (new search, filter, or size).
-  const resultsKey = `${search}|${sortOrder}|${expiryFilter}|${showArchived}|${pageSize}`;
+  const resultsKey = `${search}|${sortOrder}|${expiryFilter}|${planFilter}|${showArchived}|${pageSize}`;
   const [lastResultsKey, setLastResultsKey] = useState(resultsKey);
   if (resultsKey !== lastResultsKey) {
     setLastResultsKey(resultsKey);
@@ -227,6 +314,21 @@ export function MembersActivationView({
               </option>
             ))}
           </select>
+          {canGrantTier && planOptions.length > 0 ? (
+            <select
+              value={planFilter}
+              onChange={(e) => setPlanFilter(e.target.value)}
+              aria-label="Filter by plan"
+              className="input-field px-3 py-2 text-sm"
+            >
+              <option value="all">Any plan</option>
+              {planOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           {archivedCount > 0 ? (
             <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
               <input
@@ -254,6 +356,52 @@ export function MembersActivationView({
         </div>
       ) : null}
 
+      {/* Bulk tier grant — select filtered members (e.g. a plan filter
+          isolating a specific package) and grant them all a tier in one
+          action, instead of one staff click per member. */}
+      {canGrantTier && selectableVisibleIds.length > 0 ? (
+        <div className="panel flex flex-wrap items-center gap-3 p-3">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={toggleSelectAllVisible}
+              aria-label="Select all filtered members"
+              className="h-4 w-4 accent-primary"
+            />
+            Select all filtered ({selectableVisibleIds.length})
+          </label>
+
+          {selectedIds.size > 0 ? (
+            <>
+              <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+              <select
+                value={bulkTier}
+                onChange={(e) => setBulkTier(e.target.value as MemberTier)}
+                aria-label="Tier to grant selected members"
+                className="input-field px-2 py-1.5 text-xs"
+              >
+                {(Object.keys(BULK_TIER_LABEL) as MemberTier[]).map((value) => (
+                  <option key={value} value={value}>
+                    {BULK_TIER_LABEL[value]}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleBulkGrant}
+                disabled={isBulkSubmitting}
+                className="btn-primary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isBulkSubmitting ? "Updating…" : `Grant to ${selectedIds.size} selected`}
+              </button>
+            </>
+          ) : null}
+
+          {bulkSummary ? <p className="w-full text-xs text-muted-foreground">{bulkSummary}</p> : null}
+        </div>
+      ) : null}
+
       {packages.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/[0.12] bg-white/[0.02] p-6 text-center">
           <p className="text-sm font-medium">No packages yet</p>
@@ -274,7 +422,15 @@ export function MembersActivationView({
       ) : (
         <div className="space-y-3">
           {pagedRows.map((row) => (
-            <MemberCard key={row.userId} row={row} packages={packages} canManageBilling={canManageBilling} />
+            <MemberCard
+              key={row.userId}
+              row={row}
+              packages={packages}
+              canManageBilling={canManageBilling}
+              selectable={canGrantTier && row.role === "member"}
+              selected={selectedIds.has(row.userId)}
+              onToggleSelect={() => toggleSelected(row.userId)}
+            />
           ))}
 
           {pageCount > 1 ? (
@@ -313,10 +469,17 @@ function MemberCard({
   row,
   packages,
   canManageBilling,
+  selectable,
+  selected,
+  onToggleSelect,
 }: {
   row: MemberRow;
   packages: MembershipPackageRecord[];
   canManageBilling: boolean;
+  /** Whether this row can be bulk-selected for a tier grant (member rows only, when the viewer has members.grantTier). */
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
@@ -379,7 +542,17 @@ function MemberCard({
   return (
     <div className="panel p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-2.5">
+          {selectable ? (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={onToggleSelect}
+              aria-label={`Select ${row.fullName ?? row.email} for bulk tier grant`}
+              className="mt-1 h-4 w-4 shrink-0 accent-primary"
+            />
+          ) : null}
+          <div className="min-w-0">
           <p className="truncate text-sm font-semibold">
             {row.fullName ?? row.email}
           </p>
@@ -436,6 +609,7 @@ function MemberCard({
             <span className="text-xs text-muted-foreground/50">
               Joined {formatMembershipDate(row.joinedAt)}
             </span>
+          </div>
           </div>
         </div>
 

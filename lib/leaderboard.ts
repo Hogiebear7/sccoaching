@@ -15,6 +15,47 @@ export type LeaderboardMetric = "volume" | "squat" | "bench" | "deadlift";
 
 export const LEADERBOARD_METRICS: LeaderboardMetric[] = ["volume", "squat", "bench", "deadlift"];
 
+// All-time "volume" structurally favours whoever joined earliest — more
+// months logging, more accumulated kg, regardless of how hard anyone's
+// actually training right now. week/month/year are trailing windows
+// anchored to today, not calendar-aligned periods, specifically so two
+// members who joined a month apart get a genuinely equal-length window to
+// be ranked within — a calendar month wouldn't guarantee that for someone
+// who joined mid-month. "custom" is an explicit inclusive [start, end]
+// range; either bound may be omitted to leave that side open.
+export type LeaderboardRange = "week" | "month" | "year" | "all" | "custom";
+
+export const LEADERBOARD_RANGES: LeaderboardRange[] = ["week", "month", "year", "all", "custom"];
+
+const RANGE_DAYS: Record<"week" | "month" | "year", number> = {
+  week: 7,
+  month: 30,
+  year: 365,
+};
+
+export function filterSessionsByRange(
+  sessions: WorkoutSessionRecord[],
+  range: LeaderboardRange,
+  customStartISO?: string | null,
+  customEndISO?: string | null
+): WorkoutSessionRecord[] {
+  if (range === "all") return sessions;
+
+  if (range === "custom") {
+    if (!customStartISO && !customEndISO) return sessions;
+    return sessions.filter((s) => {
+      if (customStartISO && s.date < customStartISO) return false;
+      if (customEndISO && s.date > customEndISO) return false;
+      return true;
+    });
+  }
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - RANGE_DAYS[range]);
+  const cutoffISO = cutoff.toISOString().slice(0, 10);
+  return sessions.filter((s) => s.date >= cutoffISO);
+}
+
 // A separate, smaller list from lib/workouts.ts's TRACKED_PERSONAL_BEST_EXERCISES
 // (Back Squat, Bench Press, Lunge, Push Up, Front Plank) — that one is tuned
 // for a staff quick-view widget and includes bodyweight moves unsuited to a

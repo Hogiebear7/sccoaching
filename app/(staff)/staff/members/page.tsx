@@ -15,6 +15,7 @@ import { MembersActivationView } from "./MembersActivationView";
 export default async function StaffMembersPage() {
   const staffUser = await requireStaffPage("members.view");
   const canManageBilling = can(staffUser.role, "members.billing");
+  const canGrantTier = can(staffUser.role, "members.grantTier");
   const packages = findMembershipPackages().filter((p) => p.visible);
 
   // A staff account only ever sees members (and other staff) at their own
@@ -70,6 +71,7 @@ export default async function StaffMembersPage() {
       rows={rows}
       packages={packages}
       canManageBilling={canManageBilling}
+      canGrantTier={canGrantTier}
       ageBreakdown={ageBreakdown}
     />
   );

@@ -88,6 +88,43 @@ describe("pickExercisesForDay", () => {
     }
   });
 
+  it("biases toward exercises the member logs frequently, without excluding new ones", () => {
+    // 3 chest candidates, room for exactly 1 (8min/exercise, 8min available)
+    // — the frequency-3 exercise should win the single slot every time, not
+    // just probabilistically, since biasByFrequency is a stable sort of an
+    // already-shuffled pool: with a unique maximum, it's always first
+    // regardless of shuffle order.
+    const frequencyByExerciseName = new Map([["dumbbell flye", 3]]);
+    for (let trial = 0; trial < 20; trial++) {
+      const picks = pickExercisesForDay({
+        exercises: library,
+        primaryBodyParts: ["chest"],
+        secondaryBodyParts: [],
+        equipmentSlugs: [],
+        timeMinutes: 8,
+        frequencyByExerciseName,
+      });
+      expect(picks.map((p) => p.name)).toEqual(["Dumbbell Flye"]);
+    }
+  });
+
+  it("falls back to plain (unbiased) random selection when no frequency data is given", () => {
+    const seen = new Set<string>();
+    for (let trial = 0; trial < 30; trial++) {
+      const picks = pickExercisesForDay({
+        exercises: library,
+        primaryBodyParts: ["chest"],
+        secondaryBodyParts: [],
+        equipmentSlugs: [],
+        timeMinutes: 8,
+      });
+      picks.forEach((p) => seen.add(p.name));
+    }
+    // All three chest exercises should turn up across enough trials — a
+    // silently-always-on bias would collapse this to one name.
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
   it("returns an empty list gracefully when no exercise matches the requested body part", () => {
     const picks = pickExercisesForDay({
       exercises: library,

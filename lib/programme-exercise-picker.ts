@@ -39,6 +39,9 @@ export interface PickExercisesForDayInput extends ProgrammeDaySpec {
       exercise isn't picked twice across the week — pass the same Set into
       every call and it accumulates. Fresh Set() if omitted. */
   alreadyChosenIds?: Set<string>;
+  /** How often the member has actually logged each exercise — biases
+      selection toward what they already do without excluding anything new. */
+  frequencyByExerciseName?: ExerciseFrequencyMap;
 }
 
 function shuffled<T>(items: T[]): T[] {
@@ -50,6 +53,31 @@ function shuffled<T>(items: T[]): T[] {
   return copy;
 }
 
+/** Normalized-name → how many logged sessions include it — see
+    buildExerciseFrequencyMap in the generate route. Optional everywhere it's
+    threaded through: a member with no history (or this passed as undefined)
+    gets exactly the old pure-random behaviour. */
+export type ExerciseFrequencyMap = Map<string, number>;
+
+function frequencyOf(freq: ExerciseFrequencyMap | undefined, name: string): number {
+  return freq?.get(name.trim().toLowerCase()) ?? 0;
+}
+
+// Biases an already-shuffled pool toward exercises the member actually does
+// — without abandoning variety or new-exercise discovery entirely. Sorting
+// a pre-shuffled array by descending frequency is a stable sort (guaranteed
+// by spec since ES2019): every same-frequency tier (most commonly the
+// "never done this one" tier, frequency 0) keeps its random order, so an
+// exercise the member has never tried is still very much in the running
+// whenever nothing more familiar is available for that slot — this only
+// ever reorders within what randomness already produced, never removes an
+// option. A member with no logged history at all (empty/undefined map)
+// gets back exactly the input order, i.e. unchanged pure-random behaviour.
+function biasByFrequency<T extends { name: string }>(pool: T[], freq: ExerciseFrequencyMap | undefined): T[] {
+  if (!freq || freq.size === 0) return pool;
+  return [...pool].sort((a, b) => frequencyOf(freq, b.name) - frequencyOf(freq, a.name));
+}
+
 // Distributes `slots` picks across `bodyParts` round-robin, skipping
 // exercises already chosen and body parts with nothing left to offer —
 // remaining slots spill to whichever group still has candidates.
@@ -57,10 +85,13 @@ function pickForBodyParts(
   bodyParts: string[],
   slots: number,
   candidatesByBodyPart: Map<string, ExerciseLibraryRecord[]>,
-  alreadyChosen: Set<string>
+  alreadyChosen: Set<string>,
+  freq: ExerciseFrequencyMap | undefined
 ): ExerciseLibraryRecord[] {
   const picked: ExerciseLibraryRecord[] = [];
-  const pools = new Map(bodyParts.map((bp) => [bp, shuffled(candidatesByBodyPart.get(bp) ?? [])]));
+  const pools = new Map(
+    bodyParts.map((bp) => [bp, biasByFrequency(shuffled(candidatesByBodyPart.get(bp) ?? []), freq)])
+  );
 
   let madeProgress = true;
   while (picked.length < slots && madeProgress) {
@@ -90,7 +121,7 @@ function pickForBodyParts(
 // number" discipline shared with buildWorkoutPlan() and mobile's
 // generateWorkout().
 export function pickExercisesForDay(input: PickExercisesForDayInput): PrescribedExercise[] {
-  const { exercises, primaryBodyParts, secondaryBodyParts, equipmentSlugs, timeMinutes } = input;
+  const { exercises, primaryBodyParts, secondaryBodyParts, equipmentSlugs, timeMinutes, frequencyByExerciseName } = input;
   const alreadyChosen = input.alreadyChosenIds ?? new Set<string>();
 
   const candidatesByBodyPart = new Map<string, ExerciseLibraryRecord[]>();
@@ -105,15 +136,17 @@ export function pickExercisesForDay(input: PickExercisesForDayInput): Prescribed
   const primarySlots = secondaryBodyParts.length > 0 ? Math.ceil(timeBasedSlots * PRIMARY_SHARE) : timeBasedSlots;
   const secondarySlots = timeBasedSlots - primarySlots;
 
-  const primaryPicks = pickForBodyParts(primaryBodyParts, primarySlots, candidatesByBodyPart, alreadyChosen);
+  const primaryPicks = pickForBodyParts(primaryBodyParts, primarySlots, candidatesByBodyPart, alreadyChosen, frequencyByExerciseName);
   const secondaryPicks =
-    secondarySlots > 0 ? pickForBodyParts(secondaryBodyParts, secondarySlots, candidatesByBodyPart, alreadyChosen) : [];
+    secondarySlots > 0
+      ? pickForBodyParts(secondaryBodyParts, secondarySlots, candidatesByBodyPart, alreadyChosen, frequencyByExerciseName)
+      : [];
 
   let picks = [...primaryPicks, ...secondaryPicks];
   if (picks.length < timeBasedSlots) {
     const remaining = timeBasedSlots - picks.length;
     const fallbackBodyParts = [...primaryBodyParts, ...secondaryBodyParts];
-    picks = [...picks, ...pickForBodyParts(fallbackBodyParts, remaining, candidatesByBodyPart, alreadyChosen)];
+    picks = [...picks, ...pickForBodyParts(fallbackBodyParts, remaining, candidatesByBodyPart, alreadyChosen, frequencyByExerciseName)];
   }
 
   return picks.map((e) => ({
@@ -158,6 +191,9 @@ export interface PickStructuredExercisesForDayInput {
   /** Shared across every day in one generation, same convention as
       pickExercisesForDay's alreadyChosenIds. */
   alreadyChosenIds?: Set<string>;
+  /** How often the member has actually logged each exercise — biases
+      selection toward what they already do without excluding anything new. */
+  frequencyByExerciseName?: ExerciseFrequencyMap;
 }
 
 interface BucketPool {
@@ -263,7 +299,7 @@ export function resolveSplitMode(goal: string, splitPreference: "fullBody" | "up
 }
 
 export function pickStructuredExercisesForDay(input: PickStructuredExercisesForDayInput): PrescribedExercise[] {
-  const { exercises, daySpec, equipmentSlugs, timeMinutes } = input;
+  const { exercises, daySpec, equipmentSlugs, timeMinutes, frequencyByExerciseName } = input;
   const alreadyChosen = input.alreadyChosenIds ?? new Set<string>();
 
   const eligible = exercises.filter((e) => exerciseMatchesEquipmentSlugs(e.equipment, equipmentSlugs));
@@ -278,8 +314,8 @@ export function pickStructuredExercisesForDay(input: PickStructuredExercisesForD
     pools.set(bucket, pool);
   }
   for (const pool of pools.values()) {
-    pool.compound = shuffled(pool.compound);
-    pool.other = shuffled(pool.other);
+    pool.compound = biasByFrequency(shuffled(pool.compound), frequencyByExerciseName);
+    pool.other = biasByFrequency(shuffled(pool.other), frequencyByExerciseName);
   }
 
   const mainBuckets =
@@ -308,6 +344,7 @@ export function pickStructuredExercisesForDay(input: PickStructuredExercisesForD
       equipmentSlugs,
       timeMinutes,
       alreadyChosenIds: alreadyChosen,
+      frequencyByExerciseName,
     });
   }
 

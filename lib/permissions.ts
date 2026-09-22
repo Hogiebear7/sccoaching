@@ -50,6 +50,7 @@ export type Capability =
   | "members.account" // account-security actions: archive, reset password, change login email
   | "members.hardDelete" // permanently delete an ARCHIVED member + their records
   | "members.billing" // membership activate, subscription set, extra sessions
+  | "members.grantTier" // manually grant/change a member's access tier (single or bulk)
   | "catalog.manage" // membership catalog CRUD
   | "operations.view" // operations dashboard, housekeeping, class categories
   | "staffUsers.manage" // create/manage elevated users
@@ -78,6 +79,10 @@ const CAPABILITY_MIN_ROLE: Record<Capability, StaffRole> = {
   // Permanent deletion is irreversible, so it's the top role only.
   "members.hardDelete": "admin_manager",
   "members.billing": "admin",
+  // Same tier as members.billing — a separate capability so it can diverge
+  // later (e.g. a coach-level "grant" without full billing access) without
+  // touching this map again.
+  "members.grantTier": "admin",
   "catalog.manage": "admin",
   "operations.view": "admin",
   "staffUsers.manage": "admin_manager",
