@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   findSubscriptionByUserId: vi.fn(),
   saveSubscription: vi.fn(),
   findMembershipPackageById: vi.fn(),
+  findMembershipCategoryById: vi.fn(),
   deleteUserAndOwnedRecords: vi.fn(),
   setUserArchived: vi.fn(),
   findAiUsageLogsByUserId: vi.fn(),
@@ -136,7 +137,10 @@ describe("POST /api/staff/members/[userId]/subscription", () => {
   it("reaches saveSubscription for a same-gym member id (control)", async () => {
     // This control verifies that the request passes gym-scope authorization;
     // full business validation is intentionally outside this test's scope.
-    h.findMembershipPackageById.mockReturnValue({ id: "pkg-1" });
+    // Full package -> category -> gym chain (same gym as the staff member) —
+    // the route now authorizes the package against the staff member's gym.
+    h.findMembershipPackageById.mockReturnValue({ id: "pkg-1", categoryId: "cat-1", deliveryChannel: "in_person" });
+    h.findMembershipCategoryById.mockReturnValue({ id: "cat-1", gymId: null });
     h.findSubscriptionByUserId.mockReturnValue(undefined);
     const res = await call("POST", "/[userId]/subscription", { params: { userId: GYM_A_MEMBER.id }, body });
     expect(res.status).not.toBe(404);
