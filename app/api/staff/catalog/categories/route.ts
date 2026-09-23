@@ -9,6 +9,7 @@ import {
   type MembershipCategoryRecord,
 } from "@/lib/db";
 import { slugifyCatalog } from "@/lib/catalog";
+import { sameGym } from "@/lib/gym-scope";
 import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -27,6 +28,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
+  // gymId is deliberately never destructured from the client body — even if
+  // a caller sends one, it's silently ignored. Ownership is always derived
+  // from the authenticated staff user below, never trusted from the request.
   const { id, name, description, sortOrder, visible, imageUrl, imageAlt } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof name !== "string" || !name.trim()) {
@@ -34,7 +38,9 @@ export async function POST(request: NextRequest) {
   }
 
   const existing = typeof id === "string" && id.trim() ? findMembershipCategoryById(id) : undefined;
-  if (typeof id === "string" && id.trim() && !existing) {
+  // Cross-gym folded into the same not-found response as a genuinely
+  // missing category — never reveals that a cross-gym category exists.
+  if (typeof id === "string" && id.trim() && (!existing || !sameGym(user, existing))) {
     return NextResponse.json({ success: false, message: "This category no longer exists." }, { status: 404 });
   }
 
@@ -51,6 +57,10 @@ export async function POST(request: NextRequest) {
   const now = new Date().toISOString();
   const category: MembershipCategoryRecord = {
     id: existing?.id ?? randomUUID(),
+    // A new category is always associated with the authenticated staff
+    // member's own gym; an existing one keeps whatever gym it already had —
+    // never moved by this request, regardless of what the body contains.
+    gymId: existing?.gymId ?? (user.gymId ?? null),
     name: name.trim(),
     // Slug is stable once created (it may back Stripe/analytics references).
     slug: existing?.slug ?? slugifyCatalog(name.trim()) ?? randomUUID().slice(0, 8),
