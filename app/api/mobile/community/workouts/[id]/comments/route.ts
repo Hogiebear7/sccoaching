@@ -33,10 +33,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params;
   const target = findWorkoutSessionById(id);
-  // Cross-gym folded into the same not-found response as a genuinely
-  // missing session — existing (lack of) private-session handling here is
-  // untouched, only the gym check is new.
-  if (!target || !sameGymAsStaff(me, target.userId)) {
+  // Cross-gym and private-session denial both fold into the same not-found
+  // response as a genuinely missing session — mirrors the POST handler's
+  // condition below exactly.
+  if (
+    !target ||
+    (target.isPrivate && target.userId !== me.id) ||
+    !sameGymAsStaff(me, target.userId)
+  ) {
     return NextResponse.json({ success: false, message: "Workout not found." }, { status: 404 });
   }
 
