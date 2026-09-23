@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  findMembershipCategoryById,
   findMembershipPackageById,
   findSubscriptionByUserId,
   findUserById,
   saveSubscription,
   type SubscriptionRecord,
 } from "@/lib/db";
+import { staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -74,7 +76,16 @@ export async function POST(request: NextRequest) {
 
   const pkg = findMembershipPackageById(packageId.trim());
 
-  if (!pkg || !pkg.visible) {
+  // The package must belong to the acting admin's gym: package -> category
+  // -> gymId. A package whose category can't be resolved fails closed;
+  // deliveryChannel === "app_only" is the sole global exception (see
+  // lib/gym-scope.ts). Folded into the same not-found response as a
+  // missing/hidden package so a cross-gym package's existence isn't
+  // revealed, and it runs before saveSubscription below.
+  const ownedByAdminGym =
+    !!pkg && staffAuthorizedForCatalogPackage(staffUser, pkg, findMembershipCategoryById(pkg.categoryId));
+
+  if (!pkg || !pkg.visible || !ownedByAdminGym) {
     return NextResponse.json(
       { success: false, message: "This package does not exist or is not available." },
       { status: 404 }
