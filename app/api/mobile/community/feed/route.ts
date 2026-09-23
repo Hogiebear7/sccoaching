@@ -17,7 +17,7 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computePersonalBests } from "@/lib/workouts";
 
 const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 50;
+const MAX_LIMIT = 100;
 
 // GET /api/mobile/community/feed?limit=&offset=
 // Chronological feed of sessions logged by everyone the member follows,
