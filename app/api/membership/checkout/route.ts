@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 
 import {
   findMembershipBillingOptionById,
+  findMembershipCategoryById,
   findMembershipPackageById,
   findPurchaseByIdempotencyKey,
   findSubscriptionByUserId,
@@ -14,6 +15,7 @@ import {
   type SubscriptionRecord,
 } from "@/lib/db";
 import { activeBillingProvider, createCatalogCheckout, isPendingCheckoutStale } from "@/lib/billing";
+import { isGlobalCatalogPackage, sameGym } from "@/lib/gym-scope";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { isPurchaseCheckoutReusable } from "@/lib/payments";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -52,7 +54,17 @@ export async function POST(request: NextRequest) {
   const option = findMembershipBillingOptionById(billingOptionId.trim());
   const pkg = option ? findMembershipPackageById(option.packageId) : undefined;
 
-  if (!option || !pkg || !option.visible || !pkg.visible) {
+  // Ownership: option -> package -> category -> gymId. An ordinary package
+  // must belong to the member's own gym; a package whose category can't be
+  // resolved fails closed. deliveryChannel === "app_only" is the sole
+  // global exception (the one platform-wide App Subscription product) —
+  // see lib/gym-scope.ts. Folded into the same not-found response as a
+  // missing/hidden option so a cross-gym option's existence isn't revealed,
+  // and it runs before any subscription/purchase is saved.
+  const category = pkg ? findMembershipCategoryById(pkg.categoryId) : undefined;
+  const ownedByMemberGym = !!pkg && (isGlobalCatalogPackage(pkg) || (!!category && sameGym(user, category)));
+
+  if (!option || !pkg || !option.visible || !pkg.visible || !ownedByMemberGym) {
     return NextResponse.json(
       { success: false, message: "This option is not available." },
       { status: 404 }
