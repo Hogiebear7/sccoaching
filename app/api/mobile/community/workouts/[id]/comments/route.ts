@@ -14,6 +14,7 @@ import {
   type NotificationRecord,
 } from "@/lib/db";
 import { communityDisplayName } from "@/lib/community-display-name";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
 
@@ -25,10 +26,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!session) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+  const me = findUserById(session.userId);
+  if (!me) {
+    return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  }
 
   const { id } = await params;
   const target = findWorkoutSessionById(id);
-  if (!target) {
+  // Cross-gym folded into the same not-found response as a genuinely
+  // missing session — existing (lack of) private-session handling here is
+  // untouched, only the gym check is new.
+  if (!target || !sameGymAsStaff(me, target.userId)) {
     return NextResponse.json({ success: false, message: "Workout not found." }, { status: 404 });
   }
 
@@ -63,7 +71,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const target = findWorkoutSessionById(id);
-  if (!target || (target.isPrivate && target.userId !== me.id)) {
+  if (
+    !target ||
+    (target.isPrivate && target.userId !== me.id) ||
+    !sameGymAsStaff(me, target.userId)
+  ) {
     return NextResponse.json({ success: false, message: "Workout not found." }, { status: 404 });
   }
 

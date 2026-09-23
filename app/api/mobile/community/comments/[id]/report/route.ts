@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { createCommentReport, findCommentById, findUserById } from "@/lib/db";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_REASON_LENGTH = 300;
@@ -23,7 +24,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const comment = findCommentById(id);
-  if (!comment) {
+  // Cross-gym folded into the same not-found response as a genuinely
+  // missing comment — never reveals that a cross-gym comment exists.
+  if (!comment || !sameGymAsStaff(me, comment.userId)) {
     return NextResponse.json({ success: false, message: "Comment not found." }, { status: 404 });
   }
 
