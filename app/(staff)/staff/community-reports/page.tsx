@@ -1,25 +1,40 @@
-import { findAllCommentReports, findCommentById, findProfileByUserId, findUserById } from "@/lib/db";
+import {
+  findAllCommentReports,
+  findCommentById,
+  findProfileByUserId,
+  findUserById,
+  findWorkoutSessionById,
+} from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { CommunityReportsView } from "./CommunityReportsView";
 
 export default async function StaffCommunityReportsPage() {
-  await requireStaffPage("comments.moderate");
+  const me = await requireStaffPage("comments.moderate");
 
-  const reports = findAllCommentReports().map((r) => {
-    const reporterProfile = findProfileByUserId(r.reporterId);
-    const reporterUser = findUserById(r.reporterId);
-    const comment = findCommentById(r.commentId);
-    const commentAuthorProfile = comment ? findProfileByUserId(comment.userId) : null;
-    return {
-      ...r,
-      reporterName: reporterProfile?.fullName?.trim() || reporterUser?.email || "Unknown member",
-      // A comment already removed (by its author, or a prior resolve) has
-      // nothing left to show — the report still lists so staff can dismiss
-      // it, just without content to review.
-      commentBody: comment?.body ?? null,
-      commentAuthorName: commentAuthorProfile?.fullName?.trim() ?? null,
-    };
-  });
+  // Report ownership is resolved through the underlying content, never the
+  // reporter: commentId -> workoutSessionId -> the session owner's verified
+  // gymId. A comment or session that no longer exists can't be verified
+  // safely, so that report is excluded rather than assumed same-gym.
+  const reports = findAllCommentReports()
+    .map((r) => {
+      const comment = findCommentById(r.commentId);
+      const session = comment ? findWorkoutSessionById(comment.workoutSessionId) : undefined;
+      const owner = session ? findUserById(session.userId) : undefined;
+      return { report: r, comment, owner };
+    })
+    .filter(({ owner }) => !!owner && sameGym(me, owner))
+    .map(({ report: r, comment }) => {
+      const reporterProfile = findProfileByUserId(r.reporterId);
+      const reporterUser = findUserById(r.reporterId);
+      const commentAuthorProfile = comment ? findProfileByUserId(comment.userId) : null;
+      return {
+        ...r,
+        reporterName: reporterProfile?.fullName?.trim() || reporterUser?.email || "Unknown member",
+        commentBody: comment?.body ?? null,
+        commentAuthorName: commentAuthorProfile?.fullName?.trim() ?? null,
+      };
+    });
 
   return <CommunityReportsView reports={reports} />;
 }
