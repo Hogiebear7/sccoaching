@@ -20,6 +20,7 @@ import {
   type NotificationRecord,
 } from "@/lib/db";
 import { classStartDate } from "@/lib/class-time";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
 import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
 import { resolvePendingCancellationCreditsForClass } from "@/lib/cancellation-credits";
@@ -103,6 +104,16 @@ export async function POST(request: NextRequest) {
   const classRecord = findClassById(classId);
 
   if (!classRecord) {
+    return NextResponse.json(
+      { success: false, message: "This class no longer exists." },
+      { status: 404 }
+    );
+  }
+
+  // Same not-found response as an actually-missing class, not a distinct
+  // 403 — a cross-gym class shouldn't be revealed to exist at all. Mirrors
+  // the identical check in app/api/staff/classes/route.ts.
+  if (!classRecord.coachUserId || !sameGymAsStaff(user, classRecord.coachUserId)) {
     return NextResponse.json(
       { success: false, message: "This class no longer exists." },
       { status: 404 }
