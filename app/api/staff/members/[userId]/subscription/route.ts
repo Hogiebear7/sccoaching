@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  findMembershipCategoryById,
   findMembershipPackageById,
   findSubscriptionByUserId,
   findUserById,
@@ -9,7 +10,7 @@ import {
   type SubscriptionRecord,
   type SubscriptionStatus,
 } from "@/lib/db";
-import { sameGym } from "@/lib/gym-scope";
+import { sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { cancelProviderSubscription } from "@/lib/billing";
@@ -87,7 +88,18 @@ export async function POST(
       ? packageId.trim()
       : existingSubscription?.packageId ?? null;
 
-  if (resolvedPackageId && !findMembershipPackageById(resolvedPackageId)) {
+  // The package is authorized against the GRANTING staff member's gym (not
+  // the target member's): package -> category -> gymId. A package whose
+  // category can't be resolved fails closed; deliveryChannel === "app_only"
+  // is the sole global exception (see lib/gym-scope.ts). Folded into the
+  // same not-found response as a genuinely missing package, and it runs
+  // before the provider cancel and saveSubscription below.
+  const resolvedPackage = resolvedPackageId ? findMembershipPackageById(resolvedPackageId) : undefined;
+  if (
+    resolvedPackageId &&
+    (!resolvedPackage ||
+      !staffAuthorizedForCatalogPackage(staffUser, resolvedPackage, findMembershipCategoryById(resolvedPackage.categoryId)))
+  ) {
     return NextResponse.json(
       { success: false, message: "This package does not exist." },
       { status: 404 }
