@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { communityDisplayName, isDiscoverable } from "@/lib/community-display-name";
+import { sameGym } from "@/lib/gym-scope";
 import {
   findCommunityEligibleUsers,
   findCommunityPrivacyByUserId,
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
 
     const results = findCommunityEligibleUsers()
-      .filter((u) => u.id !== me.id && !u.archivedAt && !isFollowing(me.id, u.id))
+      .filter((u) => u.id !== me.id && !u.archivedAt && !isFollowing(me.id, u.id) && sameGym(me, u))
       .map((u) => ({ user: u, privacy: findCommunityPrivacyByUserId(u.id) }))
       .filter(({ privacy }) => isDiscoverable(privacy))
       .slice(0, MAX_SUGGESTIONS)
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
   }
 
   const results = findCommunityEligibleUsers()
-    .filter((u) => u.id !== me.id && !u.archivedAt)
+    .filter((u) => u.id !== me.id && !u.archivedAt && sameGym(me, u))
     .map((u) => ({ user: u, profile: findProfileByUserId(u.id), privacy: findCommunityPrivacyByUserId(u.id) }))
     .filter(({ profile }) => (profile?.fullName ?? "").toLowerCase().includes(q))
     .filter(({ privacy }) => isDiscoverable(privacy))

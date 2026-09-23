@@ -13,6 +13,7 @@ import {
 } from "@/lib/db";
 import { communityDisplayName } from "@/lib/community-display-name";
 import { sessionPbExerciseName } from "@/lib/community-highlight";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computePersonalBests } from "@/lib/workouts";
 
@@ -38,7 +39,13 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(MAX_LIMIT, Math.max(1, Number.parseInt(params.get("limit") ?? "", 10) || DEFAULT_LIMIT));
   const offset = Math.max(0, Number.parseInt(params.get("offset") ?? "", 10) || 0);
 
-  const followingIds = findFollowingIds(me.id);
+  // Defense-in-depth read boundary — a followed member's content only ever
+  // surfaces here if they're also in the caller's own gym. Not proof-by-
+  // follow-relationship alone: this is a real, separate server-side check,
+  // not something the client's follow list could ever bypass. See
+  // lib/gym-scope.ts for the (null == null == "the primary gym") fallback
+  // convention this reuses unchanged.
+  const followingIds = findFollowingIds(me.id).filter((id) => sameGymAsStaff(me, id));
 
   // Cache each followed member's full session history + all-time bests once
   // — the feed page only needs a handful of sessions, but "is this a PB"

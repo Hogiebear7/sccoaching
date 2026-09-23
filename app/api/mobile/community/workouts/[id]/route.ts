@@ -13,6 +13,7 @@ import {
 } from "@/lib/db";
 import { communityDisplayName } from "@/lib/community-display-name";
 import { sessionPbExerciseName } from "@/lib/community-highlight";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computePersonalBests } from "@/lib/workouts";
 
@@ -35,7 +36,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params;
   const target = findWorkoutSessionById(id);
-  if (!target || (target.isPrivate && target.userId !== me.id)) {
+  // Cross-gym folded into the same not-found response as a genuinely
+  // missing or private session — a permalink shouldn't reveal that a
+  // cross-gym workout exists at all. sameGymAsStaff(me, me.id) is always
+  // true, so this never blocks viewing your own session.
+  if (
+    !target ||
+    (target.isPrivate && target.userId !== me.id) ||
+    !sameGymAsStaff(me, target.userId)
+  ) {
     return NextResponse.json({ success: false, message: "Workout not found." }, { status: 404 });
   }
 

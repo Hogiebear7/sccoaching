@@ -13,6 +13,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
+import { sameGym, sameGymAsStaff } from "@/lib/gym-scope";
 import { computeLeaderboard, type LeaderboardMemberInput } from "@/lib/leaderboard";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
@@ -32,7 +33,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
-  const followingIds = findFollowingIds(me.id);
+  // Same defense-in-depth gym check as the main feed/wins routes.
+  const followingIds = findFollowingIds(me.id).filter((id) => sameGymAsStaff(me, id));
   if (followingIds.length > 0) {
     // No discoverable gating here — this only ever surfaces a member the
     // viewer already follows, which the discoverability policy grandfathers.
@@ -60,9 +62,10 @@ export async function GET(request: NextRequest) {
   }
 
   // Fall back to the member's own Volume leaderboard position — still
-  // "community," still motivating, still grounded in real data.
+  // "community," still motivating, still grounded in real data. Same gym
+  // boundary as the dedicated leaderboard route.
   const leaderboardMembers: LeaderboardMemberInput[] = findCommunityEligibleUsers()
-    .filter((u) => !u.archivedAt)
+    .filter((u) => !u.archivedAt && sameGym(me, u))
     .map((u) => {
       const profile = findProfileByUserId(u.id);
       return {
