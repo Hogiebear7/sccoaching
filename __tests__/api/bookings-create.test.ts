@@ -234,6 +234,42 @@ describe("POST /api/bookings/create", () => {
     expect(mockCreateBooking).not.toHaveBeenCalled();
   });
 
+  // A cross-gym class is reported the same as a genuinely missing one — not
+  // a distinct 403 — so its existence isn't revealed to a member outside
+  // its gym. Mirrors the identical not-found-shaped denial already used for
+  // classes (app/api/staff/classes/route.ts) and invites.
+  it("denies booking a class that belongs to another gym", async () => {
+    const GYM_B_COACH = { id: "coach-b", email: "coachb@example.com", role: "staff" as const, gymId: "gym-b" };
+    mockFindUserById.mockImplementation((id: string) =>
+      id === GYM_B_COACH.id ? GYM_B_COACH : MEMBER_USER
+    );
+    mockFindClassById.mockReturnValue({ ...SOME_CLASS, coachUserId: GYM_B_COACH.id });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
+
+    const res = await callBookingsCreate({ classId: "class-1" }, cookie);
+    const data = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(data.message).toBe("This class no longer exists.");
+    expect(mockCreateBooking).not.toHaveBeenCalled();
+  });
+
+  it("allows booking a same-gym class (control)", async () => {
+    const GYM_A_COACH = { id: "coach-a", email: "coacha@example.com", role: "staff" as const, gymId: null };
+    mockFindUserById.mockImplementation((id: string) =>
+      id === GYM_A_COACH.id ? GYM_A_COACH : MEMBER_USER
+    );
+    mockFindClassById.mockReturnValue({ ...SOME_CLASS, coachUserId: GYM_A_COACH.id });
+    mockFindBookingsByUserId.mockReturnValue([]);
+    mockFindBookingsByClassId.mockReturnValue([]);
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
+
+    const res = await callBookingsCreate({ classId: "class-1" }, cookie);
+
+    expect(res.status).toBe(201);
+    expect(mockCreateBooking).toHaveBeenCalledTimes(1);
+  });
+
   it("returns 409 when the class has already started", async () => {
     mockFindClassById.mockReturnValue({
       ...SOME_CLASS,

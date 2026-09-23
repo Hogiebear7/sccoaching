@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { createMessage, createNotification, findProfileByUserId, findUserById, type MessageRecord, type NotificationRecord } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { isMembershipTier } from "@/lib/member-access";
 import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { sendPush } from "@/lib/push";
@@ -62,7 +63,10 @@ export async function POST(request: NextRequest) {
 
     const member = findUserById(memberId);
 
-    if (!member) {
+    // Cross-gym folded into the same not-found response as a genuinely
+    // missing member — mirrors app/api/mobile/staff/messages/[memberId]/
+    // route.ts's GET, the read-side of this same thread.
+    if (!member || !sameGym(sender, member)) {
       return NextResponse.json(
         { success: false, message: "Member not found." },
         { status: 404 }

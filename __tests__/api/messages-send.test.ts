@@ -103,4 +103,38 @@ describe("POST /api/messages/send", () => {
     // scoped to member-initiated sends only.
     expect(mockFindSubscriptionByUserId).not.toHaveBeenCalled();
   });
+
+  // Folded into the same "Member not found." response as a genuinely
+  // missing member — mirrors the read-side GET at
+  // app/api/mobile/staff/messages/[memberId]/route.ts, and the identical
+  // not-found-shaped denial already used for classes/invites/bookings.
+  it("denies a staff message to a member in another gym", async () => {
+    const GYM_A_STAFF = { id: "staff-1", email: "coach@example.com", role: "coach" as const, gymId: null };
+    const GYM_B_MEMBER = { id: "member-b", email: "memberb@example.com", role: "member" as const, gymId: "gym-b" };
+    mockFindUserById.mockImplementation((id: string) =>
+      id === GYM_A_STAFF.id ? GYM_A_STAFF : id === GYM_B_MEMBER.id ? GYM_B_MEMBER : undefined
+    );
+    const cookie = signSession({ userId: GYM_A_STAFF.id }, MEMBER_SESSION_LIFETIME_MS);
+
+    const res = await callMessagesSend({ memberId: GYM_B_MEMBER.id, body: "Hi there" }, cookie);
+    const data = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(data.message).toBe("Member not found.");
+    expect(mockCreateMessage).not.toHaveBeenCalled();
+  });
+
+  it("allows a staff message to a same-gym member (control)", async () => {
+    const GYM_A_STAFF = { id: "staff-1", email: "coach@example.com", role: "coach" as const, gymId: null };
+    const GYM_A_MEMBER = { id: "member-a", email: "membera@example.com", role: "member" as const, gymId: null };
+    mockFindUserById.mockImplementation((id: string) =>
+      id === GYM_A_STAFF.id ? GYM_A_STAFF : id === GYM_A_MEMBER.id ? GYM_A_MEMBER : undefined
+    );
+    const cookie = signSession({ userId: GYM_A_STAFF.id }, MEMBER_SESSION_LIFETIME_MS);
+
+    const res = await callMessagesSend({ memberId: GYM_A_MEMBER.id, body: "Hi there" }, cookie);
+
+    expect(res.status).toBe(201);
+    expect(mockCreateMessage).toHaveBeenCalledTimes(1);
+  });
 });
