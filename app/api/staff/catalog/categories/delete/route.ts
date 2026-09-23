@@ -7,6 +7,7 @@ import {
   findMembershipCategoryById,
   findUserById,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -32,7 +33,9 @@ export async function POST(request: NextRequest) {
   }
 
   const category = findMembershipCategoryById(id.trim());
-  if (!category) {
+  // Cross-gym folded into the same not-found response as a genuinely
+  // missing category — the delete below never runs for either case.
+  if (!category || !sameGym(user, category)) {
     return NextResponse.json({ success: false, message: "This category no longer exists." }, { status: 404 });
   }
 

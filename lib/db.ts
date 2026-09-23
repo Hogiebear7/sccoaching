@@ -974,6 +974,12 @@ export interface SubscriptionRecord {
 //    interval. Entitlement lives on the package, never on the option.
 export interface MembershipCategoryRecord {
   id: string;
+  /** Optional/nullable, same convention as UserRecord.gymId — null means the
+      primary gym. Every pre-existing category reads as null via the readDb()
+      backfill below, needing no migration. Packages and billing options are
+      NOT given their own gymId — their gym is resolved transitively via
+      categoryId (see lib/gym-scope.ts's sameGym usage at each call site). */
+  gymId?: string | null;
   name: string;
   slug: string;
   description: string | null;
@@ -2035,7 +2041,10 @@ function readDb(): Database {
     noShows: parsed.noShows ?? [],
     attendanceWatchlist: parsed.attendanceWatchlist ?? [],
     coachNotes: parsed.coachNotes ?? [],
-    membershipCategories: parsed.membershipCategories ?? [],
+    membershipCategories: (parsed.membershipCategories ?? []).map((c) => ({
+      ...c,
+      gymId: c.gymId ?? null,
+    })),
     gyms: parsed.gyms ?? [],
     membershipPackages: (parsed.membershipPackages ?? []).map((pkg) => ({
       ...pkg,
