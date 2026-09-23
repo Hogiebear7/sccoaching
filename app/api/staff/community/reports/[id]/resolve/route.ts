@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { deleteComment, findCommentReportById, saveCommentReport } from "@/lib/db";
+import {
+  deleteComment,
+  findCommentById,
+  findCommentReportById,
+  findUserById,
+  findWorkoutSessionById,
+  saveCommentReport,
+} from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
 
 // POST /api/staff/community/reports/[id]/resolve — { action: "resolve" | "dismiss" }
@@ -28,6 +36,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const report = findCommentReportById(id);
   if (!report) {
+    return NextResponse.json({ success: false, message: "Report not found." }, { status: 404 });
+  }
+
+  // Report ownership is resolved through the underlying content, never the
+  // reporter: commentId -> workoutSessionId -> the session owner's verified
+  // gymId. A comment or session that no longer exists means ownership can't
+  // be verified safely — fail closed into the same not-found response as a
+  // genuinely missing report, rather than assume same-gym.
+  const comment = findCommentById(report.commentId);
+  const session = comment ? findWorkoutSessionById(comment.workoutSessionId) : undefined;
+  const owner = session ? findUserById(session.userId) : undefined;
+  if (!owner || !sameGym(auth.user, owner)) {
     return NextResponse.json({ success: false, message: "Report not found." }, { status: 404 });
   }
 

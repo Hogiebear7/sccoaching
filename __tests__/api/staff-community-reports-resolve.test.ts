@@ -1,20 +1,15 @@
 // Route-level authorization tests for
 // app/api/staff/community/reports/[id]/resolve/route.ts.
 //
-// Deliberately NOT a gym-scope test file like the sibling
-// staff-invites-gym-scope.test.ts / staff-classes-gym-scope.test.ts: this
-// route is not given a cross-gym denial check in this slice. Community
-// content (WorkoutSessionRecord/CommentRecord) has no gymId of its own and
-// no product decision yet on whether moderation should scope by the
-// reporter's gym, the commenter's gym, or stay platform-wide (the feed
-// itself is platform-wide by explicit design — see lib/db.ts's comment on
-// FollowRecord). Adding a sameGym() check here would mean choosing one of
-// those readings and baking it in as the de facto community-visibility
-// model — exactly what docs/white-label-platform-master-plan.md says not
-// to do outside its own approved slice. See
-// docs/tenant-boundary-audit-2026-09.md §6 and the tenant-boundary decision
-// record this slice was scoped from. These tests instead lock in the
-// existing (unchanged) capability-gated behavior.
+// Previously documented as deliberately NOT gym-scoped, pending a product
+// decision on the Community visibility/ownership model — that decision is
+// now made and implemented (see the Community read-isolation and
+// mutation-isolation slices). This file now locks in both the pre-existing
+// capability-gated behavior AND the new gym-scoped resolution: a staff
+// member may resolve/dismiss a report only when the report's underlying
+// content (via commentId -> workoutSessionId -> session owner's gymId)
+// belongs to their own gym. Cross-gym-specific coverage lives in the
+// sibling staff-community-reports-resolve-gym-scope.test.ts file.
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,22 +18,45 @@ import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 const h = vi.hoisted(() => ({
   findUserById: vi.fn(),
   findCommentReportById: vi.fn(),
+  findCommentById: vi.fn(),
+  findWorkoutSessionById: vi.fn(),
   deleteComment: vi.fn(),
   saveCommentReport: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
 
-const COACH_USER = { id: "coach-1", email: "coach@x.test", role: "coach" as const, archivedAt: null };
-const MEMBER_USER = { id: "member-1", email: "member@x.test", role: "member" as const, archivedAt: null };
+const COACH_USER = { id: "coach-1", email: "coach@x.test", role: "coach" as const, gymId: null, archivedAt: null };
+const MEMBER_USER = { id: "member-1", email: "member@x.test", role: "member" as const, gymId: null, archivedAt: null };
+const OWNER_USER = { id: "owner-1", email: "owner@x.test", role: "member" as const, gymId: null, archivedAt: null };
 
 const PENDING_REPORT = {
   id: "report-1",
   commentId: "comment-1",
   reporterId: "member-2",
   reason: "spam",
-  status: "pending" as const,
+  status: "open" as const,
   resolvedByStaffId: null,
   resolvedAt: null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
+
+const REPORTED_COMMENT = {
+  id: "comment-1",
+  workoutSessionId: "session-1",
+  userId: "commenter-1",
+  body: "some comment",
+  mentionedUserIds: [],
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
+
+const REPORTED_SESSION = {
+  id: "session-1",
+  userId: OWNER_USER.id,
+  date: "2026-01-01",
+  title: "Full Body",
+  exercises: [],
+  runs: [],
+  isPrivate: false,
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 
@@ -60,13 +78,15 @@ async function post(id: string, body: unknown, sessionUserId?: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   h.findUserById.mockImplementation((id: string) =>
-    id === COACH_USER.id ? COACH_USER : id === MEMBER_USER.id ? MEMBER_USER : undefined
+    [COACH_USER, MEMBER_USER, OWNER_USER].find((u) => u.id === id)
   );
   h.findCommentReportById.mockReturnValue(PENDING_REPORT);
+  h.findCommentById.mockReturnValue(REPORTED_COMMENT);
+  h.findWorkoutSessionById.mockReturnValue(REPORTED_SESSION);
 });
 
-describe("POST /api/staff/community/reports/[id]/resolve (baseline — NOT gym-scoped; see file header)", () => {
-  it("resolves a report for an authorized staff user, from any gym — moderation is platform-wide today, not yet gym-scoped", async () => {
+describe("POST /api/staff/community/reports/[id]/resolve", () => {
+  it("resolves a same-gym report for an authorized staff user", async () => {
     const res = await post("report-1", { action: "resolve" }, COACH_USER.id);
 
     expect(res.status).toBe(200);
@@ -77,7 +97,7 @@ describe("POST /api/staff/community/reports/[id]/resolve (baseline — NOT gym-s
     );
   });
 
-  it("dismisses a report without deleting the comment", async () => {
+  it("dismisses a same-gym report without deleting the comment", async () => {
     const res = await post("report-1", { action: "dismiss" }, COACH_USER.id);
 
     expect(res.status).toBe(200);
