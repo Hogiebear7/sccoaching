@@ -1,8 +1,7 @@
-// Cross-gym isolation test for
+// Cross-gym and private-session isolation test for
 // app/api/mobile/community/workouts/[id]/comments/route.ts (GET + POST).
-// GET's pre-existing lack of a private-session check is untouched here —
-// only the new gym check is exercised. POST's existing not-found/private
-// fold now also folds in the gym check.
+// GET now mirrors POST's exact not-found/private/cross-gym fold — a
+// same-gym non-owner can no longer read a private session's comments by id.
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -101,6 +100,34 @@ describe("GET /api/mobile/community/workouts/[id]/comments", () => {
     const req = new NextRequest("http://localhost/api/mobile/community/workouts/session-1/comments");
     const res = await mod.GET(req, { params: Promise.resolve({ id: "session-1" }) });
     expect(res.status).toBe(401);
+  });
+
+  it("rejects a same-gym non-owner reading a private session's comments, using the existing not-found response", async () => {
+    h.findWorkoutSessionById.mockReturnValue(session(GYM_A_OWNER.id, { isPrivate: true }));
+    h.findCommentsByWorkoutSessionId.mockReturnValue([
+      { id: "c1", userId: GYM_A_OWNER.id, body: "Private note", mentionedUserIds: [], createdAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+
+    const res = await get("session-1");
+    const data = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(data.message).toBe("Workout not found.");
+    expect(data.data).toBeUndefined();
+  });
+
+  it("lets the private session's owner read their own comments", async () => {
+    h.findWorkoutSessionById.mockReturnValue(session(GYM_A_OWNER.id, { isPrivate: true }));
+    h.findCommentsByWorkoutSessionId.mockReturnValue([
+      { id: "c1", userId: GYM_A_OWNER.id, body: "Private note", mentionedUserIds: [], createdAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+
+    const res = await get("session-1", GYM_A_OWNER.id);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.data.comments).toHaveLength(1);
+    expect(data.data.comments[0].body).toBe("Private note");
   });
 });
 
