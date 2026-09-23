@@ -14,6 +14,7 @@ import {
   type NotificationRecord,
 } from "@/lib/db";
 import { communityDisplayName, isDiscoverable } from "@/lib/community-display-name";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
 
@@ -46,7 +47,10 @@ export async function POST(request: NextRequest) {
   }
 
   const target = findUserById(userId);
-  if (!target || !isCommunityEligible(target)) {
+  // Cross-gym folded into the same not-found response as a genuinely
+  // missing or ineligible member — never reveals that a cross-gym account
+  // exists.
+  if (!target || !isCommunityEligible(target) || !sameGymAsStaff(me, target.id)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
 
