@@ -4,12 +4,14 @@ import type { NextRequest } from "next/server";
 
 import {
   findMembershipBillingOptionById,
+  findMembershipCategoryById,
   findMembershipPackageById,
   findUserById,
   saveMembershipBillingOption,
   type BillingType,
   type MembershipBillingOptionRecord,
 } from "@/lib/db";
+import { staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -43,7 +45,17 @@ export async function POST(request: NextRequest) {
     stripePriceId,
   } = (body ?? {}) as Record<string, unknown>;
 
-  if (typeof packageId !== "string" || !findMembershipPackageById(packageId)) {
+  if (typeof packageId !== "string") {
+    return NextResponse.json({ success: false, message: "A valid package is required." }, { status: 400 });
+  }
+  const targetPackage = findMembershipPackageById(packageId);
+  // Cross-gym folded into the same response as a missing package. Global
+  // (app-only) packages are exempt, so any gym's staff can still price the
+  // one platform-wide product.
+  if (
+    !targetPackage ||
+    !staffAuthorizedForCatalogPackage(user, targetPackage, findMembershipCategoryById(targetPackage.categoryId))
+  ) {
     return NextResponse.json({ success: false, message: "A valid package is required." }, { status: 400 });
   }
   if (typeof name !== "string" || !name.trim()) {
@@ -75,6 +87,19 @@ export async function POST(request: NextRequest) {
   const existing = typeof id === "string" && id.trim() ? findMembershipBillingOptionById(id) : undefined;
   if (typeof id === "string" && id.trim() && !existing) {
     return NextResponse.json({ success: false, message: "This billing option no longer exists." }, { status: 404 });
+  }
+  // An update can move an option to a different packageId (see above) — the
+  // TARGET package is already authorized; this additionally requires the
+  // option's CURRENT package to be one the staff member may touch, so a
+  // cross-gym staff member can't hijack an option they don't own by moving
+  // it into one of their own packages. Folded into the same not-found
+  // response as a genuinely missing option.
+  if (existing) {
+    const existingPackage = findMembershipPackageById(existing.packageId);
+    const existingCategory = existingPackage ? findMembershipCategoryById(existingPackage.categoryId) : undefined;
+    if (!existingPackage || !staffAuthorizedForCatalogPackage(user, existingPackage, existingCategory)) {
+      return NextResponse.json({ success: false, message: "This billing option no longer exists." }, { status: 404 });
+    }
   }
 
   const now = new Date().toISOString();

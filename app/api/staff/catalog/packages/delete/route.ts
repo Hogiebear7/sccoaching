@@ -5,9 +5,11 @@ import {
   countBillingOptionsByPackageId,
   countSubscriptionsByPackageId,
   deleteMembershipPackage,
+  findMembershipCategoryById,
   findMembershipPackageById,
   findUserById,
 } from "@/lib/db";
+import { staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -34,7 +36,10 @@ export async function POST(request: NextRequest) {
   }
 
   const pkg = findMembershipPackageById(id.trim());
-  if (!pkg) {
+  // Cross-gym folded into the same not-found response as a genuinely
+  // missing package — the guards and delete below never run for either
+  // case. Global (app-only) packages are exempt.
+  if (!pkg || !staffAuthorizedForCatalogPackage(user, pkg, findMembershipCategoryById(pkg.categoryId))) {
     return NextResponse.json({ success: false, message: "This package no longer exists." }, { status: 404 });
   }
 
