@@ -10,6 +10,7 @@ import {
 } from "@/lib/db";
 import { communityDisplayName } from "@/lib/community-display-name";
 import { sessionPbExerciseName } from "@/lib/community-highlight";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computePersonalBests } from "@/lib/workouts";
 
@@ -46,7 +47,9 @@ export async function GET(request: NextRequest) {
   const requestedLimit = Number.parseInt(params.get("limit") ?? "", 10);
   const limit = ALLOWED_LIMITS.includes(requestedLimit) ? requestedLimit : DEFAULT_LIMIT;
 
-  const followingIds = findFollowingIds(me.id);
+  // Same defense-in-depth gym check as the main feed route — a followed
+  // member's wins only surface here if they're also in the caller's gym.
+  const followingIds = findFollowingIds(me.id).filter((id) => sameGymAsStaff(me, id));
 
   const wins: CommunityWinEntry[] = [];
 

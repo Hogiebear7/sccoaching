@@ -10,6 +10,7 @@ import {
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
+import { sameGym } from "@/lib/gym-scope";
 import {
   computeLeaderboard,
   filterSessionsByRange,
@@ -47,8 +48,10 @@ export async function GET(request: NextRequest) {
   const customStart = url.searchParams.get("start");
   const customEnd = url.searchParams.get("end");
 
+  // Defense-in-depth: the eligible pool is scoped to the caller's own gym
+  // server-side, not left to whatever the caller's own request implies.
   const members: LeaderboardMemberInput[] = findCommunityEligibleUsers()
-    .filter((u) => !u.archivedAt)
+    .filter((u) => !u.archivedAt && sameGym(me, u))
     .map((u) => {
       const profile = findProfileByUserId(u.id);
       return {
