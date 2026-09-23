@@ -4,9 +4,12 @@ import type { NextRequest } from "next/server";
 import {
   deleteMembershipBillingOption,
   findMembershipBillingOptionById,
+  findMembershipCategoryById,
+  findMembershipPackageById,
   findAllSubscriptions,
   findUserById,
 } from "@/lib/db";
+import { staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -32,7 +35,11 @@ export async function POST(request: NextRequest) {
   }
 
   const option = findMembershipBillingOptionById(id.trim());
-  if (!option) {
+  // Cross-gym folded into the same not-found response as a genuinely
+  // missing option — the guard and delete below never run for either case.
+  // Global (app-only) packages are exempt.
+  const pkg = option ? findMembershipPackageById(option.packageId) : undefined;
+  if (!option || !pkg || !staffAuthorizedForCatalogPackage(user, pkg, findMembershipCategoryById(pkg.categoryId))) {
     return NextResponse.json({ success: false, message: "This billing option no longer exists." }, { status: 404 });
   }
 

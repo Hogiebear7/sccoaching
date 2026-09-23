@@ -13,7 +13,7 @@
 // self-serve gym signup ever sets a real id. Comparing null to null is
 // still a match, which is exactly the "every existing account implicitly
 // belongs to S&C" behavior this is meant to preserve.
-import { findUserById } from "./db";
+import { findUserById, type MembershipPackageRecord } from "./db";
 
 export function sameGym(a: { gymId?: string | null }, b: { gymId?: string | null }): boolean {
   return (a.gymId ?? null) === (b.gymId ?? null);
@@ -25,4 +25,29 @@ export function sameGym(a: { gymId?: string | null }, b: { gymId?: string | null
 export function sameGymAsStaff(staffUser: { gymId?: string | null }, targetUserId: string): boolean {
   const target = findUserById(targetUserId);
   return !!target && sameGym(staffUser, target);
+}
+
+// The App Subscription is a single platform-wide product, sold through the
+// shared app/store presence rather than per gym — see the approved catalog
+// tenant-isolation decision record (2026-09). deliveryChannel === "app_only"
+// is the ONLY marker for this exception. Deliberately never billingChannel
+// (also covers "manual", used for ordinary non-Stripe gym arrangements),
+// never the package slug (fragile string match on one hardcoded value), and
+// never gymId === null (that's the unrelated "primary gym" convention, not
+// a "this is global" signal — S&C's own gym isn't special-cased here).
+export function isGlobalCatalogPackage(pkg: Pick<MembershipPackageRecord, "deliveryChannel">): boolean {
+  return pkg.deliveryChannel === "app_only";
+}
+
+// Whether `staff` may read/manage `pkg`. `category` must already be
+// resolved by the caller (this file does no catalog-table reads of its
+// own) — pass undefined for a package whose category can't be resolved,
+// which fails closed exactly like a genuinely missing package unless the
+// global exception above applies.
+export function staffAuthorizedForCatalogPackage(
+  staff: { gymId?: string | null },
+  pkg: Pick<MembershipPackageRecord, "deliveryChannel">,
+  category: { gymId?: string | null } | undefined
+): boolean {
+  return isGlobalCatalogPackage(pkg) || (!!category && sameGym(staff, category));
 }

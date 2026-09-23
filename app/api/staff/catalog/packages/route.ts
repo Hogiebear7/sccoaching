@@ -20,6 +20,7 @@ import {
   type SessionAllowanceType,
 } from "@/lib/db";
 import { slugifyCatalog } from "@/lib/catalog";
+import { staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -61,7 +62,11 @@ export async function POST(request: NextRequest) {
     accessType,
   } = (body ?? {}) as Record<string, unknown>;
 
-  if (typeof categoryId !== "string" || !findMembershipCategoryById(categoryId)) {
+  if (typeof categoryId !== "string") {
+    return NextResponse.json({ success: false, message: "A valid category is required." }, { status: 400 });
+  }
+  const requestedCategory = findMembershipCategoryById(categoryId);
+  if (!requestedCategory) {
     return NextResponse.json({ success: false, message: "A valid category is required." }, { status: 400 });
   }
   if (typeof name !== "string" || !name.trim()) {
@@ -96,6 +101,16 @@ export async function POST(request: NextRequest) {
   if (typeof id === "string" && id.trim() && !existing) {
     return NextResponse.json({ success: false, message: "This package no longer exists." }, { status: 404 });
   }
+  // Cross-gym folded into the same not-found response as a genuinely
+  // missing package — never reveals that a cross-gym package exists.
+  // Global (app-only) packages are exempt, so any gym's staff can still
+  // edit the one platform-wide product.
+  if (existing) {
+    const existingCategory = findMembershipCategoryById(existing.categoryId);
+    if (!staffAuthorizedForCatalogPackage(user, existing, existingCategory)) {
+      return NextResponse.json({ success: false, message: "This package no longer exists." }, { status: 404 });
+    }
+  }
 
   if (deliveryChannel !== undefined && !DELIVERY_CHANNELS.includes(deliveryChannel as DeliveryChannel)) {
     return NextResponse.json({ success: false, message: "A valid delivery channel is required." }, { status: 400 });
@@ -105,6 +120,33 @@ export async function POST(request: NextRequest) {
   }
   if (accessType !== undefined && !ACCESS_TYPES.includes(accessType as AccessType)) {
     return NextResponse.json({ success: false, message: "A valid access type is required." }, { status: 400 });
+  }
+
+  const requestedDeliveryChannel: DeliveryChannel =
+    (deliveryChannel as DeliveryChannel | undefined) ?? existing?.deliveryChannel ?? "in_person";
+
+  // Flipping a package into or out of the global app-only exception is a
+  // real ownership/security transition (it changes whether every gym's
+  // staff can see and edit it), not a cosmetic relabel — this route has no
+  // approved policy for who may do that, so it's refused outright rather
+  // than guessed at. Ordinary in_person/hybrid changes are untouched.
+  if (
+    existing &&
+    existing.deliveryChannel !== requestedDeliveryChannel &&
+    (existing.deliveryChannel === "app_only" || requestedDeliveryChannel === "app_only")
+  ) {
+    return NextResponse.json(
+      { success: false, message: "Changing a package's delivery channel to or from App-only isn't supported yet." },
+      { status: 400 }
+    );
+  }
+
+  // Target-category ownership — covers both a fresh create and an update
+  // that tries to move the package into a different category. Folded into
+  // the same "valid category" response used when the category doesn't
+  // exist at all.
+  if (!staffAuthorizedForCatalogPackage(user, { deliveryChannel: requestedDeliveryChannel }, requestedCategory)) {
+    return NextResponse.json({ success: false, message: "A valid category is required." }, { status: 400 });
   }
 
   const cover = resolveCoverImageInput(imageUrl);
@@ -134,7 +176,7 @@ export async function POST(request: NextRequest) {
     stripeProductId: typeof stripeProductId === "string" && stripeProductId.trim() ? stripeProductId.trim() : null,
     imageUrl: cover.value === undefined ? existing?.imageUrl ?? null : cover.value,
     imageAlt: coverAlt.value === undefined ? existing?.imageAlt ?? null : coverAlt.value,
-    deliveryChannel: (deliveryChannel as DeliveryChannel) ?? existing?.deliveryChannel ?? "in_person",
+    deliveryChannel: requestedDeliveryChannel,
     billingChannel: (billingChannel as BillingChannel) ?? existing?.billingChannel ?? "stripe_web",
     accessType: (accessType as AccessType) ?? existing?.accessType ?? (packageType === "top_up" ? "add_on" : packageType === "pass" ? "pass" : "membership"),
     createdAt: existing?.createdAt ?? now,
