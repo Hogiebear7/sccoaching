@@ -12,9 +12,12 @@ import { buildMemberOperationalSummaries, buildUpcomingClassPressureSummaries } 
 import { OperationsView } from "./OperationsView";
 
 export default async function StaffOperationsPage() {
-  await requireStaffPage("operations.view");
-  const members = buildMemberOperationalSummaries();
-  const classes = buildUpcomingClassPressureSummaries();
+  const staff = await requireStaffPage("operations.view");
+  // Members and classes are scoped to the acting staff member's own gym (see
+  // lib/staff-operations.ts). The remaining props are platform-global by
+  // current design (job runs, class types, email/readiness settings).
+  const members = buildMemberOperationalSummaries(staff);
+  const classes = buildUpcomingClassPressureSummaries(staff);
   const jobRuns = findRecentJobRuns(20);
   const deletedLabels = findDeletedCategoryLabels();
 

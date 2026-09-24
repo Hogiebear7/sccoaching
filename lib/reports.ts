@@ -8,8 +8,8 @@
 // lib/reports-shared.ts, which is safe to import from client components.
 
 import {
-  findAllBookings,
   findAllSubscriptions,
+  findBookingsByClassId,
   findClassCategories,
   findClasses,
   findDeletedCategoryLabels,
@@ -17,46 +17,57 @@ import {
   findProfileByUserId,
   findUserById,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { classCategoryLabel } from "@/lib/scheduling-status";
 import type { ClassReportRow, MemberSignupRow, SubscriptionRow } from "@/lib/reports-shared";
 
 export * from "@/lib/reports-shared";
 
-export function buildMemberSignupRows(): MemberSignupRow[] {
-  return findMembers().map((m) => ({
-    userId: m.id,
-    email: m.email,
-    fullName: findProfileByUserId(m.id)?.fullName ?? null,
-    createdAt: m.createdAt,
-  }));
+// Every builder below is scoped to the acting staff member's own gym (`staff`
+// is the server-resolved session user, never a client value; gymId null is the
+// primary gym, lib/gym-scope.ts). Rows for other gyms' members/classes are
+// excluded BEFORE any profile, user, or booking lookup, and anything whose
+// owner can't be resolved is excluded (fail closed). Callers: the staff Reports
+// page and lib/staff-business-data.ts (mobile Business) — both staff-facing.
+type ReportActor = { gymId?: string | null };
+
+export function buildMemberSignupRows(staff: ReportActor): MemberSignupRow[] {
+  return findMembers()
+    .filter((m) => sameGym(staff, m))
+    .map((m) => ({
+      userId: m.id,
+      email: m.email,
+      fullName: findProfileByUserId(m.id)?.fullName ?? null,
+      createdAt: m.createdAt,
+    }));
 }
 
-export function buildSubscriptionRows(): SubscriptionRow[] {
-  return findAllSubscriptions().map((s) => ({
-    userId: s.userId,
-    email: findUserById(s.userId)?.email ?? "Unknown member",
-    fullName: findProfileByUserId(s.userId)?.fullName ?? null,
-    createdAt: s.createdAt,
-    updatedAt: s.updatedAt,
-    status: s.status,
-  }));
+export function buildSubscriptionRows(staff: ReportActor): SubscriptionRow[] {
+  return findAllSubscriptions()
+    .map((s) => ({ subscription: s, member: findUserById(s.userId) }))
+    .filter(({ member }) => !!member && sameGym(staff, member))
+    .map(({ subscription: s, member }) => ({
+      userId: s.userId,
+      email: member?.email ?? "Unknown member",
+      fullName: findProfileByUserId(s.userId)?.fullName ?? null,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      status: s.status,
+    }));
 }
 
-export function buildClassReportRows(): ClassReportRow[] {
+export function buildClassReportRows(staff: ReportActor): ClassReportRow[] {
   const categories = findClassCategories();
   const deletedLabels = findDeletedCategoryLabels();
-  const bookings = findAllBookings();
 
-  const bookingsByClassId = new Map<string, typeof bookings>();
-  for (const b of bookings) {
-    const list = bookingsByClassId.get(b.classId) ?? [];
-    list.push(b);
-    bookingsByClassId.set(b.classId, list);
-  }
-
+  // A class belongs to its coach's gym (class -> coachUserId -> gym).
   return findClasses()
+    .filter((c) => {
+      const coach = findUserById(c.coachUserId);
+      return !!coach && sameGym(staff, coach);
+    })
     .map((c) => {
-      const classBookings = bookingsByClassId.get(c.id) ?? [];
+      const classBookings = findBookingsByClassId(c.id);
       return {
         classId: c.id,
         title: c.title,

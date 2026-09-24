@@ -3,11 +3,12 @@ import { requireStaffPage } from "@/lib/staff-auth";
 import { ReportsView } from "./ReportsView";
 
 export default async function StaffReportsPage() {
-  await requireStaffPage("reports.view");
+  const staff = await requireStaffPage("reports.view");
 
-  const members = buildMemberSignupRows();
-  const subscriptions = buildSubscriptionRows();
-  const classes = buildClassReportRows();
+  // Scoped to the acting staff member's own gym (see lib/reports.ts).
+  const members = buildMemberSignupRows(staff);
+  const subscriptions = buildSubscriptionRows(staff);
+  const classes = buildClassReportRows(staff);
 
   return <ReportsView members={members} subscriptions={subscriptions} classes={classes} />;
 }

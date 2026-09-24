@@ -7,12 +7,14 @@ import {
   findProfileByUserId,
   findRecoveryLogsByUserId,
   findSubscriptionByUserId,
+  findUserById,
   findWaitlistEntriesByClassId,
   type ClassCategory,
   type SubscriptionStatus,
 } from "@/lib/db";
 import { isPendingCheckoutStale } from "@/lib/billing";
 import { classStartMs } from "@/lib/class-time";
+import { sameGym } from "@/lib/gym-scope";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { remainingSessions } from "@/lib/scheduling-status";
 
@@ -32,8 +34,19 @@ export interface MemberOperationalSummary {
 // One row per member, aggregating state that's otherwise scattered across
 // subscriptions, recovery logs, and messages — exactly what staff need to
 // scan to find who needs attention without opening each member individually.
-export function buildMemberOperationalSummaries(): MemberOperationalSummary[] {
-  return findMembers().map((user) => {
+//
+// Both builders here are scoped to the acting staff member's own gym (`staff`
+// is the server-resolved session user, never a client value; gymId null is the
+// primary gym, lib/gym-scope.ts). Other gyms' members/classes are excluded
+// BEFORE any profile, subscription, recovery-log, message, booking or waitlist
+// lookup, and anything whose owner can't be resolved is excluded (fail closed).
+// Only caller: the staff Operations page.
+type OperationsActor = { gymId?: string | null };
+
+export function buildMemberOperationalSummaries(staff: OperationsActor): MemberOperationalSummary[] {
+  return findMembers()
+    .filter((user) => sameGym(staff, user))
+    .map((user) => {
     const profile = findProfileByUserId(user.id);
     const subscription = findSubscriptionByUserId(user.id);
     const plan = resolveSubscriptionEntitlement(subscription);
@@ -92,12 +105,17 @@ export interface ClassPressureSummary {
   isFull: boolean;
 }
 
-// Upcoming classes only — past classes aren't operationally actionable.
-export function buildUpcomingClassPressureSummaries(): ClassPressureSummary[] {
+// Upcoming classes only — past classes aren't operationally actionable. A
+// class belongs to its coach's gym (class -> coachUserId -> gym).
+export function buildUpcomingClassPressureSummaries(staff: OperationsActor): ClassPressureSummary[] {
   const now = Date.now();
 
   return findClasses()
     .filter((classRecord) => classStartMs(classRecord.date, classRecord.startTime) >= now)
+    .filter((classRecord) => {
+      const coach = findUserById(classRecord.coachUserId);
+      return !!coach && sameGym(staff, coach);
+    })
     .map((classRecord) => {
       const bookedCount = findBookingsByClassId(classRecord.id).length;
       const waitlistCount = findWaitlistEntriesByClassId(classRecord.id).length;
