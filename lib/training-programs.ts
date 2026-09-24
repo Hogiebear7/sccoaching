@@ -15,6 +15,7 @@ import {
   type WorkoutSessionRecord,
   type WorkoutSetType,
 } from "./db";
+import { sameGym } from "./gym-scope";
 import type { ProgrammeSkeletonCheckpoint } from "./ai";
 import { exerciseMatchesEquipmentSlugs } from "./equipment-matching";
 import type { ExerciseLibraryRecord } from "./exercise-library/types";
@@ -269,8 +270,19 @@ export interface StaffTrainingProgramSummary extends TrainingProgramRecord {
   memberFullName: string | null;
 }
 
-export function getStaffTrainingPrograms(userId?: string): StaffTrainingProgramSummary[] {
-  const programs = userId ? findTrainingProgramsByUserId(userId) : findAllTrainingPrograms();
+// Scoped to the acting staff member's own gym (`staff` is the server-resolved
+// session user; gymId null = primary gym, lib/gym-scope.ts): a program belongs to
+// its member's gym, and programs of other gyms' members (or of a member that
+// can't be resolved) are dropped BEFORE any member email/profile is read.
+// Only caller: the mobile staff programs route.
+export function getStaffTrainingPrograms(
+  userId: string | undefined,
+  staff: { gymId?: string | null }
+): StaffTrainingProgramSummary[] {
+  const programs = (userId ? findTrainingProgramsByUserId(userId) : findAllTrainingPrograms()).filter((program) => {
+    const owner = findUserById(program.userId);
+    return !!owner && sameGym(staff, owner);
+  });
 
   return programs.map((program) => {
     const member = findUserById(program.userId);

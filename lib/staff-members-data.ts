@@ -10,6 +10,7 @@ import {
   findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "./db";
+import { sameGym } from "./gym-scope";
 import { classStartMs } from "@/lib/class-time";
 import { resolveSubscriptionEntitlement } from "./membership-entitlement";
 import type { WeeklyTrainingScheduleRecord } from "./profile-schema";
@@ -35,8 +36,14 @@ export interface StaffMemberSummary {
 // actions, age-bracket demographics, and pass-package activation — a
 // separate, larger mobile build (see lib/staff-classes-data.ts for the
 // same "list is thin, editing tools deferred" tradeoff on the Classes side).
-export function getStaffMembersData(): StaffMemberSummary[] {
-  return findMembers().map((member) => {
+//
+// Scoped to the acting staff member's own gym (`staff` is the server-resolved
+// session user; gymId null = primary gym, lib/gym-scope.ts): other gyms' members
+// are excluded BEFORE their profile / subscription is read, not filtered after.
+// Only caller: the mobile staff members route.
+export function getStaffMembersData(staff: { gymId?: string | null }): StaffMemberSummary[] {
+  const ownMembers = findMembers().filter((member) => sameGym(staff, member));
+  return ownMembers.map((member) => {
     const profile = findProfileByUserId(member.id);
     const sub = findSubscriptionByUserId(member.id);
     const plan = resolveSubscriptionEntitlement(sub);

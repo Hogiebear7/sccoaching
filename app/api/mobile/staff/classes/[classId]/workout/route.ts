@@ -10,7 +10,7 @@ import {
   findUserById,
   findWorkoutSessionByUserAndClass,
 } from "@/lib/db";
-import { sameGymAsStaff } from "@/lib/gym-scope";
+import { sameGym, sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -44,8 +44,15 @@ export async function GET(
     return NextResponse.json({ success: false, message: "This class no longer exists." }, { status: 404 });
   }
 
+  // Attendees are gym-checked individually (member.gymId) before their profile
+  // or workout session is read; a legacy cross-gym attendee on this in-gym class
+  // is left out. A member that no longer exists keeps the "Unknown member" row.
   const checkedIn = findBookingsByClassId(classRecord.id)
     .filter((b) => b.attendedAt !== null)
+    .filter((b) => {
+      const member = findUserById(b.userId);
+      return !member || sameGym(staffUser, member);
+    })
     .map((booking) => {
       const member = findUserById(booking.userId);
       const profile = member ? findProfileByUserId(member.id) : undefined;

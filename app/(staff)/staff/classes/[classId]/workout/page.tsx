@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { sameGymAsStaff } from "@/lib/gym-scope";
+import { sameGym, sameGymAsStaff } from "@/lib/gym-scope";
 import { requireStaffPage } from "@/lib/staff-auth";
 import {
   findBookingsByClassId,
@@ -43,8 +43,15 @@ export default async function StaffClassWorkoutPage({
 
   // Attendance is the participation signal: only checked-in members appear
   // in the recording flow. Existing synced sessions prefill their rows.
+  // Attendees are gym-checked individually (member.gymId) before their profile
+  // or workout session is read; a legacy cross-gym attendee on this in-gym class
+  // is left out. A member that no longer exists keeps the "Unknown member" row.
   const checkedIn = findBookingsByClassId(classRecord.id)
     .filter((b) => b.attendedAt !== null)
+    .filter((b) => {
+      const member = findUserById(b.userId);
+      return !member || sameGym(staff, member);
+    })
     .map((booking) => {
       const member = findUserById(booking.userId);
       const profile = member ? findProfileByUserId(member.id) : undefined;

@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
 
   // Unfiltered when no userId — same "collapse, don't hide" treatment as the
   // member list page for the all-members overview list.
-  const programs = getStaffTrainingPrograms(userId);
+  // getStaffTrainingPrograms is itself scoped to the staff member's gym before it
+  // reads any member email/profile; the row-level filters here are kept as
+  // defense in depth (and add the tier wall).
+  const programs = getStaffTrainingPrograms(userId, staffUser);
   return NextResponse.json({
     success: true,
     data: userId

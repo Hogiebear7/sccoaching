@@ -51,16 +51,24 @@ export function getStaffClassesData(staff: { gymId?: string | null }, daysAhead 
     )
     .map(({ classRecord, coach }) => {
       const bookings = findBookingsByClassId(classRecord.id);
-      const roster: StaffClassRosterEntry[] = bookings.map((booking) => {
+      // Attendees are also gym-checked individually (member.gymId), before their
+      // profile is read: a legacy cross-gym attendee on an in-gym class is left
+      // out. A booking whose member no longer exists has nothing to leak and
+      // keeps the existing "Unknown member" placeholder. bookedCount stays the
+      // real booking count (capacity accounting), so it can exceed roster length.
+      const roster: StaffClassRosterEntry[] = bookings.flatMap((booking) => {
         const bookedUser = findUserById(booking.userId);
+        if (bookedUser && !sameGym(staff, bookedUser)) return [];
         const bookedProfile = bookedUser ? findProfileByUserId(bookedUser.id) : undefined;
-        return {
-          bookingId: booking.id,
-          userId: booking.userId,
-          email: bookedUser?.email ?? "Unknown member",
-          fullName: bookedProfile?.fullName ?? null,
-          attendedAt: booking.attendedAt,
-        };
+        return [
+          {
+            bookingId: booking.id,
+            userId: booking.userId,
+            email: bookedUser?.email ?? "Unknown member",
+            fullName: bookedProfile?.fullName ?? null,
+            attendedAt: booking.attendedAt,
+          },
+        ];
       });
 
       return {
