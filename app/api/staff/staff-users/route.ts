@@ -9,6 +9,7 @@ import {
   updateUserRole,
 } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
+import { protectedOperatorTarget } from "@/lib/platform-operator-guard";
 import { hashPassword } from "@/lib/password";
 import { ASSIGNABLE_STAFF_ROLES, type StaffRole } from "@/lib/permissions";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Cross-gym folded into the same not-found response as a missing user,
     // before the role check and any mutation — a foreign account's
     // existence, role, and gym aren't revealed.
-    if (!target || !sameGym(actor, target)) {
+    if (!target || !sameGym(actor, target) || protectedOperatorTarget(actor, target)) {
       return NextResponse.json({ success: false, message: "User not found." }, { status: 404 });
     }
     if (target.role === "member") {

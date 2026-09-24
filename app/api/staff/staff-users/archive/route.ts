@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findStaffUsers, findUserById, setUserArchived } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
+import { protectedOperatorTarget } from "@/lib/platform-operator-guard";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
 
 // Archive (deactivate) or restore an elevated user. Only an admin_manager may
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
   // Cross-gym folded into the same not-found response as a missing user,
   // before the role check and any mutation — a foreign account's existence,
   // role, and gym aren't revealed.
-  if (!target || !sameGym(actor, target)) {
+  if (!target || !sameGym(actor, target) || protectedOperatorTarget(actor, target)) {
     return NextResponse.json({ success: false, message: "User not found." }, { status: 404 });
   }
   if (target.role === "member") {

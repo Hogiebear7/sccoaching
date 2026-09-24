@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { createResetToken, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
+import { protectedOperatorTarget } from "@/lib/platform-operator-guard";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -58,7 +59,11 @@ export async function POST(request: NextRequest) {
   // target is folded into the same not-found response as a missing one, and
   // this runs before any reset token is minted, saved, or returned — a
   // foreign account's existence, role, and gym aren't revealed.
-  if (!targetUser || !sameGym(staffUser, targetUser)) {
+  // A platform_operator account can't be modified by anyone else through this
+  // tenant tool (reset link, login-email change, role change, archive). It reads
+  // exactly like a missing user, before any mutation, so a tenant admin who
+  // shares the operator's gym (gymId null) can't take the account over.
+  if (!targetUser || !sameGym(staffUser, targetUser) || protectedOperatorTarget(staffUser, targetUser)) {
     return NextResponse.json(
       { success: false, message: "Member not found." },
       { status: 404 }

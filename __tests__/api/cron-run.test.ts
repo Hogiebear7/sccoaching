@@ -75,9 +75,9 @@ describe("GET /api/cron/run", () => {
     expect(res.status).toBe(401);
   });
 
-  it("accepts a staff session and runs as manual", async () => {
+  it("accepts a platform_operator session and runs as manual", async () => {
     delete process.env.CRON_SECRET;
-    mockFindUserById.mockReturnValue({ id: "staff-1", email: "coach@example.com", role: "staff" });
+    mockFindUserById.mockReturnValue({ id: "staff-1", email: "operator@example.com", role: "platform_operator" });
     const cookie = signSession({ userId: "staff-1" }, MEMBER_SESSION_LIFETIME_MS);
     const { GET } = await import("@/app/api/cron/run/route");
 
