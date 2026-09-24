@@ -1,14 +1,14 @@
-// Package-ownership isolation for app/api/admin/membership/activate/route.ts
-// (legacy admin activation). The package must resolve packageId -> package ->
-// category -> gymId and belong to the ACTING admin's gym, with
-// deliveryChannel === "app_only" as the sole global exception. Auth uses the
-// real signed-session mechanism; sameGym, staffAuthorizedForCatalogPackage
-// and can() are deliberately not mocked.
-//
-// Known, deliberately out-of-scope gap: this route has never checked that the
-// TARGET MEMBER is in the admin's gym (only member.role === "member"), unlike
-// the staff subscription route. That is a separate finding and is not
-// asserted here in either direction.
+// Gym isolation for app/api/admin/membership/activate/route.ts (legacy admin
+// activation). Two independent gates, both against the ACTING admin's gym:
+//   1. the TARGET MEMBER must be in the admin's gym (cross-gym is folded into
+//      the existing "Member not found." 404, before role/package/date
+//      handling and before any save);
+//   2. the PACKAGE must resolve packageId -> package -> category -> gymId and
+//      belong to that gym, with deliveryChannel === "app_only" as the sole
+//      global exception — which applies to the package gate only, never the
+//      target-member gate.
+// Auth uses the real signed-session mechanism; sameGym,
+// staffAuthorizedForCatalogPackage and can() are deliberately not mocked.
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,6 +27,7 @@ vi.mock("@/lib/db", () => h);
 const GYM_A_ADMIN = { id: "admin-a", email: "admina@x.test", role: "admin" as const, gymId: null, archivedAt: null };
 const GYM_B_ADMIN = { id: "admin-b", email: "adminb@x.test", role: "admin" as const, gymId: "gym-b", archivedAt: null };
 const GYM_A_COACH = { id: "coach-a", email: "coacha@x.test", role: "coach" as const, gymId: null, archivedAt: null };
+const GYM_B_COACH = { id: "coach-b", email: "coachb@x.test", role: "coach" as const, gymId: "gym-b", archivedAt: null };
 const GYM_A_MEMBER = { id: "member-a", email: "membera@x.test", role: "member" as const, gymId: null, archivedAt: null };
 const GYM_B_MEMBER = { id: "member-b", email: "memberb@x.test", role: "member" as const, gymId: "gym-b", archivedAt: null };
 
@@ -58,7 +59,7 @@ const activate = (packageId: string, sessionUserId: string = GYM_A_ADMIN.id, use
 beforeEach(() => {
   vi.clearAllMocks();
   h.findUserById.mockImplementation((id: string) =>
-    [GYM_A_ADMIN, GYM_B_ADMIN, GYM_A_COACH, GYM_A_MEMBER, GYM_B_MEMBER].find((u) => u.id === id)
+    [GYM_A_ADMIN, GYM_B_ADMIN, GYM_A_COACH, GYM_B_COACH, GYM_A_MEMBER, GYM_B_MEMBER].find((u) => u.id === id)
   );
   h.findMembershipCategoryById.mockImplementation((id: string) =>
     [GYM_A_CATEGORY, GYM_B_CATEGORY].find((c) => c.id === id)
@@ -225,6 +226,142 @@ describe("POST /api/admin/membership/activate — package ownership", () => {
 
     expect(res.status).toBe(403);
     expect((await res.json()).message).toBe("Only staff can activate memberships.");
+    expect(h.saveSubscription).not.toHaveBeenCalled();
+  });
+});
+
+// Target-member gym gate. Admin gym, target-member gym, package gym, and
+// app-only status are varied independently below so a pass here can only come
+// from the member check itself.
+describe("POST /api/admin/membership/activate — target-member gym", () => {
+  const APP_ONLY = pkg("pkg-app", "cat-b", { deliveryChannel: "app_only", billingChannel: "google_play" });
+
+  beforeEach(() => {
+    h.findMembershipPackageById.mockImplementation((id: string) =>
+      id === "pkg-a" ? pkg("pkg-a", "cat-a") : id === "pkg-b" ? pkg("pkg-b", "cat-b") : id === "pkg-app" ? APP_ONLY : undefined
+    );
+  });
+
+  function expectMemberNotFound(res: Response, body: { success: boolean; message: string }) {
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ success: false, message: "Member not found." });
+    expect(h.saveSubscription).not.toHaveBeenCalled();
+    // The member gate runs first: no package lookup, category lookup, or
+    // existing-subscription read happens for a cross-gym target.
+    expect(h.findMembershipPackageById).not.toHaveBeenCalled();
+    expect(h.findMembershipCategoryById).not.toHaveBeenCalled();
+    expect(h.findSubscriptionByUserId).not.toHaveBeenCalled();
+  }
+
+  it("activates a same-gym member for a same-gym admin with the existing response and saveSubscription arguments", async () => {
+    const res = await activate("pkg-a", GYM_A_ADMIN.id, GYM_A_MEMBER.id);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      success: true,
+      message: `${GYM_A_MEMBER.email} activated on Package pkg-a. Session count reset to 0.`,
+    });
+    expect(h.saveSubscription).toHaveBeenCalledTimes(1);
+    expect(h.saveSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: GYM_A_MEMBER.id, packageId: "pkg-a", status: "active", provider: "none", sessionsUsedThisPeriod: 0 })
+    );
+  });
+
+  it("activates a gym-B member for a gym-B admin on a gym-B package (second gym works too)", async () => {
+    const res = await activate("pkg-b", GYM_B_ADMIN.id, GYM_B_MEMBER.id);
+
+    expect(res.status).toBe(200);
+    expect(h.saveSubscription).toHaveBeenCalledWith(expect.objectContaining({ userId: GYM_B_MEMBER.id, packageId: "pkg-b" }));
+  });
+
+  it("denies a gym-A admin activating a gym-B member with 404 'Member not found.', identical to a missing member", async () => {
+    const crossGym = await activate("pkg-a", GYM_A_ADMIN.id, GYM_B_MEMBER.id);
+    const crossGymBody = await crossGym.json();
+    expectMemberNotFound(crossGym, crossGymBody);
+
+    const missing = await activate("pkg-a", GYM_A_ADMIN.id, "member-missing");
+    const missingBody = await missing.json();
+
+    expect(crossGym.status).toBe(missing.status);
+    expect(crossGymBody).toEqual(missingBody);
+  });
+
+  it("denies the reverse direction too (gym-B admin, gym-A member)", async () => {
+    const res = await activate("pkg-b", GYM_B_ADMIN.id, GYM_A_MEMBER.id);
+
+    expectMemberNotFound(res, await res.json());
+  });
+
+  it("denies a cross-gym target at the member gate for every package kind: same-gym-as-admin, app-only, and cross-gym", async () => {
+    // Admin A -> member B, varying only the package.
+    for (const packageId of ["pkg-a", "pkg-app", "pkg-b"]) {
+      vi.clearAllMocks();
+      const res = await activate(packageId, GYM_A_ADMIN.id, GYM_B_MEMBER.id);
+      expectMemberNotFound(res, await res.json());
+    }
+  });
+
+  it("does not let the app-only package exception bypass the target-member gate", async () => {
+    // Admin B -> member A, app-only package that both gyms can otherwise use.
+    const res = await activate("pkg-app", GYM_B_ADMIN.id, GYM_A_MEMBER.id);
+
+    expectMemberNotFound(res, await res.json());
+
+    // Control: the same app-only package works for a same-gym pair.
+    const ok = await activate("pkg-app", GYM_B_ADMIN.id, GYM_B_MEMBER.id);
+    expect(ok.status).toBe(200);
+  });
+
+  it("returns the same 404 for a cross-gym non-member account, without revealing its role", async () => {
+    const crossGymCoach = await activate("pkg-a", GYM_A_ADMIN.id, GYM_B_COACH.id);
+    expectMemberNotFound(crossGymCoach, await crossGymCoach.json());
+  });
+
+  it("runs the member gate before date validation (an invalid periodEndIso on a cross-gym target is still 404)", async () => {
+    const res = await post(
+      { userId: GYM_B_MEMBER.id, packageId: "pkg-a", periodEndIso: "not-a-date" },
+      GYM_A_ADMIN.id
+    );
+
+    expectMemberNotFound(res, await res.json());
+  });
+
+  it("returns the existing 404 for a missing member, with no mutation", async () => {
+    const res = await activate("pkg-a", GYM_A_ADMIN.id, "member-missing");
+
+    expect(res.status).toBe(404);
+    expect((await res.json()).message).toBe("Member not found.");
+    expect(h.saveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("preserves the existing member-role rejection for a same-gym non-member target, with no mutation", async () => {
+    const res = await activate("pkg-a", GYM_A_ADMIN.id, GYM_A_COACH.id);
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).message).toBe("Can only activate memberships for member accounts.");
+    expect(h.saveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("still enforces the package gate after the member gate passes (same-gym member, cross-gym package)", async () => {
+    const res = await activate("pkg-b", GYM_A_ADMIN.id, GYM_A_MEMBER.id);
+
+    expect(res.status).toBe(404);
+    expect((await res.json()).message).toBe("This package does not exist or is not available.");
+    expect(h.saveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unauthenticated request before either gate", async () => {
+    const res = await post({ userId: GYM_B_MEMBER.id, packageId: "pkg-a" });
+
+    expect(res.status).toBe(401);
+    expect(h.findUserById).not.toHaveBeenCalled();
+    expect(h.saveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("rejects staff without members.billing before either gate, even for a cross-gym target", async () => {
+    const res = await activate("pkg-a", GYM_A_COACH.id, GYM_B_MEMBER.id);
+
+    expect(res.status).toBe(403);
     expect(h.saveSubscription).not.toHaveBeenCalled();
   });
 });
