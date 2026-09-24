@@ -8,14 +8,14 @@ const {
   mockFindUserByEmail,
   mockCreateUserWithRole,
   mockUpdateUserRole,
-  mockCountActiveUsersByRole,
+  mockFindStaffUsers,
   mockSetUserArchived,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindUserByEmail: vi.fn(),
   mockCreateUserWithRole: vi.fn(),
   mockUpdateUserRole: vi.fn(),
-  mockCountActiveUsersByRole: vi.fn(),
+  mockFindStaffUsers: vi.fn(),
   mockSetUserArchived: vi.fn(),
 }));
 
@@ -24,7 +24,7 @@ vi.mock("@/lib/db", () => ({
   findUserByEmail: mockFindUserByEmail,
   createUserWithRole: mockCreateUserWithRole,
   updateUserRole: mockUpdateUserRole,
-  countActiveUsersByRole: mockCountActiveUsersByRole,
+  findStaffUsers: mockFindStaffUsers,
   setUserArchived: mockSetUserArchived,
 }));
 
@@ -32,6 +32,14 @@ vi.mock("@/lib/password", () => ({ hashPassword: () => "salt:hash" }));
 
 const MANAGER = { id: "mgr-1", email: "mgr@club.com", role: "admin_manager" as const, archivedAt: null };
 const ADMIN = { id: "adm-1", email: "adm@club.com", role: "admin" as const, archivedAt: null };
+
+// The last-manager rule is now derived per gym from the staff user list
+// (same gym as MANAGER), so "N active managers" is expressed as N such users.
+function managers(n: number) {
+  return Array.from({ length: n }, (_, i) =>
+    i === 0 ? MANAGER : { id: `mgr-extra-${i}`, role: "admin_manager" as const, archivedAt: null }
+  );
+}
 
 function cookieFor(userId: string) {
   return signSession({ userId }, MEMBER_SESSION_LIFETIME_MS);
@@ -64,14 +72,14 @@ describe("POST /api/staff/staff-users", () => {
       id === MANAGER.id ? MANAGER : id === ADMIN.id ? ADMIN : undefined
     );
     mockFindUserByEmail.mockReturnValue(undefined);
-    mockCountActiveUsersByRole.mockReturnValue(2);
+    mockFindStaffUsers.mockReturnValue(managers(2));
     mockCreateUserWithRole.mockReturnValue({ id: "new-1" });
   });
 
   it("lets an admin_manager create a coach", async () => {
     const res = await callCreate({ email: "new@club.com", password: "password1", role: "coach" }, MANAGER.id);
     expect(res.status).toBe(200);
-    expect(mockCreateUserWithRole).toHaveBeenCalledWith("new@club.com", "salt:hash", "coach");
+    expect(mockCreateUserWithRole).toHaveBeenCalledWith("new@club.com", "salt:hash", "coach", null);
   });
 
   it("forbids a plain admin from managing staff users (403)", async () => {
@@ -103,14 +111,14 @@ describe("POST /api/staff/staff-users", () => {
   });
 
   it("blocks demoting the LAST admin_manager (409) and does not write", async () => {
-    mockCountActiveUsersByRole.mockReturnValue(1);
+    mockFindStaffUsers.mockReturnValue(managers(1));
     const res = await callCreate({ id: MANAGER.id, role: "admin" }, MANAGER.id);
     expect(res.status).toBe(409);
     expect(mockUpdateUserRole).not.toHaveBeenCalled();
   });
 
   it("allows demoting an admin_manager when another remains", async () => {
-    mockCountActiveUsersByRole.mockReturnValue(2);
+    mockFindStaffUsers.mockReturnValue(managers(2));
     mockFindUserById.mockImplementation((id: string) =>
       id === MANAGER.id ? MANAGER : { id: "mgr-2", role: "admin_manager", archivedAt: null }
     );
@@ -126,7 +134,7 @@ describe("POST /api/staff/staff-users/archive", () => {
     mockFindUserById.mockImplementation((id: string) =>
       id === MANAGER.id ? MANAGER : id === ADMIN.id ? ADMIN : undefined
     );
-    mockCountActiveUsersByRole.mockReturnValue(2);
+    mockFindStaffUsers.mockReturnValue(managers(2));
   });
 
   it("archives a non-last elevated user", async () => {
@@ -136,7 +144,7 @@ describe("POST /api/staff/staff-users/archive", () => {
   });
 
   it("blocks deactivating the LAST admin_manager (409)", async () => {
-    mockCountActiveUsersByRole.mockReturnValue(1);
+    mockFindStaffUsers.mockReturnValue(managers(1));
     const res = await callArchive({ id: MANAGER.id, archived: true }, MANAGER.id);
     expect(res.status).toBe(409);
     expect(mockSetUserArchived).not.toHaveBeenCalled();
