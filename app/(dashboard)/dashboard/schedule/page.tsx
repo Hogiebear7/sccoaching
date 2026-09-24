@@ -12,6 +12,7 @@ import {
   findWaitlistEntriesByClassId,
 } from "@/lib/db";
 import { resolveBookingsForUser } from "@/lib/bookings";
+import { sameGym } from "@/lib/gym-scope";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
 import { getCancellationCutoffHours } from "@/lib/scheduling";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
@@ -54,11 +55,19 @@ export default async function DashboardSchedulePage() {
     .filter((b) => !b.isPast)
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 
+  // Only classes in the member's own gym are listed. Ownership is class ->
+  // coachUserId -> gym, compared with the session user's gym (gymId null is the
+  // primary gym); a class whose coach can't be resolved is excluded (fail
+  // closed). This runs before any per-class booking/waitlist lookup, so other
+  // gyms' classes contribute no data to the page props. Mirrors
+  // lib/schedule-data.ts (the mobile counterpart).
   const classes = findClasses()
     .filter(
       (classRecord) => new Date(`${classRecord.date}T${classRecord.startTime}`).getTime() >= now
     )
-    .map((classRecord) => {
+    .map((classRecord) => ({ classRecord, coach: findUserById(classRecord.coachUserId) }))
+    .filter(({ coach }) => !!coach && sameGym(user, coach))
+    .map(({ classRecord, coach }) => {
       const bookedCount = findBookingsByClassId(classRecord.id).length;
       const isBookedByMe = myBookedClassIds.has(classRecord.id);
       const isFull = bookedCount >= classRecord.capacity;
@@ -99,7 +108,7 @@ export default async function DashboardSchedulePage() {
 
       return {
         ...classRecord,
-        coachEmail: findUserById(classRecord.coachUserId)?.email ?? "Unknown coach",
+        coachEmail: coach?.email ?? "Unknown coach",
         bookedCount,
         isBookedByMe,
         isWaitlistedByMe,
