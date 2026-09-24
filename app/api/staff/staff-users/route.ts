@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
-  countActiveUsersByRole,
   createUserWithRole,
+  findStaffUsers,
   findUserByEmail,
   findUserById,
   updateUserRole,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { hashPassword } from "@/lib/password";
 import { ASSIGNABLE_STAFF_ROLES, type StaffRole } from "@/lib/permissions";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
@@ -16,8 +17,17 @@ function isAssignableRole(value: unknown): value is StaffRole {
   return typeof value === "string" && (ASSIGNABLE_STAFF_ROLES as string[]).includes(value);
 }
 
+// Active admin_managers in the ACTING manager's own gym. The last-manager
+// safety rule is per gym: a manager in one gym must not be blocked by, or
+// allowed to remove, another gym's last manager.
+function activeManagersInGym(actor: { gymId?: string | null }): number {
+  return findStaffUsers().filter((u) => u.role === "admin_manager" && !u.archivedAt && sameGym(actor, u)).length;
+}
+
 // Create a new elevated user, or change an existing user's role. Only an
-// admin_manager (staffUsers.manage) may call this.
+// admin_manager (staffUsers.manage) may call this, and only within their own
+// gym: the target must be in the actor's gym, and a newly created account is
+// always placed in the actor's gym (gymId is never read from the request).
 export async function POST(request: NextRequest) {
   const auth = authorizeStaffRequest(request, "staffUsers.manage");
   if (!auth.ok) return auth.response;
@@ -42,7 +52,10 @@ export async function POST(request: NextRequest) {
   // ── Update an existing user's role ──────────────────────────────────
   if (typeof id === "string" && id.trim()) {
     const target = findUserById(id.trim());
-    if (!target) {
+    // Cross-gym folded into the same not-found response as a missing user,
+    // before the role check and any mutation — a foreign account's
+    // existence, role, and gym aren't revealed.
+    if (!target || !sameGym(actor, target)) {
       return NextResponse.json({ success: false, message: "User not found." }, { status: 404 });
     }
     if (target.role === "member") {
@@ -57,7 +70,7 @@ export async function POST(request: NextRequest) {
     if (
       target.role === "admin_manager" &&
       role !== "admin_manager" &&
-      countActiveUsersByRole("admin_manager") <= 1
+      activeManagersInGym(actor) <= 1
     ) {
       const self = target.id === actor.id;
       return NextResponse.json(
@@ -93,7 +106,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const created = createUserWithRole(normalizedEmail, hashPassword(password), role);
+  const created = createUserWithRole(normalizedEmail, hashPassword(password), role, actor.gymId ?? null);
   return NextResponse.json(
     { success: true, message: `Created ${role} account for ${normalizedEmail}.`, id: created.id },
     { status: 200 }

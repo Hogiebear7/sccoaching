@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { countActiveUsersByRole, findUserById, setUserArchived } from "@/lib/db";
+import { findStaffUsers, findUserById, setUserArchived } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
 
 // Archive (deactivate) or restore an elevated user. Only an admin_manager may
-// call this. Archived accounts can't sign in; nothing else is touched.
+// call this, and only for a target in their own gym. Archived accounts can't
+// sign in; nothing else is touched.
 export async function POST(request: NextRequest) {
   const auth = authorizeStaffRequest(request, "staffUsers.manage");
   if (!auth.ok) return auth.response;
@@ -27,7 +29,10 @@ export async function POST(request: NextRequest) {
   }
 
   const target = findUserById(id.trim());
-  if (!target) {
+  // Cross-gym folded into the same not-found response as a missing user,
+  // before the role check and any mutation — a foreign account's existence,
+  // role, and gym aren't revealed.
+  if (!target || !sameGym(actor, target)) {
     return NextResponse.json({ success: false, message: "User not found." }, { status: 404 });
   }
   if (target.role === "member") {
@@ -37,10 +42,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Safety: archiving the last ACTIVE admin_manager would lock everyone out of
-  // staff management. Count only non-archived admin_managers other than the one
-  // being archived.
-  if (archived && target.role === "admin_manager" && countActiveUsersByRole("admin_manager") <= 1) {
+  // Safety: archiving the last ACTIVE admin_manager IN THIS GYM would lock
+  // that gym out of staff management. The count is per gym (the acting
+  // manager's own), so another gym's managers neither block nor permit it.
+  const activeManagersInGym = findStaffUsers().filter(
+    (u) => u.role === "admin_manager" && !u.archivedAt && sameGym(actor, u)
+  ).length;
+  if (archived && target.role === "admin_manager" && activeManagersInGym <= 1) {
     const self = target.id === actor.id;
     return NextResponse.json(
       {

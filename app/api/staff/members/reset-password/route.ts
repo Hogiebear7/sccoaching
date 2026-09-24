@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { createResetToken, findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -53,7 +54,11 @@ export async function POST(request: NextRequest) {
 
   const targetUser = findUserById(userId);
 
-  if (!targetUser) {
+  // The target must be in the acting staff member's own gym. A cross-gym
+  // target is folded into the same not-found response as a missing one, and
+  // this runs before any reset token is minted, saved, or returned — a
+  // foreign account's existence, role, and gym aren't revealed.
+  if (!targetUser || !sameGym(staffUser, targetUser)) {
     return NextResponse.json(
       { success: false, message: "Member not found." },
       { status: 404 }
