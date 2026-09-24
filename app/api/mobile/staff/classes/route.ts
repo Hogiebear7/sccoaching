@@ -17,5 +17,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }
 
-  return NextResponse.json({ success: true, data: getStaffClassesData() });
+  // Scoped to the acting staff member's own gym (see lib/staff-classes-data.ts).
+  return NextResponse.json({ success: true, data: getStaffClassesData(staffUser) });
 }

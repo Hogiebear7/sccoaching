@@ -13,6 +13,7 @@ import {
 } from "./db";
 import { classStartMs } from "@/lib/class-time";
 import { resolveBookingsForUser } from "./bookings";
+import { sameGym } from "./gym-scope";
 import { hasActiveMembership, membershipIsRequired } from "./membership";
 import { getCancellationCutoffHours } from "./scheduling";
 import { isClassEligibleForPlan, remainingSessions } from "./scheduling-status";
@@ -112,9 +113,16 @@ export function getScheduleData(userId: string | undefined): ScheduleData | null
       attended: b.attended,
     }));
 
+  // Only classes in the viewer's own gym are listed. Ownership is class ->
+  // coachUserId -> gym, compared with the session user's gym (gymId null is
+  // the primary gym); a class whose coach can't be resolved is excluded (fail
+  // closed). Filtering happens before any per-class booking/waitlist lookup,
+  // so other gyms' classes contribute no data at all.
   const classes: ScheduleClass[] = findClasses()
     .filter((classRecord) => classStartMs(classRecord.date, classRecord.startTime) >= now)
-    .map((classRecord) => {
+    .map((classRecord) => ({ classRecord, coach: findUserById(classRecord.coachUserId) }))
+    .filter(({ coach }) => !!coach && sameGym(user, coach))
+    .map(({ classRecord, coach }) => {
       const bookedCount = findBookingsByClassId(classRecord.id).length;
       const isBookedByMe = myBookedClassIds.has(classRecord.id);
       const waitlist = findWaitlistEntriesByClassId(classRecord.id);
@@ -150,7 +158,7 @@ export function getScheduleData(userId: string | undefined): ScheduleData | null
         startTime: classRecord.startTime,
         durationMins: classRecord.durationMins,
         capacity: classRecord.capacity,
-        coachEmail: findUserById(classRecord.coachUserId)?.email ?? "Unknown coach",
+        coachEmail: coach?.email ?? "Unknown coach",
         imageUrl: classRecord.imageUrl ?? null,
         imageAlt: classRecord.imageAlt ?? null,
         bookedCount,

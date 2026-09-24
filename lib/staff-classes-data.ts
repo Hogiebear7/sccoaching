@@ -6,6 +6,7 @@ import {
   type ClassRecord,
 } from "./db";
 import { ensureSeriesOccurrences } from "./class-series";
+import { sameGym } from "./gym-scope";
 
 export interface StaffClassRosterEntry {
   bookingId: string;
@@ -26,7 +27,14 @@ export interface StaffClassSummary extends ClassRecord {
 // created (it also handles creation/editing/series management, which is a
 // separate, larger mobile build). Waitlist and past-class history aren't
 // included here for the same reason.
-export function getStaffClassesData(daysAhead = 14): StaffClassSummary[] {
+//
+// Scoped to the acting staff member's own gym: a class belongs to the gym of
+// its coach (class -> coachUserId -> gym), and a class whose coach can't be
+// resolved is excluded (fail closed). The gym filter runs BEFORE any booking,
+// attendee-user, or profile lookup, so no other gym's member email or name is
+// ever loaded. `staff` is the server-resolved session user, never a client
+// value. (Its only caller is the mobile staff classes route.)
+export function getStaffClassesData(staff: { gymId?: string | null }, daysAhead = 14): StaffClassSummary[] {
   ensureSeriesOccurrences();
 
   const todayISO = new Date().toISOString().slice(0, 10);
@@ -36,8 +44,12 @@ export function getStaffClassesData(daysAhead = 14): StaffClassSummary[] {
 
   return findClasses()
     .filter((c) => c.date >= todayISO && c.date <= cutoffISO)
-    .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`))
-    .map((classRecord) => {
+    .map((classRecord) => ({ classRecord, coach: findUserById(classRecord.coachUserId) }))
+    .filter(({ coach }) => !!coach && sameGym(staff, coach))
+    .sort((a, b) =>
+      `${a.classRecord.date}T${a.classRecord.startTime}`.localeCompare(`${b.classRecord.date}T${b.classRecord.startTime}`)
+    )
+    .map(({ classRecord, coach }) => {
       const bookings = findBookingsByClassId(classRecord.id);
       const roster: StaffClassRosterEntry[] = bookings.map((booking) => {
         const bookedUser = findUserById(booking.userId);
@@ -53,7 +65,7 @@ export function getStaffClassesData(daysAhead = 14): StaffClassSummary[] {
 
       return {
         ...classRecord,
-        coachEmail: findUserById(classRecord.coachUserId)?.email ?? "Unknown coach",
+        coachEmail: coach?.email ?? "Unknown coach",
         bookedCount: bookings.length,
         roster,
       };

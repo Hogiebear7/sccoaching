@@ -8,6 +8,7 @@ import {
   findUserById,
 } from "@/lib/db";
 import { isBillingProviderConfigured } from "@/lib/billing";
+import { isGlobalCatalogPackage, sameGym } from "@/lib/gym-scope";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { expiringPassSummary, purchasedPassBalance } from "@/lib/payments";
@@ -61,9 +62,30 @@ export default async function DashboardMembershipPage({
   const currentBillingOptionId = activeUnlapsed ? subscription?.billingOptionId ?? null : null;
 
   // Only visible catalog rows reach members; entitlement stays on the package.
-  const categories = findMembershipCategories().filter((c) => c.visible);
-  const packages = findMembershipPackages().filter((p) => p.visible);
-  const billingOptions = findMembershipBillingOptions().filter((o) => o.visible);
+  //
+  // The catalog is also scoped to the member's own gym, resolved from the
+  // server-side session user (never a client value). Only categories carry a
+  // gym (package -> category -> gymId), so a package is offered if it is the
+  // platform-wide app-only package (the sole global exception, the same rule
+  // checkout enforces) or its category is in the member's gym (gymId null =
+  // primary gym). A package with no resolvable category fails closed. Billing
+  // options follow their surviving package. The catalog view renders packages
+  // and options only nested under categories, so categories are the member
+  // gym's own plus those of the surviving (global) packages.
+  const allCategories = findMembershipCategories();
+  const packages = findMembershipPackages().filter((p) => {
+    if (!p.visible) return false;
+    if (isGlobalCatalogPackage(p)) return true;
+    const category = allCategories.find((c) => c.id === p.categoryId);
+    return !!category && sameGym(user, category);
+  });
+  const packageIds = new Set(packages.map((p) => p.id));
+  const billingOptions = findMembershipBillingOptions().filter((o) => o.visible && packageIds.has(o.packageId));
+  const visibleCategoryIds = new Set([
+    ...allCategories.filter((c) => sameGym(user, c)).map((c) => c.id),
+    ...packages.map((p) => p.categoryId),
+  ]);
+  const categories = allCategories.filter((c) => c.visible && visibleCategoryIds.has(c.id));
 
   return (
     <MembershipView

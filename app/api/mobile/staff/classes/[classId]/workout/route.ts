@@ -10,6 +10,7 @@ import {
   findUserById,
   findWorkoutSessionByUserAndClass,
 } from "@/lib/db";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -36,7 +37,10 @@ export async function GET(
   const { classId } = await params;
   const classRecord = findClassById(classId);
 
-  if (!classRecord) {
+  // Ownership: class -> coach -> gym. A cross-gym class (or one whose coach
+  // can't be resolved) gets the same not-found response as a missing one, and
+  // this runs before any attendee/profile/session lookup below.
+  if (!classRecord || !classRecord.coachUserId || !sameGymAsStaff(staffUser, classRecord.coachUserId)) {
     return NextResponse.json({ success: false, message: "This class no longer exists." }, { status: 404 });
   }
 
