@@ -34,7 +34,7 @@ export type CycleEventType = "period_start" | "period_end" | "symptom" | "note";
 // lib/permissions.ts for what each can do. "staff" is a legacy alias for a
 // full admin that older data may still carry — readDb migrates it to
 // "admin_manager" on read (see lib/db.ts).
-export type UserRole = "member" | "coach" | "admin" | "admin_manager" | "staff";
+export type UserRole = "member" | "coach" | "admin" | "admin_manager" | "platform_operator" | "staff";
 
 export type MeasurementUnits = "metric" | "imperial";
 

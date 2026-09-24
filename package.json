@@ -15,6 +15,7 @@
     "seed:app-subscription-package": "node scripts/seed-app-subscription-package.mjs",
     "seed:primary-gym": "node scripts/seed-primary-gym.mjs",
     "create:staff": "node scripts/create-staff.mjs",
+    "promote:platform-operator": "node scripts/promote-platform-operator.mjs",
     "delete:non-staff": "node scripts/delete-non-staff.mjs",
     "delete:members": "node scripts/delete-members.mjs",
     "delete:class-types": "node scripts/delete-class-types.mjs",

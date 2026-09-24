@@ -8,6 +8,7 @@ import {
   updateUserEmail,
 } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
+import { protectedOperatorTarget } from "@/lib/platform-operator-guard";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import {
   isFemaleGender,
@@ -86,7 +87,11 @@ export async function POST(request: NextRequest) {
 
   const targetUser = findUserById(userId);
 
-  if (!targetUser || !sameGym(staffUser, targetUser)) {
+  // A platform_operator account can't be modified by anyone else through this
+  // tenant tool (reset link, login-email change, role change, archive). It reads
+  // exactly like a missing user, before any mutation, so a tenant admin who
+  // shares the operator's gym (gymId null) can't take the account over.
+  if (!targetUser || !sameGym(staffUser, targetUser) || protectedOperatorTarget(staffUser, targetUser)) {
     return NextResponse.json(
       { success: false, message: "Member not found." },
       { status: 404 }

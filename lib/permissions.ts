@@ -9,15 +9,25 @@
 
 import type { UserRole } from "./profile-schema";
 
-export type StaffRole = "coach" | "admin" | "admin_manager";
+export type StaffRole = "coach" | "admin" | "admin_manager" | "platform_operator";
 
-// The roles an admin_manager can assign in the staff-users UI.
+// The one role that may use the platform-only capabilities below (gym
+// moderation, platform Finance, session-triggered platform jobs). It is NEVER
+// assignable from the staff-users UI or created by any route: it is granted
+// only by the offline scripts/promote-platform-operator.mjs, to an existing
+// staff account. It is deliberately not implied by any tenant role or by
+// gymId: null — see can().
+export const PLATFORM_OPERATOR_ROLE = "platform_operator" as const;
+
+// The roles an admin_manager can assign in the staff-users UI. platform_operator
+// is intentionally absent.
 export const ASSIGNABLE_STAFF_ROLES: StaffRole[] = ["coach", "admin", "admin_manager"];
 
 export const STAFF_ROLE_LABEL: Record<StaffRole, string> = {
   coach: "Coach",
   admin: "Admin",
   admin_manager: "Admin manager",
+  platform_operator: "Platform operator",
 };
 
 // Higher number = more privilege. member is 0; the legacy "staff" alias sits
@@ -28,6 +38,11 @@ const ROLE_RANK: Record<string, number> = {
   admin: 2,
   admin_manager: 3,
   staff: 3, // legacy alias — full access
+  // Ranks above admin_manager so an operator can still work as ordinary staff
+  // (every TENANT capability below is still gym-scoped by sameGym() in the
+  // routes — an operator gets no cross-gym reach there). The platform-only
+  // capabilities do not use rank at all; see PLATFORM_ONLY_CAPABILITIES.
+  platform_operator: 4,
 };
 
 function rank(role: string | null | undefined): number {
@@ -36,6 +51,10 @@ function rank(role: string | null | undefined): number {
 
 export function isStaffRole(role: string | null | undefined): boolean {
   return rank(role) >= ROLE_RANK.coach;
+}
+
+export function isPlatformOperator(role: string | null | undefined): boolean {
+  return role === PLATFORM_OPERATOR_ROLE;
 }
 
 // Every gated action in the staff area. Keep this list the single enumeration
@@ -54,14 +73,15 @@ export type Capability =
   | "catalog.manage" // membership catalog CRUD
   | "operations.view" // operations dashboard, housekeeping, class categories
   | "staffUsers.manage" // create/manage elevated users
-  | "finance.view" // revenue figures, breakdowns, tax estimate — top role only
+  | "finance.view" // PLATFORM-ONLY (interim): the platform-wide Finance ledger, revenue, settings
   | "reports.view" // membership + class reporting (no monetary figures)
   | "programs.manage" // assign/edit member training programs (Workout A/B/C/D blocks)
   | "nutrition.manage" // assign/edit member nutrition targets (calories/macros)
   | "foodCatalog.manage" // moderate the shared common/branded food catalog
   | "bugReports.manage" // TRIAL-ONLY — triage trial-period bug reports, see docs/bug-reports.md
   | "comments.moderate" // review/remove reported Community comments
-  | "gyms.moderate" // approve/suspend a self-serve gym signup in the directory
+  | "gyms.moderate" // PLATFORM-ONLY: approve/suspend any OTHER gym in the directory
+  | "platform.jobs" // PLATFORM-ONLY: trigger the platform-wide job set from a session
   | "gym.manageAvailability"; // toggle a gym's own acceptingNewEnquiries flag
 
 // The MINIMUM role each capability requires. Because roles are hierarchical, a
@@ -86,9 +106,11 @@ const CAPABILITY_MIN_ROLE: Record<Capability, StaffRole> = {
   "catalog.manage": "admin",
   "operations.view": "admin",
   "staffUsers.manage": "admin_manager",
-  // Revenue figures are the most sensitive data in the staff area — same
-  // tier as permanent deletion and staff-user management.
-  "finance.view": "admin_manager",
+  // Revenue figures are the most sensitive data in the staff area. The Finance
+  // ledger, revenue lines, purchases and settings are PLATFORM-WIDE (no gym
+  // owns a ledger entry yet), so until per-gym Finance ownership is designed
+  // only a platform operator may reach them — a tenant admin_manager may not.
+  "finance.view": "platform_operator",
   // Membership/class counts, no money — same tier as Operations.
   "reports.view": "admin",
   // Coaches build and assign the training programs they coach — same tier
@@ -104,16 +126,30 @@ const CAPABILITY_MIN_ROLE: Record<Capability, StaffRole> = {
   "bugReports.manage": "coach",
   // Any coach can act on a reported comment — same tier as bugReports.manage.
   "comments.moderate": "coach",
-  // Approving a brand-new, unvetted third-party business onto the platform
-  // is at least as consequential as staffUsers.manage/finance.view — top
-  // role only.
-  "gyms.moderate": "admin_manager",
+  // Approving or suspending a business is a PLATFORM decision, never a
+  // tenant's: platform operator only, and never for the operator's own gym
+  // (enforced in the route).
+  "gyms.moderate": "platform_operator",
+  // Running the platform-wide housekeeping job set from a session (the
+  // CRON_SECRET path is separate and unchanged).
+  "platform.jobs": "platform_operator",
   // Pulling a whole business off the discovery directory is a business-level
   // decision, not a per-coach one — admin, same tier as catalog.manage.
   "gym.manageAvailability": "admin",
 };
 
+// Capabilities that ONLY the platform_operator role satisfies. They are checked
+// by exact role, never by rank, so no tenant role — however senior — and no
+// gymId (including null, the primary-gym convention) can satisfy them, and a
+// future change to the role ordering cannot silently widen them.
+const PLATFORM_ONLY_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
+  "gyms.moderate",
+  "finance.view",
+  "platform.jobs",
+]);
+
 export function can(role: UserRole | string | null | undefined, capability: Capability): boolean {
+  if (PLATFORM_ONLY_CAPABILITIES.has(capability)) return isPlatformOperator(role);
   return rank(role) >= rank(CAPABILITY_MIN_ROLE[capability]);
 }
 

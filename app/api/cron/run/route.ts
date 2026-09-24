@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { timingSafeEqual } from "crypto";
+
 import { findUserById } from "@/lib/db";
 import { runAllJobs } from "@/lib/jobs/runner";
 import { can } from "@/lib/permissions";
@@ -11,8 +13,10 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 //      curl command) sends `Authorization: Bearer ${CRON_SECRET}`. This is
 //      Vercel's documented convention, but works with any scheduler that
 //      can set a header.
-//   2. A signed-in staff member triggers it manually from the Staff
-//      Operations page (same route, browser session cookie instead).
+//   2. A signed-in PLATFORM OPERATOR triggers it manually (same route,
+//      browser session cookie instead). The job set is platform-wide, so this
+//      needs the platform-only "platform.jobs" capability — a tenant admin,
+//      whatever their gym, is refused and runs nothing.
 // There is deliberately no in-process timer anywhere in this app: a
 // serverless/typical Next.js hosting model doesn't guarantee a long-lived
 // process to host one reliably, and a `setInterval` living in a route
@@ -22,8 +26,12 @@ function isAuthorizedCronRequest(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET?.trim();
   if (!cronSecret) return false;
 
-  const authHeader = request.headers.get("authorization");
-  return authHeader === `Bearer ${cronSecret}`;
+  const authHeader = request.headers.get("authorization") ?? "";
+  // Constant-time comparison (same pattern as the webhook signature checks);
+  // timingSafeEqual throws on a length mismatch, so compare lengths first.
+  const provided = Buffer.from(authHeader);
+  const expected = Buffer.from(`Bearer ${cronSecret}`);
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
 function isAuthorizedStaffRequest(request: NextRequest): boolean {
@@ -31,8 +39,9 @@ function isAuthorizedStaffRequest(request: NextRequest): boolean {
   if (!userId) return false;
 
   const user = findUserById(userId);
-  // Housekeeping is an operations action — admin and above (not coach).
-  return !!user && !user.archivedAt && can(user.role, "operations.view");
+  // The job set is platform-wide, so only a (non-archived) platform operator
+  // may start it from a session.
+  return !!user && !user.archivedAt && can(user.role, "platform.jobs");
 }
 
 // Independent of runAllJobs' own internal deadline (lib/jobs/runner.ts) —
