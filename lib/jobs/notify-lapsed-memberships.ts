@@ -13,6 +13,7 @@ import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { sendEmail } from "@/lib/email";
 import { lapsedMembershipEmail } from "@/lib/email-templates";
 import { formatMembershipDate, isPeriodLapsed } from "@/lib/membership-status";
+import { findSystemSenderForMember } from "./system-sender";
 import type { JobDefinition } from "./types";
 
 // A member's billing period lapsing is currently only ever surfaced when
@@ -25,9 +26,7 @@ export const notifyLapsedMembershipsJob: JobDefinition = {
   description: "Messages members the first time their active billing period is found to have lapsed.",
   async run() {
     const subscriptions = findAllSubscriptions();
-    const staffSender = findAnyStaffUser();
-
-    if (!staffSender) {
+    if (!findAnyStaffUser()) {
       return "Skipped: no staff account exists to send notifications from.";
     }
 
@@ -40,17 +39,23 @@ export const notifyLapsedMembershipsJob: JobDefinition = {
       const plan = resolveSubscriptionEntitlement(subscription);
       const now = new Date().toISOString();
 
-      createMessage({
-        id: randomUUID(),
-        memberId: subscription.userId,
-        senderId: staffSender.id,
-        senderRole: "staff",
-        body: plan
-          ? `Your ${plan.name} billing period ended on ${formatMembershipDate(subscription.currentPeriodEnd!)}. Select your plan again on the Membership page to keep booking classes.`
-          : "Your billing period has ended. Select your plan again on the Membership page to keep booking classes.",
-        readAt: null,
-        createdAt: now,
-      });
+      // The in-thread message is attributed to a staff user in THIS member's gym
+      // (never another gym's staff); a gym with no staff simply skips the
+      // message — the notification, email and notified-marker below still run.
+      const sender = findSystemSenderForMember(subscription.userId);
+      if (sender) {
+        createMessage({
+          id: randomUUID(),
+          memberId: subscription.userId,
+          senderId: sender.id,
+          senderRole: "staff",
+          body: plan
+            ? `Your ${plan.name} billing period ended on ${formatMembershipDate(subscription.currentPeriodEnd!)}. Select your plan again on the Membership page to keep booking classes.`
+            : "Your billing period has ended. Select your plan again on the Membership page to keep booking classes.",
+          readAt: null,
+          createdAt: now,
+        });
+      }
 
       const notification: NotificationRecord = {
         id: randomUUID(),

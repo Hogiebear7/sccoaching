@@ -9,6 +9,7 @@ import {
 } from "@/lib/db";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { grantMemberTier } from "@/lib/tier-grant";
+import { findSystemSenderForMember } from "./system-sender";
 import type { JobDefinition } from "./types";
 
 const GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000;
@@ -32,9 +33,7 @@ export const dropLapsedManualMembershipsJob: JobDefinition = {
   description: "Drops manually-administered memberships to Free tier once lapsed for more than 3 days.",
   async run() {
     const subscriptions = findAllSubscriptions();
-    const staffSender = findAnyStaffUser();
-
-    if (!staffSender) {
+    if (!findAnyStaffUser()) {
       return "Skipped: no staff account exists to send notifications from.";
     }
 
@@ -52,15 +51,21 @@ export const dropLapsedManualMembershipsJob: JobDefinition = {
 
       const now = new Date().toISOString();
 
-      createMessage({
-        id: randomUUID(),
-        memberId: subscription.userId,
-        senderId: staffSender.id,
-        senderRole: "staff",
-        body: "Your membership period ended more than 3 days ago, so your plan has moved to Free. Renew any time on the Membership page to restore full access.",
-        readAt: null,
-        createdAt: now,
-      });
+      // Attributed to a staff user in THIS member's gym (never another gym's
+      // staff); a gym with no staff skips the message but the tier drop above
+      // and the notification below still happen.
+      const sender = findSystemSenderForMember(subscription.userId);
+      if (sender) {
+        createMessage({
+          id: randomUUID(),
+          memberId: subscription.userId,
+          senderId: sender.id,
+          senderRole: "staff",
+          body: "Your membership period ended more than 3 days ago, so your plan has moved to Free. Renew any time on the Membership page to restore full access.",
+          readAt: null,
+          createdAt: now,
+        });
+      }
 
       const notification: NotificationRecord = {
         id: randomUUID(),

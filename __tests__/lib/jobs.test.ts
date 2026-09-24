@@ -12,6 +12,8 @@ const {
   mockPurgeExpiredResetTokens,
   mockCreateNotification,
   mockFindProfileByUserId,
+  mockFindStaffUsers,
+  mockFindUserById,
 } = vi.hoisted(() => ({
   mockFindAllSubscriptions: vi.fn(),
   mockSaveSubscription: vi.fn(),
@@ -24,6 +26,8 @@ const {
   mockPurgeExpiredResetTokens: vi.fn(),
   mockCreateNotification: vi.fn(),
   mockFindProfileByUserId: vi.fn(),
+  mockFindStaffUsers: vi.fn(),
+  mockFindUserById: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -38,6 +42,8 @@ vi.mock("@/lib/db", () => ({
   purgeExpiredResetTokens: mockPurgeExpiredResetTokens,
   createNotification: mockCreateNotification,
   findProfileByUserId: mockFindProfileByUserId,
+  findStaffUsers: mockFindStaffUsers,
+  findUserById: mockFindUserById,
 }));
 
 const STALE_UPDATED_AT = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1h ago
@@ -173,6 +179,11 @@ describe("notifyLapsedMembershipsJob", () => {
     mockFindMembershipPlanById.mockReset();
     mockCreateMessage.mockReset();
     mockFindAnyStaffUser.mockReturnValue({ id: "staff-1", email: "coach@example.com", role: "staff" });
+    // Same-gym sender resolution (lib/jobs/system-sender.ts): member and staff
+    // are both in the primary gym here; cross-gym cases live in
+    // jobs-gym-scope.test.ts.
+    mockFindUserById.mockReturnValue({ id: "user-1", role: "member", gymId: null });
+    mockFindStaffUsers.mockReturnValue([{ id: "staff-1", email: "coach@example.com", role: "coach", gymId: null }]);
     mockFindMembershipPlanById.mockReturnValue({ id: "plan-1", name: "Premium" });
   });
 
