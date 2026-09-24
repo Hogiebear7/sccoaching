@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findMessagesByMemberId, findUserById } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { draftReply, isAiConfigured } from "@/lib/ai";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -54,7 +55,11 @@ export async function POST(request: NextRequest) {
 
   const member = findUserById(memberId);
 
-  if (!member) {
+  // The target member is resolved from the request's memberId, so it is only
+  // trusted once it is in the acting staff member's own gym (gymId null =
+  // primary gym). A cross-gym member reads exactly like a missing one, before
+  // any message is read or sent to the AI provider.
+  if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json(
       { success: false, message: "Member not found." },
       { status: 404 }
