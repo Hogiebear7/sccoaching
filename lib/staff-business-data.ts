@@ -30,9 +30,15 @@ export interface StaffBusinessData {
 // actually checks from their phone. Each section is independently gated by
 // the caller's capabilities (finance.view / reports.view), same as the web
 // staff nav — null means "not permitted to see this section".
+//
+// The membership/classes sections are scoped to `staff`'s own gym (see
+// lib/reports.ts). The revenue section is NOT: buildFinanceLedgerLines() is
+// platform-wide, and gym ownership of revenue is a pending Finance decision
+// (documented as BLOCKED in the tenant-boundary audit), so it is left as is.
 export function getStaffBusinessData(
   canViewFinance: boolean,
-  canViewReports: boolean
+  canViewReports: boolean,
+  staff: { gymId?: string | null }
 ): StaffBusinessData {
   let revenue: StaffBusinessData["revenue"] = null;
   if (canViewFinance) {
@@ -56,14 +62,14 @@ export function getStaffBusinessData(
   let classes: StaffBusinessData["classes"] = null;
   if (canViewReports) {
     const [thisMonthFrom, thisMonthTo] = boundsForReportPreset("this_month");
-    const subscriptions = buildSubscriptionRows();
-    const signups = buildMemberSignupRows();
+    const subscriptions = buildSubscriptionRows(staff);
+    const signups = buildMemberSignupRows(staff);
     membership = {
       activeMembers: currentlyActiveCount(subscriptions),
       newSignupsThisMonth: filterByRange(signups, (s) => s.createdAt, thisMonthFrom, thisMonthTo).length,
     };
 
-    const classRows = filterClassesByRange(buildClassReportRows(), thisMonthFrom, thisMonthTo);
+    const classRows = filterClassesByRange(buildClassReportRows(staff), thisMonthFrom, thisMonthTo);
     classes = {
       classesThisMonth: classRows.length,
       bookingsThisMonth: classRows.reduce((sum, r) => sum + r.bookingCount, 0),

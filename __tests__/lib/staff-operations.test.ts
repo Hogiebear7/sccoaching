@@ -10,6 +10,7 @@ const {
   mockFindProfileByUserId,
   mockFindRecoveryLogsByUserId,
   mockFindSubscriptionByUserId,
+  mockFindUserById,
   mockFindWaitlistEntriesByClassId,
 } = vi.hoisted(() => ({
   mockFindBookingsByClassId: vi.fn(),
@@ -21,6 +22,7 @@ const {
   mockFindProfileByUserId: vi.fn(),
   mockFindRecoveryLogsByUserId: vi.fn(),
   mockFindSubscriptionByUserId: vi.fn(),
+  mockFindUserById: vi.fn(),
   mockFindWaitlistEntriesByClassId: vi.fn(),
 }));
 
@@ -34,8 +36,14 @@ vi.mock("@/lib/db", () => ({
   findProfileByUserId: mockFindProfileByUserId,
   findRecoveryLogsByUserId: mockFindRecoveryLogsByUserId,
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
+  findUserById: mockFindUserById,
   findWaitlistEntriesByClassId: mockFindWaitlistEntriesByClassId,
 }));
+
+// The acting staff member and the coach "s1" are both in the primary gym (gymId
+// null); the gym-isolation cases live in reports-operations-gym-scope.test.ts.
+const STAFF = { gymId: null };
+mockFindUserById.mockImplementation((id: string) => (id === "s1" ? { id: "s1", gymId: null } : undefined));
 
 const MEMBER = { id: "user-1", email: "athlete@example.com", role: "member" as const };
 
@@ -99,7 +107,7 @@ describe("buildMemberOperationalSummaries", () => {
     mockFindSubscriptionByUserId.mockReturnValue(activeSubscription({ sessionsUsedThisPeriod: 2 }));
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildMemberOperationalSummaries();
+    const [summary] = buildMemberOperationalSummaries(STAFF);
 
     expect(summary.attentionReasons).toEqual([]);
     expect(summary.remainingSessions).toBe(6);
@@ -109,7 +117,7 @@ describe("buildMemberOperationalSummaries", () => {
     mockFindSubscriptionByUserId.mockReturnValue(activeSubscription({ status: "past_due" }));
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildMemberOperationalSummaries();
+    const [summary] = buildMemberOperationalSummaries(STAFF);
 
     expect(summary.attentionReasons).toContain("Past due");
   });
@@ -120,7 +128,7 @@ describe("buildMemberOperationalSummaries", () => {
     );
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildMemberOperationalSummaries();
+    const [summary] = buildMemberOperationalSummaries(STAFF);
 
     expect(summary.attentionReasons).toContain("Period lapsed");
   });
@@ -129,7 +137,7 @@ describe("buildMemberOperationalSummaries", () => {
     mockFindSubscriptionByUserId.mockReturnValue(undefined);
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildMemberOperationalSummaries();
+    const [summary] = buildMemberOperationalSummaries(STAFF);
 
     expect(summary.attentionReasons).toContain("No active plan");
     expect(summary.planName).toBeNull();
@@ -139,7 +147,7 @@ describe("buildMemberOperationalSummaries", () => {
     mockFindSubscriptionByUserId.mockReturnValue(activeSubscription({ sessionsUsedThisPeriod: 8 }));
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildMemberOperationalSummaries();
+    const [summary] = buildMemberOperationalSummaries(STAFF);
 
     expect(summary.attentionReasons).toContain("No sessions remaining");
     expect(summary.remainingSessions).toBe(0);
@@ -150,7 +158,7 @@ describe("buildMemberOperationalSummaries", () => {
     mockFindMembershipPackageById.mockReturnValue({ ...PACKAGE, sessionAllowanceType: "unlimited", sessionAllowanceCount: null });
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildMemberOperationalSummaries();
+    const [summary] = buildMemberOperationalSummaries(STAFF);
 
     expect(summary.attentionReasons).not.toContain("No sessions remaining");
     expect(summary.remainingSessions).toBeNull();
@@ -163,7 +171,7 @@ describe("buildMemberOperationalSummaries", () => {
     ]);
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildMemberOperationalSummaries();
+    const [summary] = buildMemberOperationalSummaries(STAFF);
 
     expect(summary.awaitingReply).toBe(true);
     expect(summary.attentionReasons).toContain("Awaiting reply");
@@ -176,7 +184,7 @@ describe("buildMemberOperationalSummaries", () => {
     ]);
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildMemberOperationalSummaries();
+    const [summary] = buildMemberOperationalSummaries(STAFF);
 
     expect(summary.awaitingReply).toBe(false);
     expect(summary.attentionReasons).not.toContain("Awaiting reply");
@@ -187,7 +195,7 @@ describe("buildMemberOperationalSummaries", () => {
     mockFindRecoveryLogsByUserId.mockReturnValue([{ readinessScore: 72 }, { readinessScore: 50 }]);
     const { buildMemberOperationalSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildMemberOperationalSummaries();
+    const [summary] = buildMemberOperationalSummaries(STAFF);
 
     expect(summary.latestReadinessScore).toBe(72);
   });
@@ -206,7 +214,7 @@ describe("buildUpcomingClassPressureSummaries", () => {
     ]);
     const { buildUpcomingClassPressureSummaries } = await import("@/lib/staff-operations");
 
-    expect(buildUpcomingClassPressureSummaries()).toEqual([]);
+    expect(buildUpcomingClassPressureSummaries(STAFF)).toEqual([]);
   });
 
   it("reports booked count, waitlist count, and full status for an upcoming class", async () => {
@@ -217,7 +225,7 @@ describe("buildUpcomingClassPressureSummaries", () => {
     mockFindWaitlistEntriesByClassId.mockReturnValue([{ id: "w1" }, { id: "w2" }]);
     const { buildUpcomingClassPressureSummaries } = await import("@/lib/staff-operations");
 
-    const [summary] = buildUpcomingClassPressureSummaries();
+    const [summary] = buildUpcomingClassPressureSummaries(STAFF);
 
     expect(summary.bookedCount).toBe(1);
     expect(summary.waitlistCount).toBe(2);
