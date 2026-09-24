@@ -33,29 +33,40 @@ export default async function StaffClassesPage() {
     .filter(({ coach }) => !!coach && sameGym(staff, coach));
   const classes = ownClasses.map(({ classRecord, coach }) => {
     const bookings = findBookingsByClassId(classRecord.id);
-    const roster = bookings.map((booking) => {
+    // Attendees and waitlisted members are also gym-checked individually
+    // (member.gymId) BEFORE their profile is read: a legacy cross-gym member on
+    // an in-gym class is left out (waitlist positions keep their real queue
+    // number). A member that no longer exists has nothing to leak and keeps the
+    // "Unknown member" placeholder. bookedCount stays the real booking count.
+    const roster = bookings.flatMap((booking) => {
       const bookedUser = findUserById(booking.userId);
+      if (bookedUser && !sameGym(staff, bookedUser)) return [];
       const bookedProfile = bookedUser ? findProfileByUserId(bookedUser.id) : undefined;
 
-      return {
-        bookingId: booking.id,
-        userId: booking.userId,
-        email: bookedUser?.email ?? "Unknown member",
-        fullName: bookedProfile?.fullName ?? null,
-        attendedAt: booking.attendedAt,
-      };
+      return [
+        {
+          bookingId: booking.id,
+          userId: booking.userId,
+          email: bookedUser?.email ?? "Unknown member",
+          fullName: bookedProfile?.fullName ?? null,
+          attendedAt: booking.attendedAt,
+        },
+      ];
     });
 
-    const waitlist = findWaitlistEntriesByClassId(classRecord.id).map((entry, index) => {
+    const waitlist = findWaitlistEntriesByClassId(classRecord.id).flatMap((entry, index) => {
       const waitlistedUser = findUserById(entry.userId);
+      if (waitlistedUser && !sameGym(staff, waitlistedUser)) return [];
       const waitlistedProfile = waitlistedUser ? findProfileByUserId(waitlistedUser.id) : undefined;
 
-      return {
-        userId: entry.userId,
-        email: waitlistedUser?.email ?? "Unknown member",
-        fullName: waitlistedProfile?.fullName ?? null,
-        position: index + 1,
-      };
+      return [
+        {
+          userId: entry.userId,
+          email: waitlistedUser?.email ?? "Unknown member",
+          fullName: waitlistedProfile?.fullName ?? null,
+          position: index + 1,
+        },
+      ];
     });
 
     return {

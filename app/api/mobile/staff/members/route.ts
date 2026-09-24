@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }
 
-  const members = getStaffMembersData().filter((m) => sameGym(staffUser, { gymId: findUserById(m.userId)?.gymId }));
+  // getStaffMembersData is itself scoped to the staff member's gym before it reads
+  // any profile/subscription; the row-level check is kept as defense in depth.
+  const members = getStaffMembersData(staffUser).filter((m) => sameGym(staffUser, { gymId: findUserById(m.userId)?.gymId }));
   return NextResponse.json({ success: true, data: members });
 }
