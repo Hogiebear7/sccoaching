@@ -1,11 +1,15 @@
 import {
+  findMembershipCategories,
   findMembershipPackageById,
   findMembershipPackages,
   findSubscriptionByUserId,
+  findUserById,
   saveSubscription,
   type MembershipPackageRecord,
+  type StoredUser,
   type SubscriptionRecord,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import type { MemberTier } from "@/lib/member-access";
 import { resolveMemberTier } from "@/lib/membership-entitlement";
 import { cancelProviderSubscription } from "@/lib/billing";
@@ -15,9 +19,20 @@ import { cancelProviderSubscription } from "@/lib/billing";
 // not visible in any self-serve list.
 export const APP_SUBSCRIPTION_PACKAGE_SLUG = "app-subscription-tier-2";
 
-function defaultMembershipPackage(): MembershipPackageRecord | undefined {
+// A Membership-tier package belongs to the gym of its category (package ->
+// categoryId -> gymId; gymId null = primary gym, lib/gym-scope.ts). A grant may
+// only ever attach a package owned by the RECEIVING member's own gym — the
+// default pick and an explicitly requested packageId alike — so no gym's
+// package can be assigned to another gym's member. (App Subscription is the
+// platform-wide app-only package and is resolved separately, unchanged.)
+function packageInMemberGym(pkg: MembershipPackageRecord, member: Pick<StoredUser, "gymId">): boolean {
+  const category = findMembershipCategories().find((c) => c.id === pkg.categoryId);
+  return !!category && sameGym(member, category);
+}
+
+function defaultMembershipPackage(member: Pick<StoredUser, "gymId">): MembershipPackageRecord | undefined {
   return findMembershipPackages()
-    .filter((p) => p.deliveryChannel !== "app_only")
+    .filter((p) => p.deliveryChannel !== "app_only" && packageInMemberGym(p, member))
     .sort((a, b) => a.sortOrder - b.sortOrder)[0];
 }
 
@@ -71,14 +86,21 @@ export async function grantMemberTier(
     resolvedPackageId = pkg.id;
     resolvedStatus = options?.status ?? "active";
   } else {
+    // The receiving member's gym decides which packages are eligible.
+    const member = findUserById(userId);
+    if (!member) {
+      return { ok: false, message: "Member not found." };
+    }
+
     let pkg: MembershipPackageRecord | undefined;
     if (options?.packageId) {
       pkg = findMembershipPackageById(options.packageId);
-      if (!pkg || pkg.deliveryChannel === "app_only") {
+      // A package from another gym reads exactly like an invalid one.
+      if (!pkg || pkg.deliveryChannel === "app_only" || !packageInMemberGym(pkg, member)) {
         return { ok: false, message: "That package isn't a Membership-tier package." };
       }
     } else {
-      pkg = defaultMembershipPackage();
+      pkg = defaultMembershipPackage(member);
     }
     if (!pkg) {
       return { ok: false, message: "No Membership-tier package exists to assign." };

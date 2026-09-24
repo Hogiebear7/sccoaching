@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById } from "@/lib/db";
+import { findInviteByToken, findUserById } from "@/lib/db";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { redeemInviteForUser } from "@/lib/invites";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
@@ -30,6 +31,17 @@ export async function POST(request: NextRequest) {
   const { token } = (body ?? {}) as Record<string, unknown>;
   if (typeof token !== "string" || !token.trim()) {
     return NextResponse.json({ success: false, message: "An invite token is required." }, { status: 400 });
+  }
+
+  // This route is for a member who ALREADY has an account, so their gym is
+  // established: an invite issued by another gym's staff (invite -> invitedByStaffId
+  // -> gym) can't be redeemed against it, and reads exactly like an invalid link.
+  // An invite whose inviter can't be resolved fails closed the same way. (The
+  // signup routes call redeemInviteForUser directly for a brand-new account with
+  // no gym yet — assigning a gym at signup is a pending product decision.)
+  const invite = findInviteByToken(token.trim());
+  if (invite && !sameGymAsStaff(user, invite.invitedByStaffId)) {
+    return NextResponse.json({ success: false, message: "This invite link isn't valid." }, { status: 400 });
   }
 
   const result = await redeemInviteForUser(token.trim(), user);
