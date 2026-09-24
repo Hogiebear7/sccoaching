@@ -9,7 +9,7 @@ import {
   saveSubscription,
   type SubscriptionRecord,
 } from "@/lib/db";
-import { staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
+import { sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -60,7 +60,13 @@ export async function POST(request: NextRequest) {
 
   const member = findUserById(userId.trim());
 
-  if (!member) {
+  // The target must be in the acting admin's own gym. A cross-gym target is
+  // folded into the same not-found response as a missing one, and this gate
+  // runs before the role check, the package lookup, date validation, and
+  // saveSubscription — so a foreign account's existence and role aren't
+  // revealed. The app-only package exception (below) applies to package
+  // ownership only, never to this gate.
+  if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json(
       { success: false, message: "Member not found." },
       { status: 404 }
