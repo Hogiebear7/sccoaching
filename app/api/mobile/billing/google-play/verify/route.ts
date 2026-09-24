@@ -28,7 +28,23 @@ import { APP_SUBSCRIPTION_PACKAGE_SLUG, grantMemberTier } from "@/lib/tier-grant
 // purchase (is it real, what does it entitle, when does it expire) is
 // re-derived from a live call to Google here. Safe to call repeatedly with
 // the same token: verification, acknowledgement, and the tier grant are all
-// idempotent.
+// idempotent — for the SAME account. A token already recorded against a
+// different account is rejected (see purchaseOwnedByAnotherUser): the session
+// user is the only identity ever used, and an existing purchase's owner is
+// never overwritten.
+const TOKEN_OWNED_BY_OTHER = {
+  success: false,
+  message: "This purchase is already linked to another account.",
+} as const;
+
+// A recorded purchase with a different, non-null owner belongs to someone else.
+function purchaseOwnedByAnotherUser(
+  purchase: { userId?: string | null } | undefined,
+  sessionUserId: string
+): boolean {
+  return !!purchase && !!purchase.userId && purchase.userId !== sessionUserId;
+}
+
 export async function POST(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
   if (!sessionUserId) {
@@ -52,6 +68,13 @@ export async function POST(request: NextRequest) {
   const { purchaseToken } = (body ?? {}) as Record<string, unknown>;
   if (typeof purchaseToken !== "string" || !purchaseToken.trim()) {
     return NextResponse.json({ success: false, message: "A purchase token is required." }, { status: 400 });
+  }
+
+  // Ownership gate, before the provider call and before any save, overwrite,
+  // acknowledgement, entitlement grant, or revenue event. (Re-checked below,
+  // right before the save, because the verification call is awaited.)
+  if (purchaseOwnedByAnotherUser(findGooglePlayPurchaseByToken(purchaseToken.trim()), sessionUserId)) {
+    return NextResponse.json(TOKEN_OWNED_BY_OTHER, { status: 409 });
   }
 
   const verifyResult = await verifyGooglePlaySubscriptionPurchase(purchaseToken.trim());
@@ -85,6 +108,9 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
   const existingPurchase = findGooglePlayPurchaseByToken(purchaseToken.trim());
+  if (purchaseOwnedByAnotherUser(existingPurchase, sessionUserId)) {
+    return NextResponse.json(TOKEN_OWNED_BY_OTHER, { status: 409 });
+  }
 
   const purchaseRecord: GooglePlayPurchaseRecord = {
     id: existingPurchase?.id ?? randomUUID(),

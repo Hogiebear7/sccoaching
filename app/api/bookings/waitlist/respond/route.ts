@@ -14,6 +14,7 @@ import {
   type BookingRecord,
 } from "@/lib/db";
 import { classStartDate } from "@/lib/class-time";
+import { sameGym, sameGymAsStaff } from "@/lib/gym-scope";
 import { hasActiveMembership } from "@/lib/membership";
 import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
 import { resolvePendingCancellationCreditsForClass } from "@/lib/cancellation-credits";
@@ -73,6 +74,26 @@ export async function POST(request: NextRequest) {
   const entry = findWaitlistEntryById(entryId);
 
   if (!entry) {
+    return NextResponse.json(
+      { success: false, message: "Waitlist offer not found." },
+      { status: 404 }
+    );
+  }
+
+  // Ownership: entry -> (entry member, class -> coach) -> gym, all compared with
+  // the authenticated member's gym. The entry's member and class come from the
+  // stored entry, never from the request. Runs before any state change, and a
+  // cross-gym or unresolvable entry gets the same not-found response as a
+  // missing one, so it isn't revealed to exist (this also precedes the
+  // other-member check below for that reason).
+  const entryMember = findUserById(entry.userId);
+  const entryClass = findClassById(entry.classId);
+  if (
+    !entryMember ||
+    !entryClass?.coachUserId ||
+    !sameGym(user, entryMember) ||
+    !sameGymAsStaff(user, entryClass.coachUserId)
+  ) {
     return NextResponse.json(
       { success: false, message: "Waitlist offer not found." },
       { status: 404 }
