@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import { computeReadinessScore } from "@/lib/recovery";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { sameGym } from "@/lib/gym-scope";
 import { sendPush } from "@/lib/push";
 
 function parseRequiredRange(
@@ -193,12 +194,18 @@ export async function POST(request: NextRequest) {
   );
 }
 
-// Alerts every staff user once per member per day when readiness comes in
-// below the configured threshold, so a coach can adjust that day's plan
-// before the member's next session rather than finding out mid-workout.
+// Alerts every staff user in the MEMBER's own gym once per member per day when
+// readiness comes in below the configured threshold, so a coach can adjust that
+// day's plan before the member's next session rather than finding out
+// mid-workout. Other gyms' staff never receive the member's name, score, or push
+// (gymId null = primary gym, lib/gym-scope.ts); an unresolvable member alerts
+// no one.
 function notifyStaffIfReadinessLow(memberId: string, date: string, readinessScore: number): void {
   const settings = getReadinessAlertSettings();
   if (!settings.enabled || readinessScore >= settings.threshold) return;
+
+  const member = findUserById(memberId);
+  if (!member) return;
 
   const profile = findProfileByUserId(memberId);
   const memberName = profile?.fullName || profile?.email || "A member";
@@ -206,6 +213,7 @@ function notifyStaffIfReadinessLow(memberId: string, date: string, readinessScor
 
   for (const staff of findStaffUsers()) {
     if (staff.archivedAt) continue;
+    if (!sameGym(member, staff)) continue;
     if (findNotificationByDedupeKey(staff.id, dedupeKey)) continue;
 
     const notification = {
