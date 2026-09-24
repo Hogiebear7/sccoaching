@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findBookingById, findUserById, updateBookingAttendance } from "@/lib/db";
+import { findBookingById, findClassById, findUserById, updateBookingAttendance } from "@/lib/db";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -60,7 +61,11 @@ export async function POST(request: NextRequest) {
 
   const booking = findBookingById(bookingId);
 
-  if (!booking) {
+  // Ownership: booking -> class -> coach -> gym. A booking whose class or
+  // coach can't be resolved fails closed, and a cross-gym booking gets the
+  // same not-found response as a missing one, before any attendance write.
+  const bookingClass = booking ? findClassById(booking.classId) : undefined;
+  if (!booking || !bookingClass?.coachUserId || !sameGymAsStaff(staffUser, bookingClass.coachUserId)) {
     return NextResponse.json(
       { success: false, message: "This booking no longer exists." },
       { status: 404 }

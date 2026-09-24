@@ -9,6 +9,7 @@ import {
   findUserById,
   saveSubscription,
 } from "@/lib/db";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -54,7 +55,12 @@ export async function POST(request: NextRequest) {
 
   const booking = findBookingById(bookingId);
 
-  if (!booking) {
+  // Ownership: booking -> class -> coach -> gym. A booking whose class or coach
+  // can't be resolved fails closed, and a cross-gym booking gets the same
+  // not-found response as a missing one. This runs before the credit
+  // restoration and the delete below, so nothing is touched on denial.
+  const bookingClass = booking ? findClassById(booking.classId) : undefined;
+  if (!booking || !bookingClass?.coachUserId || !sameGymAsStaff(staffUser, bookingClass.coachUserId)) {
     return NextResponse.json({ success: false, message: "This booking no longer exists." }, { status: 404 });
   }
 

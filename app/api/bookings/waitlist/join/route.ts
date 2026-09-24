@@ -15,6 +15,7 @@ import {
   type WaitlistEntryRecord,
 } from "@/lib/db";
 import { classStartDate } from "@/lib/class-time";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
 import { isClassEligibleForPlan } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -62,7 +63,11 @@ export async function POST(request: NextRequest) {
 
   const classRecord = findClassById(classId);
 
-  if (!classRecord) {
+  // Same not-found response as an actually-missing class, not a distinct 403 —
+  // a cross-gym class shouldn't be revealed to exist at all. Mirrors the
+  // identical check in app/api/bookings/create/route.ts, and runs before every
+  // other check and before the waitlist entry is created.
+  if (!classRecord || !classRecord.coachUserId || !sameGymAsStaff(user, classRecord.coachUserId)) {
     return NextResponse.json(
       { success: false, message: "This class no longer exists." },
       { status: 404 }

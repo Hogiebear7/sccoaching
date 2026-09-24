@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { deleteWatchlistEntry, findAttendanceWatchlist, findUserById } from "@/lib/db";
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -38,9 +39,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "A watchlist entry is required." }, { status: 400 });
   }
 
-  const exists = findAttendanceWatchlist().some((e) => e.id === id);
+  // Ownership: entry -> member -> gym. An entry whose member can't be resolved
+  // fails closed, and a cross-gym entry gets the same not-found response as a
+  // missing one, before the delete.
+  const entry = findAttendanceWatchlist().find((e) => e.id === id);
 
-  if (!exists) {
+  if (!entry || !sameGymAsStaff(staffUser, entry.userId)) {
     return NextResponse.json({ success: false, message: "This watchlist entry no longer exists." }, { status: 404 });
   }
 

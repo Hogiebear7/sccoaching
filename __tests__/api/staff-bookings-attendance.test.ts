@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
-const { mockFindUserById, mockFindBookingById, mockUpdateBookingAttendance } = vi.hoisted(
+const { mockFindUserById, mockFindBookingById, mockFindClassById, mockUpdateBookingAttendance } = vi.hoisted(
   () => ({
     mockFindUserById: vi.fn(),
     mockFindBookingById: vi.fn(),
+    mockFindClassById: vi.fn(),
     mockUpdateBookingAttendance: vi.fn(),
   })
 );
@@ -14,11 +15,16 @@ const { mockFindUserById, mockFindBookingById, mockUpdateBookingAttendance } = v
 vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
   findBookingById: mockFindBookingById,
+  findClassById: mockFindClassById,
   updateBookingAttendance: mockUpdateBookingAttendance,
 }));
 
 const STAFF_USER = { id: "staff-1", email: "coach@example.com", role: "staff" as const };
 const MEMBER_USER = { id: "member-1", email: "member@example.com", role: "member" as const };
+
+// The route now authorizes booking -> class -> coach -> gym; this class is
+// coached by STAFF_USER (same gym as the acting staff member).
+const SOME_CLASS = { id: "class-1", coachUserId: "staff-1" };
 
 const SOME_BOOKING = {
   id: "booking-1",
@@ -45,6 +51,8 @@ describe("POST /api/staff/bookings/attendance", () => {
   beforeEach(() => {
     mockFindUserById.mockReset();
     mockFindBookingById.mockReset();
+    mockFindClassById.mockReset();
+    mockFindClassById.mockReturnValue(SOME_CLASS);
     mockUpdateBookingAttendance.mockReset();
   });
 
