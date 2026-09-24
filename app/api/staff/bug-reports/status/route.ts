@@ -2,7 +2,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findBugReportById, saveBugReport, type BugReportStatus } from "@/lib/db";
+import { findBugReportById, findUserById, saveBugReport, type BugReportStatus } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
 
 const VALID_STATUSES: BugReportStatus[] = ["open", "resolved"];
@@ -27,8 +28,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid status." }, { status: 400 });
   }
 
+  // Ownership: report -> reporter -> gym. A cross-gym report (or one whose
+  // reporter can't be resolved) gets the same not-found response as a missing
+  // one, before any write.
   const report = findBugReportById(id);
-  if (!report) {
+  const reporter = report ? findUserById(report.userId) : undefined;
+  if (!report || !reporter || !sameGym(auth.user, reporter)) {
     return NextResponse.json({ success: false, message: "Report not found." }, { status: 404 });
   }
 

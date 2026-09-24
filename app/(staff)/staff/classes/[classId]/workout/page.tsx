@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { sameGymAsStaff } from "@/lib/gym-scope";
 import { requireStaffPage } from "@/lib/staff-auth";
 import {
   findBookingsByClassId,
@@ -18,11 +19,15 @@ export default async function StaffClassWorkoutPage({
 }: {
   params: Promise<{ classId: string }>;
 }) {
-  await requireStaffPage("classes.manage");
+  const staff = await requireStaffPage("classes.manage");
   const { classId } = await params;
   const classRecord = findClassById(classId);
 
-  if (!classRecord) {
+  // Ownership: class -> coachUserId -> gym, compared with the acting staff
+  // member's gym. A cross-gym class (or one whose coach can't be resolved) gets
+  // the same "Class not found" state as a missing one, before any attendee,
+  // profile, workout-session, template or exercise-library lookup.
+  if (!classRecord || !classRecord.coachUserId || !sameGymAsStaff(staff, classRecord.coachUserId)) {
     return (
       <section className="space-y-6">
         <Link href="/staff/classes" className="text-sm text-gold transition hover:text-gold/80">
