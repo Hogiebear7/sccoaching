@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { deleteClassWorkoutTemplate, findClassWorkoutTemplateById, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { templateInStaffGym } from "@/lib/workout-template-scope";
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
@@ -33,7 +34,10 @@ export async function POST(request: NextRequest) {
 
   const template = findClassWorkoutTemplateById(id);
 
-  if (!template) {
+  // Ownership: template -> createdByStaffId -> creator's gym, compared with the
+  // acting staff member's gym. Another gym's template, or one with no resolvable
+  // creator, reads exactly like a missing one — checked before the delete.
+  if (!template || !templateInStaffGym(staffUser, template)) {
     return NextResponse.json({ success: false, message: "Template not found." }, { status: 404 });
   }
 

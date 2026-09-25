@@ -6,12 +6,12 @@ import {
   findBookingsByClassId,
   findClassById,
   findClassWorkoutByClassId,
-  findClassWorkoutTemplates,
   findExercises,
   findProfileByUserId,
   findUserById,
   findWorkoutSessionByUserAndClass,
 } from "@/lib/db";
+import { findClassWorkoutTemplatesForStaff } from "@/lib/workout-template-scope";
 import { ClassWorkoutView } from "./ClassWorkoutView";
 
 export default async function StaffClassWorkoutPage({
@@ -64,7 +64,8 @@ export default async function StaffClassWorkoutPage({
       };
     });
 
-  const templates = findClassWorkoutTemplates().filter((t) => t.categories.includes(classRecord.category));
+  // Only this gym's templates are offered for the class, narrowed to its category.
+  const templates = findClassWorkoutTemplatesForStaff(staff).filter((t) => t.categories.includes(classRecord.category));
 
   return (
     <ClassWorkoutView

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findClassWorkoutTemplates, findExercises, findUserById } from "@/lib/db";
+import { findExercises, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { findClassWorkoutTemplatesForStaff } from "@/lib/workout-template-scope";
 
 export async function GET(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
@@ -22,7 +23,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
     data: {
-      templates: findClassWorkoutTemplates(),
+      // Only the acting staff member's own gym's templates (template ->
+      // createdByStaffId -> creator's gym); never another gym's.
+      templates: findClassWorkoutTemplatesForStaff(staffUser),
       libraryExercises: findExercises(),
     },
   });

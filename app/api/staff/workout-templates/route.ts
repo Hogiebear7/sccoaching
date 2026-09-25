@@ -13,6 +13,7 @@ import {
 } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { templateInStaffGym } from "@/lib/workout-template-scope";
 
 const MAX_EXERCISES = 30;
 const MAX_NAME_LENGTH = 80;
@@ -87,7 +88,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Add at least one exercise." }, { status: 400 });
   }
 
-  const existing = typeof id === "string" && id.trim() ? findClassWorkoutTemplateById(id) : undefined;
+  // The template being edited is named by the client, so resolve it and confirm
+  // it belongs to the acting staff member's gym before anything is saved. A
+  // template in another gym, one with no resolvable creator, and an id that
+  // doesn't exist all get the same "Template not found." — the response never
+  // reveals that a template exists elsewhere. (Previously an unknown id fell
+  // through and created a new template; that would make a cross-gym id
+  // distinguishable from a missing one, so an id that doesn't resolve to one of
+  // this gym's templates is now refused.)
+  const requestedId = typeof id === "string" && id.trim() ? id : null;
+  const existing = requestedId ? findClassWorkoutTemplateById(requestedId) : undefined;
+  if (requestedId && (!existing || !templateInStaffGym(staffUser, existing))) {
+    return NextResponse.json({ success: false, message: "Template not found." }, { status: 404 });
+  }
   const now = new Date().toISOString();
 
   const template: ClassWorkoutTemplateRecord = {
