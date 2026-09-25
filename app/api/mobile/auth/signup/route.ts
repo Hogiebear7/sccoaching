@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { checkClientRateLimit } from "@/lib/client-ip";
 import { createUser, findUserByEmail, saveProfile, saveCycleSettings, saveCyclePrivacy } from "@/lib/db";
 import { redeemInviteForUser } from "@/lib/invites";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
@@ -21,6 +22,12 @@ const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
 const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Public account creation: 10 attempts per client per hour, its own bucket separate
+// from web signup (see lib/client-ip.ts for how a "client" is identified, and
+// lib/rate-limit.ts for the process-local caveat).
+const SIGNUP_RATE_LIMIT = 10;
+const SIGNUP_RATE_WINDOW_MS = 60 * 60 * 1000;
 
 // Mirrors app/api/auth/signup/route.ts field-for-field — the mobile signup
 // wizard collects the same questions as the web one (see (auth)/signup/page.tsx),
@@ -103,6 +110,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { success: false, message: "Sport played is required for a sports performance goal." },
       { status: 400 }
+    );
+  }
+
+  // After the request's own fields are validated (a malformed request costs nothing
+  // and does not use a slot) and before the first datastore lookup, so an attempt
+  // that reaches the duplicate-email check or account creation always counts.
+  const rate = checkClientRateLimit(request, "mobile-signup", SIGNUP_RATE_LIMIT, SIGNUP_RATE_WINDOW_MS);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { success: false, message: "Too many attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSecs) } }
     );
   }
 

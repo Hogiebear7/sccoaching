@@ -8,11 +8,18 @@ import {
   findUserByEmail,
   setUserGymId,
 } from "@/lib/db";
+import { checkClientRateLimit } from "@/lib/client-ip";
 import type { GymRecord } from "@/lib/gyms-schema";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
 import { STAFF_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Public and anonymous, and it creates a tenant plus a staff account, so it is the
+// most abusable endpoint: 3 attempts per client per hour (see lib/client-ip.ts for
+// how a "client" is identified, and lib/rate-limit.ts for the process-local caveat).
+const GYM_SIGNUP_RATE_LIMIT = 3;
+const GYM_SIGNUP_RATE_WINDOW_MS = 60 * 60 * 1000;
 
 function slugify(name: string): string {
   return name
@@ -57,6 +64,18 @@ export async function POST(request: Request) {
   const passwordError = validatePasswordStrength(password);
   if (passwordError) {
     return NextResponse.json({ success: false, message: passwordError }, { status: 400 });
+  }
+
+  // After the request is validated (a malformed request costs nothing and does not
+  // use a slot) and before the first datastore lookup, so an attempt that reaches the
+  // duplicate-email check, the password hash, or account creation always counts —
+  // including one that fails there, which also bounds email probing.
+  const rate = checkClientRateLimit(request, "gym-signup", GYM_SIGNUP_RATE_LIMIT, GYM_SIGNUP_RATE_WINDOW_MS);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { success: false, message: "Too many attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSecs) } }
+    );
   }
 
   const trimmedEmail = ownerEmail.trim();
