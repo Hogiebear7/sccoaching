@@ -52,15 +52,18 @@ export function proxy(request: NextRequest) {
   }
 
   const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
-  const hasSession = userId !== null;
+  const user = userId ? findUserById(userId) : undefined;
+  // "Has a session" means a signed, unexpired token whose account exists and is
+  // not archived. An archived (or deleted) account's token is treated as no
+  // session at all, so /dashboard sends it to /login — and /login then renders
+  // for it instead of bouncing back to /dashboard in a loop.
+  const hasSession = !!user && !user.archivedAt;
 
   if (pathname.startsWith("/dashboard") && !hasSession) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
   if (pathname.startsWith("/staff")) {
-    const user = userId ? findUserById(userId) : undefined;
-
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
     }

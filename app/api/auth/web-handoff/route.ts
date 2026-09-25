@@ -35,7 +35,10 @@ export async function GET(request: NextRequest) {
 
   const userId = token ? consumeMobileHandoffToken(token) : undefined;
   const user = userId ? findUserById(userId) : undefined;
-  if (!user) {
+  // An account archived after the token was minted (it lives 60s) must not be
+  // handed a fresh session: this is the one place a new cookie is issued
+  // without a login, so it re-checks here exactly like login does.
+  if (!user || user.archivedAt) {
     return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, base));
   }
 

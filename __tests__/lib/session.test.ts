@@ -175,6 +175,13 @@ describe("tamper resistance (regression guard on existing behaviour)", () => {
 });
 
 describe("verifyRequestSession integration (lib/mobile-auth)", () => {
+  // verifyRequestSession also requires the token's account to exist and not be
+  // archived (see __tests__/lib/verify-request-session-archived.test.ts), so a
+  // live account is set up here for the "accepts" cases.
+  beforeEach(() => {
+    h.findUserById.mockReturnValue({ id: "member-1", role: "member", archivedAt: null });
+  });
+
   it("accepts a valid session cookie", async () => {
     const { verifyRequestSession } = await import("@/lib/mobile-auth");
     const token = signSession({ userId: "member-1" }, MEMBER_SESSION_LIFETIME_MS);
