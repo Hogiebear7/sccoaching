@@ -23,8 +23,10 @@ const h = vi.hoisted(() => ({
   mapGooglePlaySubscriptionState: vi.fn(),
   verifyGooglePlaySubscriptionPurchase: vi.fn(),
   grantMemberTier: vi.fn(),
+  findUserById: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
+  findUserById: h.findUserById,
   createRevenueEvent: h.createRevenueEvent,
   findGooglePlayPurchaseByToken: h.findGooglePlayPurchaseByToken,
   findMembershipBillingOptions: h.findMembershipBillingOptions,
@@ -98,6 +100,8 @@ function expectNothingWritten() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Sessions resolve only for a live (existing, non-archived) account.
+  h.findUserById.mockImplementation((id: string) => ({ id, role: "member", archivedAt: null }));
   h.isGooglePlayConfigured.mockReturnValue(true);
   h.findGooglePlayPurchaseByToken.mockReturnValue(undefined);
   h.verifyGooglePlaySubscriptionPurchase.mockResolvedValue({ ok: true, subscription: SUBSCRIPTION });
