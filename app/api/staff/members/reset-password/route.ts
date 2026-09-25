@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { createResetToken, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
-import { protectedOperatorTarget } from "@/lib/platform-operator-guard";
+import { protectedOperatorTarget, targetOutranksActor } from "@/lib/platform-operator-guard";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -63,7 +63,15 @@ export async function POST(request: NextRequest) {
   // tenant tool (reset link, login-email change, role change, archive). It reads
   // exactly like a missing user, before any mutation, so a tenant admin who
   // shares the operator's gym (gymId null) can't take the account over.
-  if (!targetUser || !sameGym(staffUser, targetUser) || protectedOperatorTarget(staffUser, targetUser)) {
+  // The same goes for any account that outranks the actor (an admin can't mint
+  // a reset link for the gym's admin_manager): equal and lower ranks are still
+  // decided by the members.account capability above.
+  if (
+    !targetUser ||
+    !sameGym(staffUser, targetUser) ||
+    protectedOperatorTarget(staffUser, targetUser) ||
+    targetOutranksActor(staffUser, targetUser)
+  ) {
     return NextResponse.json(
       { success: false, message: "Member not found." },
       { status: 404 }

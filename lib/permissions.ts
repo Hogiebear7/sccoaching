@@ -49,6 +49,12 @@ function rank(role: string | null | undefined): number {
   return ROLE_RANK[role ?? "member"] ?? 0;
 }
 
+// The canonical rank, for callers that compare two accounts' roles (see
+// lib/platform-operator-guard.ts). null/undefined/unknown roles rank as member.
+export function roleRank(role: string | null | undefined): number {
+  return rank(role);
+}
+
 export function isStaffRole(role: string | null | undefined): boolean {
   return rank(role) >= ROLE_RANK.coach;
 }
