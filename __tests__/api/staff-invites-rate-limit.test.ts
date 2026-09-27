@@ -209,3 +209,52 @@ describe("existing behaviour under the limit", () => {
     expect(res.status).toBe(200);
   });
 });
+
+// Regression: the gym-level check runs BEFORE the staff-level one, so a request
+// rejected because the shared GYM quota is already exhausted (by other staff) never
+// touches the requesting staff member's own quota. Checked black-box, through the
+// route's responses and call counts only — never by inspecting the limiter's
+// internal state.
+describe("gym-level rejection does not consume the requesting staff member's own quota (regression)", () => {
+  it("a staff member whose gym quota is exhausted by others is rejected without spending their own quota", async () => {
+    vi.useFakeTimers();
+    try {
+      const t0 = new Date("2030-01-01T00:00:00Z").getTime();
+      vi.setSystemTime(t0);
+
+      // Exhaust the shared 60/hour gym quota using three OTHER admins (20 each), all
+      // recorded at t0.
+      for (const admin of A_ADMINS.slice(0, 3)) await sendMany(admin.id, 20);
+      expect(h.createInvite).toHaveBeenCalledTimes(60);
+
+      // Later, but still well inside the gym's 1-hour window measured from t0, a
+      // fourth admin in the same gym — who has never sent an invite — is rejected:
+      // it's the shared gym quota that's exhausted, not theirs. (The extra delay
+      // before this attempt is deliberate: it lets the fix be told apart from the
+      // bug below, since a spurious personal-quota entry recorded HERE outlives the
+      // gym's t0 entries once enough time has passed for those specifically to expire.)
+      vi.setSystemTime(t0 + 30 * 60 * 1000);
+      const rejected = await invite(A_ADMINS[3].id);
+
+      expect(rejected.status).toBe(429);
+      expect(await rejected.json()).toEqual({ success: false, message: "Too many invites sent. Try again later." });
+      expect(Number(rejected.headers.get("Retry-After"))).toBeGreaterThan(0);
+      expect(h.createInvite).toHaveBeenCalledTimes(60); // unchanged: nothing created for the rejected attempt
+      expect(mail.sendEmail).toHaveBeenCalledTimes(60); // unchanged: no email sent for the rejected attempt
+
+      // Advance past the gym window as measured from the three OTHER admins' t0
+      // sends (so the shared gym quota is now open again), then send the fourth
+      // admin's full personal 20/hour allowance. A spurious personal-quota entry
+      // recorded by the rejected attempt above (at t0+30min) would NOT have expired
+      // yet at this point — only the gym's original t0 entries have — so if the bug
+      // were present the 20th of these 20 sends would be rejected instead of
+      // succeeding (21 personal attempts total for a member with a 20/hour cap).
+      vi.setSystemTime(t0 + 60 * 60 * 1000 + 1000);
+      await sendMany(A_ADMINS[3].id, 20);
+
+      expect(h.createInvite).toHaveBeenCalledTimes(60 + 20);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
