@@ -74,15 +74,25 @@ export async function POST(request: NextRequest) {
 
   // After authentication, authorization and validation (so a refused or malformed
   // request never uses a slot) and before the invite is stored or any email is sent.
-  const staffRate = checkRateLimit(`invites:staff:${staffUser.id}`, INVITE_STAFF_RATE_LIMIT, INVITE_RATE_WINDOW_MS);
-  const gymRate = staffRate.allowed
-    ? checkRateLimit(`invites:gym:${staffUser.gymId ?? "primary"}`, INVITE_GYM_RATE_LIMIT, INVITE_RATE_WINDOW_MS)
-    : null;
-  const blocked = !staffRate.allowed ? staffRate : gymRate && !gymRate.allowed ? gymRate : null;
-  if (blocked) {
+  // The GYM check runs first: checkRateLimit is side-effecting (a call that reports
+  // "allowed" has already recorded that attempt), so checking the staff member's own
+  // quota before the shared gym quota would burn one of their personal attempts even
+  // when the request is ultimately rejected because their gym's quota — exhausted by
+  // OTHER staff — is what's actually full. Checking gym first means a gym-level
+  // rejection consumes nothing from the requesting staff member's own allowance; the
+  // gym id is always the authenticated actor's own (never taken from the request).
+  const gymRate = checkRateLimit(`invites:gym:${staffUser.gymId ?? "primary"}`, INVITE_GYM_RATE_LIMIT, INVITE_RATE_WINDOW_MS);
+  if (!gymRate.allowed) {
     return NextResponse.json(
       { success: false, message: "Too many invites sent. Try again later." },
-      { status: 429, headers: { "Retry-After": String(blocked.retryAfterSecs) } }
+      { status: 429, headers: { "Retry-After": String(gymRate.retryAfterSecs) } }
+    );
+  }
+  const staffRate = checkRateLimit(`invites:staff:${staffUser.id}`, INVITE_STAFF_RATE_LIMIT, INVITE_RATE_WINDOW_MS);
+  if (!staffRate.allowed) {
+    return NextResponse.json(
+      { success: false, message: "Too many invites sent. Try again later." },
+      { status: 429, headers: { "Retry-After": String(staffRate.retryAfterSecs) } }
     );
   }
 
