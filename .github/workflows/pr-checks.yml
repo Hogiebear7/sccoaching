@@ -26,6 +26,14 @@ name: PR checks
 # correctly and supports Node >=22.9.0, so it's pinned here rather than
 # regenerating the lockfile or replacing `npm ci` with `npm install`. See the
 # "fix/ci-npm-toolchain-lockfile" PR description for the full diagnosis.
+#
+# Every `npm ci` below passes `--include=dev`, overriding the NODE_ENV=production
+# set in the `env:` block further down. Without it, npm treats NODE_ENV=production
+# as an instruction to omit devDependencies entirely — installing ~65 packages
+# instead of ~436 and silently dropping typescript, vitest, and eslint, which
+# every job below except the build itself needs. NODE_ENV=production stays set
+# because the build job genuinely needs it to validate a real production build;
+# `--include=dev` just keeps it from also starving `npm ci`.
 
 on:
   pull_request:
@@ -63,7 +71,7 @@ jobs:
         run: npm install -g npm@11.13.0
       - name: Print toolchain versions
         run: node --version && npm --version
-      - run: npm ci
+      - run: npm ci --include=dev
       - run: npx tsc --noEmit
 
   lint:
@@ -81,7 +89,7 @@ jobs:
         run: npm install -g npm@11.13.0
       - name: Print toolchain versions
         run: node --version && npm --version
-      - run: npm ci
+      - run: npm ci --include=dev
       # Scoped to the PR's changed files, not the whole repo: a bare `npx eslint`
       # currently reports 27 pre-existing errors across 24 files unrelated to
       # any single change (mostly react-hooks/set-state-in-effect and
@@ -114,7 +122,7 @@ jobs:
         run: npm install -g npm@11.13.0
       - name: Print toolchain versions
         run: node --version && npm --version
-      - run: npm ci
+      - run: npm ci --include=dev
       - run: npm test
 
   diff-check:
@@ -139,7 +147,7 @@ jobs:
         run: npm install -g npm@11.13.0
       - name: Print toolchain versions
         run: node --version && npm --version
-      - run: npm ci
+      - run: npm ci --include=dev
       # --webpack, not the default: the production build host cannot run
       # Turbopack/native SWC (see docs/launch-checklist.md), so CI must build
       # the exact same way to actually validate what gets deployed.
