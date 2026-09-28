@@ -1,0 +1,146 @@
+name: PR checks
+
+# Runs the project's own local verification commands against every pull
+# request targeting redesign/index-html-blueprint, so a broken PR shows a
+# failing check instead of relying entirely on whoever reviews it running
+# these by hand. Read-only: nothing here contacts Hostinger or production,
+# writes to any real datastore, sends email, or runs a migration.
+#
+# Deliberately uses `pull_request` (not `pull_request_target`) and references
+# no repository secrets anywhere in this file, so a pull request from a fork
+# never has anything sensitive to leak — every credential-shaped value below
+# is a fixed placeholder, valid only for this ephemeral CI checkout, never a
+# real one. If a future job genuinely needs a secret, it must not run on
+# `pull_request` from a fork without a deliberate, separate review of that
+# change.
+#
+# Node 22 mirrors the production build host, per docs/launch-checklist.md.
+#
+# npm is explicitly pinned to 11.13.0 on top of that Node 22 image. GitHub's
+# `actions/setup-node@v4` node-version 22 currently resolves to Node 22.23.2,
+# which bundles npm 10.9.8 — and npm 10.9.8 has a false-positive `npm ci`
+# EUSAGE bug against this repo's `overrides`-shaped package-lock.json (it
+# reports `Missing: brace-expansion@1.1.21`/`concat-map@0.0.1`, versions the
+# override deliberately replaces, even though the lockfile is genuinely in
+# sync with package.json). npm 11.13.0 validates the exact same lockfile
+# correctly and supports Node >=22.9.0, so it's pinned here rather than
+# regenerating the lockfile or replacing `npm ci` with `npm install`. See the
+# "fix/ci-npm-toolchain-lockfile" PR description for the full diagnosis.
+
+on:
+  pull_request:
+    branches: [redesign/index-html-blueprint]
+
+# A superseded push to the same PR cancels its still-running checks, so CI
+# capacity isn't spent on a commit nobody will look at.
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Fixed, non-secret placeholders for this ephemeral CI run only — never a
+  # real credential. See docs/launch-checklist.md for what each one governs
+  # in production, and docs/deployment-operations.md for the CI/production
+  # split this documents.
+  SESSION_SECRET: ci-placeholder-session-secret-not-for-production-use
+  DATA_DIR: /tmp/gymapp-ci-data
+  NODE_ENV: production
+
+jobs:
+  typecheck:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Pin npm to 11.13.0 (see file header)
+        run: npm install -g npm@11.13.0
+      - name: Print toolchain versions
+        run: node --version && npm --version
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  lint:
+    name: ESLint (changed files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Pin npm to 11.13.0 (see file header)
+        run: npm install -g npm@11.13.0
+      - name: Print toolchain versions
+        run: node --version && npm --version
+      - run: npm ci
+      # Scoped to the PR's changed files, not the whole repo: a bare `npx eslint`
+      # currently reports 27 pre-existing errors across 24 files unrelated to
+      # any single change (mostly react-hooks/set-state-in-effect and
+      # react/no-unescaped-entities in existing UI components — see
+      # docs/deployment-operations.md). Fixing that backlog is a separate,
+      # focused cleanup, not something this workflow should block every PR on.
+      # This mirrors the "lint the files you touched" convention already used
+      # for every PR in this project's history.
+      - name: Lint files changed in this PR
+        run: |
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" -- '*.ts' '*.tsx' '*.js' '*.mjs' | grep -v '^\.github/')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No lintable files changed in this PR."
+            exit 0
+          fi
+          printf 'Linting %d changed file(s):\n' "${#files[@]}"
+          printf '  %s\n' "${files[@]}"
+          npx eslint "${files[@]}"
+
+  test:
+    name: Test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Pin npm to 11.13.0 (see file header)
+        run: npm install -g npm@11.13.0
+      - name: Print toolchain versions
+        run: node --version && npm --version
+      - run: npm ci
+      - run: npm test
+
+  diff-check:
+    name: Whitespace (git diff --check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git diff --check ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Pin npm to 11.13.0 (see file header)
+        run: npm install -g npm@11.13.0
+      - name: Print toolchain versions
+        run: node --version && npm --version
+      - run: npm ci
+      # --webpack, not the default: the production build host cannot run
+      # Turbopack/native SWC (see docs/launch-checklist.md), so CI must build
+      # the exact same way to actually validate what gets deployed.
+      - run: npx next build --webpack
