@@ -396,6 +396,25 @@ describe("stripe webhook", () => {
     expect(saved.currentPeriodEnd).toBeTruthy();
   });
 
+  it("activation preserves the pending subscription's stamped ownerGym, and a retry delivery preserves it identically", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionBySetupOrderId.mockReturnValue({ ...SUBSCRIPTION, ownerGym: { scope: "gym", gymId: "gym-a" } });
+
+    const event = {
+      object: { id: "cs_sub_1", mode: "subscription", payment_status: "paid", subscription: "sub_123", customer: "cus_456" },
+    };
+
+    await postEvent({ id: "evt_activate_1", type: "checkout.session.completed", ...event });
+    expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
+
+    // Simulates a retried delivery (a different event id, same underlying
+    // subscription state — hasPaymentEvent dedupe is exercised separately
+    // above; this proves the WRITE itself is idempotent for ownerGym too).
+    mockSaveSubscription.mockClear();
+    await postEvent({ id: "evt_activate_2", type: "checkout.session.completed", ...event });
+    expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
+  });
+
   it("resolves the PaymentEventRecord's ownerGym from the subscription's own packageId -> category, without touching SubscriptionRecord's own schema", async () => {
     mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
     mockFindSubscriptionBySetupOrderId.mockReturnValue(SUBSCRIPTION);
@@ -563,6 +582,25 @@ describe("stripe webhook", () => {
     expect(saved.extraSessionGrants).toEqual([]);
     expect(saved.periodLapsedNotifiedAt).toBeNull();
     expect(mockRecordPaymentEvent).toHaveBeenCalledWith(expect.objectContaining({ key: "evt_20" }));
+  });
+
+  it("a renewal preserves the subscription's existing ownerGym unchanged — never recomputed", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+      ownerGym: { scope: "gym", gymId: "gym-a" },
+    });
+
+    await postEvent({
+      id: "evt_owner_renewal",
+      type: "invoice.paid",
+      object: { id: "in_owner", subscription: "sub_123", lines: { data: [{ period: { end: 1788220800 } }] } },
+    });
+
+    expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
   });
 
   it("invoice.paid recovers past_due without resetting usage when the period doesn't advance", async () => {

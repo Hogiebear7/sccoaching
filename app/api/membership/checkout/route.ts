@@ -273,6 +273,15 @@ export async function POST(request: NextRequest) {
     sessionsUsedThisPeriod: existingSubscription?.sessionsUsedThisPeriod ?? 0,
     extraSessionGrants: existingSubscription?.extraSessionGrants ?? [],
     periodLapsedNotifiedAt: existingSubscription?.periodLapsedNotifiedAt ?? null,
+    // Immutable historical provenance (SubscriptionRecord.ownerGym): if this
+    // user already has a row (even lapsed/canceled — re-subscribing to the
+    // same catalog doesn't relocate their original enrollment), its ownerGym
+    // wins exactly as stored, falling back to explicit "unresolved" (never
+    // silently recomputed) for a row that predates this field. Fresh
+    // ownership — the SAME resolution already computed above for this
+    // checkout's own PurchaseRecord — is only ever stamped the first time
+    // this user gets a subscription row at all.
+    ownerGym: existingSubscription ? existingSubscription.ownerGym ?? { scope: "unresolved" } : ownerGym,
     createdAt: existingSubscription?.createdAt ?? now,
     updatedAt: now,
   };

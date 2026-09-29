@@ -948,6 +948,31 @@ export interface SubscriptionRecord {
   // member about a lapsed period, so it doesn't re-notify on every run.
   // Reset to null whenever a fresh period begins, alongside sessionsUsedThisPeriod.
   periodLapsedNotifiedAt: string | null;
+  /** Immutable historical provenance — see MoneyRecordOwnerGym below (the
+      same type, reused: this record predates any tenant concept exactly
+      like the commerce records do — see docs/tenant-boundary-audit-2026-09.md
+      §4/§12.6). Stamped EXACTLY ONCE, the moment this user's subscription
+      row is first created, then never touched by any later write (renewal,
+      switch, pause/resume, webhook activation, staff override) — every one
+      of those spreads the existing record or explicitly preserves this
+      field. A client-supplied gymId is never trusted; this is always
+      derived server-side from the authorized package/category (or the
+      user's own gym, for the "free" downgrade case) at creation time.
+      Optional/absent on rows written before this field existed — see
+      scripts/backfill-subscription-owner-gym.mjs.
+
+      KNOWN OPEN QUESTION, not resolved by this field: a member can switch
+      between a gym-owned package and the platform-global App Subscription
+      (or vice versa) via the existing checkout-switch flow and via staff/
+      invite tier grants — see app/api/membership/checkout/route.ts's switch
+      branch and lib/tier-grant.ts's grantMemberTier. Because ownerGym is
+      immutable, a subscription's ownerGym continues to reflect its
+      ORIGINAL enrollment scope after such a cross-type change, not its
+      current package's scope. Whether ownerGym should instead track the
+      CURRENT package's scope is an explicit, undecided business-policy
+      question this implementation deliberately does not answer — see the
+      "Security: persist subscription tenant ownership" PR description. */
+  ownerGym?: MoneyRecordOwnerGym;
   createdAt: string;
   updatedAt: string;
 }

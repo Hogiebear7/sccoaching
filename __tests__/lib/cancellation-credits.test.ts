@@ -148,6 +148,16 @@ describe("resolvePendingCancellationCreditsForClass", () => {
     );
   });
 
+  it("preserves the subscription's ownerGym unchanged when restoring a credit", async () => {
+    const { resolvePendingCancellationCreditsForClass } = await import("@/lib/cancellation-credits");
+    mockFindPendingCancellationCreditsByClassId.mockReturnValue([pendingCredit({ creditSource: "subscription" })]);
+    mockFindSubscriptionByUserId.mockReturnValue({ ...SUBSCRIPTION, ownerGym: { scope: "gym", gymId: "gym-a" } });
+
+    resolvePendingCancellationCreditsForClass("class-1");
+
+    expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
+  });
+
   it("resolves only the oldest pending credit (FIFO), leaving newer ones untouched", async () => {
     const { resolvePendingCancellationCreditsForClass } = await import("@/lib/cancellation-credits");
     // findPendingCancellationCreditsByClassId is documented to return
