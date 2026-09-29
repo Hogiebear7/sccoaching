@@ -197,22 +197,37 @@ export async function POST(request: Request) {
   const heightValue =
     typeof heightCm === "string" && heightCm.trim() !== "" ? Number(heightCm) : null;
 
-  const passwordHash = hashPassword(password);
-
   // A valid invite binds the new account to the INVITER's gym from the
   // moment it's created — never the primary-gym default, and never a
   // client-supplied value (gymId is never read from this request body at
-  // all). An invalid/expired/revoked/wrong-email/unresolvable-inviter
-  // invite yields no gym signal (undefined), so the account is created
-  // exactly as it would be with no token — see resolveInviteGymId's own
-  // comment for why this mirrors every other invite-failure mode already
-  // handled non-blockingly by redeemInviteForUser below, rather than
-  // rejecting the signup outright.
-  const inviteGymId =
+  // all). A supplied invite that's invalid/expired/revoked/wrong-email/
+  // unresolvable-inviter is a hard rejection here, NOT a fallback to the
+  // primary gym: a supplied token is an explicit "I'm joining this gym"
+  // statement, and silently placing that person in the wrong gym instead
+  // would be a real cross-tenant misassignment. Only the absence of any
+  // token at all gets today's primary-gym default (see resolveInviteGymId's
+  // own comment). The generic message and 400 status exactly match the
+  // duplicate-email rejection above, so a bad invite is never
+  // distinguishable from any other "can't create this account" case.
+  const inviteResolution =
     typeof inviteToken === "string" && inviteToken.trim()
       ? resolveInviteGymId(inviteToken.trim(), email)
-      : undefined;
-  const user = createUserWithRole(email, passwordHash, "member", inviteGymId ?? null);
+      : ({ kind: "none" } as const);
+
+  if (inviteResolution.kind === "invalid") {
+    return NextResponse.json(
+      { success: false, message: "Unable to create account." },
+      { status: 400 }
+    );
+  }
+
+  const passwordHash = hashPassword(password);
+  const user = createUserWithRole(
+    email,
+    passwordHash,
+    "member",
+    inviteResolution.kind === "valid" ? inviteResolution.gymId : null
+  );
 
   const cycleEligible = isFemaleGender(genderValue);
   const now = new Date().toISOString();

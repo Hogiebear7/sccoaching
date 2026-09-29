@@ -7,6 +7,30 @@ export interface RedeemInviteResult {
   invite?: InviteRecord;
 }
 
+// Result of resolving an invite-carrying signup's gym, BEFORE the account
+// exists. Three cases, never conflated:
+//  - "none": no invite token was supplied at all — ordinary self-signup.
+//    Callers apply the current, explicitly temporary single-gym default
+//    (create in the primary gym) for this case only.
+//  - "valid": a token was supplied and resolves cleanly — gymId is the
+//    inviter's own gym (or null for the primary gym).
+//  - "invalid": a token was supplied but is unusable for ANY reason
+//    (missing, redeemed, revoked, expired, wrong email, or an inviter whose
+//    account no longer resolves). Callers MUST reject the signup outright
+//    with a generic, non-enumerating error — never fall back to creating a
+//    primary-gym account. A supplied invite is an explicit statement of
+//    intent ("I'm joining Gym B"); silently placing that person in Gym A
+//    instead would be a real cross-tenant misassignment, not a harmless
+//    degrade. This is a deliberate exception to redeemInviteForUser's own
+//    "an invite problem never blocks the action" policy below, which still
+//    applies to the tier GRANT (existing accounts, and the post-creation
+//    redemption call) — it never applied to which GYM an account belongs to
+//    in the first place, because that concept didn't exist until now.
+export type InviteGymResolution =
+  | { kind: "none" }
+  | { kind: "valid"; gymId: string | null }
+  | { kind: "invalid" };
+
 // Resolves the gym a BRAND-NEW account should be created in when signup
 // carries an invite token — called BEFORE the account exists (see the
 // signup routes), so the account is born with the right gym rather than
@@ -15,32 +39,29 @@ export interface RedeemInviteResult {
 // one: UserRecord.gymId is set once, at creation, and never mutated (see
 // docs/tenant-boundary-audit-2026-09.md's immutable-gymId finding).
 //
-// Returns:
-//  - a gym id (or null for the primary gym) when the invite is genuinely
-//    pending, addressed to this exact email, and its inviter resolves to a
-//    real account;
-//  - undefined for every other case (missing/redeemed/revoked/expired
-//    invite, a different email, or an inviter whose account no longer
-//    resolves) — meaning "no gym signal from this invite," never a guessed
-//    gym. This deliberately mirrors every other invite-failure mode
-//    redeemInviteForUser below already treats as non-blocking: the account
-//    is still created exactly as it would be with no token at all, just
-//    without a gym signal. Fails closed on the GYM ASSIGNMENT specifically —
-//    it never invents an owner — while preserving the existing "an invite
-//    problem never blocks signup" policy.
+// Callers pass a non-empty token — the "no token supplied" case is the
+// caller's own { kind: "none" } branch, not this function's concern, so its
+// signature only ever returns "valid" or "invalid".
+//
+// An inviter that resolves with gymId: null is the PRIMARY gym (the
+// existing null-means-primary-gym convention, lib/gym-scope.ts) — a fully
+// valid, resolved value, not "no gym". There is no separate "platform-wide
+// invitation" concept anywhere in this codebase for this to fall back to.
 //
 // Read-only: does not consume the invite. The one-time redemption (and the
 // tier grant) still happens via redeemInviteForUser after the account
-// exists, exactly as before this function was added.
-export function resolveInviteGymId(token: string, email: string): string | null | undefined {
+// exists, exactly as before this function was added — but only ever runs
+// for a token this function already classified "valid"; an "invalid" token
+// never reaches account creation, let alone redemption.
+export function resolveInviteGymId(token: string, email: string): InviteGymResolution {
   const invite = findInviteByToken(token);
-  if (!invite || invite.status !== "pending") return undefined;
-  if (invite.email !== email.toLowerCase()) return undefined;
+  if (!invite || invite.status !== "pending") return { kind: "invalid" };
+  if (invite.email !== email.toLowerCase()) return { kind: "invalid" };
 
   const inviter = findUserById(invite.invitedByStaffId);
-  if (!inviter) return undefined;
+  if (!inviter) return { kind: "invalid" };
 
-  return inviter.gymId ?? null;
+  return { kind: "valid", gymId: inviter.gymId ?? null };
 }
 
 // Shared by the standalone redemption route (member already has an account)

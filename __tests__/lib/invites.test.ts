@@ -1,8 +1,15 @@
-// lib/invites.ts's resolveInviteGymId — the function that decides which gym
-// a brand-new account should be created in when signup carries an invite
-// token. Read-only (never consumes the invite); every non-pending/non-
-// matching/unresolvable case returns undefined ("no gym signal"), never a
-// guess — see the function's own header comment for the full rationale.
+// lib/invites.ts's resolveInviteGymId — decides which gym a brand-new
+// account should be created in when signup carries an invite token.
+// Read-only (never consumes the invite). Callers only ever call this with a
+// non-empty token (the "no token supplied" case is the caller's own
+// { kind: "none" } branch); this function returns exactly one of:
+//   { kind: "valid", gymId }  — the invite is genuinely pending, addressed
+//                               to this email, and its inviter resolves.
+//   { kind: "invalid" }       — every other case: missing/redeemed/revoked/
+//                               expired invite, wrong email, or an
+//                               unresolvable inviter. Callers MUST reject
+//                               signup outright for "invalid" — never fall
+//                               back to creating a primary-gym account.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
@@ -39,47 +46,47 @@ beforeEach(() => {
 describe("resolveInviteGymId", () => {
   it("resolves the inviter's own gym for a genuinely pending, matching-email invite", () => {
     h.findInviteByToken.mockReturnValue(invite(STAFF_B.id));
-    expect(resolveInviteGymId("tok", EMAIL)).toBe("gym-b");
+    expect(resolveInviteGymId("tok", EMAIL)).toEqual({ kind: "valid", gymId: "gym-b" });
   });
 
-  it("resolves null (primary gym) when the inviter is themselves primary-gym", () => {
+  it("resolves gymId: null (primary gym) when the inviter is themselves primary-gym", () => {
     h.findInviteByToken.mockReturnValue(invite(STAFF_A.id));
-    expect(resolveInviteGymId("tok", EMAIL)).toBeNull();
+    expect(resolveInviteGymId("tok", EMAIL)).toEqual({ kind: "valid", gymId: null });
   });
 
   it("matches email case-insensitively, same as redeemInviteForUser", () => {
     h.findInviteByToken.mockReturnValue(invite(STAFF_B.id));
-    expect(resolveInviteGymId("tok", EMAIL.toUpperCase())).toBe("gym-b");
+    expect(resolveInviteGymId("tok", EMAIL.toUpperCase())).toEqual({ kind: "valid", gymId: "gym-b" });
   });
 
-  it("returns undefined for a missing/unknown token", () => {
+  it("is invalid for a missing/unknown token", () => {
     h.findInviteByToken.mockReturnValue(undefined);
-    expect(resolveInviteGymId("bogus", EMAIL)).toBeUndefined();
+    expect(resolveInviteGymId("bogus", EMAIL)).toEqual({ kind: "invalid" });
   });
 
-  it("returns undefined for an already-redeemed invite", () => {
+  it("is invalid for an already-redeemed invite", () => {
     h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { status: "redeemed" }));
-    expect(resolveInviteGymId("tok", EMAIL)).toBeUndefined();
+    expect(resolveInviteGymId("tok", EMAIL)).toEqual({ kind: "invalid" });
   });
 
-  it("returns undefined for a revoked invite", () => {
+  it("is invalid for a revoked invite", () => {
     h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { status: "revoked" }));
-    expect(resolveInviteGymId("tok", EMAIL)).toBeUndefined();
+    expect(resolveInviteGymId("tok", EMAIL)).toEqual({ kind: "invalid" });
   });
 
-  it("returns undefined for an expired invite", () => {
+  it("is invalid for an expired invite", () => {
     h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { status: "expired" }));
-    expect(resolveInviteGymId("tok", EMAIL)).toBeUndefined();
+    expect(resolveInviteGymId("tok", EMAIL)).toEqual({ kind: "invalid" });
   });
 
-  it("returns undefined for a mismatched email — never leaks which gym the token belongs to", () => {
+  it("is invalid for a mismatched email — never leaks which gym the token belongs to", () => {
     h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { email: "someone-else@example.com" }));
-    expect(resolveInviteGymId("tok", EMAIL)).toBeUndefined();
+    expect(resolveInviteGymId("tok", EMAIL)).toEqual({ kind: "invalid" });
   });
 
-  it("returns undefined, never a guess, when the inviter's own account no longer resolves", () => {
+  it("is invalid, never a guess, when the inviter's own account no longer resolves", () => {
     h.findInviteByToken.mockReturnValue(invite("deleted-staff-id"));
-    expect(resolveInviteGymId("tok", EMAIL)).toBeUndefined();
+    expect(resolveInviteGymId("tok", EMAIL)).toEqual({ kind: "invalid" });
   });
 
   it("never consumes the invite — read-only", () => {
