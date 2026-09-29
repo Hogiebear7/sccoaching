@@ -132,7 +132,7 @@ describe("POST /api/membership/checkout", () => {
     expect(mockSaveSubscription).not.toHaveBeenCalled();
 
     // Active on a DIFFERENT option → switching is allowed.
-    mockFindSubByUser.mockReturnValue({ status: "active", billingOptionId: "opt_other", currentPeriodEnd: future });
+    mockFindSubByUser.mockReturnValue({ status: "active", packageId: "pkg1", billingOptionId: "opt_other", currentPeriodEnd: future });
     const switched = await call({ billingOptionId: "opt_rec" }, cookie());
     expect(switched.status).toBe(200);
   });
@@ -229,6 +229,180 @@ describe("POST /api/membership/checkout", () => {
     const res = await call({ billingOptionId: "opt_one" }, cookie());
     expect(res.status).toBe(502);
     expect(mockSavePurchase.mock.calls.at(-1)![0].status).toBe("failed");
+  });
+});
+
+// Cross-scope switch guard: gym-owned membership and the platform-global App
+// Subscription (deliveryChannel: "app_only") are two structurally different
+// products — App Subscription is meant to be IAP/mobile-only. An ordinary
+// web/Stripe SWITCH must stay within the member's current scope; only a
+// FRESH join/renew (no active membership yet) may land on either scope,
+// unchanged by this guard. Uses per-id mock implementations (rather than the
+// blanket mockReturnValue used above) so a test can give the CURRENT package
+// and the TARGET package genuinely different resolutions.
+describe("POST /api/membership/checkout — cross-scope switch guard", () => {
+  const GYM_A_CAT2 = { id: "cat-a", gymId: "gym-a" };
+  const GYM_B_CAT2 = { id: "cat-b", gymId: "gym-b" };
+  const GYM_A_PKG = { ...PKG, id: "pkg-gym-a", categoryId: "cat-a" };
+  const GYM_A_PKG_2 = { ...PKG, id: "pkg-gym-a-2", categoryId: "cat-a" };
+  const GYM_B_PKG = { ...PKG, id: "pkg-gym-b", categoryId: "cat-b" };
+  const APP_PKG = { ...PKG, id: "pkg-app", categoryId: "cat-a", deliveryChannel: "app_only" as const };
+
+  const packagesById: Record<string, typeof PKG & { deliveryChannel?: "app_only" }> = {
+    "pkg-gym-a": GYM_A_PKG,
+    "pkg-gym-a-2": GYM_A_PKG_2,
+    "pkg-gym-b": GYM_B_PKG,
+    "pkg-app": APP_PKG,
+  };
+  const categoriesById: Record<string, { id: string; gymId: string }> = {
+    "cat-a": GYM_A_CAT2,
+    "cat-b": GYM_B_CAT2,
+  };
+
+  const MEMBER_GYM_A = { ...MEMBER, gymId: "gym-a" };
+  const future = new Date(Date.now() + 20 * 86_400_000).toISOString();
+
+  function optionFor(id: string, packageId: string) {
+    return { ...RECURRING, id, packageId };
+  }
+  function activeSub(overrides: Record<string, unknown>) {
+    return {
+      userId: MEMBER.id, status: "active", providerSubscriptionId: "sub_old",
+      billingOptionId: "opt_current", currentPeriodEnd: future,
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindUserById.mockReturnValue(MEMBER_GYM_A);
+    mockActiveProvider.mockReturnValue("stripe");
+    mockFindPurchaseByKey.mockReturnValue(undefined);
+    mockCreateCatalogCheckout.mockResolvedValue({
+      provider: "stripe", mode: "subscription", sessionId: "cs_switch", checkoutUrl: "https://x/switch", error: null,
+    });
+    mockFindPackage.mockImplementation((id: string) => packagesById[id]);
+    mockFindCategory.mockImplementation((id: string) => categoriesById[id]);
+  });
+
+  it("1. gym-owned current subscription -> same-gym package: allowed", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-gym-a-2"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-gym-a" }));
+
+    const res = await call({ billingOptionId: "opt_target" }, cookie());
+
+    expect(res.status).toBe(200);
+    expect(mockCreateCatalogCheckout).toHaveBeenCalled();
+  });
+
+  it("2. gym-owned current subscription -> a different gym's package: rejected (existing sameGym check, unchanged by this guard)", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-gym-b"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-gym-a" }));
+
+    const res = await call({ billingOptionId: "opt_target" }, cookie());
+
+    expect(res.status).toBe(404);
+    expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("3. gym-owned current subscription -> App Subscription: rejected", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-app"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-gym-a" }));
+
+    const res = await call({ billingOptionId: "opt_target" }, cookie());
+
+    expect(res.status).toBe(404);
+    expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("4. App Subscription current subscription -> gym-owned package: rejected", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-gym-a"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-app" }));
+
+    const res = await call({ billingOptionId: "opt_target" }, cookie());
+
+    expect(res.status).toBe(404);
+    expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("5. App Subscription current subscription -> a different App Subscription billing option: allowed (same scope preserved)", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-app"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-app", billingOptionId: "opt_current_app" }));
+
+    const res = await call({ billingOptionId: "opt_target" }, cookie());
+
+    expect(res.status).toBe(200);
+    expect(mockCreateCatalogCheckout).toHaveBeenCalled();
+  });
+
+  it("6. current subscription's package can no longer be resolved: rejected, fails closed rather than guessing", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-gym-a"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-deleted" })); // not in packagesById
+
+    const res = await call({ billingOptionId: "opt_target" }, cookie());
+
+    expect(res.status).toBe(404);
+    expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("7. client-supplied scope/package/gym identifiers cannot bypass the guard", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-app"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-gym-a" }));
+
+    const res = await call(
+      {
+        billingOptionId: "opt_target",
+        ownerGym: { scope: "gym", gymId: "gym-a" },
+        packageId: "pkg-gym-a",
+        gymId: "gym-a",
+        currentScope: "gym",
+      },
+      cookie()
+    );
+
+    expect(res.status).toBe(404);
+    expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
+  });
+
+  it("8/9. a rejected cross-scope switch creates no checkout session and writes no pending switch fields", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-app"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-gym-a" }));
+
+    await call({ billingOptionId: "opt_target" }, cookie());
+
+    expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+
+  it("10. a same-scope switch still honors the existing in-flight duplicate-switch guard, unchanged", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-gym-a-2"));
+    mockFindSubByUser.mockReturnValue(
+      activeSub({
+        packageId: "pkg-gym-a",
+        pendingBillingOptionId: "opt_target",
+        pendingSetupOrderId: "cs_inflight",
+        pendingStartedAt: new Date().toISOString(),
+      })
+    );
+
+    const res = await call({ billingOptionId: "opt_target" }, cookie());
+
+    expect(res.status).toBe(409);
+    expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
+  });
+
+  it("12. the rejection message matches the existing generic, non-enumerating response exactly — no existence signal leaked", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-app"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-gym-a" }));
+
+    const res = await call({ billingOptionId: "opt_target" }, cookie());
+    const body = await res.json();
+
+    expect(body).toEqual({ success: false, message: "This option is not available." });
   });
 });
 
