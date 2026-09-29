@@ -5,12 +5,14 @@ const {
   mockFindPassLedgerByBookingId,
   mockFindPassLedgerByPurchaseId,
   mockFindPassLedgerByUserId,
+  mockFindUserById,
   mockSavePurchase,
 } = vi.hoisted(() => ({
   mockAppendPassLedgerEntry: vi.fn(),
   mockFindPassLedgerByBookingId: vi.fn(),
   mockFindPassLedgerByPurchaseId: vi.fn(),
   mockFindPassLedgerByUserId: vi.fn(),
+  mockFindUserById: vi.fn(),
   mockSavePurchase: vi.fn(),
 }));
 
@@ -19,6 +21,7 @@ vi.mock("@/lib/db", () => ({
   findPassLedgerByBookingId: mockFindPassLedgerByBookingId,
   findPassLedgerByPurchaseId: mockFindPassLedgerByPurchaseId,
   findPassLedgerByUserId: mockFindPassLedgerByUserId,
+  findUserById: mockFindUserById,
   savePurchase: mockSavePurchase,
 }));
 
@@ -46,6 +49,7 @@ const PURCHASE: PurchaseRecord = {
   providerPaymentRef: null,
   checkoutUrl: "https://checkout.example/x",
   idempotencyKey: "user-1:pack-10",
+  ownerGym: { scope: "gym", gymId: "gym-a" },
   createdAt: "2026-07-09T10:00:00.000Z",
   updatedAt: "2026-07-09T10:00:00.000Z",
 };
@@ -69,6 +73,7 @@ beforeEach(() => {
   mockFindPassLedgerByPurchaseId.mockReturnValue([]);
   mockFindPassLedgerByUserId.mockReturnValue([]);
   mockFindPassLedgerByBookingId.mockReturnValue([]);
+  mockFindUserById.mockReturnValue({ id: "user-1", gymId: null });
 });
 
 describe("purchase state machine", () => {
@@ -114,6 +119,17 @@ describe("applyPaidPassPurchase", () => {
     expect(applyPaidPassPurchase(PURCHASE, PRODUCT)).toBe(false);
     expect(mockAppendPassLedgerEntry).not.toHaveBeenCalled();
   });
+
+  it("copies the purchase's ownerGym onto the credit entry", () => {
+    applyPaidPassPurchase(PURCHASE, PRODUCT);
+    expect(mockAppendPassLedgerEntry.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
+  });
+
+  it("falls back to unresolved for a purchase written before ownerGym existed", () => {
+    const legacyPurchase = { ...PURCHASE, ownerGym: undefined };
+    applyPaidPassPurchase(legacyPurchase, PRODUCT);
+    expect(mockAppendPassLedgerEntry.mock.calls[0][0].ownerGym).toEqual({ scope: "unresolved" });
+  });
 });
 
 describe("applyRefundedPassPurchase", () => {
@@ -139,6 +155,17 @@ describe("applyRefundedPassPurchase", () => {
     ]);
     expect(applyRefundedPassPurchase(PURCHASE)).toBe(false);
     expect(mockAppendPassLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it("copies the ORIGINAL credit's ownerGym, not re-derived from the purchase again", () => {
+    // The original credit carries a different gym than the purchase itself
+    // would resolve to now — proves the reversal nets to zero against the
+    // exact row it corrects, not a freshly re-derived value.
+    mockFindPassLedgerByPurchaseId.mockReturnValue([
+      { ...purchaseCredit(), ownerGym: { scope: "gym", gymId: "gym-original" } },
+    ]);
+    applyRefundedPassPurchase(PURCHASE);
+    expect(mockAppendPassLedgerEntry.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-original" });
   });
 });
 
@@ -181,6 +208,21 @@ describe("consumePurchasedPass / reversePassConsumption", () => {
     });
   });
 
+  it("derives ownerGym from the CONSUMING member's own current gym, looked up server-side", () => {
+    mockFindUserById.mockReturnValue({ id: "user-1", gymId: "gym-current" });
+    mockFindPassLedgerByUserId.mockReturnValue([{ id: "led-1", userId: "user-1", delta: 5, reason: "purchase", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-01T00:00:00.000Z" }]);
+    consumePurchasedPass({ userId: "user-1", bookingId: "bk-1" });
+    expect(mockFindUserById).toHaveBeenCalledWith("user-1");
+    expect(mockAppendPassLedgerEntry.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-current" });
+  });
+
+  it("marks a consume entry unresolved if the user has vanished between the balance check and the write", () => {
+    mockFindUserById.mockReturnValue(undefined);
+    mockFindPassLedgerByUserId.mockReturnValue([{ id: "led-1", userId: "user-1", delta: 5, reason: "purchase", purchaseId: "p-1", bookingId: null, note: null, createdAt: "2026-01-01T00:00:00.000Z" }]);
+    consumePurchasedPass({ userId: "user-1", bookingId: "bk-1" });
+    expect(mockAppendPassLedgerEntry.mock.calls[0][0].ownerGym).toEqual({ scope: "unresolved" });
+  });
+
   it("refuses with no balance and never double-consumes the same booking", () => {
     mockFindPassLedgerByUserId.mockReturnValue([]);
     expect(consumePurchasedPass({ userId: "user-1", bookingId: "bk-1" })).toBe(false);
@@ -196,11 +238,14 @@ describe("consumePurchasedPass / reversePassConsumption", () => {
     expect(reversePassConsumption("bk-1")).toBe(false);
 
     // consumed → one compensating +1
-    mockFindPassLedgerByBookingId.mockReturnValue([consumeEntry()]);
+    mockFindPassLedgerByBookingId.mockReturnValue([{ ...consumeEntry(), ownerGym: { scope: "gym", gymId: "gym-at-consume-time" } }]);
     expect(reversePassConsumption("bk-1")).toBe(true);
     expect(mockAppendPassLedgerEntry.mock.calls[0][0]).toMatchObject({
       delta: 1,
       reason: "consume_reversal",
+      // Copies the ORIGINAL consume entry's ownerGym, not the member's
+      // current gym — the reversal nets to zero against the exact row.
+      ownerGym: { scope: "gym", gymId: "gym-at-consume-time" },
       bookingId: "bk-1",
     });
 

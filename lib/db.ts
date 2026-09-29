@@ -1122,6 +1122,30 @@ export interface GooglePlayPurchaseRecord {
 export type PurchaseKind = "membership" | "pass_pack";
 export type PurchaseStatus = "pending" | "paid" | "failed" | "cancelled" | "refunded";
 
+// Explicit gym-ownership marker for money records that predate any tenant
+// concept — see docs/tenant-boundary-audit-2026-09.md §4/§12.6. Every money
+// record (Purchase, PaymentEvent, PassLedgerEntry, FinanceLedgerEntry)
+// carries exactly one of these, server-derived, never left absent:
+//  - { scope: "gym", gymId } — gymId uses the SAME null-means-primary-gym
+//    convention as UserRecord.gymId / MembershipCategoryRecord.gymId (see
+//    lib/gym-scope.ts). This is NOT "no gym" — null here means the named
+//    primary gym, same as everywhere else in the codebase.
+//  - { scope: "platform" } — genuinely not owned by any single gym: the one
+//    platform-wide App Subscription catalog exception, or a Finance entry
+//    the entering staff explicitly marked platform-level (rent, payroll,
+//    software — see lib/gym-scope.ts's ownerGymForFinanceEntry).
+//  - { scope: "unresolved" } — PaymentEventRecord only: a webhook
+//    dedupe/audit row for an event that didn't correlate to any purchase or
+//    subscription this system owns (an unmatched/ignored event). Never used
+//    for a record that represents real money movement.
+// A bare absent/undefined field is never valid — "forgot to set this" and
+// "deliberately global/unresolved" must never be confusable. See
+// lib/gym-scope.ts for the builder helpers that produce these values.
+export type MoneyRecordOwnerGym =
+  | { scope: "gym"; gymId: string | null }
+  | { scope: "platform" }
+  | { scope: "unresolved" };
+
 export interface PurchaseRecord {
   id: string;
   userId: string;
@@ -1142,6 +1166,12 @@ export interface PurchaseRecord {
   checkoutUrl: string | null;
   /** Duplicate-submit protection: one open purchase per key. */
   idempotencyKey: string;
+  /** Derived server-side at creation from the resolved package/category
+      (or the global App Subscription exception) — never from client input.
+      Optional/absent on rows written before this field existed; a migration
+      backfills it where derivable and marks the rest "unresolved" — see
+      scripts/backfill-money-record-owner-gym.mjs. */
+  ownerGym?: MoneyRecordOwnerGym;
   createdAt: string;
   updatedAt: string;
 }
@@ -1153,6 +1183,10 @@ export interface PaymentEventRecord {
   type: string;
   entityId: string | null;
   receivedAt: string;
+  /** See PurchaseRecord.ownerGym. "unresolved" for an event that matched no
+      purchase or subscription. Optional/absent on rows written before this
+      field existed. */
+  ownerGym?: MoneyRecordOwnerGym;
 }
 
 export type PassLedgerReason =
@@ -1178,6 +1212,13 @@ export interface PassLedgerEntryRecord {
       absent = the credit never expires. */
   expiresAt?: string | null;
   note: string | null;
+  /** See PurchaseRecord.ownerGym. A purchase-driven entry (purchase,
+      refund_reversal) copies the originating purchase's ownerGym so a
+      reversal always nets to zero against the exact row it corrects. A
+      booking-driven entry (consume, consume_reversal) is derived from the
+      consuming member's current gym at write time. Optional/absent on rows
+      written before this field existed. */
+  ownerGym?: MoneyRecordOwnerGym;
   createdAt: string;
 }
 
@@ -1613,6 +1654,13 @@ export interface FinanceLedgerEntryRecord {
       once that ingestion exists. Null for every manually-entered row today. */
   sourceExternalId: string | null;
   notes: string | null;
+  /** See PurchaseRecord.ownerGym. Required on every new row: derived from
+      memberId's own gym when a member is linked (the entering staff's choice
+      is not authoritative for a member-linked row); otherwise an explicit
+      staff-chosen scope (platform-wide, or a specific gym validated against
+      a real GymRecord) — never inferred silently. Optional/absent on rows
+      written before this field existed. */
+  ownerGym?: MoneyRecordOwnerGym;
   /** Staff member who entered this row. */
   createdByUserId: string;
   createdAt: string;

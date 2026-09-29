@@ -11,6 +11,7 @@ const {
   mockFindSubscriptionByUserIdX,
   mockFindSubscriptionByProviderOrderId,
   mockFindMembershipPackageById,
+  mockFindMembershipCategoryById,
   mockFindMembershipBillingOptionById,
   mockHasPaymentEvent,
   mockRecordPaymentEvent,
@@ -28,6 +29,7 @@ const {
   mockFindSubscriptionByUserIdX: vi.fn(),
   mockFindSubscriptionByProviderOrderId: vi.fn(),
   mockFindMembershipPackageById: vi.fn(),
+  mockFindMembershipCategoryById: vi.fn(),
   mockFindMembershipBillingOptionById: vi.fn(),
   mockHasPaymentEvent: vi.fn(),
   mockRecordPaymentEvent: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock("@/lib/db", () => ({
   findSubscriptionByUserId: mockFindSubscriptionByUserIdX,
   findSubscriptionByProviderOrderId: mockFindSubscriptionByProviderOrderId,
   findMembershipPackageById: mockFindMembershipPackageById,
+  findMembershipCategoryById: mockFindMembershipCategoryById,
   findMembershipBillingOptionById: mockFindMembershipBillingOptionById,
   hasPaymentEvent: mockHasPaymentEvent,
   recordPaymentEvent: mockRecordPaymentEvent,
@@ -160,6 +163,63 @@ describe("stripe webhook", () => {
       purchaseId: "pur-1",
     });
     expect(mockRecordPaymentEvent).toHaveBeenCalledWith(expect.objectContaining({ key: "evt_1" }));
+  });
+
+  it("stamps the recorded PaymentEventRecord with the resolved purchase's ownerGym", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue({ ...PURCHASE, ownerGym: { scope: "gym", gymId: "gym-a" } });
+
+    await postEvent({
+      id: "evt_owner_1",
+      type: "checkout.session.completed",
+      object: { id: "cs_test_1", mode: "payment", payment_status: "paid", payment_intent: "pi_1" },
+    });
+
+    expect(mockRecordPaymentEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "evt_owner_1", ownerGym: { scope: "gym", gymId: "gym-a" } })
+    );
+  });
+
+  it("stamps the platform scope through for the global App Subscription purchase", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue({ ...PURCHASE, ownerGym: { scope: "platform" } });
+
+    await postEvent({
+      id: "evt_owner_2",
+      type: "checkout.session.completed",
+      object: { id: "cs_test_1", mode: "payment", payment_status: "paid", payment_intent: "pi_1" },
+    });
+
+    expect(mockRecordPaymentEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "evt_owner_2", ownerGym: { scope: "platform" } })
+    );
+  });
+
+  it("falls back to unresolved for a purchase written before ownerGym existed", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue({ ...PURCHASE, ownerGym: undefined });
+
+    await postEvent({
+      id: "evt_owner_3",
+      type: "checkout.session.completed",
+      object: { id: "cs_test_1", mode: "payment", payment_status: "paid", payment_intent: "pi_1" },
+    });
+
+    expect(mockRecordPaymentEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "evt_owner_3", ownerGym: { scope: "unresolved" } })
+    );
+  });
+
+  it("records an unmatched event (no purchase found) as unresolved, never guessed", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindPurchaseById.mockReturnValue(undefined);
+
+    await postEvent({
+      id: "evt_owner_4",
+      type: "checkout.session.completed",
+      object: { id: "cs_unknown", mode: "payment", payment_status: "paid" },
+    });
+
+    expect(mockRecordPaymentEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "evt_owner_4", ownerGym: { scope: "unresolved" } })
+    );
   });
 
   it("a membership-kind purchase no longer activates anything (intro removed)", async () => {
@@ -334,6 +394,25 @@ describe("stripe webhook", () => {
       extraSessionGrants: [],
     });
     expect(saved.currentPeriodEnd).toBeTruthy();
+  });
+
+  it("resolves the PaymentEventRecord's ownerGym from the subscription's own packageId -> category, without touching SubscriptionRecord's own schema", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionBySetupOrderId.mockReturnValue(SUBSCRIPTION);
+    mockFindMembershipPackageById.mockReturnValue({ ...PRODUCT, categoryId: "cat-1" });
+    mockFindMembershipCategoryById.mockReturnValue({ id: "cat-1", gymId: "gym-b" });
+
+    await postEvent({
+      id: "evt_sub_owner",
+      type: "checkout.session.completed",
+      object: { id: "cs_sub_1", mode: "subscription", payment_status: "paid", subscription: "sub_123", customer: "cus_456" },
+    });
+
+    expect(mockFindMembershipPackageById).toHaveBeenCalledWith("pkg-1");
+    expect(mockFindMembershipCategoryById).toHaveBeenCalledWith("cat-1");
+    expect(mockRecordPaymentEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "evt_sub_owner", ownerGym: { scope: "gym", gymId: "gym-b" } })
+    );
   });
 
   it("confirmed switch promotes the pending option, starts a fresh period, and cancels the old sub", async () => {

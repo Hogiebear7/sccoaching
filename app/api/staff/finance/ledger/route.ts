@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 
 import {
   findFinanceLedgerEntryById,
+  findGymById,
   findMembershipPackageById,
   findUserById,
   saveFinanceLedgerEntry,
@@ -14,7 +15,9 @@ import {
   type FinanceIncomeSource,
   type FinanceIncomeType,
   type FinanceLedgerEntryRecord,
+  type MoneyRecordOwnerGym,
 } from "@/lib/db";
+import { ownerGymForUser } from "@/lib/gym-scope";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
 
 // Local literal lists (not imported as values from lib/db.ts) — matches the
@@ -65,6 +68,7 @@ export async function POST(request: NextRequest) {
     relatedEntryId,
     reference,
     notes,
+    gymScope,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof kind !== "string" || !KINDS.includes(kind as FinanceEntryKind)) {
@@ -121,11 +125,44 @@ export async function POST(request: NextRequest) {
     finalFeeType = feeType as FinanceFeeType;
   }
 
-  if (typeof memberId === "string" && memberId.trim() && !findUserById(memberId.trim())) {
+  const linkedMember = typeof memberId === "string" && memberId.trim() ? findUserById(memberId.trim()) : undefined;
+  if (typeof memberId === "string" && memberId.trim() && !linkedMember) {
     return NextResponse.json({ success: false, message: "That member no longer exists." }, { status: 400 });
   }
   if (typeof packageId === "string" && packageId.trim() && !findMembershipPackageById(packageId.trim())) {
     return NextResponse.json({ success: false, message: "That package no longer exists." }, { status: 400 });
+  }
+
+  // Ownership: a member-linked row is scoped to THAT MEMBER'S OWN gym —
+  // server-derived, never the entering staff member's own gym and never
+  // overridable by a client-supplied scope, so a row can't be mis-attributed
+  // to the wrong business. A row with no member gets an explicit staff
+  // choice instead: either platform-wide, or a specific gym, validated
+  // against a real GymRecord (never a bare client-supplied id trusted as
+  // authoritative on its own). See lib/db.ts's MoneyRecordOwnerGym and
+  // lib/gym-scope.ts's builders for why this can never be left absent.
+  let ownerGym: MoneyRecordOwnerGym;
+  if (linkedMember) {
+    ownerGym = ownerGymForUser(linkedMember);
+  } else {
+    const scope = (gymScope ?? {}) as Record<string, unknown>;
+    if (scope.type === "platform") {
+      ownerGym = { scope: "platform" };
+    } else if (scope.type === "gym" && typeof scope.gymId === "string" && scope.gymId.trim()) {
+      if (!findGymById(scope.gymId.trim())) {
+        return NextResponse.json({ success: false, message: "That gym no longer exists." }, { status: 400 });
+      }
+      ownerGym = { scope: "gym", gymId: scope.gymId.trim() };
+    } else {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "A gym scope is required for this entry: choose platform-wide, or a specific gym, since no member is linked.",
+        },
+        { status: 400 }
+      );
+    }
   }
 
   const existing = typeof id === "string" && id.trim() ? findFinanceLedgerEntryById(id.trim()) : undefined;
@@ -156,6 +193,7 @@ export async function POST(request: NextRequest) {
     reference: optionalString(reference),
     sourceExternalId: existing?.sourceExternalId ?? null,
     notes: optionalString(notes),
+    ownerGym,
     createdByUserId: existing?.createdByUserId ?? auth.user.id,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,

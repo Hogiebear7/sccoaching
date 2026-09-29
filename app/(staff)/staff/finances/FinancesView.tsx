@@ -798,6 +798,13 @@ function LedgerEntryForm({
           feeAmountCents,
           reference: reference.trim() || null,
           notes: notes.trim() || null,
+          // This form has no member or gym picker yet (single-gym today), so
+          // every manual entry is explicitly platform-level — required by
+          // the route now that money records must always carry a server-
+          // validated ownership scope. A per-gym picker is a real, separate
+          // piece of work once Finance ownership per gym is decided (see
+          // docs/tenant-boundary-audit-2026-09.md §12.6).
+          gymScope: { type: "platform" },
         });
         onDone();
       }}

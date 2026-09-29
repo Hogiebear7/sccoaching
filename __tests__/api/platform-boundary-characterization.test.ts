@@ -225,7 +225,12 @@ const finances = async (cookie: string | null) => {
 const financesOutcome = async (cookie: string | null) => finances(cookie).then(() => "rendered", (e: Error) => e.message);
 const ledgerPost = async (cookie: string | null, body: unknown) => {
   const { POST } = await import("@/app/api/staff/finance/ledger/route");
-  return POST(request("/api/staff/finance/ledger", "POST", cookie, body));
+  // None of this file's cases link a member, so every one needs an explicit
+  // gym scope now that the route requires one — default to platform-wide
+  // (matching the real Finance UI's current default; see FinancesView.tsx)
+  // unless a test deliberately overrides it.
+  const withScope = { gymScope: { type: "platform" }, ...(body as Record<string, unknown>) };
+  return POST(request("/api/staff/finance/ledger", "POST", cookie, withScope));
 };
 const ledgerDelete = async (cookie: string | null, body: unknown) => {
   const { POST } = await import("@/app/api/staff/finance/ledger/delete/route");

@@ -15,7 +15,7 @@ import {
   type SubscriptionRecord,
 } from "@/lib/db";
 import { activeBillingProvider, createCatalogCheckout, isPendingCheckoutStale } from "@/lib/billing";
-import { isGlobalCatalogPackage, sameGym } from "@/lib/gym-scope";
+import { isGlobalCatalogPackage, ownerGymForCatalogPackage, sameGym } from "@/lib/gym-scope";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { isPurchaseCheckoutReusable } from "@/lib/payments";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -71,6 +71,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Same resolution that just authorized this checkout, persisted onto the
+  // money record it produces — see lib/gym-scope.ts's MoneyRecordOwnerGym
+  // builders. ownedByMemberGym above already guarantees this resolves to a
+  // real gym or the global exception, never "unresolved", for a purchase
+  // that actually gets created below.
+  const ownerGym = ownerGymForCatalogPackage(pkg, category);
+
   if (activeBillingProvider() !== "stripe") {
     return NextResponse.json(
       {
@@ -108,6 +115,7 @@ export async function POST(request: NextRequest) {
       providerPaymentRef: null,
       checkoutUrl: null,
       idempotencyKey: existing ? `${key}:${Date.now()}` : key,
+      ownerGym,
       createdAt: now,
       updatedAt: now,
     };

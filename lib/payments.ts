@@ -17,12 +17,22 @@ import {
   findPassLedgerByBookingId,
   findPassLedgerByPurchaseId,
   findPassLedgerByUserId,
+  findUserById,
   savePurchase,
+  type MoneyRecordOwnerGym,
   type PassLedgerEntryRecord,
   type PurchaseRecord,
   type PurchaseStatus,
 } from "./db";
 import { isPendingCheckoutStale } from "./billing";
+import { ownerGymForUser } from "./gym-scope";
+
+// A purchase written before ownerGym existed (or in a future edge case where
+// it's somehow absent) never silently inherits "platform" or a guessed gym —
+// it reads as explicitly unresolved, same as an unmatched webhook event.
+function ownerGymOf(purchase: Pick<PurchaseRecord, "ownerGym">): MoneyRecordOwnerGym {
+  return purchase.ownerGym ?? { scope: "unresolved" };
+}
 
 // ── Purchase state machine ─────────────────────────────────────────────
 // pending → paid | failed | cancelled ; paid → refunded ; others terminal.
@@ -227,6 +237,7 @@ export function applyPaidPassPurchase(
     bookingId: null,
     expiresAt,
     note: `${product.name} (${product.passCount} passes)`,
+    ownerGym: ownerGymOf(purchase),
     createdAt: creditedAt.toISOString(),
   };
   appendPassLedgerEntry(entry);
@@ -251,6 +262,11 @@ export function applyRefundedPassPurchase(purchase: PurchaseRecord): boolean {
     purchaseId: purchase.id,
     bookingId: null,
     note: "Refund — purchase credit reversed",
+    // Copies the ORIGINAL credit's ownerGym (not re-derived from the
+    // purchase again) so a reversal always nets to zero against the exact
+    // row it corrects, even in a hypothetical future where a purchase's own
+    // resolved gym could differ from what was stamped at credit time.
+    ownerGym: credit.ownerGym ?? ownerGymOf(purchase),
     createdAt: new Date().toISOString(),
   });
   return true;
@@ -270,9 +286,16 @@ export function hasConsumedPassForBooking(bookingId: string): boolean {
 // Spends one purchased pass for a booking. Refuses (returns false) when the
 // member has no positive balance or this booking already consumed — callers
 // treat false as "not covered by pass packs".
+//
+// ownerGym is the CONSUMING member's own current gym (looked up server-side
+// by userId, never client-supplied) — not the originating purchase's gym.
+// Consumption represents present-day use of a specific gym's class
+// allocation, which is the member's current context, not history.
 export function consumePurchasedPass(input: { userId: string; bookingId: string }): boolean {
   if (hasConsumedPassForBooking(input.bookingId)) return false;
   if (purchasedPassBalance(input.userId) <= 0) return false;
+
+  const user = findUserById(input.userId);
 
   appendPassLedgerEntry({
     id: randomUUID(),
@@ -282,6 +305,10 @@ export function consumePurchasedPass(input: { userId: string; bookingId: string 
     purchaseId: null,
     bookingId: input.bookingId,
     note: null,
+    // A user that's vanished between the balance check above and this write
+    // is not guessable at — explicit unresolved, never a silent platform/gym
+    // default.
+    ownerGym: user ? ownerGymForUser(user) : { scope: "unresolved" },
     createdAt: new Date().toISOString(),
   });
   return true;
@@ -304,6 +331,10 @@ export function reversePassConsumption(bookingId: string, note?: string): boolea
     purchaseId: null,
     bookingId,
     note: note ?? "Early cancellation — pass returned",
+    // Copies the ORIGINAL consume entry's ownerGym (not re-derived from the
+    // member's current gym) — same nets-to-zero reasoning as the refund
+    // reversal above.
+    ownerGym: consumed.ownerGym ?? { scope: "unresolved" },
     createdAt: new Date().toISOString(),
   });
   return true;

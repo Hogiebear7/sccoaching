@@ -12,6 +12,7 @@ import {
   createRevenueEvent,
   findAllSubscriptions,
   findMembershipBillingOptionById,
+  findMembershipCategoryById,
   findMembershipPackageById,
   findPurchaseById,
   findPurchaseByProviderOrderId,
@@ -24,17 +25,35 @@ import {
   recordPaymentEvent,
   savePurchase,
   saveSubscription,
+  type MoneyRecordOwnerGym,
   type PurchaseRecord,
+  type SubscriptionRecord,
 } from "@/lib/db";
 import {
   applyPaidPassPurchase,
   applyRefundedPassPurchase,
   transitionPurchase,
 } from "@/lib/payments";
+import { ownerGymForCatalogPackage } from "@/lib/gym-scope";
 import {
   isStripeWebhookConfigured,
   verifyStripeSignature,
 } from "@/lib/providers/stripe-webhook";
+
+// A membership subscription doesn't itself carry ownerGym (out of scope for
+// this hardening pass — see docs/tenant-boundary-audit-2026-09.md follow-up
+// notes), but its gym is derivable the SAME way checkout authorized it in
+// the first place: packageId -> category -> gymId, or the global App
+// Subscription exception. Re-derived fresh each time rather than trusted
+// from anywhere else, so a PaymentEventRecord for a subscription event is
+// never silently mis-scoped.
+function ownerGymForSubscription(subscription: Pick<SubscriptionRecord, "packageId">): MoneyRecordOwnerGym {
+  if (!subscription.packageId) return { scope: "unresolved" };
+  const pkg = findMembershipPackageById(subscription.packageId);
+  if (!pkg) return { scope: "unresolved" };
+  const category = findMembershipCategoryById(pkg.categoryId);
+  return ownerGymForCatalogPackage(pkg, category);
+}
 
 function addIntervalToNow(intervalDays: number): string {
   const periodEnd = new Date();
@@ -95,13 +114,17 @@ export async function POST(request: NextRequest) {
   }
 
   const object = event.data.object;
-  const ack = (message: string) => {
+  // ownerGym defaults to "unresolved" — every branch below that DOES resolve
+  // to a purchase or subscription passes its derived ownership explicitly;
+  // only genuinely unmatched/ignored events fall through to the default.
+  const ack = (message: string, ownerGym: MoneyRecordOwnerGym = { scope: "unresolved" }) => {
     recordPaymentEvent({
       key: event.id as string,
       provider: "stripe",
       type: event.type as string,
       entityId: typeof object.id === "string" ? object.id : null,
       receivedAt: new Date().toISOString(),
+      ownerGym,
     });
     return NextResponse.json({ success: true, message }, { status: 200 });
   };
@@ -119,12 +142,13 @@ export async function POST(request: NextRequest) {
     if (mode === "payment" && sessionId) {
       const purchase = findOneOffPurchaseForSession(sessionId, object);
       if (!purchase) return ack("No matching purchase.");
+      const purchaseOwnerGym = purchase.ownerGym ?? { scope: "unresolved" as const };
       // Delayed payment methods complete the session before the money moves;
       // apply only once Stripe reports paid.
-      if (paymentStatus !== "paid") return ack("Awaiting payment settlement.");
+      if (paymentStatus !== "paid") return ack("Awaiting payment settlement.", purchaseOwnerGym);
 
       const paid = transitionPurchase(purchase, "paid");
-      if (!paid) return ack("No transition applied.");
+      if (!paid) return ack("No transition applied.", purchaseOwnerGym);
 
       const withRef: PurchaseRecord = {
         ...paid,
@@ -143,19 +167,19 @@ export async function POST(request: NextRequest) {
             name: pkg.name,
             validityDays: null,
           });
-          return ack("Passes credited.");
+          return ack("Passes credited.", purchaseOwnerGym);
         }
         console.warn("[stripe webhook] paid pass purchase has no package row", {
           purchaseId: purchase.id,
         });
-        return ack("Passes credited.");
+        return ack("Passes credited.", purchaseOwnerGym);
       }
 
       // A membership-kind one-off purchase has no catalog path anymore.
       console.warn("[stripe webhook] unexpected membership-kind purchase", {
         purchaseId: purchase.id,
       });
-      return ack("No membership activation applied.");
+      return ack("No membership activation applied.", purchaseOwnerGym);
     }
 
     if (mode === "subscription" && sessionId) {
@@ -208,7 +232,10 @@ export async function POST(request: NextRequest) {
               });
           });
         }
-        return ack("Switch confirmed — new membership active, previous subscription cancelled.");
+        return ack(
+          "Switch confirmed — new membership active, previous subscription cancelled.",
+          ownerGymForSubscription(switching)
+        );
       }
 
       const subscription = findSubscriptionBySetupOrderId(sessionId);
@@ -248,7 +275,7 @@ export async function POST(request: NextRequest) {
             });
         });
       }
-      return ack("Membership activated.");
+      return ack("Membership activated.", ownerGymForSubscription(subscription));
     }
 
     return ack("Session mode not handled.");
@@ -258,14 +285,14 @@ export async function POST(request: NextRequest) {
     const sessionId = typeof object.id === "string" ? object.id : null;
     const purchase = sessionId ? findOneOffPurchaseForSession(sessionId, object) : undefined;
     if (purchase) transitionPurchase(purchase, "failed");
-    return ack("Payment failure recorded.");
+    return ack("Payment failure recorded.", purchase?.ownerGym ?? { scope: "unresolved" });
   }
 
   if (event.type === "checkout.session.expired") {
     const sessionId = typeof object.id === "string" ? object.id : null;
     const purchase = sessionId ? findOneOffPurchaseForSession(sessionId, object) : undefined;
     if (purchase) transitionPurchase(purchase, "cancelled");
-    return ack("Expired session recorded.");
+    return ack("Expired session recorded.", purchase?.ownerGym ?? { scope: "unresolved" });
   }
 
   // ── Refunds (pass packs) ──────────────────────────────────────────────
@@ -280,7 +307,10 @@ export async function POST(request: NextRequest) {
     if (purchase && purchase.kind === "pass_pack") {
       const refunded = transitionPurchase(purchase, "refunded");
       if (refunded) applyRefundedPassPurchase(refunded);
-      return ack(refunded ? "Refund applied." : "No transition applied.");
+      return ack(
+        refunded ? "Refund applied." : "No transition applied.",
+        purchase.ownerGym ?? { scope: "unresolved" }
+      );
     }
 
     // Not a pass-pack purchase — check whether this charge belongs to a
@@ -299,7 +329,7 @@ export async function POST(request: NextRequest) {
         "[stripe webhook] Membership charge refunded — staff review required (entitlement not auto-revoked).",
         { userId: subscriptionMatch.userId, customerId, chargeId: typeof object.id === "string" ? object.id : null }
       );
-      return ack("Membership refund noted — staff review required.");
+      return ack("Membership refund noted — staff review required.", ownerGymForSubscription(subscriptionMatch));
     }
 
     return ack("No matching purchase for refund.");
@@ -319,10 +349,11 @@ export async function POST(request: NextRequest) {
       : undefined;
 
     if (!subscription) return ack("No matching subscription for invoice.");
+    const subscriptionOwnerGym = ownerGymForSubscription(subscription);
 
     // A canceled membership stays canceled — a final invoice settling after
     // customer.subscription.deleted must not resurrect access.
-    if (subscription.status === "canceled") return ack("Subscription is canceled.");
+    if (subscription.status === "canceled") return ack("Subscription is canceled.", subscriptionOwnerGym);
 
     // Revenue ledger: the invoice id is the payment's own identity, distinct
     // from event.id — invoice.paid and invoice.payment_succeeded can both
@@ -368,7 +399,7 @@ export async function POST(request: NextRequest) {
       updatedAt: now,
     });
 
-    return ack(advancesPeriod ? "Billing period rolled." : "Payment confirmed.");
+    return ack(advancesPeriod ? "Billing period rolled." : "Payment confirmed.", subscriptionOwnerGym);
   }
 
   // ── Subscription lifecycle ────────────────────────────────────────────
@@ -391,7 +422,7 @@ export async function POST(request: NextRequest) {
           lastWebhookEventAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
-        return ack("Subscription status updated.");
+        return ack("Subscription status updated.", ownerGymForSubscription(subscription));
       }
     }
     return ack("No matching subscription.");

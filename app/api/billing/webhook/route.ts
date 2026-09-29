@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
         type: event,
         entityId,
         receivedAt: new Date().toISOString(),
+        ownerGym: purchase.ownerGym ?? { scope: "unresolved" },
       });
       return NextResponse.json(
         { success: true, message: paid ? "Passes credited." : "No transition applied." },
@@ -167,6 +168,7 @@ export async function POST(request: NextRequest) {
       type: event,
       entityId,
       receivedAt: new Date().toISOString(),
+      ownerGym: purchase.ownerGym ?? { scope: "unresolved" },
     });
     return NextResponse.json({ success: true, message: "Purchase updated." }, { status: 200 });
   }

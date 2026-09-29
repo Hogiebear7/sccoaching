@@ -56,6 +56,7 @@ const PURCHASE = {
   providerOrderId: "rev-order-1",
   checkoutUrl: "https://x",
   idempotencyKey: "user-1:pack-10",
+  ownerGym: { scope: "gym" as const, gymId: "gym-a" },
   createdAt: "2026-07-09T10:00:00.000Z",
   updatedAt: "2026-07-09T10:00:00.000Z",
 };
@@ -107,7 +108,7 @@ describe("billing webhook — class pass purchases", () => {
       purchaseId: "pur-1",
     });
     expect(mockRecordPaymentEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ key: "ORDER_COMPLETED:rev-order-1" })
+      expect.objectContaining({ key: "ORDER_COMPLETED:rev-order-1", ownerGym: { scope: "gym", gymId: "gym-a" } })
     );
   });
 
