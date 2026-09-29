@@ -13,7 +13,7 @@ const { mockFindUserByEmail, mockCreateUser, mockSaveProfile, mockSaveCycleSetti
 
 vi.mock("@/lib/db", () => ({
   findUserByEmail: mockFindUserByEmail,
-  createUser: mockCreateUser,
+  createUserWithRole: mockCreateUser,
   saveProfile: mockSaveProfile,
   saveCycleSettings: mockSaveCycleSettings,
   saveCyclePrivacy: mockSaveCyclePrivacy,

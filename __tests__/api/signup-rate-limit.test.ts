@@ -24,7 +24,6 @@ const h = vi.hoisted(() => ({
   createUserWithRole: vi.fn(),
   createGym: vi.fn(),
   setUserGymId: vi.fn(),
-  createUser: vi.fn(),
   saveProfile: vi.fn(),
   saveCycleSettings: vi.fn(),
   saveCyclePrivacy: vi.fn(),
@@ -76,15 +75,18 @@ beforeEach(() => {
   resetRateLimits();
   h.findUserByEmail.mockReturnValue(undefined);
   h.findGymBySlug.mockReturnValue(undefined);
-  h.createUserWithRole.mockImplementation(() => ({ id: `owner-${++counter}` }));
-  h.createUser.mockImplementation(() => ({ id: `member-${++counter}` }));
+  // All three signup routes now create their account via createUserWithRole
+  // (auth/signup and mobile/auth/signup pass a resolved invite gym as the
+  // 4th argument, or null for self-signup — see lib/invites.ts's
+  // resolveInviteGymId; gyms/signup already used this function before).
+  h.createUserWithRole.mockImplementation(() => ({ id: `member-${++counter}` }));
 });
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.useRealTimers();
 });
 
-const created = (route: (typeof ROUTES)[number]) => (route.name === "gyms/signup" ? h.createUserWithRole : h.createUser);
+const created = () => h.createUserWithRole;
 
 describe.each(ROUTES)("$name — per-client limit (TRUSTED_PROXY_HOPS=1)", (route) => {
   beforeEach(() => vi.stubEnv("TRUSTED_PROXY_HOPS", "1"));
@@ -100,7 +102,7 @@ describe.each(ROUTES)("$name — per-client limit (TRUSTED_PROXY_HOPS=1)", (rout
     expect(over.status).toBe(429);
     expect(await over.json()).toEqual({ success: false, message: "Too many attempts. Try again later." });
     expect(Number(over.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(created(route)).toHaveBeenCalledTimes(route.limit); // the 429'd attempt created nothing
+    expect(created()).toHaveBeenCalledTimes(route.limit); // the 429'd attempt created nothing
   });
 
   it("a different client is unaffected (independent keys)", async () => {
@@ -170,7 +172,7 @@ describe.each(ROUTES)("$name — per-client limit (TRUSTED_PROXY_HOPS=1)", (rout
 
     h.findUserByEmail.mockReturnValue(undefined); // even a genuinely new email is now refused
     expect((await post(route.mod, route.body(), fromIp("203.0.113.9"))).status).toBe(429);
-    expect(created(route)).not.toHaveBeenCalled();
+    expect(created()).not.toHaveBeenCalled();
   });
 
   it("the 429 body is generic: it reveals nothing about the account, the limit or the client", async () => {
@@ -201,7 +203,7 @@ describe.each(ROUTES)("$name — default policy (TRUSTED_PROXY_HOPS unset): no h
     const res = await post(route.mod, route.body(), fromIp("203.0.113.9"));
 
     expect(res.status).toBe(201);
-    expect(created(route)).toHaveBeenCalledTimes(1);
+    expect(created()).toHaveBeenCalledTimes(1);
   });
 });
 
