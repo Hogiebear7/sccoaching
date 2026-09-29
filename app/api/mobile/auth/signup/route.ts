@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { checkClientRateLimit } from "@/lib/client-ip";
-import { createUser, findUserByEmail, saveProfile, saveCycleSettings, saveCyclePrivacy } from "@/lib/db";
-import { redeemInviteForUser } from "@/lib/invites";
+import { createUserWithRole, findUserByEmail, saveProfile, saveCycleSettings, saveCyclePrivacy } from "@/lib/db";
+import { redeemInviteForUser, resolveInviteGymId } from "@/lib/invites";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
 import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 import {
@@ -147,7 +147,21 @@ export async function POST(request: Request) {
     typeof heightCm === "string" && heightCm.trim() !== "" ? Number(heightCm) : null;
 
   const passwordHash = hashPassword(password);
-  const user = createUser(email, passwordHash);
+
+  // A valid invite binds the new account to the INVITER's gym from the
+  // moment it's created — never the primary-gym default, and never a
+  // client-supplied value (gymId is never read from this request body at
+  // all). An invalid/expired/revoked/wrong-email/unresolvable-inviter
+  // invite yields no gym signal (undefined), so the account is created
+  // exactly as it would be with no token — see resolveInviteGymId's own
+  // comment (lib/invites.ts) for why this mirrors every other invite-
+  // failure mode already handled non-blockingly by redeemInviteForUser
+  // below, rather than rejecting the signup outright.
+  const inviteGymId =
+    typeof inviteToken === "string" && inviteToken.trim()
+      ? resolveInviteGymId(inviteToken.trim(), email)
+      : undefined;
+  const user = createUserWithRole(email, passwordHash, "member", inviteGymId ?? null);
   const cycleEligible = isFemaleGender(genderValue);
   const now = new Date().toISOString();
 

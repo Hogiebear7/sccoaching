@@ -1,34 +1,48 @@
-// Signup-time invite redemption, after the gym-scoped grantMemberTier change
-// (lib/tier-grant.ts). Both signup routes —
+// Signup-time invite redemption, after the invite-bound-gym-assignment fix
+// (lib/invites.ts's resolveInviteGymId, wired into both signup routes):
 //   POST /api/auth/signup        (web)
 //   POST /api/mobile/auth/signup (mobile)
-// — create the account with createUser(email, passwordHash), which stores
-// gymId: null (the primary-gym convention, lib/gym-scope.ts), then call
-// redeemInviteForUser(token, user) -> grantMemberTier(user.id, invite.tier) and
-// IGNORE the result: a token that can't be redeemed just leaves a Free account.
 //
-// What this pins, on the real chain signup route -> lib/invites -> lib/tier-grant
-// (only the datastore and the provider-cancel call are mocked):
-//   * a membership invite grants a package owned by the NEW MEMBER's gym — the
-//     primary gym, since signup assigns no gym — never another gym's package,
-//     even when another gym's package sorts first platform-wide (the old pick);
-//   * with no primary-gym package the grant fails closed (nothing saved, no other
-//     gym's package looked up, invite left unconsumed) and the account is still
-//     created as Free (the existing "honor-system" behavior);
-//   * a client-supplied gymId / packageId in the signup body changes nothing;
-//   * invalid-invite, validation, duplicate-email and account-creation behavior
-//     are unchanged.
-// Assigning a gym at signup is an UNRESOLVED PRODUCT DECISION: nothing here
-// invents a policy — it documents that signup accounts are primary-gym (null)
-// accounts, so a gym B invite redeemed at signup attaches the primary gym's
-// package rather than gym B's.
+// Both routes now resolve the inviter's gym BEFORE creating the account —
+// createUserWithRole(email, passwordHash, "member", inviteGymId ?? null) —
+// so the account is born in the inviter's own gym, never patched afterward.
+// A client-supplied gymId in the request body is never read at all.
+//
+// This supersedes the account's OWN previous behavior (documented and
+// pinned by this file before the fix): every invite-driven signup used to
+// unconditionally land in the primary gym regardless of which gym's staff
+// sent the invite, so a Gym B invite silently granted the PRIMARY gym's
+// default package. That was the confirmed second-tenant blocker; the
+// corrected assertions below are the fix, not new policy — the invite's
+// resolved gym is the SAME data (invitedByStaffId -> inviter.gymId) that
+// already existed and was already checked for existing-account redemption.
+//
+// What this pins, on the real chain
+// signup route -> lib/invites (resolveInviteGymId + redeemInviteForUser) ->
+// lib/tier-grant (only the datastore and provider-cancel call are mocked):
+//   * a Gym A invite creates the account in Gym A (gymId: null, the primary-
+//     gym convention) and grants Gym A's own default package;
+//   * a Gym B invite creates the account in GYM B (gymId: "gym-b") and
+//     grants GYM B's own default package — not the primary gym's;
+//   * an invalid/expired/revoked/wrong-email/unresolvable-inviter invite
+//     yields NO gym signal: the account is created exactly as it would be
+//     with no token (gymId: null), matching the existing "an invite problem
+//     never blocks signup" policy — this is the documented fail-closed
+//     behavior for gym ASSIGNMENT specifically, not a rejection of signup;
+//   * a client-supplied gymId / packageId in the signup body changes
+//     nothing — it is never read;
+//   * self-signup with no invite token is completely unchanged: no invite
+//     lookup at all, primary-gym account, exactly as before this fix;
+//   * account creation is a single createUserWithRole(...) call carrying
+//     the already-resolved gym — there is no create-then-fix step, so no
+//     wrong-gym partial account can ever exist, even transiently.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { verifySession } from "@/lib/session";
 
 const h = vi.hoisted(() => ({
   findUserByEmail: vi.fn(),
-  createUser: vi.fn(),
+  createUserWithRole: vi.fn(),
   saveProfile: vi.fn(),
   saveCycleSettings: vi.fn(),
   saveCyclePrivacy: vi.fn(),
@@ -54,8 +68,6 @@ const STAFF_A = user("staff-a", "admin", null);
 const STAFF_B = user("staff-b", "admin", "gym-b");
 
 const NEW_EMAIL = "new-athlete@example.com";
-// Mirrors the real createUser(): role "member", gymId null — signup assigns no gym.
-const NEW_USER = { id: "new-user", email: NEW_EMAIL, role: "member", gymId: null, createdAt: "now", updatedAt: "now" };
 
 const CATEGORIES = [
   { id: "cat-a", gymId: null },
@@ -68,7 +80,6 @@ const pkg = (id: string, categoryId: string, sortOrder: number, deliveryChannel 
   deliveryChannel,
   slug: id,
 });
-// Gym B's package sorts FIRST platform-wide: the old default pick would have chosen it.
 const PKG_B_FIRST = pkg("pkg-b-first", "cat-b", 0);
 const PKG_A_DEFAULT = pkg("pkg-a-default", "cat-a", 1);
 const PKG_A_SECOND = pkg("pkg-a-second", "cat-a", 2);
@@ -136,12 +147,25 @@ async function callMobile(payload: unknown): Promise<SignupResult> {
 }
 
 const savedPackageIds = () => h.saveSubscription.mock.calls.map((c) => c[0].packageId);
+// The gymId createUserWithRole was actually called with — the 4th argument.
+const createdGymIds = () => h.createUserWithRole.mock.calls.map((c) => c[3]);
+
+let createdUser: U | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  createdUser = undefined;
   h.findUserByEmail.mockReturnValue(undefined);
-  h.createUser.mockReturnValue(NEW_USER);
-  h.findUserById.mockImplementation((id: string) => [STAFF_A, STAFF_B, NEW_USER].find((u) => u.id === id));
+  // Mirrors the real createUserWithRole(email, passwordHash, role, gymId):
+  // the created user's gymId is exactly whatever was passed in. Also
+  // registers the created user for findUserById — grantMemberTier (called
+  // during redemption, right after creation) looks the new member back up
+  // by id, and that lookup must see the SAME gymId just assigned.
+  h.createUserWithRole.mockImplementation((email: string, _passwordHash: string, role: string, gymId: string | null) => {
+    createdUser = { id: "new-user", email, role, gymId };
+    return { ...createdUser, createdAt: "now", updatedAt: "now" };
+  });
+  h.findUserById.mockImplementation((id: string) => [STAFF_A, STAFF_B, createdUser].find((u) => u?.id === id) ?? undefined);
   h.findMembershipCategories.mockImplementation(() => CATEGORIES);
   h.findMembershipPackages.mockImplementation(() => ALL_PACKAGES);
   h.findMembershipPackageById.mockImplementation((id: string) => ALL_PACKAGES.find((p) => p.id === id));
@@ -153,98 +177,119 @@ beforeEach(() => {
 describe.each([
   ["web", callWeb],
   ["mobile", callMobile],
-] as const)("%s signup — invite redemption is primary-gym scoped", (_name, signup) => {
-  it("grants the primary gym's default package for a primary-gym invite and consumes the invite", async () => {
+] as const)("%s signup — invite binds the new account to the INVITER's gym", (_name, signup) => {
+  it("Gym A invite: account created in Gym A (primary/null), granted Gym A's own default package", async () => {
     const res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
 
     expect(res.status).toBe(201);
     expect(res.sessionUserId).toBe("new-user");
+    expect(createdGymIds()).toEqual([null]);
     expect(savedPackageIds()).toEqual(["pkg-a-default"]);
     expect(h.saveSubscription.mock.calls[0][0]).toMatchObject({ userId: "new-user", status: "active" });
     expect(h.redeemInvite).toHaveBeenCalledWith("inv-1", "new-user");
   });
 
-  it("never grants another gym's package — even a gym B invite gets the primary gym's package, not gym B's first-sorted one", async () => {
+  it("Gym B invite: account created in GYM B, granted GYM B's own default package — never the primary gym's (THE FIX)", async () => {
     h.findInviteByToken.mockReturnValue(invite(STAFF_B.id));
 
     const res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
 
     expect(res.status).toBe(201);
-    expect(savedPackageIds()).toEqual(["pkg-a-default"]);
-    expect(savedPackageIds()).not.toContain("pkg-b-first");
-    expect(savedPackageIds().some((id) => id.startsWith("pkg-b"))).toBe(false);
-    // The default path never looks a package up by id, so no other gym's package is even fetched.
-    expect(h.findMembershipPackageById).not.toHaveBeenCalled();
+    expect(createdGymIds()).toEqual(["gym-b"]);
+    expect(savedPackageIds()).toEqual(["pkg-b-first"]);
+    expect(savedPackageIds()).not.toContain("pkg-a-default");
   });
 
-  it("with no primary-gym package the grant fails closed, and signup still creates a Free account", async () => {
-    h.findMembershipPackages.mockReturnValue([PKG_B_FIRST, PKG_B_SECOND, PKG_APP]); // no primary-gym package
+  it("resolves the inviter's gym BEFORE account creation — one atomic call, never create-then-fix", async () => {
+    h.findInviteByToken.mockReturnValue(invite(STAFF_B.id));
+    await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
+
+    expect(h.createUserWithRole).toHaveBeenCalledTimes(1);
+    // The gym was already resolved and passed in on this single call —
+    // no second write ever changes gymId afterward.
+    expect(h.createUserWithRole).toHaveBeenCalledWith(NEW_EMAIL, expect.any(String), "member", "gym-b");
+  });
+
+  it("with no gym-b package the grant fails closed, but the account still correctly belongs to gym-b", async () => {
+    h.findInviteByToken.mockReturnValue(invite(STAFF_B.id));
+    h.findMembershipPackages.mockReturnValue([PKG_A_DEFAULT, PKG_A_SECOND, PKG_APP]); // no gym-b package
 
     const res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
 
-    // Existing behavior: a failed invite grant never blocks account creation.
     expect(res.status).toBe(201);
-    expect(res.sessionUserId).toBe("new-user");
-    expect(h.createUser).toHaveBeenCalledTimes(1);
-    expect(h.saveProfile).toHaveBeenCalledTimes(1);
-    // Fail closed: no subscription written, no other gym's package selected or fetched, invite left pending.
+    // Gym assignment happens independently of, and before, the tier grant.
+    expect(createdGymIds()).toEqual(["gym-b"]);
+    // Fail closed: no subscription written, no other gym's package selected, invite left pending.
     expect(h.saveSubscription).not.toHaveBeenCalled();
     expect(h.findMembershipPackageById).not.toHaveBeenCalled();
     expect(h.redeemInvite).not.toHaveBeenCalled();
   });
 
-  it("stays compatible for a single-gym (all primary) catalog: lowest-sortOrder package, and the app-subscription invite is unchanged", async () => {
-    h.findMembershipPackages.mockReturnValue([PKG_A_SECOND, PKG_A_DEFAULT]);
+  it("app_subscription invite still resolves the platform-wide app-only package, independent of the inviter's gym", async () => {
+    h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { tier: "app_subscription" }));
 
     await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
-    expect(savedPackageIds()).toEqual(["pkg-a-default"]);
 
-    // app_subscription resolves the platform-wide app-only package by slug, independent of gym.
-    vi.clearAllMocks();
-    h.findUserByEmail.mockReturnValue(undefined);
-    h.createUser.mockReturnValue(NEW_USER);
-    h.findUserById.mockImplementation((id: string) => [STAFF_A, STAFF_B, NEW_USER].find((u) => u.id === id));
-    h.findMembershipPackages.mockReturnValue(ALL_PACKAGES);
-    h.findSubscriptionByUserId.mockReturnValue(undefined);
-    h.findInviteByToken.mockReturnValue(invite(STAFF_A.id, { tier: "app_subscription" }));
-    h.redeemInvite.mockReturnValue({ ...invite(STAFF_A.id), status: "redeemed" });
-
-    await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
+    expect(createdGymIds()).toEqual(["gym-b"]);
     expect(savedPackageIds()).toEqual(["pkg-app"]);
   });
 
-  it("ignores a client-supplied gymId / packageId in the signup body", async () => {
-    const res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok", gymId: "gym-b", packageId: "pkg-b-first" });
+  it("ignores a client-supplied gymId / packageId in the signup body — the inviter's gym always wins", async () => {
+    h.findInviteByToken.mockReturnValue(invite(STAFF_B.id));
+
+    const res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok", gymId: "gym-a-attempt", packageId: "pkg-a-default" });
 
     expect(res.status).toBe(201);
-    expect(savedPackageIds()).toEqual(["pkg-a-default"]);
+    expect(createdGymIds()).toEqual(["gym-b"]); // inviter's gym, not the client-supplied one
+    expect(savedPackageIds()).toEqual(["pkg-b-first"]);
     expect(h.findMembershipPackageById).not.toHaveBeenCalled();
-    // The account is created by the same two-argument call, and no gym reaches the profile.
-    expect(h.createUser).toHaveBeenCalledTimes(1);
-    expect(h.createUser.mock.calls[0]).toHaveLength(2);
     expect(h.saveProfile.mock.calls[0][0]).not.toHaveProperty("gymId");
   });
 
-  it("leaves invalid-invite handling unchanged: unknown, mismatched-email and used invites just leave a Free account", async () => {
+  it("an unknown, mismatched-email, already-redeemed, or revoked invite yields NO gym signal — account lands in the primary gym, same as no token at all", async () => {
     h.findInviteByToken.mockReturnValue(undefined);
-    expect((await signup({ ...VALID_PAYLOAD, inviteToken: "bogus" })).status).toBe(201);
+    let res = await signup({ ...VALID_PAYLOAD, inviteToken: "bogus" });
+    expect(res.status).toBe(201);
 
-    h.findInviteByToken.mockReturnValue(invite(STAFF_A.id, { email: "someone-else@example.com" }));
-    expect((await signup({ ...VALID_PAYLOAD, inviteToken: "tok" })).status).toBe(201);
+    h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { email: "someone-else@example.com" }));
+    res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
+    expect(res.status).toBe(201);
 
-    h.findInviteByToken.mockReturnValue(invite(STAFF_A.id, { status: "redeemed" }));
-    expect((await signup({ ...VALID_PAYLOAD, inviteToken: "tok" })).status).toBe(201);
+    h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { status: "redeemed" }));
+    res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
+    expect(res.status).toBe(201);
 
+    h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { status: "revoked" }));
+    res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
+    expect(res.status).toBe(201);
+
+    h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { status: "expired" }));
+    res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
+    expect(res.status).toBe(201);
+
+    // Every one of the 5 calls above created a primary-gym (null) account —
+    // never gym-b, and never a guess.
+    expect(createdGymIds()).toEqual([null, null, null, null, null]);
     expect(h.saveSubscription).not.toHaveBeenCalled();
     expect(h.redeemInvite).not.toHaveBeenCalled();
-    expect(h.createUser).toHaveBeenCalledTimes(3);
   });
 
-  it("does not look up any invite or package when there is no invite token (existing behavior)", async () => {
+  it("an inviter whose account no longer resolves fails closed on gym assignment — primary gym, never a guess", async () => {
+    h.findInviteByToken.mockReturnValue(invite("deleted-staff-id"));
+    // findUserById already returns undefined for any id it doesn't recognize.
+
+    const res = await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
+
+    expect(res.status).toBe(201);
+    expect(createdGymIds()).toEqual([null]);
+  });
+
+  it("does not look up any invite, inviter, or package when there is no invite token (self-signup, unchanged)", async () => {
     const res = await signup(VALID_PAYLOAD);
 
     expect(res.status).toBe(201);
     expect(res.sessionUserId).toBe("new-user");
+    expect(createdGymIds()).toEqual([null]);
     expect(h.findInviteByToken).not.toHaveBeenCalled();
     expect(h.findMembershipPackages).not.toHaveBeenCalled();
     expect(h.saveSubscription).not.toHaveBeenCalled();
@@ -263,7 +308,7 @@ describe.each([
     expect(duplicate.status).toBe(400);
     expect(duplicate.body.message).toBe("Unable to create account.");
 
-    expect(h.createUser).not.toHaveBeenCalled();
+    expect(h.createUserWithRole).not.toHaveBeenCalled();
     expect(h.findInviteByToken).not.toHaveBeenCalled();
     expect(h.saveSubscription).not.toHaveBeenCalled();
   });
