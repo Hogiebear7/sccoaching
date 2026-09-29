@@ -9,7 +9,7 @@ import {
   saveSubscription,
   type SubscriptionRecord,
 } from "@/lib/db";
-import { sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
+import { ownerGymForCatalogPackage, sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
   // lib/gym-scope.ts). Folded into the same not-found response as a
   // missing/hidden package so a cross-gym package's existence isn't
   // revealed, and it runs before saveSubscription below.
-  const ownedByAdminGym =
-    !!pkg && staffAuthorizedForCatalogPackage(staffUser, pkg, findMembershipCategoryById(pkg.categoryId));
+  const category = pkg ? findMembershipCategoryById(pkg.categoryId) : undefined;
+  const ownedByAdminGym = !!pkg && staffAuthorizedForCatalogPackage(staffUser, pkg, category);
 
   if (!pkg || !pkg.visible || !ownedByAdminGym) {
     return NextResponse.json(
@@ -130,6 +130,13 @@ export async function POST(request: NextRequest) {
     sessionsUsedThisPeriod: 0,
     extraSessionGrants: [],
     periodLapsedNotifiedAt: null,
+    // Immutable historical provenance: if this member already has a row, its
+    // ownerGym wins exactly as stored, falling back to explicit "unresolved"
+    // (never silently recomputed) for a row that predates this field. Fresh
+    // ownership (from the same already-authorized package/category above) is
+    // only ever stamped the first time this member gets a subscription row
+    // at all.
+    ownerGym: existing ? existing.ownerGym ?? { scope: "unresolved" } : ownerGymForCatalogPackage(pkg, category),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

@@ -10,7 +10,7 @@ import {
   type SubscriptionRecord,
   type SubscriptionStatus,
 } from "@/lib/db";
-import { sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
+import { ownerGymForCatalogPackage, sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { cancelProviderSubscription } from "@/lib/billing";
@@ -95,10 +95,10 @@ export async function POST(
   // same not-found response as a genuinely missing package, and it runs
   // before the provider cancel and saveSubscription below.
   const resolvedPackage = resolvedPackageId ? findMembershipPackageById(resolvedPackageId) : undefined;
+  const resolvedCategory = resolvedPackage ? findMembershipCategoryById(resolvedPackage.categoryId) : undefined;
   if (
     resolvedPackageId &&
-    (!resolvedPackage ||
-      !staffAuthorizedForCatalogPackage(staffUser, resolvedPackage, findMembershipCategoryById(resolvedPackage.categoryId)))
+    (!resolvedPackage || !staffAuthorizedForCatalogPackage(staffUser, resolvedPackage, resolvedCategory))
   ) {
     return NextResponse.json(
       { success: false, message: "This package does not exist." },
@@ -169,6 +169,19 @@ export async function POST(
     periodLapsedNotifiedAt: isEnteringFreshActivePeriod
       ? null
       : existingSubscription?.periodLapsedNotifiedAt ?? null,
+    // Immutable historical provenance: if this member already has a row, its
+    // ownerGym wins exactly as stored — falling back to explicit
+    // "unresolved" (never silently recomputed) for a row that predates this
+    // field — even across a package/tier CHANGE (see
+    // SubscriptionRecord.ownerGym's own "known open question" comment in
+    // lib/db.ts). Fresh ownership (from the same already-authorized
+    // package/category above) is only ever stamped the first time this
+    // member gets a subscription row at all.
+    ownerGym: existingSubscription
+      ? existingSubscription.ownerGym ?? { scope: "unresolved" }
+      : resolvedPackage
+        ? ownerGymForCatalogPackage(resolvedPackage, resolvedCategory)
+        : undefined,
     createdAt: existingSubscription?.createdAt ?? now,
     updatedAt: now,
   };

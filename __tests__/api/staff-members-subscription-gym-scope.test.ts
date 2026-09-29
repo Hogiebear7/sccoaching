@@ -237,4 +237,36 @@ describe("POST /api/staff/members/[userId]/subscription — package ownership", 
     expect(res.status).toBe(403);
     expectNoMutation();
   });
+
+  it("stamps a brand-new subscription with the resolved gym", async () => {
+    await post(GYM_A_MEMBER.id, { status: "active", packageId: "pkg-a" }, GYM_A_STAFF.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: null });
+
+    vi.clearAllMocks();
+    h.findMembershipPackageById.mockImplementation((id: string) => (id === "pkg-b" ? pkg("pkg-b", "cat-b") : undefined));
+    await post(GYM_B_MEMBER.id, { status: "active", packageId: "pkg-b" }, GYM_B_STAFF.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-b" });
+  });
+
+  it("stamps { scope: 'platform' } for the global app-only package", async () => {
+    h.findMembershipPackageById.mockReturnValue(
+      pkg("pkg-app", "cat-b", { deliveryChannel: "app_only", billingChannel: "google_play", slug: "app-subscription-tier-2" })
+    );
+    await post(GYM_A_MEMBER.id, { status: "active", packageId: "pkg-app" }, GYM_A_STAFF.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+  });
+
+  it("preserves an existing subscription's ownerGym unchanged across a package/status override, even a cross-type one", async () => {
+    h.findSubscriptionByUserId.mockReturnValue({ ...STRIPE_SUBSCRIPTION, provider: "none", packageId: "pkg-a", ownerGym: { scope: "platform" } });
+
+    await post(GYM_A_MEMBER.id, { status: "canceled" }, GYM_A_STAFF.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+  });
+
+  it("falls back to explicit unresolved for an existing row that predates this field, never recomputing", async () => {
+    h.findSubscriptionByUserId.mockReturnValue({ ...STRIPE_SUBSCRIPTION, provider: "none", packageId: "pkg-a", ownerGym: undefined });
+
+    await post(GYM_A_MEMBER.id, { status: "canceled" }, GYM_A_STAFF.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "unresolved" });
+  });
 });

@@ -468,3 +468,105 @@ describe("POST /api/membership/checkout — ownerGym persisted on the purchase",
     expect(mockSavePurchase).not.toHaveBeenCalled();
   });
 });
+
+// SubscriptionRecord.ownerGym — immutable historical provenance, stamped
+// exactly once at creation, mirroring PurchaseRecord's pattern above.
+describe("POST /api/membership/checkout — ownerGym persisted on the subscription", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindUserById.mockReturnValue(MEMBER);
+    mockFindPackage.mockReturnValue(PKG);
+    mockFindCategory.mockReturnValue(GYM_A_CATEGORY);
+    mockActiveProvider.mockReturnValue("stripe");
+    mockFindPurchaseByKey.mockReturnValue(undefined);
+    mockFindSubByUser.mockReturnValue(undefined);
+    mockCreateCatalogCheckout.mockResolvedValue({
+      provider: "stripe", mode: "subscription", sessionId: "cs_1", checkoutUrl: "https://x/1", error: null,
+    });
+  });
+
+  it("a brand-new subscription is stamped with the resolved gym", async () => {
+    mockFindOption.mockReturnValue({ ...RECURRING, packageId: "pkg1" });
+    mockFindCategory.mockReturnValue({ ...GYM_A_CATEGORY, gymId: "gym-a" });
+    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" });
+
+    const res = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(res.status).toBe(200);
+    expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
+  });
+
+  it("the global App Subscription option stamps { scope: 'platform' }", async () => {
+    const appOnlyPkg = { ...PKG, id: "pkg_app", deliveryChannel: "app_only" as const };
+    mockFindOption.mockReturnValue({ ...RECURRING, packageId: "pkg_app" });
+    mockFindPackage.mockReturnValue(appOnlyPkg);
+    mockFindCategory.mockReturnValue({ id: "c1", gymId: "gym-b" });
+    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" });
+
+    const res = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(res.status).toBe(200);
+    expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+  });
+
+  it("resubscribing after cancellation preserves the ORIGINAL ownerGym, never re-derived from the current checkout", async () => {
+    // Authorization is ordinary same-gym (member and category both gym-a) —
+    // but the existing (canceled) row's stored ownerGym is deliberately set
+    // to something a FRESH computation would never produce ("platform"),
+    // proving the row's own value wins rather than being recomputed.
+    mockFindSubByUser.mockReturnValue({
+      status: "canceled",
+      ownerGym: { scope: "platform" },
+      createdAt: "2020-01-01T00:00:00.000Z",
+    });
+    mockFindOption.mockReturnValue({ ...RECURRING, packageId: "pkg1" });
+    mockFindCategory.mockReturnValue({ ...GYM_A_CATEGORY, gymId: "gym-a" });
+    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" });
+
+    const res = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(res.status).toBe(200);
+    expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+  });
+
+  it("a client-supplied gymId in the request body is never read or used", async () => {
+    mockFindOption.mockReturnValue({ ...RECURRING, packageId: "pkg1" });
+    mockFindCategory.mockReturnValue({ ...GYM_A_CATEGORY, gymId: "gym-a" });
+    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" });
+
+    const res = await call({ billingOptionId: "opt_rec", gymId: "gym-b-attempt" }, cookie());
+    expect(res.status).toBe(200);
+    expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
+  });
+
+  it("a package SWITCH preserves the existing subscription's ownerGym unchanged, regardless of the new option's own resolution", async () => {
+    const future = new Date(Date.now() + 20 * 86_400_000).toISOString();
+    // Ordinary same-gym authorization (member and new option's category both
+    // gym-a) — but the existing active subscription's stored ownerGym is
+    // deliberately "platform" (representing, e.g., a prior App Subscription
+    // enrollment — see lib/db.ts's SubscriptionRecord.ownerGym comment on
+    // this exact open cross-type-switch question). The switch itself only
+    // STAGES pending fields via a spread of the existing record; it must
+    // never recompute or touch ownerGym.
+    mockFindOption.mockReturnValue({ ...RECURRING, packageId: "pkg1" });
+    mockFindSubByUser.mockReturnValue({
+      userId: MEMBER.id, status: "active", packageId: "pkg_old", billingOptionId: "opt_other",
+      providerSubscriptionId: "sub_old", currentPeriodEnd: future,
+      ownerGym: { scope: "platform" },
+    });
+    mockFindCategory.mockReturnValue({ ...GYM_A_CATEGORY, gymId: "gym-a" });
+    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" });
+
+    const res = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(res.status).toBe(200);
+    for (const [saved] of mockSaveSubscription.mock.calls) {
+      expect(saved.ownerGym).toEqual({ scope: "platform" });
+    }
+  });
+
+  it("never creates a subscription for a denied cross-gym request", async () => {
+    mockFindOption.mockReturnValue({ ...RECURRING, packageId: "pkg1" });
+    mockFindCategory.mockReturnValue(GYM_B_CATEGORY);
+
+    const res = await call({ billingOptionId: "opt_rec" }, cookie());
+    expect(res.status).toBe(404);
+    expect(mockSaveSubscription).not.toHaveBeenCalled();
+  });
+});

@@ -228,6 +228,32 @@ describe("POST /api/admin/membership/activate — package ownership", () => {
     expect((await res.json()).message).toBe("Only staff can activate memberships.");
     expect(h.saveSubscription).not.toHaveBeenCalled();
   });
+
+  it("stamps a brand-new subscription with the resolved gym", async () => {
+    await activate("pkg-a", GYM_A_ADMIN.id, GYM_A_MEMBER.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: null });
+
+    vi.clearAllMocks();
+    h.findMembershipPackageById.mockImplementation((id: string) => (id === "pkg-b" ? pkg("pkg-b", "cat-b") : undefined));
+    await activate("pkg-b", GYM_B_ADMIN.id, GYM_B_MEMBER.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-b" });
+  });
+
+  it("stamps { scope: 'platform' } for the app-only package", async () => {
+    h.findMembershipPackageById.mockReturnValue(
+      pkg("pkg-app", "cat-b", { deliveryChannel: "app_only", billingChannel: "google_play", slug: "app-subscription-tier-2" })
+    );
+    await activate("pkg-app", GYM_A_ADMIN.id, GYM_A_MEMBER.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+  });
+
+  it("preserves an existing subscription's ownerGym unchanged across a re-activation onto a different package", async () => {
+    h.findSubscriptionByUserId.mockReturnValue({
+      userId: GYM_A_MEMBER.id, packageId: "pkg-old", status: "canceled", ownerGym: { scope: "platform" },
+    });
+    await activate("pkg-a", GYM_A_ADMIN.id, GYM_A_MEMBER.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+  });
 });
 
 // Target-member gym gate. Admin gym, target-member gym, package gym, and

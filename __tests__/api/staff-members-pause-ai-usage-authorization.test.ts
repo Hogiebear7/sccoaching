@@ -108,6 +108,20 @@ describe("POST /members/[userId]/pause — same-gym authorized controls", () => 
     expect(h.saveSubscription).toHaveBeenCalledWith(expect.objectContaining({ status: "active", pausedUntil: null }));
   });
 
+  it("preserves ownerGym unchanged across a pause and a resume — never recomputed", async () => {
+    h.findSubscriptionByUserId.mockReturnValue({ ...activeSubscription(), ownerGym: { scope: "gym", gymId: null } });
+    await doPause(A_MEMBER.id, A_ADMIN.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: null });
+
+    h.saveSubscription.mockClear();
+    h.findSubscriptionByUserId.mockReturnValue({
+      ...activeSubscription(), status: "paused", statusBeforePause: "active",
+      pausedUntil: "2030-01-01T00:00:00.000Z", ownerGym: { scope: "gym", gymId: null },
+    });
+    await pause(A_MEMBER.id, { action: "resume" }, A_ADMIN.id);
+    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: null });
+  });
+
   it("works inside a second tenant (Tenant B admin, Tenant B member)", async () => {
     h.findSubscriptionByUserId.mockReturnValue({ ...activeSubscription(), userId: B_MEMBER.id });
 

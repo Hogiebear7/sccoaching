@@ -6,10 +6,11 @@ import {
   findUserById,
   saveSubscription,
   type MembershipPackageRecord,
+  type MoneyRecordOwnerGym,
   type StoredUser,
   type SubscriptionRecord,
 } from "@/lib/db";
-import { sameGym } from "@/lib/gym-scope";
+import { ownerGymForCatalogPackage, sameGym } from "@/lib/gym-scope";
 import type { MemberTier } from "@/lib/member-access";
 import { resolveMemberTier } from "@/lib/membership-entitlement";
 import { cancelProviderSubscription } from "@/lib/billing";
@@ -68,6 +69,10 @@ export async function grantMemberTier(
 
   let resolvedPackageId: string | null;
   let resolvedStatus: SubscriptionRecord["status"];
+  // Only computed when a row might not already exist (app_subscription and
+  // membership branches) — the "free" branch always has an existing row
+  // (guaranteed by its own early return below), so it never needs one.
+  let freshOwnerGym: MoneyRecordOwnerGym | undefined;
 
   if (tier === "free") {
     if (!existingSubscription || existingSubscription.status === "canceled") {
@@ -85,6 +90,7 @@ export async function grantMemberTier(
     }
     resolvedPackageId = pkg.id;
     resolvedStatus = options?.status ?? "active";
+    freshOwnerGym = { scope: "platform" };
   } else {
     // The receiving member's gym decides which packages are eligible.
     const member = findUserById(userId);
@@ -107,6 +113,10 @@ export async function grantMemberTier(
     }
     resolvedPackageId = pkg.id;
     resolvedStatus = "active";
+    // pkg is never app_only here (checked above / excluded by
+    // defaultMembershipPackage's own filter), so this always resolves "gym",
+    // never "platform" — consistent with ownerGymForCatalogPackage's own logic.
+    freshOwnerGym = ownerGymForCatalogPackage(pkg, findMembershipCategories().find((c) => c.id === pkg.categoryId));
   }
 
   const now = new Date().toISOString();
@@ -151,6 +161,14 @@ export async function grantMemberTier(
     sessionsUsedThisPeriod: isEnteringFreshActivePeriod ? 0 : existingSubscription?.sessionsUsedThisPeriod ?? 0,
     extraSessionGrants: isEnteringFreshActivePeriod ? [] : existingSubscription?.extraSessionGrants ?? [],
     periodLapsedNotifiedAt: isEnteringFreshActivePeriod ? null : existingSubscription?.periodLapsedNotifiedAt ?? null,
+    // Immutable historical provenance: if a row already exists, its ownerGym
+    // wins EXACTLY as stored — falling back to explicit "unresolved" (never
+    // silently recomputed) for a row that predates this field — even across
+    // a tier CHANGE (e.g. Membership <-> App Subscription; see
+    // SubscriptionRecord.ownerGym's own "known open question" comment in
+    // lib/db.ts). Fresh ownership is only ever stamped the first time this
+    // user gets a subscription row at all.
+    ownerGym: existingSubscription ? existingSubscription.ownerGym ?? { scope: "unresolved" } : freshOwnerGym,
     createdAt: existingSubscription?.createdAt ?? now,
     updatedAt: now,
   };
