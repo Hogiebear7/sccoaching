@@ -16,6 +16,8 @@ import {
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import {
   acknowledgeGooglePlaySubscription,
+  googlePlayAccountBindingMatches,
+  googlePlayObfuscatedAccountId,
   isGooglePlayConfigured,
   mapGooglePlaySubscriptionState,
   verifyGooglePlaySubscriptionPurchase,
@@ -31,10 +33,24 @@ import { APP_SUBSCRIPTION_PACKAGE_SLUG, grantMemberTier } from "@/lib/tier-grant
 // idempotent — for the SAME account. A token already recorded against a
 // different account is rejected (see purchaseOwnedByAnotherUser): the session
 // user is the only identity ever used, and an existing purchase's owner is
-// never overwritten.
+// never overwritten. For a token with no existing owner, the session user
+// must also match the account binding Google echoes back on the purchase
+// (see the FIRST-CLAIM PROTECTION comment below and ACCOUNT_BINDING_REQUIRED)
+// — proving "this session actually made this purchase," not just "this
+// session got here first."
 const TOKEN_OWNED_BY_OTHER = {
   success: false,
   message: "This purchase is already linked to another account.",
+} as const;
+
+// Generic on purpose: missing, malformed, and mismatched all collapse to the
+// same response — telling an attacker WHICH reason applied would itself leak
+// information about whether a binding was sent at all. Only ever returned
+// for a token with NO existing owner (see the FIRST-CLAIM comment below); a
+// token this session user already owns stays idempotent regardless.
+const ACCOUNT_BINDING_REQUIRED = {
+  success: false,
+  message: "This purchase could not be verified for your account.",
 } as const;
 
 // A recorded purchase with a different, non-null owner belongs to someone else.
@@ -112,6 +128,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(TOKEN_OWNED_BY_OTHER, { status: 409 });
   }
 
+  // FIRST-CLAIM PROTECTION: this block (recheck -> binding check -> save)
+  // has no await in it, so it runs to completion before any other request's
+  // continuation gets a turn (Node's single-threaded event loop) — two
+  // concurrent verify calls for the same brand-new token cannot both
+  // succeed; whichever's continuation resumes first completes this whole
+  // block atomically, and the other's own recheck above then correctly sees
+  // the already-saved owner and returns TOKEN_OWNED_BY_OTHER. What this
+  // block adds is a SEPARATE, additional protection: even the FIRST request
+  // to reach here must prove it's the actual purchaser, via the binding
+  // Google echoes back — not just "first to submit the raw token" — because
+  // a stolen token has no legitimate "first claimant" at all. Only applies
+  // to a token with no existing owner: a token this session user already
+  // owns (existingPurchase.userId === sessionUserId) stays idempotent
+  // without needing to resend a binding, e.g. across a Play "restore
+  // purchases" call.
+  if (!existingPurchase) {
+    const expectedBinding = googlePlayObfuscatedAccountId(sessionUserId);
+    if (!expectedBinding || !googlePlayAccountBindingMatches(expectedBinding, sub.obfuscatedExternalAccountId)) {
+      return NextResponse.json(ACCOUNT_BINDING_REQUIRED, { status: 409 });
+    }
+  }
+
   const purchaseRecord: GooglePlayPurchaseRecord = {
     id: existingPurchase?.id ?? randomUUID(),
     userId: sessionUserId,
@@ -125,6 +163,11 @@ export async function POST(request: NextRequest) {
     autoRenewing: sub.autoRenewing,
     startTimeMillis: sub.startTimeMillis,
     expiryTimeMillis: sub.expiryTimeMillis,
+    // Stored for audit only — this is already an opaque one-way hash, never
+    // the raw userId. A missing/mismatched binding never reaches this line
+    // for a new claim (rejected above); an idempotent same-user re-verify
+    // keeps whichever value was recorded when the binding was last present.
+    obfuscatedExternalAccountId: sub.obfuscatedExternalAccountId ?? existingPurchase?.obfuscatedExternalAccountId ?? null,
     createdAt: existingPurchase?.createdAt ?? now,
     updatedAt: now,
   };

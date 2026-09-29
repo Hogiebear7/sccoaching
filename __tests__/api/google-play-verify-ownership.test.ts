@@ -24,6 +24,8 @@ const h = vi.hoisted(() => ({
   verifyGooglePlaySubscriptionPurchase: vi.fn(),
   grantMemberTier: vi.fn(),
   findUserById: vi.fn(),
+  googlePlayObfuscatedAccountId: vi.fn(),
+  googlePlayAccountBindingMatches: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   findUserById: h.findUserById,
@@ -39,6 +41,8 @@ vi.mock("@/lib/providers/google-play", () => ({
   isGooglePlayConfigured: h.isGooglePlayConfigured,
   mapGooglePlaySubscriptionState: h.mapGooglePlaySubscriptionState,
   verifyGooglePlaySubscriptionPurchase: h.verifyGooglePlaySubscriptionPurchase,
+  googlePlayObfuscatedAccountId: h.googlePlayObfuscatedAccountId,
+  googlePlayAccountBindingMatches: h.googlePlayAccountBindingMatches,
 }));
 vi.mock("@/lib/tier-grant", () => ({
   APP_SUBSCRIPTION_PACKAGE_SLUG: "app-subscription",
@@ -110,6 +114,11 @@ beforeEach(() => {
   h.mapGooglePlaySubscriptionState.mockReturnValue({ playStatus: "active", appStatus: "active" });
   h.findRevenueEventByProviderRef.mockReturnValue(undefined);
   h.grantMemberTier.mockResolvedValue({ ok: true, tier: "app_subscription" });
+  // Account-binding is exercised in its own dedicated test file; here it's
+  // stubbed to always match so these ownership/idempotency assertions aren't
+  // coupled to binding behavior.
+  h.googlePlayObfuscatedAccountId.mockReturnValue("expected-binding");
+  h.googlePlayAccountBindingMatches.mockReturnValue(true);
 });
 
 describe("POST /api/mobile/billing/google-play/verify — token ownership", () => {
