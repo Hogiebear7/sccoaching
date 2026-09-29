@@ -17,7 +17,9 @@
 // INCOMING signed token from Google (see google-play-rtdn.ts), which this
 // deliberately does NOT attempt; see that file's header comment for why.
 
-import { createSign } from "crypto";
+import { createHmac, createSign, timingSafeEqual } from "crypto";
+
+import { getConfiguredSessionSecret } from "@/lib/app-config";
 
 const ANDROID_PUBLISHER_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -175,6 +177,11 @@ export interface VerifiedGooglePlaySubscription {
   expiryTimeMillis: number | null;
   autoRenewing: boolean;
   acknowledgementState: "ACKNOWLEDGEMENT_STATE_UNSPECIFIED" | "ACKNOWLEDGEMENT_STATE_PENDING" | "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED" | string;
+  /** Echoed back from the client's setObfuscatedAccountId() call at purchase
+      time (see googlePlayObfuscatedAccountId below) — already present in the
+      SubscriptionPurchaseV2 resource this route calls, just not previously
+      read. Null for a purchase made before the client ever sent one. */
+  obfuscatedExternalAccountId: string | null;
 }
 
 interface SubscriptionsV2Response {
@@ -191,6 +198,10 @@ interface SubscriptionsV2Response {
   linkedPurchaseToken?: string;
   latestOrderId?: string;
   acknowledgementState?: string;
+  externalAccountIdentifiers?: {
+    obfuscatedExternalAccountId?: string;
+    obfuscatedExternalProfileId?: string;
+  };
 }
 
 // Verifies a purchase token against Google directly — the only source of
@@ -227,6 +238,7 @@ export async function verifyGooglePlaySubscriptionPurchase(
       expiryTimeMillis: lineItem?.expiryTime ? new Date(lineItem.expiryTime).getTime() : null,
       autoRenewing: lineItem?.autoRenewingPlan?.autoRenewEnabled ?? false,
       acknowledgementState: body.acknowledgementState ?? "ACKNOWLEDGEMENT_STATE_UNSPECIFIED",
+      obfuscatedExternalAccountId: body.externalAccountIdentifiers?.obfuscatedExternalAccountId ?? null,
     },
   };
 }
@@ -296,4 +308,59 @@ export async function acknowledgeGooglePlaySubscription(
   }
 
   return { ok: true };
+}
+
+// ── Account binding (first-claim protection) ───────────────────────────
+//
+// Google's own guidance for the Billing Library's setObfuscatedAccountId is
+// explicit: never put raw PII in this field — pass a one-way hash of your
+// own internal user id instead. Sent by the mobile client at purchase time,
+// it comes back unchanged in the verified SubscriptionPurchaseV2 resource
+// (see externalAccountIdentifiers above) — giving the server something
+// authoritative to check a purchase token against, independent of whatever
+// account happens to submit the token to this app's own /verify route. A
+// token with no matching (or no) binding is never a legitimate first claim
+// for the session user attempting it, closing the window where a stolen raw
+// purchase token could otherwise be claimed by any account, not just the one
+// that actually bought it.
+//
+// Deliberately reuses SESSION_SECRET (lib/app-config.ts) rather than adding
+// a second required secret: this HMAC's input and output are fully
+// domain-separated from session-token signing (a fixed, distinct prefix, a
+// completely different consumer, never compared against a session token), so
+// a leak of one value doesn't help forge the other — and a whole new
+// required env var for this one purpose would add real deployment friction
+// for no meaningful security gain against the actual threat model here
+// (obfuscating the id sent to Google, and detecting a binding mismatch — not
+// resisting an attacker who has already compromised SESSION_SECRET, at which
+// point far bigger problems already exist).
+const OBFUSCATED_ACCOUNT_ID_DOMAIN = "google-play-obfuscated-account-id:v1:";
+
+/**
+ * The value this app's own users should pass to setObfuscatedAccountId at
+ * purchase time, and the value the server expects Google to echo back for
+ * them. Deterministic for the same userId, not reversible to it without
+ * SESSION_SECRET, and never logged (see the verify route). Returns null only
+ * if SESSION_SECRET isn't configured — callers must treat that as "binding
+ * unavailable," never fall back to an unbound purchase.
+ */
+export function googlePlayObfuscatedAccountId(userId: string): string | null {
+  const secret = getConfiguredSessionSecret();
+  if (!secret) return null;
+  return createHmac("sha256", secret).update(`${OBFUSCATED_ACCOUNT_ID_DOMAIN}${userId}`).digest("hex");
+}
+
+/**
+ * True only for an exact match against the expected value for the
+ * authenticated user — constant-time compare (same convention as
+ * lib/session.ts's own signature verification) so a mismatch can't be
+ * distinguished by timing. False for a missing, empty, or
+ * different-length value — "malformed" and "wrong" are both simply "not a
+ * match," never worth distinguishing to the caller (see the verify route's
+ * generic rejection message).
+ */
+export function googlePlayAccountBindingMatches(expected: string | null, providerValue: string | null): boolean {
+  if (!expected || !providerValue) return false;
+  if (providerValue.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(providerValue, "utf8"));
 }

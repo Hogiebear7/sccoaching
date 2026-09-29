@@ -1140,6 +1140,15 @@ export interface GooglePlayPurchaseRecord {
   autoRenewing: boolean;
   startTimeMillis: number | null;
   expiryTimeMillis: number | null;
+  /** The obfuscated account-binding value Google echoed back for this
+      purchase (see lib/providers/google-play.ts's googlePlayObfuscatedAccountId)
+      — already an opaque one-way hash, never raw PII, safe to store. Null
+      for a purchase made before the mobile client ever sent one; such a
+      record's existing userId remains its trusted owner regardless (the
+      pre-existing ownership check, not this field, is what protects it —
+      see the verify route's own comment on legacy-record policy).
+      Optional/absent on rows written before this field existed. */
+  obfuscatedExternalAccountId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
