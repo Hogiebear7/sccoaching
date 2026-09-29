@@ -408,3 +408,63 @@ describe("POST /api/membership/checkout — gym ownership", () => {
     expectNoMutation();
   });
 });
+
+// MoneyRecordOwnerGym persistence — the SAME resolution the tests above
+// already prove authorizes the checkout is also stamped onto the resulting
+// PurchaseRecord, server-side, never from client input.
+describe("POST /api/membership/checkout — ownerGym persisted on the purchase", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindUserById.mockReturnValue(MEMBER);
+    mockActiveProvider.mockReturnValue("stripe");
+    mockFindPurchaseByKey.mockReturnValue(undefined);
+    mockFindSubByUser.mockReturnValue(undefined);
+    mockCreateCatalogCheckout.mockResolvedValue({
+      provider: "stripe", mode: "payment", sessionId: "cs_2", checkoutUrl: "https://x/2", error: null,
+    });
+  });
+
+  it("stamps a same-gym one-time purchase with { scope: 'gym', gymId } from the resolved category", async () => {
+    mockFindOption.mockReturnValue(ONE_TIME);
+    mockFindPackage.mockReturnValue(PKG);
+    mockFindCategory.mockReturnValue({ ...GYM_A_CATEGORY, gymId: "gym-a" });
+    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" });
+
+    const res = await call({ billingOptionId: "opt_one" }, cookie());
+    expect(res.status).toBe(200);
+    expect(mockSavePurchase.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
+  });
+
+  it("stamps a primary-gym (null gymId) one-time purchase with { scope: 'gym', gymId: null } — not platform", async () => {
+    mockFindOption.mockReturnValue(ONE_TIME);
+    mockFindPackage.mockReturnValue(PKG);
+    mockFindCategory.mockReturnValue(GYM_A_CATEGORY); // gymId: null, the primary-gym convention
+    mockFindUserById.mockReturnValue(MEMBER); // gymId: null
+
+    const res = await call({ billingOptionId: "opt_one" }, cookie());
+    expect(res.status).toBe(200);
+    expect(mockSavePurchase.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: null });
+  });
+
+  it("stamps the global App Subscription one-time purchase with { scope: 'platform' }, regardless of the member's own gym", async () => {
+    const appOnlyPkg = { ...PKG, id: "pkg_app", deliveryChannel: "app_only" as const };
+    mockFindOption.mockReturnValue({ ...ONE_TIME, packageId: "pkg_app" });
+    mockFindPackage.mockReturnValue(appOnlyPkg);
+    mockFindCategory.mockReturnValue({ id: "c1", gymId: "gym-b" }); // category's own gym is irrelevant here
+    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" }); // member is in a DIFFERENT gym
+
+    const res = await call({ billingOptionId: "opt_one" }, cookie());
+    expect(res.status).toBe(200);
+    expect(mockSavePurchase.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+  });
+
+  it("never persists a purchase for a denied cross-gym request — no ownerGym to leak", async () => {
+    mockFindOption.mockReturnValue(ONE_TIME);
+    mockFindPackage.mockReturnValue(PKG);
+    mockFindCategory.mockReturnValue(GYM_B_CATEGORY);
+
+    const res = await call({ billingOptionId: "opt_one" }, cookie());
+    expect(res.status).toBe(404);
+    expect(mockSavePurchase).not.toHaveBeenCalled();
+  });
+});

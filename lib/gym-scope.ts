@@ -13,7 +13,7 @@
 // self-serve gym signup ever sets a real id. Comparing null to null is
 // still a match, which is exactly the "every existing account implicitly
 // belongs to S&C" behavior this is meant to preserve.
-import { findUserById, type MembershipPackageRecord } from "./db";
+import { findUserById, type MembershipPackageRecord, type MoneyRecordOwnerGym } from "./db";
 
 export function sameGym(a: { gymId?: string | null }, b: { gymId?: string | null }): boolean {
   return (a.gymId ?? null) === (b.gymId ?? null);
@@ -50,4 +50,36 @@ export function staffAuthorizedForCatalogPackage(
   category: { gymId?: string | null } | undefined
 ): boolean {
   return isGlobalCatalogPackage(pkg) || (!!category && sameGym(staff, category));
+}
+
+// ── MoneyRecordOwnerGym builders ────────────────────────────────────────
+// Every money record (Purchase, PaymentEvent, PassLedgerEntry,
+// FinanceLedgerEntry — see lib/db.ts) is stamped with one of these at write
+// time. Centralized here so every call site derives ownership the same way
+// as the existing catalog-checkout authorization check above, rather than
+// re-deriving the rule ad hoc per route.
+
+// For a catalog purchase/subscription: mirrors the exact check already used
+// to AUTHORIZE the purchase (isGlobalCatalogPackage / sameGym above) — this
+// is not a new rule, it's the existing one's result, persisted. Caller must
+// have already failed closed on an unresolved category before a purchase is
+// created; `category: undefined` for a resolvable package is a caller bug,
+// not a real state, so it maps to "unresolved" rather than throwing (a
+// dead-money-movement record should never be silently mis-scoped as
+// platform-wide or a wrong gym).
+export function ownerGymForCatalogPackage(
+  pkg: Pick<MembershipPackageRecord, "deliveryChannel">,
+  category: { gymId?: string | null } | undefined
+): MoneyRecordOwnerGym {
+  if (isGlobalCatalogPackage(pkg)) return { scope: "platform" };
+  if (!category) return { scope: "unresolved" };
+  return { scope: "gym", gymId: category.gymId ?? null };
+}
+
+// For a booking-driven or user-linked money record: the acting/owning
+// member's OWN current gym is authoritative — never a client-supplied value,
+// never the acting staff member's gym (a staff action on a member's ledger
+// belongs to the member's gym, not the staff's).
+export function ownerGymForUser(user: { gymId?: string | null }): MoneyRecordOwnerGym {
+  return { scope: "gym", gymId: user.gymId ?? null };
 }

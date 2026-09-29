@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   findUserById: vi.fn(),
   findFinanceLedgerEntryById: vi.fn(),
   findMembershipPackageById: vi.fn(),
+  findGymById: vi.fn(),
   saveFinanceLedgerEntry: vi.fn(),
   deleteFinanceLedgerEntry: vi.fn(),
 }));
@@ -47,6 +48,7 @@ describe("staff finance ledger CRUD", () => {
     date: "2026-08-10T00:00:00.000Z",
     grossAmountCents: 999,
     feeAmountCents: 150,
+    gymScope: { type: "platform" },
   };
 
   it("rejects everyone but a platform_operator (finance.view), including a tenant admin_manager", async () => {
@@ -89,12 +91,12 @@ describe("staff finance ledger CRUD", () => {
   });
 
   it("requires expenseType for an expense entry", async () => {
-    const bad = await post("", { kind: "expense", status: "cleared", date: "2026-08-10T00:00:00.000Z", grossAmountCents: 5000 }, auth(PLATFORM_OPERATOR.id));
+    const bad = await post("", { kind: "expense", status: "cleared", date: "2026-08-10T00:00:00.000Z", grossAmountCents: 5000, gymScope: { type: "platform" } }, auth(PLATFORM_OPERATOR.id));
     expect(bad.status).toBe(400);
 
     const ok = await post(
       "",
-      { kind: "expense", expenseType: "payroll", status: "cleared", date: "2026-08-10T00:00:00.000Z", grossAmountCents: 5000 },
+      { kind: "expense", expenseType: "payroll", status: "cleared", date: "2026-08-10T00:00:00.000Z", grossAmountCents: 5000, gymScope: { type: "platform" } },
       auth(PLATFORM_OPERATOR.id)
     );
     expect(ok.status).toBe(200);
@@ -105,7 +107,7 @@ describe("staff finance ledger CRUD", () => {
   it("requires feeType for a fee entry", async () => {
     const res = await post(
       "",
-      { kind: "fee", feeType: "stripe_fee", status: "cleared", date: "2026-08-10T00:00:00.000Z", grossAmountCents: 250 },
+      { kind: "fee", feeType: "stripe_fee", status: "cleared", date: "2026-08-10T00:00:00.000Z", grossAmountCents: 250, gymScope: { type: "platform" } },
       auth(PLATFORM_OPERATOR.id)
     );
     expect(res.status).toBe(200);
@@ -145,6 +147,49 @@ describe("staff finance ledger CRUD", () => {
       createdByUserId: "someone-else",
       sourceExternalId: "ext-1",
     });
+  });
+
+  it("requires an explicit gym scope when no member is linked", async () => {
+    const noScope: Record<string, unknown> = { ...incomePayload };
+    delete noScope.gymScope;
+    const res = await post("", noScope, auth(PLATFORM_OPERATOR.id));
+    expect(res.status).toBe(400);
+    expect(h.saveFinanceLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it("accepts an explicit platform scope and stamps it on the entry", async () => {
+    const res = await post("", { ...incomePayload, gymScope: { type: "platform" } }, auth(PLATFORM_OPERATOR.id));
+    expect(res.status).toBe(200);
+    expect(h.saveFinanceLedgerEntry.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+  });
+
+  it("accepts an explicit gym scope, validated against a real GymRecord", async () => {
+    h.findGymById.mockReturnValue({ id: "gym-a", name: "Gym A" });
+    const res = await post("", { ...incomePayload, gymScope: { type: "gym", gymId: "gym-a" } }, auth(PLATFORM_OPERATOR.id));
+    expect(res.status).toBe(200);
+    expect(h.findGymById).toHaveBeenCalledWith("gym-a");
+    expect(h.saveFinanceLedgerEntry.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
+  });
+
+  it("rejects a gym scope naming a gym that doesn't exist — never trusts the client id alone", async () => {
+    h.findGymById.mockReturnValue(undefined);
+    const res = await post("", { ...incomePayload, gymScope: { type: "gym", gymId: "nonexistent" } }, auth(PLATFORM_OPERATOR.id));
+    expect(res.status).toBe(400);
+    expect(h.saveFinanceLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it("derives ownerGym from the linked member's OWN gym, ignoring any client-supplied gymScope", async () => {
+    h.findUserById.mockImplementation((id: string) =>
+      id === "member-1" ? { id: "member-1", role: "member", gymId: "gym-member" } : PLATFORM_OPERATOR
+    );
+    const res = await post(
+      "",
+      { ...incomePayload, memberId: "member-1", gymScope: { type: "platform" } },
+      auth(PLATFORM_OPERATOR.id)
+    );
+    expect(res.status).toBe(200);
+    // memberId's own gym wins — NOT the client-supplied "platform" scope.
+    expect(h.saveFinanceLedgerEntry.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-member" });
   });
 
   it("deletes an entry", async () => {
