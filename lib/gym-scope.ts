@@ -83,3 +83,20 @@ export function ownerGymForCatalogPackage(
 export function ownerGymForUser(user: { gymId?: string | null }): MoneyRecordOwnerGym {
   return { scope: "gym", gymId: user.gymId ?? null };
 }
+
+// Whether two resolved catalog scopes are the SAME ownership scope — used to
+// keep an ordinary web/Stripe subscription switch inside the member's
+// CURRENT scope (see app/api/membership/checkout/route.ts's switch branch).
+// Gym-owned and the platform-global App Subscription are two structurally
+// different products, not points on one price ladder, so a switch that
+// crosses between them is a channel change this generic route must reject,
+// not an ordinary plan change. "unresolved" never matches anything,
+// including itself: a scope this code can't prove is never treated as
+// equivalent to another scope it also can't prove — allowing that would
+// silently let through a transition neither side actually vouches for.
+export function catalogScopesMatch(a: MoneyRecordOwnerGym, b: MoneyRecordOwnerGym): boolean {
+  if (a.scope === "unresolved" || b.scope === "unresolved") return false;
+  if (a.scope !== b.scope) return false;
+  if (a.scope === "gym" && b.scope === "gym") return (a.gymId ?? null) === (b.gymId ?? null);
+  return true;
+}

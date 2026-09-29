@@ -11,11 +11,12 @@ import {
   findUserById,
   savePurchase,
   saveSubscription,
+  type MoneyRecordOwnerGym,
   type PurchaseRecord,
   type SubscriptionRecord,
 } from "@/lib/db";
 import { activeBillingProvider, createCatalogCheckout, isPendingCheckoutStale } from "@/lib/billing";
-import { isGlobalCatalogPackage, ownerGymForCatalogPackage, sameGym } from "@/lib/gym-scope";
+import { catalogScopesMatch, isGlobalCatalogPackage, ownerGymForCatalogPackage, sameGym } from "@/lib/gym-scope";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { isPurchaseCheckoutReusable } from "@/lib/payments";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -183,6 +184,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, message: "A switch to this option is already in progress. Complete or wait a few minutes." },
         { status: 409 }
+      );
+    }
+
+    // Cross-scope guard: an ordinary web/Stripe switch must stay within the
+    // member's CURRENT ownership scope. Gym-owned membership and the
+    // platform-global App Subscription (deliveryChannel: "app_only", see
+    // lib/gym-scope.ts) are two structurally different products, not points
+    // on one price ladder — App Subscription is sold only through the mobile
+    // IAP flow (app/api/mobile/billing/google-play/verify/route.ts), never
+    // through this generic catalog checkout. Scope is resolved from the
+    // subscription's CURRENT packageId — what the member is switching FROM
+    // right now — never from the immutable SubscriptionRecord.ownerGym field:
+    // ownerGym freezes ORIGINAL enrollment scope forever by design (see its
+    // own "KNOWN OPEN QUESTION" comment in lib/db.ts) and this guard neither
+    // reads nor writes it. A current package/category that no longer
+    // resolves (deleted/legacy row) is treated as unresolved and fails
+    // closed, exactly like an unresolved target — see catalogScopesMatch.
+    const currentPackage = sub.packageId ? findMembershipPackageById(sub.packageId) : undefined;
+    const currentCategory = currentPackage ? findMembershipCategoryById(currentPackage.categoryId) : undefined;
+    const currentScope: MoneyRecordOwnerGym = currentPackage
+      ? ownerGymForCatalogPackage(currentPackage, currentCategory)
+      : { scope: "unresolved" };
+
+    if (!catalogScopesMatch(currentScope, ownerGym)) {
+      return NextResponse.json(
+        { success: false, message: "This option is not available." },
+        { status: 404 }
       );
     }
 
