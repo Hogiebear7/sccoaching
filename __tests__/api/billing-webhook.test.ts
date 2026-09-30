@@ -2,12 +2,27 @@ import { createHmac } from "crypto";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockResolveEntitlement, mockFindSubscriptionByProviderOrderId, mockSaveSubscription } =
-  vi.hoisted(() => ({
-    mockResolveEntitlement: vi.fn(),
-    mockFindSubscriptionByProviderOrderId: vi.fn(),
-    mockSaveSubscription: vi.fn(),
-  }));
+const {
+  mockResolveEntitlement,
+  mockFindSubscriptionByProviderOrderId,
+  mockSaveSubscription,
+  mockFindMembershipBillingOptionById,
+  mockFindRevenueEventByProviderRef,
+  mockCreateRevenueEvent,
+} = vi.hoisted(() => ({
+  mockResolveEntitlement: vi.fn(),
+  mockFindSubscriptionByProviderOrderId: vi.fn(),
+  mockSaveSubscription: vi.fn(),
+  // Revenue ledger: no billing option on file by default, so the
+  // ORDER_COMPLETED revenue-recording branch is a no-op (see the amountCents
+  // guard in app/api/billing/webhook/route.ts) — overridden per-test below
+  // for the dedicated revenue-event/ownerGym tests. Plain vi.fn() (not
+  // vi.fn(() => undefined)) so a later .mockReturnValue() with a real object
+  // isn't rejected by the type inferred from an undefined-only factory.
+  mockFindMembershipBillingOptionById: vi.fn(),
+  mockFindRevenueEventByProviderRef: vi.fn(),
+  mockCreateRevenueEvent: vi.fn(),
+}));
 
 vi.mock("@/lib/db", () => ({
   findSubscriptionByProviderOrderId: mockFindSubscriptionByProviderOrderId,
@@ -22,12 +37,9 @@ vi.mock("@/lib/db", () => ({
   appendPassLedgerEntry: vi.fn(),
   findPassLedgerByPurchaseId: vi.fn(() => []),
   findPassLedgerByUserId: vi.fn(() => []),
-  // Revenue ledger: no billing option on file in these scenarios, so the
-  // ORDER_COMPLETED revenue-recording branch is a no-op (see the amountCents
-  // guard in app/api/billing/webhook/route.ts).
-  findMembershipBillingOptionById: vi.fn(() => undefined),
-  findRevenueEventByProviderRef: vi.fn(() => undefined),
-  createRevenueEvent: vi.fn(),
+  findMembershipBillingOptionById: mockFindMembershipBillingOptionById,
+  findRevenueEventByProviderRef: mockFindRevenueEventByProviderRef,
+  createRevenueEvent: mockCreateRevenueEvent,
 }));
 
 vi.mock("@/lib/membership-entitlement", async (importActual) => ({
@@ -62,6 +74,9 @@ describe("POST /api/billing/webhook", () => {
     mockResolveEntitlement.mockReset();
     mockFindSubscriptionByProviderOrderId.mockReset();
     mockSaveSubscription.mockReset();
+    mockFindMembershipBillingOptionById.mockReset().mockReturnValue(undefined);
+    mockFindRevenueEventByProviderRef.mockReset().mockReturnValue(undefined);
+    mockCreateRevenueEvent.mockReset();
   });
 
   afterEach(() => {
@@ -126,6 +141,90 @@ describe("POST /api/billing/webhook", () => {
     const saved = mockSaveSubscription.mock.calls[0][0];
     expect(saved.status).toBe("active");
     expect(saved.currentPeriodEnd).not.toBeNull();
+  });
+
+  it("stamps a new revenue event with the subscription's own ownerGym", async () => {
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      userId: "user-1",
+      packageId: "pkg-1",
+      billingOptionId: "opt-1",
+      status: "pending",
+      provider: "revolut",
+      providerSubscriptionId: "order-1",
+      currentPeriodEnd: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      ownerGym: { scope: "gym", gymId: "gym-a" },
+    });
+    mockResolveEntitlement.mockReturnValue({ billingInterval: "monthly" });
+    mockFindMembershipBillingOptionById.mockReturnValue({ id: "opt-1", amountCents: 2500, currency: "eur" });
+
+    const { POST } = await import("@/app/api/billing/webhook/route");
+    const rawBody = JSON.stringify({ event: "ORDER_COMPLETED", order_id: "order-1" });
+    const timestamp = String(Date.now());
+    const signature = sign(timestamp, rawBody);
+
+    const res = await POST(makeRequest(rawBody, timestamp, signature));
+
+    expect(res.status).toBe(200);
+    expect(mockCreateRevenueEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "revolut", ownerGym: { scope: "gym", gymId: "gym-a" } })
+    );
+  });
+
+  it("marks a revenue event unresolved when the subscription predates ownerGym", async () => {
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      userId: "user-1",
+      packageId: "pkg-1",
+      billingOptionId: "opt-1",
+      status: "pending",
+      provider: "revolut",
+      providerSubscriptionId: "order-1",
+      currentPeriodEnd: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      // no ownerGym field at all
+    });
+    mockResolveEntitlement.mockReturnValue({ billingInterval: "monthly" });
+    mockFindMembershipBillingOptionById.mockReturnValue({ id: "opt-1", amountCents: 2500, currency: "eur" });
+
+    const { POST } = await import("@/app/api/billing/webhook/route");
+    const rawBody = JSON.stringify({ event: "ORDER_COMPLETED", order_id: "order-1" });
+    const timestamp = String(Date.now());
+    const signature = sign(timestamp, rawBody);
+
+    await POST(makeRequest(rawBody, timestamp, signature));
+
+    expect(mockCreateRevenueEvent).toHaveBeenCalledWith(expect.objectContaining({ ownerGym: { scope: "unresolved" } }));
+  });
+
+  it("does not create a duplicate revenue event, or a second one with different ownership, on a replayed webhook", async () => {
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      userId: "user-1",
+      packageId: "pkg-1",
+      billingOptionId: "opt-1",
+      status: "active",
+      provider: "revolut",
+      providerSubscriptionId: "order-1",
+      currentPeriodEnd: new Date(Date.now() + 86_400_000).toISOString(),
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      ownerGym: { scope: "gym", gymId: "gym-a" },
+    });
+    mockResolveEntitlement.mockReturnValue({ billingInterval: "monthly" });
+    mockFindMembershipBillingOptionById.mockReturnValue({ id: "opt-1", amountCents: 2500, currency: "eur" });
+    // Simulates the dedupe check seeing an already-recorded event for this order.
+    mockFindRevenueEventByProviderRef.mockReturnValue({ id: "existing-rev", ownerGym: { scope: "gym", gymId: "gym-a" } });
+
+    const { POST } = await import("@/app/api/billing/webhook/route");
+    const rawBody = JSON.stringify({ event: "ORDER_COMPLETED", order_id: "order-1" });
+    const timestamp = String(Date.now());
+    const signature = sign(timestamp, rawBody);
+
+    const res = await POST(makeRequest(rawBody, timestamp, signature));
+
+    expect(res.status).toBe(200);
+    expect(mockCreateRevenueEvent).not.toHaveBeenCalled();
   });
 
   it("acknowledges but ignores events for an unknown order", async () => {

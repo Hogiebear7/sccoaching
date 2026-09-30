@@ -1530,6 +1530,25 @@ export interface RevenueEventRecord {
   providerRef: string;
   source: RevenueSource;
   receivedAt: string;
+  /** Immutable historical provenance — see MoneyRecordOwnerGym (lib/gym-scope.ts's
+      builders / lib/db.ts's own comment on SubscriptionRecord.ownerGym).
+      Stamped EXACTLY ONCE, at the moment this row is created, then never
+      touched again — createRevenueEvent only ever appends a brand-new row
+      (see its own comment); nothing in this codebase updates an existing
+      one, so there is no "recompute on retry" case to guard against here the
+      way SubscriptionRecord's own field has to.
+
+      RevenueSource is solely "membership_renewal" (see this type's own
+      comment) — a revenue event is NEVER linked to a PurchaseRecord, only to
+      the paying member's SubscriptionRecord (there is at most one per user).
+      Derivation: Google Play → always {scope:"platform"} (Google Play sells
+      only the one platform-wide App Subscription product — see PR #52's own
+      account-binding work). Stripe/Revolut → the linked SubscriptionRecord's
+      own ownerGym (falling back to {scope:"unresolved"} for a legacy row
+      that predates that field), NEVER a client-supplied or freshly-recomputed
+      value. Optional/absent on rows written before this field existed — see
+      scripts/backfill-revenue-event-owner-gym.mjs. */
+  ownerGym?: MoneyRecordOwnerGym;
 }
 
 // AI API usage — one entry per real Anthropic API call, capturing the

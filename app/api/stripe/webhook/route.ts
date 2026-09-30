@@ -373,6 +373,10 @@ export async function POST(request: NextRequest) {
         providerRef: invoiceId,
         source: "membership_renewal",
         receivedAt: new Date().toISOString(),
+        // The subscription's own immutable historical provenance — never a
+        // client-supplied value, never recomputed from the current package
+        // (see RevenueEventRecord.ownerGym's own comment in lib/db.ts).
+        ownerGym: subscription.ownerGym ?? { scope: "unresolved" },
       });
     }
 
