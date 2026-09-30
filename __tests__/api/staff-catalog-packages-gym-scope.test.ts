@@ -28,6 +28,8 @@ vi.mock("@/lib/db", () => h);
 const GYM_A_STAFF = { id: "staff-a", email: "staffa@x.test", role: "admin" as const, gymId: null, archivedAt: null };
 const GYM_B_STAFF = { id: "staff-b", email: "staffb@x.test", role: "admin" as const, gymId: "gym-b", archivedAt: null };
 const GYM_A_COACH = { id: "coach-a", email: "coacha@x.test", role: "coach" as const, gymId: null, archivedAt: null };
+const GYM_A_ADMIN_MANAGER = { id: "adm-mgr-a", email: "mgra@x.test", role: "admin_manager" as const, gymId: null, archivedAt: null };
+const PLATFORM_OPERATOR = { id: "operator-1", email: "op@x.test", role: "platform_operator" as const, gymId: null, archivedAt: null };
 
 const GYM_A_CATEGORY = { id: "cat-a", gymId: null, name: "Cat A", slug: "cat-a", description: null, sortOrder: 0, visible: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
 const GYM_B_CATEGORY = { ...GYM_A_CATEGORY, id: "cat-b", gymId: "gym-b" };
@@ -85,7 +87,7 @@ async function post(path: "packages" | "packages/delete", body: unknown, session
 beforeEach(() => {
   vi.clearAllMocks();
   h.findUserById.mockImplementation((id: string) =>
-    [GYM_A_STAFF, GYM_B_STAFF, GYM_A_COACH].find((u) => u.id === id)
+    [GYM_A_STAFF, GYM_B_STAFF, GYM_A_COACH, GYM_A_ADMIN_MANAGER, PLATFORM_OPERATOR].find((u) => u.id === id)
   );
   h.findMembershipCategoryById.mockImplementation((id: string) =>
     [GYM_A_CATEGORY, GYM_B_CATEGORY].find((c) => c.id === id)
@@ -161,6 +163,98 @@ describe("POST /api/staff/catalog/packages (create/update)", () => {
     expect(res.status).toBe(200);
     expect(data.message).toBe("Package updated.");
     expect(h.saveMembershipPackage).toHaveBeenCalled();
+  });
+
+  it("denies gym staff (admin) creating a brand-new app_only package, using the same generic category message", async () => {
+    const res = await post(
+      "packages",
+      { categoryId: GYM_A_CATEGORY.id, name: "Rogue App Subscription", packageType: "membership", sessionAllowanceType: "unlimited", deliveryChannel: "app_only" },
+      GYM_A_STAFF.id
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.message).toBe("A valid category is required.");
+    expect(h.saveMembershipPackage).not.toHaveBeenCalled();
+  });
+
+  it("denies admin_manager (a rank above admin, but not platform_operator) creating a new app_only package", async () => {
+    const res = await post(
+      "packages",
+      { categoryId: GYM_A_CATEGORY.id, name: "Rogue App Subscription", packageType: "membership", sessionAllowanceType: "unlimited", deliveryChannel: "app_only" },
+      GYM_A_ADMIN_MANAGER.id
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.message).toBe("A valid category is required.");
+    expect(h.saveMembershipPackage).not.toHaveBeenCalled();
+  });
+
+  it("the denial message for a blocked app_only creation is byte-identical to an ordinary invalid-category rejection — reveals nothing about platform_operator or app_only existing", async () => {
+    const blocked = await post(
+      "packages",
+      { categoryId: GYM_A_CATEGORY.id, name: "Rogue", packageType: "membership", sessionAllowanceType: "unlimited", deliveryChannel: "app_only" },
+      GYM_A_STAFF.id
+    );
+    const invalidCategory = await post(
+      "packages",
+      { categoryId: "does-not-exist", name: "X", packageType: "membership", sessionAllowanceType: "unlimited" },
+      GYM_A_STAFF.id
+    );
+
+    expect(await blocked.json()).toEqual(await invalidCategory.json());
+    expect(blocked.status).toBe(invalidCategory.status);
+  });
+
+  it("allows platform_operator to create a new app_only package", async () => {
+    const res = await post(
+      "packages",
+      { categoryId: GYM_A_CATEGORY.id, name: "App Subscription", packageType: "membership", sessionAllowanceType: "unlimited", deliveryChannel: "app_only" },
+      PLATFORM_OPERATOR.id
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.message).toBe("Package created.");
+    expect(h.saveMembershipPackage).toHaveBeenCalledWith(expect.objectContaining({ deliveryChannel: "app_only" }));
+  });
+
+  it("platform_operator creating a new app_only package still fails closed on a missing category, same as anyone else", async () => {
+    const res = await post(
+      "packages",
+      { categoryId: "does-not-exist", name: "App Subscription", packageType: "membership", sessionAllowanceType: "unlimited", deliveryChannel: "app_only" },
+      PLATFORM_OPERATOR.id
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.message).toBe("A valid category is required.");
+    expect(h.saveMembershipPackage).not.toHaveBeenCalled();
+  });
+
+  it("gym staff can still create an ordinary (non-app_only) package while app_only creation is blocked (unaffected by the guard)", async () => {
+    const res = await post(
+      "packages",
+      { categoryId: GYM_A_CATEGORY.id, name: "Ordinary Plan", packageType: "membership", sessionAllowanceType: "unlimited" },
+      GYM_A_STAFF.id
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.message).toBe("Package created.");
+    expect(h.saveMembershipPackage).toHaveBeenCalledWith(expect.objectContaining({ deliveryChannel: "in_person" }));
+  });
+
+  it("a client-supplied gymId cannot grant app_only authority to gym staff", async () => {
+    const res = await post(
+      "packages",
+      { categoryId: GYM_A_CATEGORY.id, name: "Rogue", packageType: "membership", sessionAllowanceType: "unlimited", deliveryChannel: "app_only", gymId: null },
+      GYM_A_STAFF.id
+    );
+
+    expect(res.status).toBe(400);
+    expect(h.saveMembershipPackage).not.toHaveBeenCalled();
   });
 
   it("ignores a client-supplied gymId — no such field is ever persisted or trusted", async () => {
