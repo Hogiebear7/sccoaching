@@ -94,3 +94,48 @@ describe("POST /api/staff/categories/delete (guarded)", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// Cross-gym isolation: a category id that resolves to a DIFFERENT gym reads
+// exactly like a missing one — never revealed, never deletable.
+describe("POST /api/staff/categories/delete — gym scope", () => {
+  const ADMIN_A = { id: "adm-a", email: "a@club.com", role: "admin" as const, archivedAt: null, gymId: "gym-a" };
+  const ADMIN_B = { id: "adm-b", email: "b@club.com", role: "admin" as const, archivedAt: null, gymId: "gym-b" };
+  const GYM_A_CATEGORY = { id: "cat-a", name: "Strength", slug: "strength", gymId: "gym-a", createdAt: "x", updatedAt: "x" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindUserById.mockImplementation((id: string) => (id === ADMIN_A.id ? ADMIN_A : id === ADMIN_B.id ? ADMIN_B : undefined));
+    mockFindClassCategoryById.mockReturnValue(GYM_A_CATEGORY);
+    mockCountClasses.mockReturnValue(0);
+    mockCountPackages.mockReturnValue(0);
+  });
+
+  it("denies a cross-gym staff member with the same not-found response as a missing category", async () => {
+    const crossGym = await callDelete({ id: GYM_A_CATEGORY.id }, ADMIN_B.id);
+    const crossGymBody = await crossGym.json();
+
+    mockFindClassCategoryById.mockReturnValue(undefined);
+    const missing = await callDelete({ id: "gone" }, ADMIN_B.id);
+    const missingBody = await missing.json();
+
+    expect(crossGym.status).toBe(404);
+    expect(crossGym.status).toBe(missing.status);
+    expect(crossGymBody).toEqual(missingBody);
+    expect(mockDeleteClassCategory).not.toHaveBeenCalled();
+  });
+
+  it("allows the owning gym's staff member to delete it", async () => {
+    const res = await callDelete({ id: GYM_A_CATEGORY.id }, ADMIN_A.id);
+    expect(res.status).toBe(200);
+    expect(mockDeleteClassCategory).toHaveBeenCalledWith(GYM_A_CATEGORY.id);
+  });
+
+  it("a category with no stored gymId (legacy row) is treated as the primary gym", async () => {
+    mockFindClassCategoryById.mockReturnValue({ ...GYM_A_CATEGORY, gymId: undefined });
+    const primaryGymAdmin = { ...ADMIN_A, gymId: null };
+    mockFindUserById.mockImplementation((id: string) => (id === primaryGymAdmin.id ? primaryGymAdmin : undefined));
+
+    const res = await callDelete({ id: GYM_A_CATEGORY.id }, primaryGymAdmin.id);
+    expect(res.status).toBe(200);
+  });
+});

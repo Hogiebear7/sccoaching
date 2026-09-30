@@ -9,6 +9,7 @@ import {
   saveClassCategory,
   type ClassCategoryRecord,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -68,7 +69,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const existing = typeof id === "string" && id.trim() ? findClassCategoryById(id) : undefined;
+  const existingLookup = typeof id === "string" && id.trim() ? findClassCategoryById(id) : undefined;
+
+  // A category id that resolves to a DIFFERENT gym is treated as not-found,
+  // exactly like the catalog category route (app/api/staff/catalog/categories)
+  // — never revealed, never silently reused. Falling through with
+  // `existing` left undefined means this then proceeds down the CREATE path
+  // below (a fresh, own-gym category), rather than editing someone else's.
+  const existing = existingLookup && sameGym(staffUser, existingLookup) ? existingLookup : undefined;
+
+  if (existingLookup && !existing) {
+    return NextResponse.json(
+      { success: false, message: "Category not found." },
+      { status: 404 }
+    );
+  }
 
   // Slug is immutable after creation, so the uniqueness check only applies to
   // new records. Editing a category's display name never changes its slug,
@@ -90,6 +105,10 @@ export async function POST(request: NextRequest) {
     id: existing?.id ?? randomUUID(),
     name: name.trim(),
     slug: existing?.slug ?? slug,
+    // Immutable after creation — an edit never changes who manages this
+    // category, and a client-supplied gymId is never read at all. A fresh
+    // category is always stamped from the CREATING staff member's own gym.
+    gymId: existing ? existing.gymId ?? null : staffUser.gymId ?? null,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

@@ -65,8 +65,6 @@ const GYM_A_COACH = { id: "coach-a", email: "coacha@x.test", role: "coach" as co
 const GYM_B_COACH = { id: "coach-b", email: "coachb@x.test", role: "coach" as const, gymId: "gym-b", archivedAt: null };
 const MEMBER_USER = { id: "member-1", email: "member@x.test", role: "member" as const, gymId: null, archivedAt: null };
 
-const auth = signSession({ userId: GYM_A_STAFF.id }, MEMBER_SESSION_LIFETIME_MS);
-
 function usersById(...users: { id: string }[]) {
   const map = new Map(users.map((u) => [u.id, u]));
   return (id: string) => map.get(id);
@@ -98,6 +96,59 @@ beforeEach(() => {
   h.findClassCategories.mockReturnValue([{ slug: "general", name: "General" }]);
 });
 
+describe("POST /api/staff/classes (create path) — gymId stamping and category scope", () => {
+  const createBody = {
+    title: "New Class",
+    category: "general",
+    date: futureDate(7),
+    startTime: "10:00",
+    durationMins: 60,
+    capacity: 10,
+  };
+
+  it("stamps a new one-off class with the creating staff member's own gymId, never a client-supplied one", async () => {
+    const res = await call("", { body: { ...createBody, gymId: "gym-b-attempt" } });
+    expect(res.status).toBe(200);
+    expect(h.saveClass).toHaveBeenCalledWith(expect.objectContaining({ coachUserId: GYM_A_STAFF.id, gymId: null }));
+  });
+
+  it("stamps a Gym B coach's new class with Gym B's own gymId, independent of Gym A", async () => {
+    // "general" (the shared beforeEach fixture) has no gymId — primary gym
+    // only. Gym B's own category picker only ever offers Gym B's own
+    // categories (see the mobile-staff-class-categories-gym-scope tests), so
+    // give this test a category that's actually Gym B's, matching reality.
+    h.findClassCategories.mockReturnValue([{ slug: "general", name: "General", gymId: "gym-b" }]);
+    const res = await call("", { body: createBody, sessionUserId: GYM_B_COACH.id });
+    expect(res.status).toBe(200);
+    expect(h.saveClass).toHaveBeenCalledWith(expect.objectContaining({ coachUserId: GYM_B_COACH.id, gymId: "gym-b" }));
+  });
+
+  it("stamps a new weekly series with the creating staff member's own gymId", async () => {
+    h.findClassSeriesById.mockReturnValue(undefined);
+    mockGenerateOccurrences.mockReturnValue(1);
+    const res = await call("", {
+      body: { ...createBody, repeat: "weekly", weekdays: [1] },
+    });
+    expect(res.status).toBe(200);
+    expect(h.saveClassSeries).toHaveBeenCalledWith(expect.objectContaining({ coachUserId: GYM_A_STAFF.id, gymId: null }));
+  });
+
+  it("rejects a category that belongs to a different gym", async () => {
+    h.findClassCategories.mockReturnValue([{ slug: "general", name: "General", gymId: "gym-b" }]);
+    const res = await call("", { body: createBody });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ success: false, message: "A valid class category is required." });
+    expect(h.saveClass).not.toHaveBeenCalled();
+  });
+
+  it("accepts a category with no stored gymId (legacy row) for the primary gym's own staff", async () => {
+    h.findClassCategories.mockReturnValue([{ slug: "general", name: "General" }]);
+    const res = await call("", { body: createBody });
+    expect(res.status).toBe(200);
+    expect(h.saveClass).toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/staff/classes (edit path)", () => {
   const editBody = {
     id: "class-1",
@@ -123,6 +174,13 @@ describe("POST /api/staff/classes (edit path)", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ success: true, message: "Class updated." });
     expect(h.saveClass).toHaveBeenCalled();
+  });
+
+  it("preserves the existing class's gymId on edit, ignoring a client-supplied one", async () => {
+    h.findClassById.mockReturnValue({ id: "class-1", coachUserId: GYM_A_COACH.id, gymId: "gym-a", date: futureDate(7), capacity: 10 });
+    const res = await call("", { body: { ...editBody, gymId: "gym-b-attempt" } });
+    expect(res.status).toBe(200);
+    expect(h.saveClass).toHaveBeenCalledWith(expect.objectContaining({ gymId: "gym-a" }));
   });
 
   it("denies an unauthenticated request", async () => {

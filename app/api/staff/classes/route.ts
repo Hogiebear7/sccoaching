@@ -14,7 +14,7 @@ import {
   type ClassSeriesRecord,
 } from "@/lib/db";
 import { generateOccurrencesForSeries } from "@/lib/class-series";
-import { sameGymAsStaff } from "@/lib/gym-scope";
+import { sameGym, sameGymAsStaff } from "@/lib/gym-scope";
 import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isFutureDateTime } from "@/lib/scheduling-status";
@@ -85,7 +85,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const activeCategorySlugs = findClassCategories().map((c) => c.slug);
+  // Only the creating staff member's OWN gym's categories are valid choices
+  // — mirrors the same sameGym check every other part of this route already
+  // applies. A category with no stored gymId (a pre-existing row, see
+  // ClassCategoryRecord's own comment) reads as the primary gym, exactly
+  // like every other gym-scoped record in this codebase.
+  const activeCategorySlugs = findClassCategories()
+    .filter((c) => sameGym(user, c))
+    .map((c) => c.slug);
   if (typeof category !== "string" || !activeCategorySlugs.includes(category)) {
     return NextResponse.json(
       { success: false, message: "A valid class category is required." },
@@ -179,6 +186,11 @@ export async function POST(request: NextRequest) {
       ...existingClass,
       title: title.trim(),
       category: category as ClassCategory,
+      // Immutable after creation — an edit never moves a class to another
+      // gym, even implicitly. Preserved exactly like coachUserId already is
+      // via the ...existingClass spread; stated explicitly here so it can't
+      // be silently dropped by a future field reorder.
+      gymId: existingClass.gymId ?? null,
       date: date.trim(),
       startTime: startTime.trim(),
       durationMins: durationResult.value,
@@ -214,6 +226,9 @@ export async function POST(request: NextRequest) {
       title: title.trim(),
       category: category as ClassCategory,
       coachUserId: user.id,
+      // Never from client input — the same creating staff member's own gym
+      // that coachUserId already implies, stamped explicitly.
+      gymId: user.gymId ?? null,
       date: date.trim(),
       startTime: startTime.trim(),
       durationMins: durationResult.value,
@@ -260,6 +275,9 @@ export async function POST(request: NextRequest) {
     title: title.trim(),
     category: category as ClassCategory,
     coachUserId: user.id,
+    // Never from client input — stamped once here and copied verbatim onto
+    // every generated occurrence (lib/class-series.ts), never recomputed.
+    gymId: user.gymId ?? null,
     weekdays: weekdayValues.sort((a, b) => a - b),
     startTime: startTime.trim(),
     durationMins: durationResult.value,

@@ -68,6 +68,11 @@ export function generateOccurrencesForSeries(
       title: series.title,
       category: series.category,
       coachUserId: series.coachUserId,
+      // Copied verbatim from the series, exactly like coachUserId — never
+      // recomputed. Generation runs with no staff/session context at all
+      // (cron job or page-load top-up), so there is no "current gym" to
+      // derive it from even if that were desired.
+      gymId: series.gymId ?? null,
       date,
       startTime: series.startTime,
       durationMins: series.durationMins,
