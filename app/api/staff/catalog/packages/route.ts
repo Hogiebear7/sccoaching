@@ -23,7 +23,7 @@ import { slugifyCatalog } from "@/lib/catalog";
 import { staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import { can } from "@/lib/permissions";
+import { can, isPlatformOperator } from "@/lib/permissions";
 
 const PACKAGE_TYPES: PackageType[] = ["membership", "pass", "top_up"];
 const ALLOWANCE_TYPES: SessionAllowanceType[] = ["unlimited", "fixed_count", "single_use"];
@@ -139,6 +139,26 @@ export async function POST(request: NextRequest) {
       { success: false, message: "Changing a package's delivery channel to or from App-only isn't supported yet." },
       { status: 400 }
     );
+  }
+
+  // Creating a NEW package as app_only is a real ownership/security boundary
+  // (see isGlobalCatalogPackage's own comment in lib/gym-scope.ts): the one
+  // platform-wide App Subscription product must never be creatable by any
+  // gym's own staff — only the platform operator, per the approved catalog
+  // tenant-isolation policy. staffAuthorizedForCatalogPackage below can't
+  // catch this on its own — it deliberately treats EVERY app_only package as
+  // globally authorized (that's the whole point of the existing exception,
+  // for managing the one already-approved product day to day); this checks
+  // the one thing that exception was never meant to cover: whether a BRAND
+  // NEW app_only package may be created in the first place. Only gates
+  // creation (no `existing`) — editing the pre-existing App Subscription
+  // package's own details (name, visibility, etc.) is unchanged, exactly
+  // like every other in_person/hybrid package any gym's staff already
+  // manages. Reuses the same generic "valid category" message as the
+  // authorization check just below, so a gym-staff attempt reveals nothing
+  // about platform_operator, or that app_only is even a recognized concept.
+  if (!existing && requestedDeliveryChannel === "app_only" && !isPlatformOperator(user.role)) {
+    return NextResponse.json({ success: false, message: "A valid category is required." }, { status: 400 });
   }
 
   // Target-category ownership — covers both a fresh create and an update
