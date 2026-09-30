@@ -703,6 +703,18 @@ export interface ClassCategoryRecord {
   id: string;
   name: string;
   slug: string;
+  /** Optional/nullable, same "null = primary gym" convention as
+      UserRecord.gymId and MembershipCategoryRecord.gymId (lib/gym-scope.ts).
+      Stamped once at creation from the creating staff member's own gymId and
+      never changed by an edit — see app/api/staff/categories/route.ts. Every
+      pre-existing row reads as null via the readDb() normalization below,
+      needing no backfill migration: there is exactly one gym in the current
+      dataset, so "null" is not a guess here, it's the only gym that could
+      have created these rows. The SLUG namespace stays globally unique
+      across all gyms (unchanged) — this field governs who may manage a
+      given category, not which slugs exist; see that route's own comment
+      for why. */
+  gymId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -723,6 +735,13 @@ export interface ClassRecord {
   title: string;
   category: ClassCategory;
   coachUserId: string;
+  /** Same "null = primary gym" convention as ClassCategoryRecord.gymId
+      above. Stamped once at creation from the creating staff member's own
+      gymId (the same user as coachUserId) and never changed by an edit — see
+      app/api/staff/classes/route.ts. A series occurrence copies this
+      verbatim from its series rather than recomputing it (see
+      lib/class-series.ts), exactly like coachUserId already does. */
+  gymId?: string | null;
   date: string;
   startTime: string;
   durationMins: number;
@@ -750,6 +769,10 @@ export interface ClassSeriesRecord {
   title: string;
   category: ClassCategory;
   coachUserId: string;
+  /** Same "null = primary gym" convention as ClassRecord.gymId above.
+      Stamped once at creation and never changed by an edit; every occurrence
+      this series generates copies it verbatim (lib/class-series.ts). */
+  gymId?: string | null;
   /** JS weekday numbers (0 = Sunday … 6 = Saturday). At least one. */
   weekdays: number[];
   startTime: string;
@@ -2096,8 +2119,8 @@ function readDb(): Database {
     aiMessages: parsed.aiMessages ?? [],
     bodyWeightLogs: parsed.bodyWeightLogs ?? [],
     bodyFatLogs: parsed.bodyFatLogs ?? [],
-    classes: (parsed.classes ?? []).map((c) => ({ ...c, category: c.category ?? "general", imageUrl: c.imageUrl ?? null, imageAlt: c.imageAlt ?? null })),
-    classSeries: parsed.classSeries ?? [],
+    classes: (parsed.classes ?? []).map((c) => ({ ...c, category: c.category ?? "general", gymId: c.gymId ?? null, imageUrl: c.imageUrl ?? null, imageAlt: c.imageAlt ?? null })),
+    classSeries: (parsed.classSeries ?? []).map((s) => ({ ...s, gymId: s.gymId ?? null })),
     classWorkouts: parsed.classWorkouts ?? [],
     classWorkoutTemplates: (parsed.classWorkoutTemplates ?? []).map((t) => ({
       ...t,
@@ -2112,9 +2135,9 @@ function readDb(): Database {
     // Seed built-in categories if the DB predates this field.
     // One-way migration: rows with isActive === false (previously archived) are
     // treated as deleted so they no longer appear in selection UIs.
-    classCategories: (parsed.classCategories ?? DEFAULT_CLASS_CATEGORIES).filter(
-      (c) => (c as { isActive?: boolean }).isActive !== false
-    ),
+    classCategories: (parsed.classCategories ?? DEFAULT_CLASS_CATEGORIES)
+      .filter((c) => (c as { isActive?: boolean }).isActive !== false)
+      .map((c) => ({ ...c, gymId: c.gymId ?? null })),
     deletedCategoryLabels: parsed.deletedCategoryLabels ?? {},
     bookings: (parsed.bookings ?? []).map((b) => ({
       ...b,

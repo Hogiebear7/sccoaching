@@ -8,6 +8,7 @@ import {
   findClassCategoryById,
   findUserById,
 } from "@/lib/db";
+import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -52,7 +53,9 @@ export async function POST(request: NextRequest) {
 
   const category = findClassCategoryById(id);
 
-  if (!category) {
+  // A cross-gym category reads exactly like a missing one — never revealed,
+  // never deletable by a staff member outside the gym that created it.
+  if (!category || !sameGym(staffUser, category)) {
     return NextResponse.json(
       { success: false, message: "Category not found." },
       { status: 404 }

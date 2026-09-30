@@ -44,6 +44,33 @@ describe("generateOccurrencesForSeries", () => {
     mockFindClassBySeriesAndDate.mockReturnValue(undefined);
   });
 
+  it("copies the series' gymId onto every generated occurrence, never recomputing it", () => {
+    generateOccurrencesForSeries({ ...SERIES, gymId: "gym-b" }, NOW);
+    expect(mockSaveClass.mock.calls.length).toBeGreaterThan(0);
+    for (const [occurrence] of mockSaveClass.mock.calls) {
+      expect(occurrence.gymId).toBe("gym-b");
+    }
+  });
+
+  it("copies a null gymId (primary gym convention) onto every generated occurrence", () => {
+    generateOccurrencesForSeries({ ...SERIES, gymId: null }, NOW);
+    for (const [occurrence] of mockSaveClass.mock.calls) {
+      expect(occurrence.gymId).toBeNull();
+    }
+  });
+
+  it("treats an absent gymId (legacy series, pre-normalization fixture) as the primary gym, same as every other gym-scoped record", () => {
+    // SERIES itself has no gymId field at all. In production this can't
+    // actually reach here with the field missing — readDb() already
+    // normalizes every series to an explicit null/string before
+    // findClassSeries() ever returns it — but the generator's own `?? null`
+    // coercion means it behaves identically even if it did.
+    generateOccurrencesForSeries(SERIES, NOW);
+    for (const [occurrence] of mockSaveClass.mock.calls) {
+      expect(occurrence.gymId).toBeNull();
+    }
+  });
+
   it("creates one occurrence per selected weekday within the horizon and no more", () => {
     const created = generateOccurrencesForSeries(SERIES, NOW);
 

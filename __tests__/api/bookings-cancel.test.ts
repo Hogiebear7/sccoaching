@@ -196,6 +196,33 @@ describe("POST /api/bookings/cancel", () => {
     expect(mockDeleteBooking).not.toHaveBeenCalled();
   });
 
+  it("returns 404 when the booking's class belongs to a different gym than the caller (defense-in-depth, not currently reachable under the single-gym-per-user model)", async () => {
+    mockFindUserById.mockReturnValue({ ...MEMBER_USER, gymId: "gym-a" });
+    mockFindBookingById.mockReturnValue(SOME_BOOKING);
+    mockFindClassById.mockReturnValue({ ...FUTURE_CLASS, gymId: "gym-b" });
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
+
+    const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
+    const data = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(data.message).toBe("This booking no longer exists.");
+    expect(mockDeleteBooking).not.toHaveBeenCalled();
+  });
+
+  it("allows cancellation when the class's gym matches the caller's own (control)", async () => {
+    mockFindUserById.mockReturnValue({ ...MEMBER_USER, gymId: "gym-a" });
+    mockFindBookingById.mockReturnValue(SOME_BOOKING);
+    mockFindClassById.mockReturnValue({ ...FUTURE_CLASS, gymId: "gym-a" });
+    mockIsCancellationEarly.mockReturnValue(true);
+    const cookie = signSession({ userId: MEMBER_USER.id }, MEMBER_SESSION_LIFETIME_MS);
+
+    const res = await callBookingsCancel({ bookingId: "booking-1" }, cookie);
+
+    expect(res.status).toBe(200);
+    expect(mockDeleteBooking).toHaveBeenCalledWith("booking-1");
+  });
+
   it("restores the session and reports it when cancelling before the cutoff", async () => {
     mockFindBookingById.mockReturnValue(SOME_BOOKING);
     mockFindClassById.mockReturnValue(FUTURE_CLASS);

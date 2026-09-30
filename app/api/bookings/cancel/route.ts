@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import { classStartDate } from "@/lib/class-time";
 import { creditSourceForBooking, trackLateCancellationCredit } from "@/lib/cancellation-credits";
+import { sameGym } from "@/lib/gym-scope";
 import { reversePassConsumption } from "@/lib/payments";
 import { issueWaitlistOffer, isCancellationEarly } from "@/lib/scheduling";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -77,6 +78,22 @@ export async function POST(request: NextRequest) {
   }
 
   const classRecord = findClassById(booking.classId);
+
+  // Every other booking/waitlist route already derives and checks gym scope
+  // before acting (create, waitlist join/respond, staff remove/attendance —
+  // see lib/gym-scope.ts) — this route was the one exception, relying only
+  // on the userId-ownership check above. Not currently reachable under
+  // today's single-gym-per-user model (a booking's class can't belong to a
+  // different gym than its own booking member), but added for the same
+  // defense-in-depth every other mutation path already has, and to close
+  // the gap explicitly rather than leave it implicit.
+  if (classRecord && !sameGym(user, classRecord)) {
+    return NextResponse.json(
+      { success: false, message: "This booking no longer exists." },
+      { status: 404 }
+    );
+  }
+
   let sessionRestored = false;
   let creditPending = false;
 
