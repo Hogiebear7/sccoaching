@@ -94,6 +94,42 @@ beforeEach(() => {
   });
 });
 
+describe("RTDN webhook — revenue event ownership", () => {
+  it("stamps a new revenue event with platform scope on an active renewal", async () => {
+    h.findMembershipBillingOptions.mockReturnValue([
+      { id: "opt-app-monthly", googlePlaySubscriptionId: "app_sub", googlePlayBasePlanId: "monthly", amountCents: 999, currency: "eur" },
+    ]);
+    h.mapGooglePlaySubscriptionState.mockReturnValue({ playStatus: "active", appStatus: "active" });
+    h.grantMemberTier.mockResolvedValue({ ok: true, tier: "app_subscription" });
+    h.verifyGooglePlaySubscriptionPurchase.mockResolvedValue({
+      ok: true,
+      subscription: {
+        productId: "app_sub",
+        basePlanId: "monthly",
+        orderId: "GPA.renewal-1",
+        linkedPurchaseToken: null,
+        subscriptionState: "SUBSCRIPTION_STATE_ACTIVE",
+        acknowledgementState: "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED",
+        autoRenewing: true,
+        startTimeMillis: 1000,
+        expiryTimeMillis: Date.now() + 30 * 86_400_000,
+        obfuscatedExternalAccountId: EXISTING_PURCHASE.obfuscatedExternalAccountId,
+      },
+    });
+
+    const res = await postWebhook({
+      packageName: "com.example.app",
+      eventTimeMillis: String(Date.now()),
+      subscriptionNotification: { version: "1.0", notificationType: 2, purchaseToken: TOKEN, subscriptionId: "app_sub" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(h.createRevenueEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: OWNER, providerRef: "GPA.renewal-1", ownerGym: { scope: "platform" } })
+    );
+  });
+});
+
 describe("RTDN webhook — obfuscatedExternalAccountId preserved, never client-trusted", () => {
   it("11/12. a cancellation/revocation notification preserves the originally-recorded binding and updates entitlement based only on the persisted owner", async () => {
     const res = await postWebhook({

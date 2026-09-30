@@ -20,6 +20,8 @@ const {
   mockAppendPassLedgerEntry,
   mockFindPassLedgerByPurchaseId,
   mockFindAllSubscriptions,
+  mockFindRevenueEventByProviderRef,
+  mockCreateRevenueEvent,
 } = vi.hoisted(() => ({
   mockFindPurchaseByProviderOrderId: vi.fn(),
   mockFindPurchaseById: vi.fn(),
@@ -38,6 +40,11 @@ const {
   mockAppendPassLedgerEntry: vi.fn(),
   mockFindPassLedgerByPurchaseId: vi.fn(),
   mockFindAllSubscriptions: vi.fn((): SubscriptionRecord[] => []),
+  // Plain vi.fn() (not vi.fn(() => undefined)) so a later .mockReturnValue()
+  // with a real object isn't rejected by the type inferred from an
+  // undefined-only factory.
+  mockFindRevenueEventByProviderRef: vi.fn(),
+  mockCreateRevenueEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -60,6 +67,8 @@ vi.mock("@/lib/db", () => ({
   findPassLedgerByPurchaseId: mockFindPassLedgerByPurchaseId,
   findPassLedgerByUserId: vi.fn(() => []),
   findPassLedgerByBookingId: vi.fn(() => []),
+  findRevenueEventByProviderRef: mockFindRevenueEventByProviderRef,
+  createRevenueEvent: mockCreateRevenueEvent,
 }));
 
 // Signature layer is unit-tested in stripe-provider.test.ts; accept here so
@@ -601,6 +610,106 @@ describe("stripe webhook", () => {
     });
 
     expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
+  });
+
+  it("stamps a new revenue event with the subscription's own ownerGym", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+      ownerGym: { scope: "gym", gymId: "gym-a" },
+    });
+
+    await postEvent({
+      id: "evt_revenue_1",
+      type: "invoice.paid",
+      object: {
+        id: "in_revenue_1",
+        subscription: "sub_123",
+        amount_paid: 2500,
+        currency: "eur",
+        lines: { data: [{ period: { end: 1788220800 } }] },
+      },
+    });
+
+    expect(mockCreateRevenueEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "stripe", providerRef: "in_revenue_1", ownerGym: { scope: "gym", gymId: "gym-a" } })
+    );
+  });
+
+  it("stamps a new revenue event unresolved when the subscription predates ownerGym", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+      // no ownerGym field at all
+    });
+
+    await postEvent({
+      id: "evt_revenue_2",
+      type: "invoice.paid",
+      object: {
+        id: "in_revenue_2",
+        subscription: "sub_123",
+        amount_paid: 2500,
+        currency: "eur",
+        lines: { data: [{ period: { end: 1788220800 } }] },
+      },
+    });
+
+    expect(mockCreateRevenueEvent).toHaveBeenCalledWith(expect.objectContaining({ ownerGym: { scope: "unresolved" } }));
+  });
+
+  it("does not create a second revenue event, with possibly different ownership, on a replayed invoice", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+      ownerGym: { scope: "gym", gymId: "gym-a" },
+    });
+    // Simulates the dedupe check seeing an already-recorded event for this invoice.
+    mockFindRevenueEventByProviderRef.mockReturnValue({ id: "existing-rev", ownerGym: { scope: "gym", gymId: "gym-a" } });
+
+    await postEvent({
+      id: "evt_revenue_replay",
+      type: "invoice.paid",
+      object: {
+        id: "in_revenue_replay",
+        subscription: "sub_123",
+        amount_paid: 2500,
+        currency: "eur",
+        lines: { data: [{ period: { end: 1788220800 } }] },
+      },
+    });
+
+    expect(mockCreateRevenueEvent).not.toHaveBeenCalled();
+  });
+
+  it("does not create a revenue event when Stripe reports no amount paid (renewal still processes)", async () => {
+    mockFindPurchaseByProviderOrderId.mockReturnValue(undefined);
+    mockFindSubscriptionByProviderOrderId.mockReturnValue({
+      ...SUBSCRIPTION,
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+      ownerGym: { scope: "gym", gymId: "gym-a" },
+    });
+
+    const res = await postEvent({
+      id: "evt_revenue_zero",
+      type: "invoice.paid",
+      object: { id: "in_revenue_zero", subscription: "sub_123", lines: { data: [{ period: { end: 1788220800 } }] } },
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockCreateRevenueEvent).not.toHaveBeenCalled();
+    expect(mockSaveSubscription).toHaveBeenCalled();
   });
 
   it("invoice.paid recovers past_due without resetting usage when the period doesn't advance", async () => {

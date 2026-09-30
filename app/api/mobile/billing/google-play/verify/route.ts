@@ -227,6 +227,10 @@ export async function POST(request: NextRequest) {
       providerRef: sub.orderId,
       source: "membership_renewal",
       receivedAt: now,
+      // Always platform scope — Google Play sells only the one platform-wide
+      // App Subscription product (deliveryChannel: "app_only"), never a
+      // gym-owned one, so there is no linked record to derive this from.
+      ownerGym: { scope: "platform" },
     });
   }
 

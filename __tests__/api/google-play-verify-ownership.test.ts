@@ -135,7 +135,17 @@ describe("POST /api/mobile/billing/google-play/verify — token ownership", () =
       expect.objectContaining({ userId: OWNER, purchaseToken: TOKEN })
     );
     expect(h.grantMemberTier).toHaveBeenCalledWith(OWNER, "app_subscription", expect.objectContaining({ providerSubscriptionId: TOKEN }));
-    expect(h.createRevenueEvent).toHaveBeenCalledWith(expect.objectContaining({ userId: OWNER, providerRef: "GPA.1" }));
+    expect(h.createRevenueEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: OWNER, providerRef: "GPA.1", ownerGym: { scope: "platform" } })
+    );
+  });
+
+  it("always stamps the revenue event platform scope, regardless of the session user's own gym", async () => {
+    h.findUserById.mockImplementation((id: string) => ({ id, role: "member", archivedAt: null, gymId: "gym-b" }));
+
+    await verify({ purchaseToken: TOKEN }, OWNER);
+
+    expect(h.createRevenueEvent).toHaveBeenCalledWith(expect.objectContaining({ ownerGym: { scope: "platform" } }));
   });
 
   it("stays idempotent for the same owner: same id/createdAt kept, tier re-granted to the same user", async () => {
