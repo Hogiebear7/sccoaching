@@ -1930,6 +1930,10 @@ interface Database {
   shoppingListItems: ShoppingListItemRecord[];
 }
 
+// Every top-level collection name. Exported so lib/resource-scope.ts can classify each one at
+// compile time: adding a collection without classifying its tenant scope fails tsc.
+export type DatabaseCollectionName = keyof Database;
+
 // DATA_DIR defaults to a folder inside the deployed code, which is fine for
 // local dev — but on a host that replaces the whole code directory on every
 // deploy (e.g. Hostinger's per-release .builds/versions/<id> layout), that
