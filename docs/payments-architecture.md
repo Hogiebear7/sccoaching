@@ -223,3 +223,15 @@ catalog for local/sandbox with `node scripts/seed-catalog.mjs`.
 Register no new Stripe webhook events. For production, staff paste Stripe
 Product ids (package) and Price ids (billing option); until then checkout uses
 inline price_data.
+
+## App Subscription (Google Play): status pointer (2026-10)
+
+Everything above describes the **Stripe and Revolut** flows. The App Subscription is a separate, platform-global product sold only through Google Play in-app purchase; it never goes through the web checkout. Status as of base `454187f`:
+
+- **Server side (implemented):** `POST /api/mobile/billing/google-play/verify` re-verifies a purchase token live with Google, and the RTDN webhook at `/api/webhooks/google-play` re-checks known tokens. A token with no owner is accepted only if the session user's expected account binding matches what Google echoes back (PR #52).
+- **Mobile side (not implemented):** `sc-coaching-mobile` has no billing dependency and nothing calls the verify endpoint. No endpoint delivers the expected binding to a client, so no App Subscription purchase can complete today.
+- **Entitlement:** one `SubscriptionRecord` per user. A Play purchase overwrites a Membership row, and nothing yet guards that or a stale notification (see the readiness doc, GP-2a and GP-2b).
+- **Ownership and revenue:** Play revenue events and App Subscription rows are stamped `ownerGym: { scope: "platform" }` (PRs #51 and #55). The recorded amount is the billing option's configured placeholder price, not the charged or net amount.
+- **Not handled:** refund, chargeback and void reversal, acknowledgement retry by the webhook, call timeouts, and a kill switch.
+
+Evidence, the owner decisions still required, and the follow-up PR sequence are in `docs/google-play-iap-readiness-2026-10.md`.

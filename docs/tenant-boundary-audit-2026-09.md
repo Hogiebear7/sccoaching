@@ -140,7 +140,7 @@ webhook/route.ts`, handling `checkout.session.completed` (+ async variants),
 **Google Play Billing**: real, server-verified (not client-trusted) —
 `app/api/mobile/billing/google-play/verify/route.ts` re-checks live against
 Google; `app/api/webhooks/google-play/route.ts` is the RTDN push endpoint.
-No gym/tenant dimension on `GooglePlayPurchaseRecord` (`lib/db.ts:1088`).
+No gym/tenant dimension on `GooglePlayPurchaseRecord` (`lib/db.ts:1088`). *Update 2026-10-06: account binding for new purchase tokens was added by PR #52; see §12.7 and `docs/google-play-iap-readiness-2026-10.md`.*
 
 **Apple IAP**: no server-side handler exists at all — `apple_iap` is only a
 `BillingChannel` enum value used for catalog labeling (`lib/db.ts:997`,
@@ -419,7 +419,7 @@ Every fix has two-gym tests asserting returned data **and** data-access calls.
 | P2 | Nutrition moderation / submissions (web + mobile) | Moderates the shared food catalog; submitter identity visible across gyms |
 | P2 | Signup gym assignment | Self-signup and signup-time invite redemption always land in the primary gym; needs a gym-selection/invite-gym decision |
 | P2 | Single Stripe / Revolut / Google Play secrets | One webhook topology, one merchant account; Connect / per-gym accounts undecided |
-| P2 | Google Play token first-claim | An unverified valid token can be claimed by the first account to submit it; needs `obfuscatedExternalAccountId` bound at purchase time (client + provider change) |
+| ~~P2~~ | ~~Google Play token first-claim~~ | **Server side resolved by PR #52 (§12.7).** A token with no owner is now accepted only if the session user's expected account binding matches what Google echoes back. **Still open:** no mobile client can supply the binding and nothing delivers it to one, so no new claim can complete today (see `docs/google-play-iap-readiness-2026-10.md`). Original problem: an unverified valid token could be claimed by the first account to submit it |
 
 ### 12.3 Reviewed, no change
 
@@ -480,4 +480,22 @@ None of the following was changed by PRs #32, #34 or #35.
 | Signup gym assignment and multi-gym membership | **Open — decision required** | Self-signup and signup-time invite redemption always land in the primary gym (see §12.2) |
 | Global versus per-gym policy | **Open — decision required** | Exercise library, class categories, workout templates, and the `emails` and `readiness-alert` settings have no gym (see §12.2). Nutrition moderation and submissions act on the shared food catalog |
 | Per-gym Finance ownership, merchant of record and tax | **Partially resolved (2026-09-30)** | Merchant-of-record *model* decided: Option C (phased) — S&C stays merchant of record initially, Stripe Connect deferred not rejected. See `docs/merchant-of-record-decision-2026-09.md` for the full record and its still-open legal/provider/settlement/infrastructure gates. **Not yet resolved**: legal/accounting approval, provider (Stripe/Revolut) confirmation, and the Gym B settlement process itself — none of those were obtained by that document. Also outdated here: revenue events now carry `ownerGym` (PR #55), and Finance access is exact-role `platform_operator` (PR #32), not merely "interim-restricted." Single Stripe / Revolut / Google Play secrets remain, by design, under the selected phased model |
-| Google Play token first-claim | **Open** | Needs `obfuscatedExternalAccountId` bound at purchase time (client and provider change) |
+| Google Play token first-claim | **Server side implemented (PR #52); client side absent** | The binding is enforced for new tokens. No endpoint delivers the expected binding to a client and the mobile app has no purchase flow, so no App Subscription claim can complete. Remaining work, owner decisions and the follow-up PR sequence are in `docs/google-play-iap-readiness-2026-10.md` |
+
+### 12.7 Google Play and App Subscription status (2026-10-06)
+
+Recorded against base `454187f`. The detail, evidence and decision table are in `docs/google-play-iap-readiness-2026-10.md`; this section only keeps the audit's own status rows accurate. Deployment of the PRs below to the production host is **not** recorded here and is unverified.
+
+| Item | Status | Reference |
+|---|---|---|
+| Server-side account binding for new purchase tokens | **Implemented** (PR #52, merge `8d6c0d9`) | `lib/providers/google-play.ts`, `app/api/mobile/billing/google-play/verify/route.ts` |
+| Delivery of the expected binding to a mobile client | **Not implemented** (implementation prerequisite) | Readiness doc, GP-1 |
+| Mobile Google Play purchase flow | **Not implemented** | `sc-coaching-mobile` has no billing dependency and no caller of the verify endpoint |
+| App Subscription scope | **Platform-global and IAP-only by current policy** | PRs #52, #53, #56; `docs/merchant-of-record-decision-2026-09.md` item 8 |
+| Web-checkout cross-scope switching | **Blocked** (PR #53), but not in `grantMemberTier` | Readiness doc, GP-2a |
+| Creation of new `app_only` packages | **Restricted** to `platform_operator` (PR #56) | `app/api/staff/catalog/packages/route.ts` |
+| One subscription row per user colliding with simultaneous Membership and App Subscription | **Open**, unguarded | Readiness doc, GP-2a and decision 1 |
+| A stale or superseded Play token overwriting the current subscription row | **Open** | Readiness doc, GP-2b |
+| Refund and revocation handling, acknowledgement retry, call timeouts, provider error pass-through, kill switch | **Open** | Readiness doc, GP-3, GP-5, GP-8, GP-9, GP-11 |
+| Revenue amount basis for Play | **Open, decision required** | Readiness doc, GP-4 and decision 3 |
+| `source-map-js` production advisory | **Fixed by PR #58** (merge `454187f`); deployment unverified | `package-lock.json` |
