@@ -42,6 +42,7 @@ import {
   type MembershipBillingOptionRecord,
   type SubscriptionRecord,
 } from "@/lib/db";
+import { parkAbandonedCheckout } from "@/lib/checkout-recovery";
 import type { MemberTier } from "@/lib/member-access";
 import { resolveMemberTier } from "@/lib/membership-entitlement";
 import { googlePlayAccountBindingMatches, googlePlayObfuscatedAccountId } from "@/lib/providers/google-play";
@@ -239,6 +240,7 @@ function applyEntitlement(args: {
   const nowIso = new Date().toISOString();
   const pendingStripeCheckout = !!existing && existing.provider === "stripe" && existing.status === "pending" && !!existing.providerSetupOrderId;
   const keepParked = !!existing && existing.provider === "google_play";
+  const displacedStripeCheckout = !!existing && existing.provider === "stripe" && existing.status === "inactive" && !!existing.providerSetupOrderId;
   const fresh = status === "active" && (existing?.status !== "active" || existing?.packageId !== appPackage.id || !isCurrent);
   const row: SubscriptionRecord = {
     userId,
@@ -255,6 +257,19 @@ function applyEntitlement(args: {
     // later Stripe completion could match it unguarded. The Stripe webhook then promotes it only if no Play entitlement is
     // live at that moment (see app/api/stripe/webhook/route.ts).
     providerSetupOrderId: null,
+    // Later Play updates for the same row (renewal, expiry) keep that parked intent.
+    // A Stripe checkout that is no longer pending (the cleanup job marked it inactive) but still has its setup-order reference is
+    // PARKED rather than dropped, so a late payment can still be reconciled (lib/checkout-recovery.ts).
+    abandonedCheckouts: displacedStripeCheckout
+      ? parkAbandonedCheckout(existing?.abandonedCheckouts, {
+          sessionId: existing.providerSetupOrderId as string,
+          packageId: existing.packageId ?? null,
+          billingOptionId: existing.billingOptionId ?? null,
+          startedAt: existing.updatedAt,
+          clearedAt: nowIso,
+          reason: "replaced_by_play",
+        })
+      : existing?.abandonedCheckouts,
     // Later Play updates for the same row (renewal, expiry) keep that parked intent.
     pendingPackageId: pendingStripeCheckout ? existing.packageId ?? null : keepParked ? existing.pendingPackageId ?? null : null,
     pendingBillingOptionId: pendingStripeCheckout ? existing.billingOptionId ?? null : keepParked ? existing.pendingBillingOptionId ?? null : null,
