@@ -6,6 +6,10 @@ carries exactly one of five labels, and the large majority are **tested with moc
 Base `redesign/index-html-blueprint` at `a6a27fa`. Nothing here is merged or deployed. No provider was contacted, no
 production data, secret, `.env` value or `data/db.json` was read, and no real purchase token was used.
 
+> **Update (post-merge).** The stack below is merged. The follow-up hardening PRs and where each audit finding is handled are listed in
+> `docs/post-merge-hardening-2026-10.md`. Where this document says hard delete frees a Play token, or a stale checkout is lost, read that
+> document: those gaps are addressed by PRs `#68` and `#69` (owner decision 6 itself stays open).
+
 ## 1. The stack
 
 Merge in this order. After each parent merges, retarget the next PR to `redesign/index-html-blueprint`.
