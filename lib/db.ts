@@ -14,6 +14,7 @@ import type {
 import type { GymRecord } from "@/lib/gyms-schema";
 import { isStaffRole } from "@/lib/permissions";
 import { getConfiguredDataDir } from "@/lib/app-config";
+import { deletedOwnerId, MemberDeletionRefused } from "@/lib/member-deletion-guard";
 
 export type StoredUser = UserRecord & { passwordHash: string };
 
@@ -1212,6 +1213,10 @@ export interface GooglePlayPurchaseRecord {
   /** Set when Google refunded, voided or revoked the purchase. */
   revokedAt?: string | null;
   revocationReason?: GooglePlayRevocationReason | null;
+  /** Set when the member's account was permanently deleted after the entitlement ended. userId then holds an opaque
+      "deleted:" owner id (lib/member-deletion-guard.ts), so the record no longer names the member but the token stays owned and a
+      late notification can still be reconciled. */
+  anonymizedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -2543,8 +2548,30 @@ const MEMBER_OWNED_COLLECTIONS = [
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
   "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
-  "recipes", "shoppingListItems", "googlePlayPurchases", "foodFavorites",
+  "recipes", "shoppingListItems", "foodFavorites",
+  // googlePlayPurchases is deliberately NOT here: purchase records are anonymised, never deleted (see deleteUserAndOwnedRecords).
 ] as const;
+
+// The protected-entitlement test used by hard deletion. Looks at BOTH the member's purchase records and their subscription row,
+// because either can show a paid Play subscription that is still running. Returns a short status word, or null.
+function findProtectedPlayEntitlementInDb(db: Database, userId: string, nowMs: number = Date.now()): string | null {
+  for (const p of db.googlePlayPurchases) {
+    if (p.userId !== userId || p.revokedAt) continue;
+    if (p.status === "active" || p.status === "in_grace_period" || p.status === "paused") return p.status;
+    // Cancelled in Google Play but still inside the paid period: access (and Google's billing record) continue to the expiry.
+    if (p.status === "canceled" && p.expiryTimeMillis !== null && p.expiryTimeMillis > nowMs) return "canceled_until_expiry";
+  }
+  const sub = db.subscriptions.find((s) => s.userId === userId);
+  if (sub?.provider === "google_play" && (sub.status === "active" || sub.status === "past_due" || sub.status === "paused")) {
+    const lapsed = sub.status === "active" && sub.currentPeriodEnd !== null && new Date(sub.currentPeriodEnd).getTime() < nowMs;
+    if (!lapsed) return sub.status;
+  }
+  return null;
+}
+
+export function findProtectedPlayEntitlementForUser(userId: string, nowMs: number = Date.now()): string | null {
+  return findProtectedPlayEntitlementInDb(readDb(), userId, nowMs);
+}
 
 // PERMANENT, irreversible deletion of a user and every record they own. This is
 // the hard delete behind archived-member cleanup — it removes the member's
@@ -2555,9 +2582,27 @@ const MEMBER_OWNED_COLLECTIONS = [
 // the shared common/branded food catalog, categories, payment events) is
 // untouched — the member's own custom foods are removed separately below
 // since they're keyed by `ownerUserId`, not `userId`.
+//
+// REFUSED (throws MemberDeletionRefused, changes nothing) while the member holds a protected Google Play entitlement: see
+// lib/member-deletion-guard.ts. Once it has ended, their Google Play purchase records are ANONYMISED instead of deleted, so
+// the token stays owned and history is preserved without naming the member. Stripe and Revolut subscriptions are not covered by
+// this guard (owner decision 6 is still open).
 export function deleteUserAndOwnedRecords(userId: string): Record<string, number> {
   const db = readDb();
   const summary: Record<string, number> = {};
+
+  const protectedEntitlement = findProtectedPlayEntitlementInDb(db, userId);
+  if (protectedEntitlement) throw new MemberDeletionRefused(protectedEntitlement);
+
+  const anonymisedAt = new Date().toISOString();
+  const owner = deletedOwnerId(userId);
+  let anonymised = 0;
+  db.googlePlayPurchases = db.googlePlayPurchases.map((p) => {
+    if (p.userId !== userId) return p;
+    anonymised++;
+    return { ...p, userId: owner, anonymizedAt: anonymisedAt, updatedAt: anonymisedAt };
+  });
+  if (anonymised > 0) summary.googlePlayPurchasesAnonymised = anonymised;
 
   const before = db.users.length;
   db.users = db.users.filter((u) => u.id !== userId);

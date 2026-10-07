@@ -35,6 +35,7 @@ import {
   findMembershipPackages,
   findRevenueEventByProviderRef,
   findSubscriptionByUserId,
+  findUserById,
   recordGooglePlayAcknowledgement,
   saveSubscription,
   type GooglePlayPurchaseRecord,
@@ -44,6 +45,7 @@ import {
 } from "@/lib/db";
 import { parkAbandonedCheckout } from "@/lib/checkout-recovery";
 import type { MemberTier } from "@/lib/member-access";
+import { isDeletedOwner } from "@/lib/member-deletion-guard";
 import { resolveMemberTier } from "@/lib/membership-entitlement";
 import { googlePlayAccountBindingMatches, googlePlayObfuscatedAccountId } from "@/lib/providers/google-play";
 import { APP_SUBSCRIPTION_PACKAGE_SLUG } from "@/lib/tier-grant";
@@ -169,6 +171,13 @@ function syncPurchase(input: SyncInput): { outcome: EntitlementOutcome; purchase
   if (applied.status === "unknown_token") return { outcome: { kind: "unknown_token" } };
 
   const purchase = applied.purchase;
+  // The member's account was permanently deleted after the entitlement ended. The purchase record is kept (anonymised) so the
+  // token stays owned and the snapshot above is recorded, but there is no account left to entitle: never create a subscription
+  // row for a user that does not exist.
+  if (isDeletedOwner(purchase.userId) || !findUserById(purchase.userId)) {
+    appendIapEvent({ type: "notification_stale", userId: null, purchaseToken: token, actor, detail: { reason: "owner_deleted" } });
+    return { outcome: { kind: "stale" }, purchase };
+  }
   // A voided purchase stays void: no later snapshot may re-entitle it.
   const effectiveStatus = purchase.revokedAt ? "canceled" : mapped.appStatus;
   if (effectiveStatus === null) return { outcome: { kind: "pending" }, purchase };
@@ -606,6 +615,7 @@ export async function reconcileGooglePlayPurchases(
   if (!adapter.isConfigured()) return { considered: 0, processed: 0, failed: 0, skipped: "not_configured" };
 
   const due = findAllGooglePlayPurchases()
+    .filter((p) => !isDeletedOwner(p.userId))
     .filter((p) => !p.revokedAt && p.status !== "expired")
     .filter((p) => {
       const last = p.lastSnapshotAt ? new Date(p.lastSnapshotAt).getTime() : 0;
@@ -642,6 +652,7 @@ export async function retryGooglePlayAcknowledgements(
   if (!adapter.isConfigured()) return { considered: 0, processed: 0, failed: 0, skipped: "not_configured" };
 
   const due = findAllGooglePlayPurchases()
+    .filter((p) => !isDeletedOwner(p.userId))
     .filter((p) => !p.acknowledged && !p.revokedAt && p.acknowledgementState !== "not_required")
     .filter((p) => ENTITLING_STATUSES.has(appStatusOfPlayStatus(p.status)))
     .filter((p) => (p.acknowledgementAttempts ?? 0) < MAX_ACK_ATTEMPTS)
