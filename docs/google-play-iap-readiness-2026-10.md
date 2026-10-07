@@ -267,7 +267,11 @@ route; no timeout on any Google call; no iOS handling of any kind.
 
 ## 7. Owner decisions
 
-Nothing below is decided. "Recommended default" is a suggestion.
+As written on 2026-10-06, nothing below was decided; "Recommended default" is a suggestion.
+**Update 2026-10-07:** the owner supplied defaults that settle decisions 1 (reject), 2
+(Android first), 7 (no automatic reassignment) and 10 (a kill switch that defaults off). They
+are recorded, with the interpretations made where they leave a gap, in
+`docs/iap-multitenant-implementation-plan-2026-10.md` §1 and §2. Every other decision remains open.
 
 | # | Decision | Options | Recommended default (not approved) | Label | Gates |
 |---|---|---|---|---|---|
