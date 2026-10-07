@@ -1,283 +1,192 @@
 // Purchase-token ownership for POST /api/mobile/billing/google-play/verify.
-// A token already recorded against a DIFFERENT account must be rejected before
-// anything is saved, overwritten, acknowledged, granted or booked as revenue;
-// the recorded owner and their entitlement stay untouched. The same owner
-// re-verifying the same token stays idempotent. The identity used is always
-// the signed session user — never a client-supplied user or gym id. Auth uses
-// the real signed-session mechanism; the Google API and grant are mocked so the
-// assertions are about ordering and what is (not) called.
-import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+// A token already recorded against a DIFFERENT account must be rejected before anything is saved, overwritten,
+// acknowledged, granted or booked as revenue; the recorded owner and their entitlement stay untouched. The same
+// owner re-verifying the same token stays idempotent. The identity used is always the signed session user, never
+// a client-supplied user or gym id.
+//
+// Ported from a mocked-datastore version to the REAL route handler with a REAL datastore file and a fake provider
+// adapter (helpers/iap-play-fixture.ts). Every original case is kept. Deliberate changes, all tightenings:
+//  - an invalid token now answers a SANITIZED message with a stable code, instead of passing the provider's own
+//    message through (a caller must never be able to read provider text back);
+//  - failure bodies carry a stable `code`; the success body also reports `acknowledged`.
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
+import { createPlayFixture, type PlayFixture } from "../helpers/iap-play-fixture";
 
-const h = vi.hoisted(() => ({
-  createRevenueEvent: vi.fn(),
-  findGooglePlayPurchaseByToken: vi.fn(),
-  findMembershipBillingOptions: vi.fn(),
-  findMembershipPackages: vi.fn(),
-  findRevenueEventByProviderRef: vi.fn(),
-  saveGooglePlayPurchase: vi.fn(),
-  acknowledgeGooglePlaySubscription: vi.fn(),
-  isGooglePlayConfigured: vi.fn(),
-  mapGooglePlaySubscriptionState: vi.fn(),
-  verifyGooglePlaySubscriptionPurchase: vi.fn(),
-  grantMemberTier: vi.fn(),
-  findUserById: vi.fn(),
-  googlePlayObfuscatedAccountId: vi.fn(),
-  googlePlayAccountBindingMatches: vi.fn(),
-}));
-vi.mock("@/lib/db", () => ({
-  findUserById: h.findUserById,
-  createRevenueEvent: h.createRevenueEvent,
-  findGooglePlayPurchaseByToken: h.findGooglePlayPurchaseByToken,
-  findMembershipBillingOptions: h.findMembershipBillingOptions,
-  findMembershipPackages: h.findMembershipPackages,
-  findRevenueEventByProviderRef: h.findRevenueEventByProviderRef,
-  saveGooglePlayPurchase: h.saveGooglePlayPurchase,
-}));
-vi.mock("@/lib/providers/google-play", () => ({
-  acknowledgeGooglePlaySubscription: h.acknowledgeGooglePlaySubscription,
-  isGooglePlayConfigured: h.isGooglePlayConfigured,
-  mapGooglePlaySubscriptionState: h.mapGooglePlaySubscriptionState,
-  verifyGooglePlaySubscriptionPurchase: h.verifyGooglePlaySubscriptionPurchase,
-  googlePlayObfuscatedAccountId: h.googlePlayObfuscatedAccountId,
-  googlePlayAccountBindingMatches: h.googlePlayAccountBindingMatches,
-}));
-vi.mock("@/lib/tier-grant", () => ({
-  APP_SUBSCRIPTION_PACKAGE_SLUG: "app-subscription",
-  grantMemberTier: h.grantMemberTier,
-}));
-
-const OWNER = "user-owner";
-const OTHER = "user-other";
+let fx: PlayFixture;
 const TOKEN = "play-token-123";
 
-const OPTION = {
-  id: "opt-app-monthly",
-  googlePlaySubscriptionId: "app_sub",
-  googlePlayBasePlanId: "monthly",
-  amountCents: 999,
-  currency: "EUR",
-};
-const SUBSCRIPTION = {
-  productId: "app_sub",
-  basePlanId: "monthly",
-  orderId: "GPA.1",
-  linkedPurchaseToken: null,
-  subscriptionState: "SUBSCRIPTION_STATE_ACTIVE",
-  acknowledgementState: "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED",
-  autoRenewing: true,
-  startTimeMillis: 1000,
-  expiryTimeMillis: Date.now() + 30 * 86_400_000,
-};
-const EXISTING = {
-  id: "purchase-1",
-  userId: OWNER,
-  purchaseToken: TOKEN,
-  productId: "app_sub",
-  createdAt: "2026-01-01T00:00:00.000Z",
-};
+const revenue = () => fx.db.findAllRevenueEvents();
 
-async function verify(body: unknown, sessionUserId?: string, rawBody?: string) {
-  const { POST } = await import("@/app/api/mobile/billing/google-play/verify/route");
-  return POST(
-    new NextRequest("http://localhost/api/mobile/billing/google-play/verify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(sessionUserId
-          ? { Cookie: `session=${signSession({ userId: sessionUserId }, MEMBER_SESSION_LIFETIME_MS)}` }
-          : {}),
-      },
-      body: rawBody ?? JSON.stringify(body),
-    })
-  );
-}
-
-function expectNothingWritten() {
-  expect(h.saveGooglePlayPurchase).not.toHaveBeenCalled();
-  expect(h.acknowledgeGooglePlaySubscription).not.toHaveBeenCalled();
-  expect(h.grantMemberTier).not.toHaveBeenCalled();
-  expect(h.createRevenueEvent).not.toHaveBeenCalled();
-}
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  // Sessions resolve only for a live (existing, non-archived) account.
-  h.findUserById.mockImplementation((id: string) => ({ id, role: "member", archivedAt: null }));
-  h.isGooglePlayConfigured.mockReturnValue(true);
-  h.findGooglePlayPurchaseByToken.mockReturnValue(undefined);
-  h.verifyGooglePlaySubscriptionPurchase.mockResolvedValue({ ok: true, subscription: SUBSCRIPTION });
-  h.findMembershipBillingOptions.mockReturnValue([OPTION]);
-  h.findMembershipPackages.mockReturnValue([{ id: "pkg-app", slug: "app-subscription" }]);
-  h.mapGooglePlaySubscriptionState.mockReturnValue({ playStatus: "active", appStatus: "active" });
-  h.findRevenueEventByProviderRef.mockReturnValue(undefined);
-  h.grantMemberTier.mockResolvedValue({ ok: true, tier: "app_subscription" });
-  // Account-binding is exercised in its own dedicated test file; here it's
-  // stubbed to always match so these ownership/idempotency assertions aren't
-  // coupled to binding behavior.
-  h.googlePlayObfuscatedAccountId.mockReturnValue("expected-binding");
-  h.googlePlayAccountBindingMatches.mockReturnValue(true);
+beforeEach(async () => {
+  fx = await createPlayFixture();
 });
+afterEach(() => fx.cleanup());
 
 describe("POST /api/mobile/billing/google-play/verify — token ownership", () => {
   it("accepts a new token: saves it for the session user, grants the tier, records revenue", async () => {
-    const res = await verify({ purchaseToken: TOKEN }, OWNER);
+    const res = await fx.claim(fx.memberA.id, TOKEN, { orderId: "GPA.1", acknowledged: false });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       success: true,
       message: "Purchase verified.",
-      data: { tier: "app_subscription", status: "active" },
+      data: { tier: "app_subscription", status: "active", acknowledged: true },
     });
-    expect(h.saveGooglePlayPurchase).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: OWNER, purchaseToken: TOKEN })
-    );
-    expect(h.grantMemberTier).toHaveBeenCalledWith(OWNER, "app_subscription", expect.objectContaining({ providerSubscriptionId: TOKEN }));
-    expect(h.createRevenueEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: OWNER, providerRef: "GPA.1", ownerGym: { scope: "platform" } })
-    );
+    expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)).toMatchObject({ userId: fx.memberA.id, purchaseToken: TOKEN });
+    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toMatchObject({ provider: "google_play", providerSubscriptionId: TOKEN });
+    expect(revenue()).toEqual([expect.objectContaining({ userId: fx.memberA.id, providerRef: "GPA.1", ownerGym: { scope: "platform" } })]);
   });
 
   it("always stamps the revenue event platform scope, regardless of the session user's own gym", async () => {
-    h.findUserById.mockImplementation((id: string) => ({ id, role: "member", archivedAt: null, gymId: "gym-b" }));
-
-    await verify({ purchaseToken: TOKEN }, OWNER);
-
-    expect(h.createRevenueEvent).toHaveBeenCalledWith(expect.objectContaining({ ownerGym: { scope: "platform" } }));
+    await fx.claim(fx.memberB.id, TOKEN, { orderId: "GPA.gymb" });
+    expect(revenue()).toEqual([expect.objectContaining({ userId: fx.memberB.id, ownerGym: { scope: "platform" } })]);
   });
 
-  it("stays idempotent for the same owner: same id/createdAt kept, tier re-granted to the same user", async () => {
-    h.findGooglePlayPurchaseByToken.mockReturnValue(EXISTING);
-    h.findRevenueEventByProviderRef.mockReturnValue({ id: "rev-1" }); // this order already booked
+  it("stays idempotent for the same owner: same id/createdAt kept, entitlement refreshed for the same user", async () => {
+    await fx.claim(fx.memberA.id, TOKEN, { orderId: "GPA.1" });
+    const first = fx.db.findGooglePlayPurchaseByToken(TOKEN)!;
 
-    const res = await verify({ purchaseToken: TOKEN }, OWNER);
+    const res = await fx.verify(fx.memberA.id, { purchaseToken: TOKEN });
 
     expect(res.status).toBe(200);
-    expect(h.saveGooglePlayPurchase).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "purchase-1", userId: OWNER, createdAt: EXISTING.createdAt })
-    );
-    expect(h.grantMemberTier).toHaveBeenCalledTimes(1);
-    expect(h.grantMemberTier).toHaveBeenCalledWith(OWNER, "app_subscription", expect.anything());
-    expect(h.createRevenueEvent).not.toHaveBeenCalled();
+    expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)).toMatchObject({ id: first.id, userId: fx.memberA.id, createdAt: first.createdAt });
+    expect(fx.db.findGooglePlayPurchasesByUserId(fx.memberA.id)).toHaveLength(1);
+    expect(revenue()).toHaveLength(1); // this order is already booked
   });
 
   it("rejects a different user replaying a recorded token, before the provider call, writing nothing", async () => {
-    h.findGooglePlayPurchaseByToken.mockReturnValue(EXISTING);
+    await fx.claim(fx.memberA.id, TOKEN);
+    const calls = fx.adapter.fetchCalls.length;
+    const subBefore = fx.db.findSubscriptionByUserId(fx.memberA.id);
+    const revenueBefore = revenue().length;
 
-    const res = await verify({ purchaseToken: TOKEN }, OTHER);
+    const res = await fx.verify(fx.memberB.id, { purchaseToken: TOKEN });
 
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ success: false, message: "This purchase is already linked to another account." });
-    expect(h.verifyGooglePlaySubscriptionPurchase).not.toHaveBeenCalled();
-    expectNothingWritten();
+    expect(await res.json()).toEqual({ success: false, code: "owned_by_other", message: "This purchase is already linked to another account." });
+    expect(fx.adapter.fetchCalls.length).toBe(calls);
+    expect(fx.adapter.ackCalls.filter((t) => t === TOKEN)).toHaveLength(1); // only the rightful claim's acknowledgement
+    expect(fx.db.findSubscriptionByUserId(fx.memberB.id)).toBeUndefined();
+    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toEqual(subBefore);
+    expect(revenue()).toHaveLength(revenueBefore);
   });
 
-  it("leaves the existing owner and entitlement untouched after a rejected claim", async () => {
-    // A stateful store: the rejected claim must not change the recorded owner,
-    // and the rightful owner's retry must still work afterwards.
-    let stored: typeof EXISTING | undefined = { ...EXISTING };
-    h.findGooglePlayPurchaseByToken.mockImplementation(() => stored);
-    h.saveGooglePlayPurchase.mockImplementation((p: typeof EXISTING) => {
-      stored = p;
-    });
+  it("leaves the existing owner and entitlement untouched after a rejected claim, and the rightful owner's retry still works", async () => {
+    await fx.claim(fx.memberA.id, TOKEN);
 
-    const denied = await verify({ purchaseToken: TOKEN }, OTHER);
+    const denied = await fx.verify(fx.memberB.id, { purchaseToken: TOKEN });
     expect(denied.status).toBe(409);
-    expect(stored?.userId).toBe(OWNER);
-    expect(h.grantMemberTier).not.toHaveBeenCalledWith(OTHER, expect.anything(), expect.anything());
+    expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)?.userId).toBe(fx.memberA.id);
+    expect(fx.db.findSubscriptionByUserId(fx.memberB.id)).toBeUndefined();
 
-    const retry = await verify({ purchaseToken: TOKEN }, OWNER);
+    const retry = await fx.verify(fx.memberA.id, { purchaseToken: TOKEN });
     expect(retry.status).toBe(200);
-    expect(stored?.userId).toBe(OWNER);
+    expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)?.userId).toBe(fx.memberA.id);
   });
 
-  it("re-checks ownership right before saving, in case another account claims the token during verification", async () => {
-    h.findGooglePlayPurchaseByToken.mockReturnValueOnce(undefined).mockReturnValue(EXISTING);
+  it("re-checks ownership after the provider call, in case another account claims the token during verification", async () => {
+    // memberB's request is held at the provider while memberA claims the token for real.
+    fx.adapter.setSnapshot(TOKEN, { accountBinding: fx.bindingFor(fx.memberB.id) });
+    const gate = fx.adapter.gateNextFetch();
+    const pending = fx.verify(fx.memberB.id, { purchaseToken: TOKEN });
+    // Wait until the request is actually inside the provider call.
+    while (fx.adapter.fetchCalls.length === 0) await new Promise((resolve) => setTimeout(resolve, 2));
 
-    const res = await verify({ purchaseToken: TOKEN }, OTHER);
+    fx.db.claimGooglePlayPurchase(
+      {
+        purchaseToken: TOKEN,
+        productId: "app_subscription",
+        basePlanId: "monthly",
+        orderId: null,
+        linkedPurchaseToken: null,
+        status: "active",
+        acknowledged: true,
+        autoRenewing: true,
+        startTimeMillis: 1,
+        expiryTimeMillis: 2,
+        obfuscatedExternalAccountId: fx.bindingFor(fx.memberA.id),
+        acknowledgementState: "acknowledged",
+      },
+      fx.memberA.id
+    );
+    gate.release();
 
+    const res = await pending;
     expect(res.status).toBe(409);
-    expect(h.verifyGooglePlaySubscriptionPurchase).toHaveBeenCalledTimes(1);
-    expectNothingWritten();
+    expect(fx.adapter.fetchCalls).toHaveLength(1);
+    expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)?.userId).toBe(fx.memberA.id);
+    expect(fx.db.findSubscriptionByUserId(fx.memberB.id)).toBeUndefined();
   });
 
   it("ignores a client-supplied userId / gymId: only the session user is ever used", async () => {
-    h.findGooglePlayPurchaseByToken.mockReturnValue(EXISTING);
+    await fx.claim(fx.memberA.id, TOKEN);
 
-    const spoofed = await verify({ purchaseToken: TOKEN, userId: OWNER, gymId: null }, OTHER);
+    const spoofed = await fx.verify(fx.memberB.id, { purchaseToken: TOKEN, userId: fx.memberA.id, gymId: null });
     expect(spoofed.status).toBe(409);
-    expectNothingWritten();
 
-    h.findGooglePlayPurchaseByToken.mockReturnValue(undefined);
-    const fresh = await verify({ purchaseToken: "another-token", userId: OWNER, gymId: "gym-x" }, OTHER);
+    fx.adapter.setSnapshot("another-token", { accountBinding: fx.bindingFor(fx.memberB.id), orderId: "GPA.other" });
+    const fresh = await fx.verify(fx.memberB.id, { purchaseToken: "another-token", userId: fx.memberA.id, gymId: "gym-x" });
     expect(fresh.status).toBe(200);
-    expect(h.saveGooglePlayPurchase).toHaveBeenCalledWith(expect.objectContaining({ userId: OTHER }));
-    expect(h.grantMemberTier).toHaveBeenCalledWith(OTHER, "app_subscription", expect.anything());
+    expect(fx.db.findGooglePlayPurchaseByToken("another-token")?.userId).toBe(fx.memberB.id);
+    expect(fx.db.findSubscriptionByUserId(fx.memberB.id)).toMatchObject({ provider: "google_play", providerSubscriptionId: "another-token" });
   });
 });
 
 describe("POST /api/mobile/billing/google-play/verify — existing behavior unchanged", () => {
   it("rejects an unauthenticated request with 401 before anything else", async () => {
-    const res = await verify({ purchaseToken: TOKEN });
-
+    const res = await fx.verify(undefined, { purchaseToken: TOKEN });
     expect(res.status).toBe(401);
     expect((await res.json()).message).toBe("You must be signed in to verify a purchase.");
-    expect(h.findGooglePlayPurchaseByToken).not.toHaveBeenCalled();
-    expectNothingWritten();
+    expect(fx.adapter.fetchCalls).toEqual([]);
+    expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)).toBeUndefined();
   });
 
   it("returns 503 when Google Play isn't configured", async () => {
-    h.isGooglePlayConfigured.mockReturnValue(false);
-
-    const res = await verify({ purchaseToken: TOKEN }, OWNER);
-
+    fx.adapter.configured = false;
+    const res = await fx.verify(fx.memberA.id, { purchaseToken: TOKEN });
     expect(res.status).toBe(503);
-    expectNothingWritten();
+    expect((await res.json()).code).toBe("not_configured");
+    expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)).toBeUndefined();
   });
 
   it("preserves request validation (bad JSON, missing/blank token)", async () => {
-    const badJson = await verify(undefined, OWNER, "{not json");
+    const badJson = await fx.verify(fx.memberA.id, undefined, "{not json");
     expect(badJson.status).toBe(400);
     expect((await badJson.json()).message).toBe("Invalid JSON body.");
 
-    const noToken = await verify({}, OWNER);
+    const noToken = await fx.verify(fx.memberA.id, {});
     expect(noToken.status).toBe(400);
     expect((await noToken.json()).message).toBe("A purchase token is required.");
 
-    const blank = await verify({ purchaseToken: "   " }, OWNER);
-    expect(blank.status).toBe(400);
-    expectNothingWritten();
+    expect((await fx.verify(fx.memberA.id, { purchaseToken: "   " })).status).toBe(400);
+    expect((await fx.verify(fx.memberA.id, { purchaseToken: 42 })).status).toBe(400);
+    expect((await fx.verify(fx.memberA.id, { purchaseToken: "x".repeat(5000) })).status).toBe(400);
+    expect(fx.adapter.fetchCalls).toEqual([]);
   });
 
-  it("still returns Google's message with 400 for an invalid token, writing nothing", async () => {
-    h.verifyGooglePlaySubscriptionPurchase.mockResolvedValue({ ok: false, message: "Token not recognised." });
-
-    const res = await verify({ purchaseToken: "bogus" }, OWNER);
-
+  it("returns 400 with a SANITIZED message for a token the provider does not recognise, writing nothing", async () => {
+    const res = await fx.verify(fx.memberA.id, { purchaseToken: "bogus" });
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ success: false, message: "Token not recognised." });
-    expectNothingWritten();
+    expect(await res.json()).toEqual({ success: false, code: "provider_rejected", message: "This purchase could not be verified." });
+    expect(fx.db.findGooglePlayPurchaseByToken("bogus")).toBeUndefined();
   });
 
   it("still rejects a token that doesn't match a known App Subscription product", async () => {
-    h.findMembershipBillingOptions.mockReturnValue([]);
-
-    const res = await verify({ purchaseToken: TOKEN }, OWNER);
-
+    fx.adapter.setSnapshot(TOKEN, { accountBinding: fx.bindingFor(fx.memberA.id), productId: "some_other_product" });
+    const res = await fx.verify(fx.memberA.id, { purchaseToken: TOKEN });
     expect(res.status).toBe(400);
     expect((await res.json()).message).toBe("This purchase doesn't match a known App Subscription product.");
-    expectNothingWritten();
+    expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)).toBeUndefined();
+    expect(fx.adapter.ackCalls).toEqual([]);
   });
 
-  it("still returns 409 'still being processed' for a pending purchase", async () => {
-    h.mapGooglePlaySubscriptionState.mockReturnValue({ playStatus: "pending", appStatus: null });
-
-    const res = await verify({ purchaseToken: TOKEN }, OWNER);
-
+  it("still returns 409 'still being processed' for a pending purchase, granting nothing", async () => {
+    fx.adapter.setSnapshot(TOKEN, { accountBinding: fx.bindingFor(fx.memberA.id), state: "SUBSCRIPTION_STATE_PENDING" });
+    const res = await fx.verify(fx.memberA.id, { purchaseToken: TOKEN });
     expect(res.status).toBe(409);
     expect((await res.json()).message).toBe("Your purchase is still being processed by Google Play. Try again shortly.");
-    expect(h.grantMemberTier).not.toHaveBeenCalled();
+    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toBeUndefined();
+    expect(fx.adapter.ackCalls).toEqual([]);
   });
 });

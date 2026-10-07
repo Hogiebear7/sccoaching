@@ -3553,6 +3553,49 @@ export function applyGooglePlayPurchaseSnapshot(
   return { status: "applied", purchase: next };
 }
 
+export type GooglePlayAcknowledgementOutcome = { ok: true } | { ok: false; code: string };
+
+// Records one acknowledgement attempt and its audit event in a single write. A failure stores only a
+// short code (never a provider message). The purchase's own lifecycle state is not touched here.
+export function recordGooglePlayAcknowledgement(
+  purchaseToken: string,
+  outcome: GooglePlayAcknowledgementOutcome,
+  at: string = new Date().toISOString()
+): GooglePlayPurchaseRecord | undefined {
+  const db = readDb();
+  const index = db.googlePlayPurchases.findIndex((p) => p.purchaseToken === purchaseToken);
+  if (index === -1) return undefined;
+
+  const current = db.googlePlayPurchases[index];
+  const next: GooglePlayPurchaseRecord = {
+    ...current,
+    acknowledged: outcome.ok ? true : current.acknowledged,
+    acknowledgementState: outcome.ok ? "acknowledged" : "failed",
+    acknowledgementAttempts: (current.acknowledgementAttempts ?? 0) + 1,
+    acknowledgementLastAttemptAt: at,
+    acknowledgementError: outcome.ok ? null : outcome.code.slice(0, 40),
+    updatedAt: at,
+  };
+  db.googlePlayPurchases[index] = next;
+  db.iapEvents.push(
+    buildIapEvent({
+      type: outcome.ok ? "acknowledgement_succeeded" : "acknowledgement_failed",
+      userId: current.userId,
+      purchaseToken,
+      actor: "system",
+      detail: { attempt: next.acknowledgementAttempts ?? 1, ...(outcome.ok ? {} : { code: outcome.code }) },
+      at,
+    })
+  );
+  writeDb(db);
+  return next;
+}
+
+// Every purchase row, oldest first. For background jobs, which must filter themselves.
+export function findAllGooglePlayPurchases(): GooglePlayPurchaseRecord[] {
+  return [...readDb().googlePlayPurchases].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
 const IAP_NOTIFICATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type ClaimIapNotificationResult =

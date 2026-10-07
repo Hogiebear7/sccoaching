@@ -61,9 +61,24 @@ export interface GooglePlayDeveloperNotification {
     purchaseToken: string;
     subscriptionId: string;
   };
+  // Sent when a purchase is refunded, charged back or otherwise voided. productType 1 is a subscription,
+  // 2 a one-time product. refundType is informational. The service treats it as a trigger to re-check the
+  // purchase AND as the signal that a voided current order ends access (lib/iap/service.ts).
+  voidedPurchaseNotification?: {
+    purchaseToken: string;
+    orderId?: string;
+    productType?: number;
+    refundType?: number;
+  };
   // Sent by Play Console's Monetization setup "Send test notification"
   // button — not a real event, just confirms the endpoint is reachable.
   testNotification?: { version: string };
+}
+
+// Pub/Sub's own message id: the idempotency key for a delivery. Null when absent or not a string.
+export function pubSubMessageId(body: unknown): string | null {
+  const id = (body as PubSubPushEnvelope | null)?.message?.messageId;
+  return typeof id === "string" && id.length > 0 && id.length <= 128 ? id : null;
 }
 
 export function parsePubSubPushEnvelope(body: unknown): GooglePlayDeveloperNotification | null {

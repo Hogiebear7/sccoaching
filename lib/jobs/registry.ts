@@ -7,6 +7,8 @@ import { notifyExpiringPassesJob } from "./notify-expiring-passes";
 import { notifyLowPassBalanceJob } from "./notify-low-pass-balance";
 import { notifyLapsedMembershipsJob } from "./notify-lapsed-memberships";
 import { processWaitlistOffersJob } from "./process-waitlist-offers";
+import { reconcileGooglePlayPurchasesJob } from "./reconcile-google-play-purchases";
+import { retryGooglePlayAcknowledgementsJob } from "./retry-google-play-acknowledgements";
 import { purgeExpiredResetTokensJob } from "./purge-expired-reset-tokens";
 import { purgeOldRecoveryLogsJob } from "./purge-old-recovery-logs";
 import { refreshBrandedFoodCacheJob } from "./refresh-branded-food-cache";
@@ -25,6 +27,8 @@ import type { JobDefinition } from "./types";
 // 6. Storage hygiene / independent maintenance (order doesn't matter).
 export const ALL_JOBS: JobDefinition[] = [
   expireStaleCheckoutsJob,
+  reconcileGooglePlayPurchasesJob,
+  retryGooglePlayAcknowledgementsJob,
   notifyLapsedMembershipsJob,
   dropLapsedManualMembershipsJob,
   notifyExpiringPassesJob,
