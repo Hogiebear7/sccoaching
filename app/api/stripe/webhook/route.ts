@@ -3,6 +3,7 @@ import {
   resolveSubscriptionEntitlement,
 } from "@/lib/membership-entitlement";
 import { cancelProviderSubscription } from "@/lib/billing";
+import { settleAbandonedCheckout } from "@/lib/checkout-recovery";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -18,9 +19,11 @@ import {
   findPurchaseByProviderOrderId,
   findPurchaseByProviderPaymentRef,
   findRevenueEventByProviderRef,
+  findSubscriptionByAbandonedCheckout,
   findSubscriptionByPendingSetupOrderId,
   findSubscriptionByProviderOrderId,
   findSubscriptionBySetupOrderId,
+  appendIapEvent,
   hasPaymentEvent,
   recordPaymentEvent,
   savePurchase,
@@ -204,11 +207,36 @@ export async function POST(request: NextRequest) {
       // PREVIOUS provider subscription so it can't keep billing. The active
       // membership was untouched until this moment — so an abandoned switch
       // simply never reaches here and leaves the member on their old plan.
-      const switching = findSubscriptionByPendingSetupOrderId(sessionId);
+      let switching = findSubscriptionByPendingSetupOrderId(sessionId);
+
+      // LATE completion: the cleanup job (or a Play takeover) moved this checkout out of the pending fields, but the member paid
+      // anyway. Reconcile it exactly as an on-time switch would be (same provider guard), instead of matching nothing.
+      let lateRecovery: { sessionId: string } | null = null;
+      if (!switching && !findSubscriptionBySetupOrderId(sessionId)) {
+        const late = findSubscriptionByAbandonedCheckout(sessionId);
+        if (late) {
+          switching = {
+            ...late.subscription,
+            pendingPackageId: late.checkout.packageId,
+            pendingBillingOptionId: late.checkout.billingOptionId,
+            pendingSetupOrderId: sessionId,
+            pendingStartedAt: late.checkout.startedAt,
+          };
+          lateRecovery = { sessionId };
+        }
+      }
+
       if (switching) {
         // Check and write below are one synchronous block (no await), so a concurrent delivery cannot interleave.
         const switchConflict = evaluateProviderTransition(switching, "stripe");
-        if (switchConflict) return refuse(switching, switchConflict, sessionId);
+        if (switchConflict) {
+          // Another provider holds a live entitlement: refuse. A late payment in this state needs MANUAL recovery (cancel and
+          // refund at Stripe is staff's decision, never automatic), so say so in the audit trail.
+          if (lateRecovery) {
+            appendIapEvent({ provider: "stripe", type: "late_checkout_recovery", userId: switching.userId, actor: "provider", detail: { outcome: "conflict_manual_recovery", existingProvider: switching.provider } });
+          }
+          return refuse(switching, switchConflict, sessionId);
+        }
 
         const newSubId =
           typeof object.subscription === "string" ? object.subscription : switching.providerSubscriptionId;
@@ -237,9 +265,13 @@ export async function POST(request: NextRequest) {
           pendingBillingOptionId: null,
           pendingSetupOrderId: null,
           pendingStartedAt: null,
+          abandonedCheckouts: lateRecovery ? settleAbandonedCheckout(switching.abandonedCheckouts, lateRecovery.sessionId, nowIso) : switching.abandonedCheckouts,
           lastWebhookEventAt: nowIso,
           updatedAt: nowIso,
         });
+        if (lateRecovery) {
+          appendIapEvent({ provider: "stripe", type: "late_checkout_recovery", userId: switching.userId, actor: "provider", detail: { outcome: "applied" } });
+        }
 
         if (previousSubId && previousSubId !== newSubId) {
           void cancelProviderSubscription({ provider: "stripe", providerSubscriptionId: previousSubId }).then((r) => {

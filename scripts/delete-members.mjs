@@ -17,6 +17,7 @@
 //  - Backs up data/db.json to data/db.json.bak-<ts> before writing.
 // Set GYM_DB_PATH to target a different db file (used by tests).
 
+import { createHash } from "crypto";
 import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 
@@ -43,7 +44,29 @@ const STAFF_ROLES = new Set(["coach", "admin", "admin_manager", "staff"]);
 const targets = users.filter((u) => emails.includes(u.email.toLowerCase()));
 const notFound = emails.filter((e) => !users.some((u) => u.email.toLowerCase() === e));
 const refusedStaff = targets.filter((u) => STAFF_ROLES.has(u.role));
-const doomed = targets.filter((u) => !STAFF_ROLES.has(u.role));
+const candidates = targets.filter((u) => !STAFF_ROLES.has(u.role));
+
+// ── Google Play protection (mirrors lib/db.ts findProtectedPlayEntitlementInDb and lib/member-deletion-guard.ts) ──────────
+// A member with a paid Google Play entitlement that is still running (active, past_due, paused, or cancelled but inside the
+// paid period) is REFUSED, never deleted: Google would keep billing with nothing tracking it. Ended entitlements proceed, and
+// their purchase records are ANONYMISED, not deleted. Keep in sync with those two files.
+const NOW_MS = Date.now();
+function protectedPlayState(userId) {
+  for (const p of db.googlePlayPurchases ?? []) {
+    if (p.userId !== userId || p.revokedAt) continue;
+    if (p.status === "active" || p.status === "in_grace_period" || p.status === "paused") return p.status;
+    if (p.status === "canceled" && typeof p.expiryTimeMillis === "number" && p.expiryTimeMillis > NOW_MS) return "canceled_until_expiry";
+  }
+  const sub = (db.subscriptions ?? []).find((s) => s.userId === userId);
+  if (sub?.provider === "google_play" && ["active", "past_due", "paused"].includes(sub.status)) {
+    const lapsed = sub.status === "active" && sub.currentPeriodEnd && new Date(sub.currentPeriodEnd).getTime() < NOW_MS;
+    if (!lapsed) return sub.status;
+  }
+  return null;
+}
+const deletedOwnerId = (userId) => "deleted:" + createHash("sha256").update("member-deletion:" + userId).digest("hex").slice(0, 16);
+const refusedPlay = candidates.filter((u) => protectedPlayState(u.id));
+const doomed = candidates.filter((u) => !protectedPlayState(u.id));
 const doomedIds = new Set(doomed.map((u) => u.id));
 
 // Mirrors MEMBER_OWNED_COLLECTIONS in lib/db.ts — keep in sync.
@@ -55,7 +78,7 @@ const BY_USER_ID = [
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
   "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
-  "recipes", "shoppingListItems", "googlePlayPurchases",
+  "recipes", "shoppingListItems",
 ];
 
 const report = {};
@@ -63,6 +86,7 @@ for (const key of BY_USER_ID) {
   const arr = db[key] ?? [];
   report[key] = arr.filter((r) => doomedIds.has(r.userId)).length;
 }
+report.googlePlayPurchasesAnonymised = (db.googlePlayPurchases ?? []).filter((p) => doomedIds.has(p.userId)).length;
 report.messages = (db.messages ?? []).filter((m) => doomedIds.has(m.memberId)).length;
 // Custom foods use ownerUserId, not userId — see lib/db.ts's deleteUserAndOwnedRecords.
 report.customFoods = (db.customFoods ?? []).filter((f) => doomedIds.has(f.ownerUserId)).length;
@@ -72,6 +96,7 @@ report.commentReports = (db.commentReports ?? []).filter((r) => doomedIds.has(r.
 
 console.log(`\nDelete members — ${CONFIRM ? "APPLYING" : "DRY RUN"}\n`);
 if (notFound.length > 0) console.log(`⚠ Not found (skipped): ${notFound.join(", ")}`);
+if (refusedPlay.length > 0) console.log(`⚠ Refused (active Google Play subscription, nothing deleted): ${refusedPlay.map((u) => u.email).join(", ")}`);
 if (refusedStaff.length > 0) console.log(`⚠ Refused (staff account, skipped): ${refusedStaff.map((u) => u.email).join(", ")}`);
 console.log(`\nMembers to delete (${doomed.length}):`);
 doomed.forEach((u) => console.log(`  ✗ ${u.fullName ?? u.email} <${u.email}>`));
@@ -96,6 +121,11 @@ copyFileSync(DB_PATH, backup);
 db.users = users.filter((u) => !doomedIds.has(u.id));
 for (const key of BY_USER_ID) {
   if (Array.isArray(db[key])) db[key] = db[key].filter((r) => !doomedIds.has(r.userId));
+}
+// Purchase records are anonymised, never deleted (see the Google Play protection block above).
+if (Array.isArray(db.googlePlayPurchases)) {
+  const at = new Date().toISOString();
+  db.googlePlayPurchases = db.googlePlayPurchases.map((p) => (doomedIds.has(p.userId) ? { ...p, userId: deletedOwnerId(p.userId), anonymizedAt: at, updatedAt: at } : p));
 }
 db.messages = (db.messages ?? []).filter((m) => !doomedIds.has(m.memberId));
 if (Array.isArray(db.customFoods)) db.customFoods = db.customFoods.filter((f) => !doomedIds.has(f.ownerUserId));

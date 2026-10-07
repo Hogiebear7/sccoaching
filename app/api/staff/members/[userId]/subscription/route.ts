@@ -6,15 +6,14 @@ import {
   findMembershipCategoryById,
   findMembershipPackageById,
   findSubscriptionByUserId,
-  findUserById,
   saveSubscription,
   type SubscriptionRecord,
   type SubscriptionStatus,
 } from "@/lib/db";
 import { ownerGymForCatalogPackage, sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { evaluateEntitlementConflict, packageScopeResolver, scopeOfPackage } from "@/lib/iap/entitlement-conflict";
-import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { loadTenantUser, resolveTenantRequest } from "@/lib/tenant-request";
 import { cancelProviderSubscription } from "@/lib/billing";
 
 const STATUS_VALUES: SubscriptionStatus[] = [
@@ -29,23 +28,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
-
-  if (!sessionUserId) {
-    return NextResponse.json(
-      { success: false, message: "You must be signed in to manage memberships." },
-      { status: 401 }
-    );
-  }
-
-  const staffUser = findUserById(sessionUserId);
-
-  if (!staffUser) {
-    return NextResponse.json(
-      { success: false, message: "You must be signed in to manage memberships." },
-      { status: 401 }
-    );
-  }
+  const tenant = resolveTenantRequest(request, { unauthenticatedMessage: "You must be signed in to manage memberships." });
+  if (!tenant.ok) return tenant.response;
+  const { user: staffUser, ctx } = tenant;
 
   if (!can(staffUser.role, "members.billing")) {
     return NextResponse.json(
@@ -55,7 +40,7 @@ export async function POST(
   }
 
   const { userId } = await params;
-  const member = findUserById(userId);
+  const member = loadTenantUser(ctx, userId);
 
   if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json(
