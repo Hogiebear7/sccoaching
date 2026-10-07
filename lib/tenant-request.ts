@@ -19,11 +19,12 @@ export type TenantRequestResult =
 
 // Member or staff session, web cookie or mobile Bearer. An archived or deleted account reads
 // exactly like no session (see verifyRequestSession), so the response never says which.
-export function resolveTenantRequest(request: NextRequest): TenantRequestResult {
+export function resolveTenantRequest(request: NextRequest, options: { unauthenticatedMessage?: string } = {}): TenantRequestResult {
   const session = verifyRequestSession(request);
   const user = session ? findUserById(session.userId) : undefined;
   if (!user || user.archivedAt) {
-    return { ok: false, response: NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 }) };
+    // A route may keep its own 401 wording so adopting the helper never changes what a client sees.
+    return { ok: false, response: NextResponse.json({ success: false, message: options.unauthenticatedMessage ?? "You must be signed in." }, { status: 401 }) };
   }
   return { ok: true, user, ctx: buildTenantContext(user) };
 }

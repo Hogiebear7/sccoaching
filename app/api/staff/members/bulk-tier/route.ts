@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById } from "@/lib/db";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import type { MemberTier } from "@/lib/member-access";
-import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { grantMemberTier } from "@/lib/tier-grant";
+import { loadTenantUser, resolveTenantRequest } from "@/lib/tenant-request";
 
 const TIER_VALUES: MemberTier[] = ["free", "app_subscription", "membership"];
 
@@ -25,16 +24,9 @@ export interface BulkTierResult {
 // gets its own result rather than the whole request failing on the first
 // error.
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
-
-  if (!sessionUserId) {
-    return NextResponse.json({ success: false, message: "You must be signed in to manage memberships." }, { status: 401 });
-  }
-
-  const staffUser = findUserById(sessionUserId);
-  if (!staffUser) {
-    return NextResponse.json({ success: false, message: "You must be signed in to manage memberships." }, { status: 401 });
-  }
+  const tenant = resolveTenantRequest(request, { unauthenticatedMessage: "You must be signed in to manage memberships." });
+  if (!tenant.ok) return tenant.response;
+  const { user: staffUser, ctx } = tenant;
 
   if (!can(staffUser.role, "members.grantTier")) {
     return NextResponse.json({ success: false, message: "Only staff can manage memberships." }, { status: 403 });
@@ -60,7 +52,7 @@ export async function POST(request: NextRequest) {
   const results: BulkTierResult[] = [];
 
   for (const userId of userIds as string[]) {
-    const member = findUserById(userId);
+    const member = loadTenantUser(ctx, userId);
     if (!member || !sameGymAsStaff(staffUser, userId)) {
       results.push({ userId, ok: false, message: "Member not found." });
       continue;
