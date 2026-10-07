@@ -140,6 +140,8 @@ export const MODULE_CACHE_SCOPE: readonly ModuleCacheScope[] = [
   { file: "lib/ai.ts", symbol: "cachedClient", cacheClass: "global", note: "Anthropic SDK client. Holds the platform API key, no tenant data." },
   { file: "lib/app-config.ts", symbol: "cached", cacheClass: "global", note: "Parsed deployment configuration. Read once at first use." },
   { file: "lib/exercise-library/admin-client.ts", symbol: "cached", cacheClass: "global", note: "Supabase service client for the shared exercise library." },
+  { file: "lib/iap/adapter.ts", symbol: "override", cacheClass: "global", note: "Test-only adapter override. Null in every deployment: nothing selects it by configuration. Holds no tenant or user data." },
+  { file: "lib/iap/adapter.ts", symbol: "defaultAdapter", cacheClass: "global", note: "Registered once at import with the Google Play adapter. Holds no tenant or user data." },
   { file: "lib/providers/google-play.ts", symbol: "cachedToken", cacheClass: "global", note: "Google service-account access token. Platform credential, identical for every tenant." },
   { file: "lib/rate-limit.ts", symbol: "buckets", cacheClass: "keyed", note: "Keys are built by callers from the user id, the gym id, the client IP or a lower-cased email, never from a bare shared value." },
 ] as const;
@@ -153,6 +155,7 @@ export const STATIC_LOOKUP_CONSTANTS: readonly { file: string; symbol: string }[
   { file: "lib/class-covers.ts", symbol: "BUILTIN_DEFAULT_ALTS" },
   { file: "lib/countries.ts", symbol: "COUNTRY_VALUES" },
   { file: "lib/iap/entitlement-conflict.ts", symbol: "LIVE_STATUSES" },
+  { file: "lib/iap/service.ts", symbol: "ENTITLING_STATUSES" },
   { file: "lib/nutrition-data.ts", symbol: "DIET_LABEL" },
   { file: "lib/permissions.ts", symbol: "PLATFORM_ONLY_CAPABILITIES" },
   { file: "lib/profile-options.ts", symbol: "ALLERGEN_VALUES" },

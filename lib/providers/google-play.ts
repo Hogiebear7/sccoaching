@@ -21,6 +21,32 @@ import { createHmac, createSign, timingSafeEqual } from "crypto";
 
 import { getConfiguredSessionSecret } from "@/lib/app-config";
 
+// Every outbound call has a hard timeout, so a slow or hung Google endpoint cannot hold a request, a
+// notification delivery or a background job open indefinitely.
+export const GOOGLE_PLAY_REQUEST_TIMEOUT_MS = 10_000;
+
+// A closed set of failure codes. The provider's own message text is NEVER returned to a caller:
+// it can echo request details, and a caller must not be able to read it back. Anything that needs
+// the detail must look at server logs, which also must not record a purchase token.
+export type GooglePlayErrorCode =
+  | "not_configured"
+  | "timeout"
+  | "network"
+  | "unauthorized"
+  | "not_found"
+  | "bad_request"
+  | "rate_limited"
+  | "server_error"
+  | "invalid_response";
+
+export function googlePlayErrorCodeForStatus(status: number): GooglePlayErrorCode {
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 404 || status === 410) return "not_found";
+  if (status === 429) return "rate_limited";
+  if (status >= 500) return "server_error";
+  return "bad_request";
+}
+
 const ANDROID_PUBLISHER_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const API_BASE = "https://androidpublisher.googleapis.com/androidpublisher/v3";
@@ -92,9 +118,16 @@ interface CachedToken {
 
 let cachedToken: CachedToken | null = null;
 
-async function getAccessToken(): Promise<{ ok: true; token: string } | { ok: false; message: string }> {
+type GooglePlayFailure = { ok: false; code: GooglePlayErrorCode; status: number };
+
+function failureForThrown(e: unknown): GooglePlayFailure {
+  const name = e instanceof Error ? e.name : "";
+  return { ok: false, code: name === "TimeoutError" || name === "AbortError" ? "timeout" : "network", status: 0 };
+}
+
+async function getAccessToken(): Promise<{ ok: true; token: string } | GooglePlayFailure> {
   const key = getServiceAccountKey();
-  if (!key) return { ok: false, message: "Google Play service account isn't configured." };
+  if (!key) return { ok: false, code: "not_configured", status: 0 };
 
   // Reuse a still-valid token — access tokens are good for an hour; refresh
   // a minute early to avoid a request racing against expiry.
@@ -113,20 +146,18 @@ async function getAccessToken(): Promise<{ ok: true; token: string } | { ok: fal
         grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
         assertion,
       }),
+      signal: AbortSignal.timeout(GOOGLE_PLAY_REQUEST_TIMEOUT_MS),
     });
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Could not reach Google's token endpoint." };
+    return failureForThrown(e);
   }
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    return { ok: false, message: `Google token exchange failed (${res.status}): ${text.slice(0, 300)}` };
-  }
+  // A rejected token exchange means OUR credentials are wrong, never that the member's purchase
+  // is bad, so it is reported as "unauthorized" (or "server_error" for a Google outage).
+  if (!res.ok) return { ok: false, code: res.status >= 500 ? "server_error" : "unauthorized", status: res.status };
 
-  const body = (await res.json()) as { access_token?: string; expires_in?: number };
-  if (!body.access_token) {
-    return { ok: false, message: "Google token exchange returned no access_token." };
-  }
+  const body = (await res.json().catch(() => ({}))) as { access_token?: string; expires_in?: number };
+  if (!body.access_token) return { ok: false, code: "invalid_response", status: res.status };
 
   cachedToken = {
     accessToken: body.access_token,
@@ -138,23 +169,26 @@ async function getAccessToken(): Promise<{ ok: true; token: string } | { ok: fal
 async function androidPublisherFetch(
   path: string,
   init?: { method?: string }
-): Promise<{ ok: true; body: unknown } | { ok: false; status: number; message: string }> {
+): Promise<{ ok: true; body: unknown } | (GooglePlayFailure & { alreadyAcknowledged?: boolean })> {
   const tokenResult = await getAccessToken();
-  if (!tokenResult.ok) return { ok: false, status: 0, message: tokenResult.message };
+  if (!tokenResult.ok) return tokenResult;
 
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       method: init?.method ?? "GET",
       headers: { Authorization: `Bearer ${tokenResult.token}` },
+      signal: AbortSignal.timeout(GOOGLE_PLAY_REQUEST_TIMEOUT_MS),
     });
   } catch (e) {
-    return { ok: false, status: 0, message: e instanceof Error ? e.message : "Could not reach the Android Publisher API." };
+    return failureForThrown(e);
   }
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    return { ok: false, status: res.status, message: text.slice(0, 500) || `Request failed (${res.status}).` };
+    // The body is read only to recognise Google's "already acknowledged" answer. It is never
+    // returned, logged or put in an error.
+    const text = res.status === 400 ? await res.text().catch(() => "") : "";
+    return { ok: false, code: googlePlayErrorCodeForStatus(res.status), status: res.status, alreadyAcknowledged: /already.*acknowledg/i.test(text) };
   }
 
   const body = await res.json().catch(() => null);
@@ -209,18 +243,17 @@ interface SubscriptionsV2Response {
 // trust calories/price/status the client claims about its own purchase.
 export async function verifyGooglePlaySubscriptionPurchase(
   purchaseToken: string
-): Promise<{ ok: true; subscription: VerifiedGooglePlaySubscription } | { ok: false; message: string }> {
+): Promise<{ ok: true; subscription: VerifiedGooglePlaySubscription } | { ok: false; code: GooglePlayErrorCode; status: number }> {
   const packageName = getPackageName();
-  if (!packageName) return { ok: false, message: "Google Play package name isn't configured." };
+  if (!packageName) return { ok: false, code: "not_configured", status: 0 };
 
   const encodedToken = encodeURIComponent(purchaseToken);
   const result = await androidPublisherFetch(
     `/applications/${encodeURIComponent(packageName)}/purchases/subscriptionsv2/tokens/${encodedToken}`
   );
 
-  if (!result.ok) {
-    return { ok: false, message: `Google Play verification failed (${result.status}): ${result.message}` };
-  }
+  if (!result.ok) return { ok: false, code: result.code, status: result.status };
+  if (!result.body || typeof result.body !== "object") return { ok: false, code: "invalid_response", status: 200 };
 
   const body = result.body as SubscriptionsV2Response;
   const lineItem = body.lineItems?.[0];
@@ -288,9 +321,9 @@ export function mapGooglePlaySubscriptionState(
 // success rather than a failure, since the end state is what matters).
 export async function acknowledgeGooglePlaySubscription(
   purchaseToken: string
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<{ ok: true } | { ok: false; code: GooglePlayErrorCode; status: number }> {
   const packageName = getPackageName();
-  if (!packageName) return { ok: false, message: "Google Play package name isn't configured." };
+  if (!packageName) return { ok: false, code: "not_configured", status: 0 };
 
   const encodedToken = encodeURIComponent(purchaseToken);
   const result = await androidPublisherFetch(
@@ -301,13 +334,17 @@ export async function acknowledgeGooglePlaySubscription(
   if (!result.ok) {
     // Google returns 400 for an already-acknowledged token — not a real
     // failure for our purposes, since the purchase is (and stays) fine.
-    if (result.status === 400 && /already.*acknowledg/i.test(result.message)) {
-      return { ok: true };
-    }
-    return { ok: false, message: `Acknowledgement failed (${result.status}): ${result.message}` };
+    if (result.status === 400 && result.alreadyAcknowledged) return { ok: true };
+    return { ok: false, code: result.code, status: result.status };
   }
 
   return { ok: true };
+}
+
+// The configured Android application id. Exposed so a notification for ANOTHER app that shares
+// this Pub/Sub topic can be recognised and ignored rather than acted on.
+export function configuredGooglePlayPackageName(): string | null {
+  return getPackageName();
 }
 
 // ── Account binding (first-claim protection) ───────────────────────────

@@ -81,6 +81,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "mobile/auth/me", scope: "self" },
   { route: "mobile/auth/signup", scope: "public", note: "Gym is resolved from a server-verified invite, never from the request body; otherwise the primary gym." },
   { route: "mobile/auth/web-handoff", scope: "self" },
+  { route: "mobile/billing/google-play/purchase-context", scope: "self" },
   { route: "mobile/billing/google-play/verify", scope: "self" },
   { route: "mobile/coach/provision-member-profile", scope: "self" },
   { route: "mobile/community/comments/[id]", scope: "self" },

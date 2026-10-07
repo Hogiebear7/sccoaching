@@ -1,77 +1,23 @@
-import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import {
-  createRevenueEvent,
-  findGooglePlayPurchaseByToken,
-  findMembershipBillingOptions,
-  findMembershipPackages,
-  findRevenueEventByProviderRef,
-  saveGooglePlayPurchase,
-  type GooglePlayPurchaseRecord,
-  type GooglePlaySubscriptionStatus,
-  type SubscriptionRecord,
-} from "@/lib/db";
+import { verifyAndClaimPurchase } from "@/lib/iap/service";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import {
-  acknowledgeGooglePlaySubscription,
-  googlePlayAccountBindingMatches,
-  googlePlayObfuscatedAccountId,
-  isGooglePlayConfigured,
-  mapGooglePlaySubscriptionState,
-  verifyGooglePlaySubscriptionPurchase,
-} from "@/lib/providers/google-play";
-import { APP_SUBSCRIPTION_PACKAGE_SLUG, grantMemberTier } from "@/lib/tier-grant";
 
-// Called by the mobile app right after react-native-iap reports a
-// successful purchase (or on "restore purchases"). The purchase token the
-// client hands over is NOT trusted on its own — everything about the
-// purchase (is it real, what does it entitle, when does it expire) is
-// re-derived from a live call to Google here. Safe to call repeatedly with
-// the same token: verification, acknowledgement, and the tier grant are all
-// idempotent — for the SAME account. A token already recorded against a
-// different account is rejected (see purchaseOwnedByAnotherUser): the session
-// user is the only identity ever used, and an existing purchase's owner is
-// never overwritten. For a token with no existing owner, the session user
-// must also match the account binding Google echoes back on the purchase
-// (see the FIRST-CLAIM PROTECTION comment below and ACCOUNT_BINDING_REQUIRED)
-// — proving "this session actually made this purchase," not just "this
-// session got here first."
-const TOKEN_OWNED_BY_OTHER = {
-  success: false,
-  message: "This purchase is already linked to another account.",
-} as const;
-
-// Generic on purpose: missing, malformed, and mismatched all collapse to the
-// same response — telling an attacker WHICH reason applied would itself leak
-// information about whether a binding was sent at all. Only ever returned
-// for a token with NO existing owner (see the FIRST-CLAIM comment below); a
-// token this session user already owns stays idempotent regardless.
-const ACCOUNT_BINDING_REQUIRED = {
-  success: false,
-  message: "This purchase could not be verified for your account.",
-} as const;
-
-// A recorded purchase with a different, non-null owner belongs to someone else.
-function purchaseOwnedByAnotherUser(
-  purchase: { userId?: string | null } | undefined,
-  sessionUserId: string
-): boolean {
-  return !!purchase && !!purchase.userId && purchase.userId !== sessionUserId;
-}
-
+// Called by the mobile app right after Google Play Billing reports a successful purchase (or on "restore
+// purchases"). The token the client hands over is NOT trusted on its own: everything about the purchase is
+// re-derived from a live call to Google inside lib/iap/service.ts, which also enforces every rule in the plan
+// (docs/iap-multitenant-implementation-plan-2026-10.md): the kill switch, first-valid-binding-wins, no overlap with
+// an active Membership, acknowledgement only after entitlement, idempotency for the same account.
+//
+// The only identity ever used is the signed session user. A client-supplied user or gym id is never read.
+//
+// Response contract (also in docs/google-play-server-contract-2026-10.md): every failure carries a stable `code`.
+// Provider detail is never returned.
 export async function POST(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
   if (!sessionUserId) {
     return NextResponse.json({ success: false, message: "You must be signed in to verify a purchase." }, { status: 401 });
-  }
-
-  if (!isGooglePlayConfigured()) {
-    return NextResponse.json(
-      { success: false, message: "Google Play Billing isn't configured on the server yet." },
-      { status: 503 }
-    );
   }
 
   let body: unknown;
@@ -82,160 +28,10 @@ export async function POST(request: NextRequest) {
   }
 
   const { purchaseToken } = (body ?? {}) as Record<string, unknown>;
-  if (typeof purchaseToken !== "string" || !purchaseToken.trim()) {
-    return NextResponse.json({ success: false, message: "A purchase token is required." }, { status: 400 });
+  const result = await verifyAndClaimPurchase(sessionUserId, purchaseToken);
+
+  if (!result.ok) {
+    return NextResponse.json({ success: false, code: result.code, message: result.message }, { status: result.httpStatus });
   }
-
-  // Ownership gate, before the provider call and before any save, overwrite,
-  // acknowledgement, entitlement grant, or revenue event. (Re-checked below,
-  // right before the save, because the verification call is awaited.)
-  if (purchaseOwnedByAnotherUser(findGooglePlayPurchaseByToken(purchaseToken.trim()), sessionUserId)) {
-    return NextResponse.json(TOKEN_OWNED_BY_OTHER, { status: 409 });
-  }
-
-  const verifyResult = await verifyGooglePlaySubscriptionPurchase(purchaseToken.trim());
-  if (!verifyResult.ok) {
-    return NextResponse.json({ success: false, message: verifyResult.message }, { status: 400 });
-  }
-
-  const sub = verifyResult.subscription;
-
-  // Only accept a token for a product we actually recognize as sold under
-  // the app-subscription package — guards against a stray/foreign token
-  // being used to try to grant tier access. Several billing options can
-  // share the same productId now (one Play product, three base plans —
-  // monthly/6-month/annual), so this must match on the base plan too, not
-  // just the product; matching on productId alone would silently attach
-  // whichever plan happens to be first in the array, recording the wrong
-  // price. Falls back to a productId-only match for a legacy single-plan
-  // setup with no basePlanId recorded.
-  const allOptions = findMembershipBillingOptions();
-  const billingOption =
-    allOptions.find((o) => o.googlePlaySubscriptionId === sub.productId && o.googlePlayBasePlanId === sub.basePlanId) ??
-    allOptions.find((o) => o.googlePlaySubscriptionId === sub.productId && !o.googlePlayBasePlanId);
-  if (!billingOption) {
-    return NextResponse.json(
-      { success: false, message: "This purchase doesn't match a known App Subscription product." },
-      { status: 400 }
-    );
-  }
-
-  const { playStatus, appStatus } = mapGooglePlaySubscriptionState(sub.subscriptionState, sub.expiryTimeMillis);
-
-  const now = new Date().toISOString();
-  const existingPurchase = findGooglePlayPurchaseByToken(purchaseToken.trim());
-  if (purchaseOwnedByAnotherUser(existingPurchase, sessionUserId)) {
-    return NextResponse.json(TOKEN_OWNED_BY_OTHER, { status: 409 });
-  }
-
-  // FIRST-CLAIM PROTECTION: this block (recheck -> binding check -> save)
-  // has no await in it, so it runs to completion before any other request's
-  // continuation gets a turn (Node's single-threaded event loop) — two
-  // concurrent verify calls for the same brand-new token cannot both
-  // succeed; whichever's continuation resumes first completes this whole
-  // block atomically, and the other's own recheck above then correctly sees
-  // the already-saved owner and returns TOKEN_OWNED_BY_OTHER. What this
-  // block adds is a SEPARATE, additional protection: even the FIRST request
-  // to reach here must prove it's the actual purchaser, via the binding
-  // Google echoes back — not just "first to submit the raw token" — because
-  // a stolen token has no legitimate "first claimant" at all. Only applies
-  // to a token with no existing owner: a token this session user already
-  // owns (existingPurchase.userId === sessionUserId) stays idempotent
-  // without needing to resend a binding, e.g. across a Play "restore
-  // purchases" call.
-  if (!existingPurchase) {
-    const expectedBinding = googlePlayObfuscatedAccountId(sessionUserId);
-    if (!expectedBinding || !googlePlayAccountBindingMatches(expectedBinding, sub.obfuscatedExternalAccountId)) {
-      return NextResponse.json(ACCOUNT_BINDING_REQUIRED, { status: 409 });
-    }
-  }
-
-  const purchaseRecord: GooglePlayPurchaseRecord = {
-    id: existingPurchase?.id ?? randomUUID(),
-    userId: sessionUserId,
-    purchaseToken: purchaseToken.trim(),
-    productId: sub.productId ?? billingOption.googlePlaySubscriptionId!,
-    basePlanId: sub.basePlanId,
-    orderId: sub.orderId,
-    linkedPurchaseToken: sub.linkedPurchaseToken,
-    status: playStatus as GooglePlaySubscriptionStatus,
-    acknowledged: sub.acknowledgementState === "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED",
-    autoRenewing: sub.autoRenewing,
-    startTimeMillis: sub.startTimeMillis,
-    expiryTimeMillis: sub.expiryTimeMillis,
-    // Stored for audit only — this is already an opaque one-way hash, never
-    // the raw userId. A missing/mismatched binding never reaches this line
-    // for a new claim (rejected above); an idempotent same-user re-verify
-    // keeps whichever value was recorded when the binding was last present.
-    obfuscatedExternalAccountId: sub.obfuscatedExternalAccountId ?? existingPurchase?.obfuscatedExternalAccountId ?? null,
-    createdAt: existingPurchase?.createdAt ?? now,
-    updatedAt: now,
-  };
-  saveGooglePlayPurchase(purchaseRecord);
-
-  // Google auto-refunds an unacknowledged purchase after 3 days — do this
-  // every verify call; acknowledging an already-acknowledged token is a
-  // safe no-op (see acknowledgeGooglePlaySubscription).
-  if (sub.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
-    const ackResult = await acknowledgeGooglePlaySubscription(purchaseToken.trim());
-    if (ackResult.ok) {
-      purchaseRecord.acknowledged = true;
-      saveGooglePlayPurchase(purchaseRecord);
-    }
-    // A failed acknowledgement isn't fatal here — the purchase is still
-    // real and still grants tier; Google will simply retry acknowledgement
-    // pressure via RTDN, or the next verify call will try again.
-  }
-
-  if (appStatus === null) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Your purchase is still being processed by Google Play. Try again shortly.",
-      },
-      { status: 409 }
-    );
-  }
-
-  const grantResult = await grantMemberTier(sessionUserId, "app_subscription", {
-    provider: "google_play",
-    providerSubscriptionId: purchaseToken.trim(),
-    currentPeriodEnd: sub.expiryTimeMillis ? new Date(sub.expiryTimeMillis).toISOString() : null,
-    status: appStatus as SubscriptionRecord["status"],
-    billingOptionId: billingOption.id,
-  });
-
-  if (!grantResult.ok) {
-    return NextResponse.json({ success: false, message: grantResult.message }, { status: 500 });
-  }
-
-  // Record revenue once per real order (Google's order id), same
-  // dedupe-on-providerRef pattern the Revolut webhook uses. Uses the
-  // billing option's configured price, since Google's RTDN/verify responses
-  // don't carry a charged amount — see billing option header comment about
-  // this being a placeholder until the real Play Console price is set.
-  if (sub.orderId && appStatus === "active" && !findRevenueEventByProviderRef("google_play", sub.orderId)) {
-    const appSubscriptionPackage = findMembershipPackages().find((p) => p.slug === APP_SUBSCRIPTION_PACKAGE_SLUG);
-    createRevenueEvent({
-      id: randomUUID(),
-      userId: sessionUserId,
-      packageId: appSubscriptionPackage?.id ?? null,
-      billingOptionId: billingOption.id,
-      amountCents: billingOption.amountCents,
-      currency: billingOption.currency,
-      provider: "google_play",
-      providerRef: sub.orderId,
-      source: "membership_renewal",
-      receivedAt: now,
-      // Always platform scope — Google Play sells only the one platform-wide
-      // App Subscription product (deliveryChannel: "app_only"), never a
-      // gym-owned one, so there is no linked record to derive this from.
-      ownerGym: { scope: "platform" },
-    });
-  }
-
-  return NextResponse.json(
-    { success: true, message: "Purchase verified.", data: { tier: grantResult.tier, status: appStatus } },
-    { status: 200 }
-  );
+  return NextResponse.json({ success: true, message: result.message, data: result.data }, { status: result.httpStatus });
 }
