@@ -22,6 +22,9 @@ function discoverRoutes(dir = API, out: string[] = []): string[] {
 
 const sourceOf = (route: string) => readFileSync(path.join(API, ...route.split("/"), "route.ts"), "utf8").replace(/\r/g, "");
 
+// A session boundary is either the established session helper or the runtime tenant helper (which wraps it).
+const SESSION_CHECK = /\b(?:verifyRequestSession|resolveTenantRequest|resolveStaffTenantRequest)\(/;
+
 const STAFF_SCOPES: RouteScope[] = ["tenant-staff", "own-tenant", "platform", "global-shared"];
 const PLATFORM_CAPABILITIES = ["gyms.moderate", "finance.view", "platform.jobs"];
 
@@ -82,7 +85,7 @@ describe("route scope manifest: classification still matches the source", () => 
       const src = sourceOf(e.route);
       const staffGuarded = /authorizeStaffRequest\(/.test(src);
       if (staffGuarded && !STAFF_SCOPES.includes(e.scope) && e.scope !== "cron") wrong.push(`${e.route}: staff-guarded but filed as ${e.scope}`);
-      if (STAFF_SCOPES.includes(e.scope) && !staffGuarded && !/verifyRequestSession\(/.test(src)) wrong.push(`${e.route}: ${e.scope} but no session check`);
+      if (STAFF_SCOPES.includes(e.scope) && !staffGuarded && !SESSION_CHECK.test(src)) wrong.push(`${e.route}: ${e.scope} but no session check`);
     }
     expect(wrong).toEqual([]);
   });
@@ -110,7 +113,7 @@ describe("route scope manifest: classification still matches the source", () => 
 
   it("requires a session check on every self and self-tenant-checked route", () => {
     const bad = ROUTE_SCOPE_MANIFEST.filter((e) => e.scope === "self" || e.scope === "self-tenant-checked")
-      .filter((e) => !/verifyRequestSession\(/.test(sourceOf(e.route)))
+      .filter((e) => !SESSION_CHECK.test(sourceOf(e.route)))
       .map((e) => e.route);
     expect(bad).toEqual([]);
   });
@@ -131,6 +134,20 @@ describe("route scope manifest: classification still matches the source", () => 
   it("explains every public, webhook, cron and global-shared route", () => {
     const bare = ROUTE_SCOPE_MANIFEST.filter((e) => ["public", "webhook", "cron", "global-shared"].includes(e.scope) && !e.note).map((e) => e.route);
     expect(bare).toEqual([]);
+  });
+
+  it("flags a route as using the runtime tenant context if, and only if, its source calls the tenant helper", () => {
+    const lying: string[] = [];
+    for (const e of ROUTE_SCOPE_MANIFEST) {
+      const usesHelper = /\b(?:resolveTenantRequest|resolveStaffTenantRequest)\(/.test(sourceOf(e.route));
+      if (usesHelper !== !!e.runtimeTenantContext) lying.push(`${e.route}: flag=${!!e.runtimeTenantContext} source=${usesHelper}`);
+    }
+    expect(lying).toEqual([]);
+  });
+
+  it("only flags routes that authenticate a session user (the helper is a session boundary)", () => {
+    const bad = ROUTE_SCOPE_MANIFEST.filter((e) => e.runtimeTenantContext && ["public", "webhook", "cron"].includes(e.scope)).map((e) => e.route);
+    expect(bad).toEqual([]);
   });
 
   it("keeps the new Google Play and tier routes under a deliberate scope", () => {
