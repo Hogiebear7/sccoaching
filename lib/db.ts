@@ -1172,8 +1172,83 @@ export interface GooglePlayPurchaseRecord {
       see the verify route's own comment on legacy-record policy).
       Optional/absent on rows written before this field existed. */
   obfuscatedExternalAccountId?: string | null;
+  /** sha256 hex of purchaseToken. Audit rows and logs refer to a purchase by this
+      hash so the raw token never has to be written anywhere else. Optional/absent
+      on rows written before this field existed (see
+      scripts/backfill-google-play-purchase-iap-fields.mjs). */
+  purchaseTokenHash?: string | null;
+  /** When the account binding was first verified and the token first bound to
+      userId. Absent on legacy rows, whose existing userId stays their owner. */
+  boundAt?: string | null;
+  /** Acknowledgement lifecycle, finer than the legacy boolean above. "failed"
+      means attempts were made and none succeeded; the retry job (PR 4) works from
+      this. Absent on legacy rows: derive from acknowledged. */
+  acknowledgementState?: GooglePlayAcknowledgementState;
+  acknowledgementAttempts?: number;
+  acknowledgementLastAttemptAt?: string | null;
+  /** A short sanitized code, never a provider message or a token. */
+  acknowledgementError?: string | null;
+  /** The provider-side time of the newest snapshot applied to this purchase.
+      A snapshot older than this is stale and must not overwrite newer state. */
+  lastSnapshotAt?: string | null;
+  /** Set when Google refunded, voided or revoked the purchase. */
+  revokedAt?: string | null;
+  revocationReason?: GooglePlayRevocationReason | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type GooglePlayAcknowledgementState = "pending" | "acknowledged" | "failed" | "not_required";
+export type GooglePlayRevocationReason = "refunded" | "voided" | "revoked";
+
+// ── App Subscription audit log and notification dedupe ──
+//
+// IapEventRecord is APPEND-ONLY: nothing in lib/db.ts updates or deletes one. Every
+// entitlement transition and every rejected claim writes one, so a state change can
+// be explained after the fact. It never holds a purchase token (only the hash), a
+// provider message body, or any personal data: userId is an opaque account id.
+export type IapEventType =
+  | "purchase_claimed"
+  | "claim_rejected_owner"
+  | "claim_rejected_binding"
+  | "claim_rejected_conflict"
+  | "claim_rejected_product"
+  | "claim_rejected_disabled"
+  | "entitlement_granted"
+  | "entitlement_updated"
+  | "entitlement_revoked"
+  | "entitlement_expired"
+  | "acknowledgement_succeeded"
+  | "acknowledgement_failed"
+  | "notification_stale"
+  | "reconciliation_run"
+  | "staff_write_rejected";
+
+export interface IapEventRecord {
+  id: string;
+  at: string;
+  provider: "google_play";
+  type: IapEventType;
+  /** Opaque account id, or null when the event has no resolvable account. */
+  userId: string | null;
+  /** sha256 hex of the purchase token, or null. Never the token itself. */
+  purchaseTokenHash: string | null;
+  /** Who or what caused it. */
+  actor: "user" | "staff" | "provider" | "system";
+  /** Short primitive facts (codes, statuses, counts). Strings are truncated. */
+  detail: Record<string, string | number | boolean | null>;
+}
+
+// One row per Pub/Sub message id, so a redelivered or replayed notification is
+// processed at most once. processedAt stays null until a delivery finishes, so a
+// delivery that crashed mid-way is retried by Pub/Sub rather than lost.
+export interface IapNotificationRecord {
+  messageId: string;
+  receivedAt: string;
+  processedAt: string | null;
+  attempts: number;
+  /** A short code for how the last attempt ended. */
+  outcome: string | null;
 }
 
 export type PurchaseKind = "membership" | "pass_pack";
@@ -1899,6 +1974,8 @@ interface Database {
   membershipBillingOptions: MembershipBillingOptionRecord[];
   subscriptions: SubscriptionRecord[];
   googlePlayPurchases: GooglePlayPurchaseRecord[];
+  iapEvents: IapEventRecord[];
+  iapNotifications: IapNotificationRecord[];
   purchases: PurchaseRecord[];
   paymentEvents: PaymentEventRecord[];
   passLedger: PassLedgerEntryRecord[];
@@ -2033,6 +2110,8 @@ function readDb(): Database {
       membershipBillingOptions: [],
       subscriptions: [],
       googlePlayPurchases: [],
+      iapEvents: [],
+      iapNotifications: [],
       purchases: [],
       paymentEvents: [],
       passLedger: [],
@@ -2197,6 +2276,8 @@ function readDb(): Database {
       periodLapsedNotifiedAt: s.periodLapsedNotifiedAt ?? null,
     })),
     googlePlayPurchases: parsed.googlePlayPurchases ?? [],
+    iapEvents: parsed.iapEvents ?? [],
+    iapNotifications: parsed.iapNotifications ?? [],
     purchases: (parsed.purchases ?? []).map((p) => ({
       ...p,
       providerPaymentRef: p.providerPaymentRef ?? null,
@@ -3282,6 +3363,239 @@ export function saveGooglePlayPurchase(purchase: GooglePlayPurchaseRecord) {
   }
 
   writeDb(db);
+}
+
+// ── Google Play purchase: atomic claim, snapshot ordering, audit, dedupe ──
+//
+// The datastore is one JSON file read and written synchronously inside a single Node process,
+// so "atomic" here means: the check and the write happen inside ONE function with no await
+// between them, so no other request can interleave. Each helper below does its check, its
+// write and its audit event in one readDb/writeDb pair. Callers must not split them.
+
+/** sha256 hex of a purchase token. The only form in which a token may appear in an audit row or log. */
+export function hashPurchaseToken(purchaseToken: string): string {
+  return createHash("sha256").update(purchaseToken).digest("hex");
+}
+
+const IAP_DETAIL_MAX_KEYS = 12;
+const IAP_DETAIL_MAX_STRING = 120;
+// A key that names a secret or personal field is dropped, never stored. purchaseTokenHash is the
+// hashed form and is a top-level column, not a detail key.
+const IAP_DETAIL_FORBIDDEN_KEY = /token|secret|password|authorization|email|name|phone|address/i;
+
+export function sanitizeIapDetail(detail: Record<string, unknown> | undefined): IapEventRecord["detail"] {
+  const out: IapEventRecord["detail"] = {};
+  if (!detail) return out;
+  for (const [key, value] of Object.entries(detail)) {
+    if (Object.keys(out).length >= IAP_DETAIL_MAX_KEYS) break;
+    if (!/^[A-Za-z0-9_]{1,40}$/.test(key) || IAP_DETAIL_FORBIDDEN_KEY.test(key)) continue;
+    if (typeof value === "string") out[key] = value.slice(0, IAP_DETAIL_MAX_STRING);
+    else if (typeof value === "number" && Number.isFinite(value)) out[key] = value;
+    else if (typeof value === "boolean" || value === null) out[key] = value;
+  }
+  return out;
+}
+
+export interface IapEventInput {
+  type: IapEventType;
+  userId: string | null;
+  /** The RAW purchase token is hashed here, never stored. Pass the token or null. */
+  purchaseToken?: string | null;
+  actor: IapEventRecord["actor"];
+  detail?: Record<string, unknown>;
+  at?: string;
+}
+
+function buildIapEvent(input: IapEventInput): IapEventRecord {
+  return {
+    id: randomUUID(),
+    at: input.at ?? new Date().toISOString(),
+    provider: "google_play",
+    type: input.type,
+    userId: input.userId,
+    purchaseTokenHash: input.purchaseToken ? hashPurchaseToken(input.purchaseToken) : null,
+    actor: input.actor,
+    detail: sanitizeIapDetail(input.detail),
+  };
+}
+
+// Append-only: this is the only writer of iapEvents and nothing updates or deletes a row.
+export function appendIapEvent(input: IapEventInput): IapEventRecord {
+  const db = readDb();
+  const event = buildIapEvent(input);
+  db.iapEvents.push(event);
+  writeDb(db);
+  return event;
+}
+
+export function findIapEvents(filter: { userId?: string; purchaseTokenHash?: string; type?: IapEventType } = {}): IapEventRecord[] {
+  return readDb()
+    .iapEvents.filter(
+      (e) =>
+        (filter.userId === undefined || e.userId === filter.userId) &&
+        (filter.purchaseTokenHash === undefined || e.purchaseTokenHash === filter.purchaseTokenHash) &&
+        (filter.type === undefined || e.type === filter.type)
+    )
+    .sort((a, b) => a.at.localeCompare(b.at));
+}
+
+export type ClaimGooglePlayPurchaseInput = Omit<
+  GooglePlayPurchaseRecord,
+  "id" | "userId" | "createdAt" | "updatedAt" | "purchaseTokenHash" | "boundAt"
+> & { id?: string };
+
+export type ClaimGooglePlayPurchaseResult =
+  | { status: "claimed"; purchase: GooglePlayPurchaseRecord }
+  | { status: "existing"; purchase: GooglePlayPurchaseRecord }
+  | { status: "owned_by_other" };
+
+// FIRST VALID BINDING WINS. Check and insert in one synchronous step, so two concurrent claims
+// for the same brand-new token cannot both succeed:
+//  - no row for the token  -> insert it bound to userId, and write a purchase_claimed event
+//  - a row for this user   -> return it unchanged (a duplicate submission is idempotent)
+//  - a row for anyone else -> return owned_by_other, change nothing, write a claim_rejected_owner
+//                             event. A token is NEVER reassigned automatically.
+// The caller is responsible for having verified the account binding BEFORE calling this.
+export function claimGooglePlayPurchase(input: ClaimGooglePlayPurchaseInput, userId: string): ClaimGooglePlayPurchaseResult {
+  const db = readDb();
+  const existing = db.googlePlayPurchases.find((p) => p.purchaseToken === input.purchaseToken);
+  const at = new Date().toISOString();
+
+  if (existing) {
+    if (existing.userId === userId) return { status: "existing", purchase: existing };
+    db.iapEvents.push(
+      buildIapEvent({ type: "claim_rejected_owner", userId, purchaseToken: input.purchaseToken, actor: "user", at })
+    );
+    writeDb(db);
+    return { status: "owned_by_other" };
+  }
+
+  const purchase: GooglePlayPurchaseRecord = {
+    ...input,
+    id: input.id ?? randomUUID(),
+    userId,
+    purchaseTokenHash: hashPurchaseToken(input.purchaseToken),
+    boundAt: at,
+    createdAt: at,
+    updatedAt: at,
+  };
+  db.googlePlayPurchases.push(purchase);
+  db.iapEvents.push(buildIapEvent({ type: "purchase_claimed", userId, purchaseToken: input.purchaseToken, actor: "user", at }));
+  writeDb(db);
+  return { status: "claimed", purchase };
+}
+
+export type ApplyGooglePlaySnapshotResult =
+  | { status: "applied"; purchase: GooglePlayPurchaseRecord }
+  | { status: "stale" }
+  | { status: "unknown_token" };
+
+// Snapshot ordering. `snapshotAt` is the time the provider call that produced `fields` was
+// ISSUED (not when it returned). Two overlapping provider calls can return out of order; the one
+// issued earlier carries the older state, so it must lose. A snapshot older than the newest one
+// applied is stale and changes nothing except a notification_stale event. An equal timestamp is
+// applied, which keeps a retry of the same snapshot idempotent.
+// Only the lifecycle fields below can be written here: ownership (userId, purchaseToken,
+// boundAt) is deliberately unreachable from this function.
+const GOOGLE_PLAY_SNAPSHOT_KEYS = [
+  "productId",
+  "basePlanId",
+  "orderId",
+  "linkedPurchaseToken",
+  "status",
+  "acknowledged",
+  "autoRenewing",
+  "startTimeMillis",
+  "expiryTimeMillis",
+  "acknowledgementState",
+  "acknowledgementAttempts",
+  "acknowledgementLastAttemptAt",
+  "acknowledgementError",
+  "revokedAt",
+  "revocationReason",
+] as const;
+
+export type GooglePlaySnapshotFields = Partial<Pick<GooglePlayPurchaseRecord, (typeof GOOGLE_PLAY_SNAPSHOT_KEYS)[number]>>;
+
+export function applyGooglePlayPurchaseSnapshot(
+  purchaseToken: string,
+  fields: GooglePlaySnapshotFields,
+  snapshotAt: string
+): ApplyGooglePlaySnapshotResult {
+  const db = readDb();
+  const index = db.googlePlayPurchases.findIndex((p) => p.purchaseToken === purchaseToken);
+  if (index === -1) return { status: "unknown_token" };
+
+  const current = db.googlePlayPurchases[index];
+  if (current.lastSnapshotAt && current.lastSnapshotAt > snapshotAt) {
+    db.iapEvents.push(
+      buildIapEvent({
+        type: "notification_stale",
+        userId: current.userId,
+        purchaseToken,
+        actor: "provider",
+        detail: { snapshotAt, newestApplied: current.lastSnapshotAt },
+      })
+    );
+    writeDb(db);
+    return { status: "stale" };
+  }
+
+  // Copy ONLY the lifecycle keys, at runtime as well as in the type, so a caller that passes extra
+  // properties (a cast, a spread of a larger object) can never reach ownership fields.
+  const allowed: Partial<GooglePlayPurchaseRecord> = {};
+  for (const key of GOOGLE_PLAY_SNAPSHOT_KEYS) {
+    if (key in fields) (allowed as Record<string, unknown>)[key] = (fields as Record<string, unknown>)[key];
+  }
+  const next: GooglePlayPurchaseRecord = { ...current, ...allowed, lastSnapshotAt: snapshotAt, updatedAt: new Date().toISOString() };
+  db.googlePlayPurchases[index] = next;
+  writeDb(db);
+  return { status: "applied", purchase: next };
+}
+
+const IAP_NOTIFICATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type ClaimIapNotificationResult =
+  | { status: "new"; attempts: 1 }
+  | { status: "retry"; attempts: number }
+  | { status: "duplicate" };
+
+// Notification idempotency by Pub/Sub message id. "new": first delivery, process it.
+// "retry": delivered before but never completed, process it again. "duplicate": already
+// completed, acknowledge and skip. Processed rows older than 30 days are pruned here so the
+// table stays bounded; Pub/Sub's own redelivery window is far shorter.
+export function claimIapNotification(messageId: string, now: Date = new Date()): ClaimIapNotificationResult {
+  const db = readDb();
+  const cutoff = new Date(now.getTime() - IAP_NOTIFICATION_RETENTION_MS).toISOString();
+  db.iapNotifications = db.iapNotifications.filter((n) => !n.processedAt || n.processedAt >= cutoff);
+
+  const existing = db.iapNotifications.find((n) => n.messageId === messageId);
+  if (existing?.processedAt) {
+    writeDb(db);
+    return { status: "duplicate" };
+  }
+  if (existing) {
+    existing.attempts += 1;
+    writeDb(db);
+    return { status: "retry", attempts: existing.attempts };
+  }
+  db.iapNotifications.push({ messageId, receivedAt: now.toISOString(), processedAt: null, attempts: 1, outcome: null });
+  writeDb(db);
+  return { status: "new", attempts: 1 };
+}
+
+export function completeIapNotification(messageId: string, outcome: string, now: Date = new Date()): boolean {
+  const db = readDb();
+  const row = db.iapNotifications.find((n) => n.messageId === messageId);
+  if (!row) return false;
+  row.processedAt = now.toISOString();
+  row.outcome = outcome.slice(0, 60);
+  writeDb(db);
+  return true;
+}
+
+export function findIapNotification(messageId: string): IapNotificationRecord | undefined {
+  return readDb().iapNotifications.find((n) => n.messageId === messageId);
 }
 
 export function findRecoveryLogsByUserId(userId: string): RecoveryLogRecord[] {

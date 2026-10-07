@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  appendIapEvent,
   findMembershipCategoryById,
   findMembershipPackageById,
   findSubscriptionByUserId,
@@ -11,6 +12,7 @@ import {
   type SubscriptionStatus,
 } from "@/lib/db";
 import { ownerGymForCatalogPackage, sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
+import { evaluateEntitlementConflict, packageScopeResolver, scopeOfPackage } from "@/lib/iap/entitlement-conflict";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { cancelProviderSubscription } from "@/lib/billing";
@@ -111,6 +113,20 @@ export async function POST(
       { success: false, message: "A package is required to set a membership status." },
       { status: 400 }
     );
+  }
+
+  // A raw override still may not silently replace a live entitlement of the other kind or a live
+  // Google Play subscription (see lib/iap/entitlement-conflict.ts). Only a status that grants access
+  // now counts as entitling; setting inactive/pending/canceled is allowed over a live manual
+  // entitlement, but never over a live Google Play one, which only Google can end.
+  const conflict = evaluateEntitlementConflict(
+    existingSubscription,
+    { kind: "staff_write", scope: scopeOfPackage(resolvedPackage), entitling: status === "active" || status === "past_due" },
+    packageScopeResolver
+  );
+  if (conflict) {
+    appendIapEvent({ type: "staff_write_rejected", userId: member.id, actor: "staff", detail: { code: conflict.code, source: "staff_subscription_override" } });
+    return NextResponse.json({ success: false, code: conflict.code, message: conflict.message }, { status: 409 });
   }
 
   const now = new Date().toISOString();

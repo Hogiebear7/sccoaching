@@ -65,9 +65,12 @@ describe("grantMemberTier — ownerGym", () => {
     expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-b" });
   });
 
+  // A cross-kind tier change over a LIVE entitlement is now refused (lib/iap/entitlement-conflict.ts,
+  // covered in __tests__/api/iap-membership-conflict.test.ts). These cases therefore start from an
+  // ENDED entitlement (status "canceled"), which is the only way a cross-kind change still happens.
   it("preserves the EXISTING row's ownerGym across a tier change — membership -> app_subscription", async () => {
     h.findSubscriptionByUserId.mockReturnValue({
-      userId: MEMBER_B.id, packageId: "pkg-b", status: "active", ownerGym: { scope: "gym", gymId: "gym-b" },
+      userId: MEMBER_B.id, packageId: "pkg-b", status: "canceled", ownerGym: { scope: "gym", gymId: "gym-b" },
     });
     await grantMemberTier(MEMBER_B.id, "app_subscription");
     // Stays "gym"/"gym-b" — NOT recomputed to "platform" — because ownerGym
@@ -78,7 +81,7 @@ describe("grantMemberTier — ownerGym", () => {
 
   it("preserves the EXISTING row's ownerGym across a tier change — app_subscription -> membership", async () => {
     h.findSubscriptionByUserId.mockReturnValue({
-      userId: MEMBER_B.id, packageId: "pkg-app", status: "active", ownerGym: { scope: "platform" },
+      userId: MEMBER_B.id, packageId: "pkg-app", status: "canceled", ownerGym: { scope: "platform" },
     });
     await grantMemberTier(MEMBER_B.id, "membership", { packageId: "pkg-b" });
     expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
@@ -94,7 +97,7 @@ describe("grantMemberTier — ownerGym", () => {
 
   it("falls back to explicit unresolved (never silently recomputed) for a legacy row with no stored ownerGym", async () => {
     h.findSubscriptionByUserId.mockReturnValue({
-      userId: MEMBER_B.id, packageId: "pkg-b", status: "active", ownerGym: undefined,
+      userId: MEMBER_B.id, packageId: "pkg-b", status: "canceled", ownerGym: undefined,
     });
     await grantMemberTier(MEMBER_B.id, "app_subscription");
     // NOT recomputed to "platform" from the new tier, and NOT left as a bare
