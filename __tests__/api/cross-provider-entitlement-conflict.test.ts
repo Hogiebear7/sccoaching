@@ -329,3 +329,97 @@ describe("existing Membership conflict behaviour is unchanged", () => {
     expect(conflictEvents()).toHaveLength(0);
   });
 });
+
+// ── Added during validation of this PR ────────────────────────────────────────────────────────────────────────────
+
+describe("every entitled state of a live Google Play row is protected", () => {
+  it.each(["active", "past_due", "paused"] as const)("a %s Play row refuses Stripe and Revolut and is left untouched", async (status) => {
+    fx.setSubscription(fx.memberA.id, {
+      packageId: fx.ids.appPackage,
+      status,
+      provider: "google_play",
+      providerSubscriptionId: PLAY_TOKEN,
+      providerSetupOrderId: "cs_stale_setup",
+      currentPeriodEnd: status === "past_due" ? PAST() : FUTURE(),
+    });
+    const before = row();
+
+    await checkoutCompleted("cs_stale_setup");
+    await stripe("invoice.paid", { id: "in_s", subscription: PLAY_TOKEN, amount_paid: 100 });
+    await revolut("ORDER_COMPLETED", PLAY_TOKEN);
+
+    expect(row()).toEqual(before);
+    expect(conflictEvents()).toHaveLength(3);
+  });
+
+  it.each(["active", "past_due", "paused"] as const)("a %s Stripe row refuses a Play claim and binds nothing", async (status) => {
+    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.appPackage, status, provider: "stripe", providerSubscriptionId: "sub_state", currentPeriodEnd: status === "past_due" ? PAST() : FUTURE() });
+    const before = row();
+    const res = await fx.claim(fx.memberA.id, PLAY_TOKEN);
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("other_provider_active");
+    expect(row()).toEqual(before);
+    expect(fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN)).toBeUndefined();
+    expect(fx.adapter.ackCalls).toEqual([]);
+  });
+});
+
+describe("provider-reference handlers refuse a mismatched row even when it is no longer entitled", () => {
+  it.each(["canceled", "inactive", "pending"] as const)("a %s Play row still refuses a Stripe or Revolut event that carries its reference", async (status) => {
+    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.appPackage, status, provider: "google_play", providerSubscriptionId: PLAY_TOKEN, currentPeriodEnd: PAST() });
+    const before = row();
+    await stripe("invoice.paid", { id: "in_ended", subscription: PLAY_TOKEN, amount_paid: 100 });
+    await stripe("customer.subscription.deleted", { id: PLAY_TOKEN });
+    await revolut("ORDER_COMPLETED", PLAY_TOKEN);
+    expect(row()).toEqual(before);
+    expect(conflictEvents()).toHaveLength(3);
+  });
+});
+
+describe("release-blocker regressions", () => {
+  it("a Play claim over a live Stripe row whose package can no longer be resolved is refused BEFORE any purchase row exists", async () => {
+    // liveEntitlement() reads such a row as "grants nothing", but the member is still being billed by Stripe. The claim
+    // must not bind the token, acknowledge it, or replace the row.
+    fx.setSubscription(fx.memberA.id, { packageId: "pkg-since-deleted", status: "active", provider: "stripe", providerSubscriptionId: "sub_orphan_pkg", currentPeriodEnd: FUTURE() });
+    const before = row();
+
+    const res = await fx.claim(fx.memberA.id, PLAY_TOKEN);
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("other_provider_active");
+    expect(fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN)).toBeUndefined();
+    expect(fx.adapter.ackCalls).toEqual([]);
+    expect(row()).toEqual(before);
+    expect(conflictEvents().at(-1)?.detail).toMatchObject({ source: "google_play_claim", existingProvider: "stripe" });
+  });
+
+  it("a replayed refused Revolut event leaves the row untouched every time and every audit record stays sanitized", async () => {
+    await livePlay();
+    const before = row();
+    for (let i = 0; i < 3; i++) await revolut("ORDER_COMPLETED", PLAY_TOKEN);
+    expect(row()).toEqual(before);
+    for (const e of conflictEvents()) {
+      expect(Object.keys(e.detail).sort()).toEqual(["code", "existingProvider", "incomingProvider", "referenceHash", "source"]);
+      expect(JSON.stringify(e)).not.toContain(PLAY_TOKEN);
+    }
+  });
+
+  it("a refused completion never creates a revenue event or touches the Play purchase record", async () => {
+    await livePlay();
+    const revenueBefore = fx.db.findAllRevenueEvents().length;
+    const purchaseBefore = fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN);
+    await stripe("invoice.paid", { id: "in_rev", subscription: PLAY_TOKEN, amount_paid: 4900, currency: "eur" });
+    await revolut("ORDER_COMPLETED", PLAY_TOKEN);
+    expect(fx.db.findAllRevenueEvents()).toHaveLength(revenueBefore);
+    expect(fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN)).toEqual(purchaseBefore);
+  });
+});
+
+describe("purchase context also refuses while another paid provider is billing the account", () => {
+  it.each(["stripe", "revolut"] as const)("is refused for a live %s row even when its package no longer resolves", async (provider) => {
+    fx.setSubscription(fx.memberA.id, { packageId: "pkg-since-deleted", status: "active", provider, providerSubscriptionId: `${provider}-orphan`, currentPeriodEnd: FUTURE() });
+    const res = await fx.context(fx.memberA.id);
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("other_provider_active");
+  });
+});

@@ -342,7 +342,9 @@ export function getPurchaseContext(userId: string, adapter: PlayAdapter = getPla
   const existing = findSubscriptionByUserId(userId);
   const conflict = evaluateEntitlementConflict(existing, { kind: "play_claim" }, packageScopeResolver);
   const live = liveEntitlement(existing, packageScopeResolver);
-  const code: EntitlementConflictCode | null = conflict?.code ?? (live?.scope === "app_subscription" && live.provider === "google_play" ? "play_billing_active" : null);
+  const providerConflict = evaluateProviderTransition(existing, "google_play");
+  const code: EntitlementConflictCode | null =
+    conflict?.code ?? providerConflict?.code ?? (live?.scope === "app_subscription" && live.provider === "google_play" ? "play_billing_active" : null);
   if (code) {
     appendIapEvent({ type: "claim_rejected_conflict", userId, actor: "user", detail: { code, source: "purchase_context" } });
     return fail(409, code, ENTITLEMENT_CONFLICT_MEMBER_MESSAGE[code]);
@@ -426,11 +428,16 @@ export async function verifyAndClaimPurchase(
     live.provider === "google_play" &&
     subscription?.providerSubscriptionId !== token &&
     subscription?.providerSubscriptionId !== snapshot.linkedPurchaseToken;
-  const conflictCode: EntitlementConflictCode | null = membershipConflict?.code ?? (otherPlayLive ? "play_billing_active" : null);
+  // A live subscription billed by Stripe or Revolut is decided here too, WITHOUT resolving its package: a row whose package
+  // was since deleted reads as "grants nothing" to liveEntitlement, but the member is still being billed, so the claim must
+  // be refused before a purchase row exists (a refused claim binds nothing and is not acknowledged). membership_active
+  // keeps priority for a Membership-scope row.
+  const claimProviderConflict = evaluateProviderTransition(subscription, "google_play");
+  const conflictCode: EntitlementConflictCode | null =
+    membershipConflict?.code ?? claimProviderConflict?.code ?? (otherPlayLive ? "play_billing_active" : null);
   // An already-owned purchase that grants nothing right now may still be refreshed for history (see refreshOnly below).
   if (conflictCode && (entitlingNow || !existing)) {
     // A live Stripe or Revolut subscription is also audited as a cross-provider refusal.
-    const claimProviderConflict = evaluateProviderTransition(subscription, "google_play");
     if (subscription && claimProviderConflict) {
       recordProviderConflict({ userId, incoming: "google_play", existingProvider: subscription.provider, conflict: claimProviderConflict, source: "google_play_claim", reference: token });
     }

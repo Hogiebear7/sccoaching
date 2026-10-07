@@ -130,7 +130,17 @@ reporting something. It is **not** the member or staff choosing to move the acco
 - **Concurrency:** the datastore is one synchronous file in one process. Each guarded handler reads the row, evaluates the rule
   and writes with **no `await` in between**, so a concurrent webhook or claim cannot interleave. Whichever block runs first wins and
   the other sees its result and is refused. The Stripe event id is recorded even for a refusal, so a redelivery is skipped. This is
-  the equivalent safe guard for the file-backed datastore (a SQL store would use a row lock or a unique constraint).
+  the equivalent safe guard for the file-backed datastore, and it **holds only while the app is one process over one JSON file**.
+  A refused Revolut event has no event id to dedupe on, so a replay writes another audit row (the subscription row is never changed).
+- **Required before moving to SQL or more than one process (not implemented, and the guard is NOT safe without it):**
+  1. read, evaluate and write the subscription row inside **one transaction** that locks the row (`SELECT ... FOR UPDATE`) or uses a
+     **conditional update** (compare-and-set on provider, status and a version or `updated_at`), so two deliveries cannot both pass the check;
+  2. a **unique constraint** on (provider, provider reference) so one provider subscription can belong to only one account, and on the Play
+     purchase token (already one row per token in this store);
+  3. the **event-id dedupe row and the audit event written in the same transaction** as the refusal or the write;
+  4. an automated **concurrency test** against the real database with two simultaneous completions for one account.
+- **Unresolvable package:** the claim and purchase-context checks decide on the row's provider and status without resolving its package,
+  because a row whose package was deleted is still being billed. Both are refused before any purchase row exists.
 - **Pending checkout intent is parked, not lost:** when a Play purchase replaces a *pending* Stripe checkout, the checkout's
   package, option and session move to the `pending*` fields and the Play row's setup-order reference is cleared. A later Stripe
   completion for that session is promoted only if no Play entitlement is live then, and then records `provider: "stripe"` (the
