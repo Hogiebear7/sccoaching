@@ -918,6 +918,20 @@ export interface ExtraSessionGrant {
   createdAt: string;
 }
 
+export interface AbandonedCheckout {
+  /** The provider checkout session id the payment will arrive under. */
+  sessionId: string;
+  packageId: string | null;
+  billingOptionId: string | null;
+  /** When the checkout was started. */
+  startedAt: string;
+  /** When it was moved out of the pending fields. */
+  clearedAt: string;
+  reason: "stale_switch" | "stale_pending" | "replaced_by_play";
+  /** Set once a late completion has been applied, so a duplicate completion finds nothing to redo. */
+  settledAt?: string | null;
+}
+
 export interface SubscriptionRecord {
   userId: string;
   /** Catalog package this subscription entitles. Entitlement is derived from
@@ -938,6 +952,10 @@ export interface SubscriptionRecord {
   pendingSetupOrderId?: string | null;
   /** When the switch checkout was started, for staleness/abandon cleanup. */
   pendingStartedAt?: string | null;
+  /** Checkouts the cleanup job or a provider takeover moved OUT of the pending fields because they looked abandoned, kept so a LATE
+      payment (a Stripe session stays payable for up to 24 hours) can still be reconciled instead of matching nothing. Newest
+      last, capped (see lib/checkout-recovery.ts). Never deleted by cleanup. Optional/absent on older rows. */
+  abandonedCheckouts?: AbandonedCheckout[];
   status: SubscriptionStatus;
   /** Set only while status is "paused" — the pause auto-resumes once this
       passes (see lib/jobs/resume-paused-memberships.ts). Null otherwise. */
@@ -1230,7 +1248,10 @@ export type IapEventType =
   | "staff_write_rejected"
   /** A Stripe, Revolut or Google Play completion was refused because ANOTHER provider already holds a live
       entitlement for the account. Written by the webhook and claim paths; the existing row is left untouched. */
-  | "provider_conflict_rejected";
+  | "provider_conflict_rejected"
+  /** A late Stripe checkout completion arrived after the cleanup job (or a Play takeover) had moved its checkout out of the
+      pending fields. detail.outcome is "applied" or "conflict_manual_recovery". Never carries the session id or any payload. */
+  | "late_checkout_recovery";
 
 export interface IapEventRecord {
   id: string;
@@ -5030,6 +5051,17 @@ export function findSubscriptionBySetupOrderId(
 
 // A subscription with an in-flight switch whose checkout session matches —
 // how the webhook promotes a confirmed switch onto the active membership.
+// A subscription whose abandoned (but possibly still payable) checkout matches a LATE completion. Settled entries are ignored.
+export function findSubscriptionByAbandonedCheckout(
+  sessionId: string
+): { subscription: SubscriptionRecord; checkout: AbandonedCheckout } | undefined {
+  for (const subscription of readDb().subscriptions) {
+    const checkout = subscription.abandonedCheckouts?.find((c) => c.sessionId === sessionId && !c.settledAt);
+    if (checkout) return { subscription, checkout };
+  }
+  return undefined;
+}
+
 export function findSubscriptionByPendingSetupOrderId(
   sessionId: string
 ): SubscriptionRecord | undefined {
