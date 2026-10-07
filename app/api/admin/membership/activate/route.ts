@@ -133,7 +133,8 @@ export async function POST(request: NextRequest) {
     statusBeforePause: null,
     provider: "none",
     providerCustomerId: existing?.providerCustomerId ?? null,
-    providerSubscriptionId: existing?.providerSubscriptionId ?? null,
+    // A manual activation over an ended Google Play row must not keep the old Play purchase token.
+    providerSubscriptionId: existing?.provider === "google_play" ? null : existing?.providerSubscriptionId ?? null,
     providerSetupOrderId: existing?.providerSetupOrderId ?? null,
     currentPeriodEnd: resolvedPeriodEnd,
     lastWebhookEventAt: existing?.lastWebhookEventAt ?? null,

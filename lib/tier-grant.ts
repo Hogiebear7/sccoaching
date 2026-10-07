@@ -141,6 +141,11 @@ export async function grantMemberTier(
     }
   }
 
+  // Walking away from a Google Play row (it has ended, or the conflict rules above would have refused) must not carry
+  // the old Play purchase token, billing option or paid period over to a row that is no longer billed through Play.
+  // An inherited past period end would make a freshly granted Membership look lapsed, and an inherited token is stale.
+  const leavingPlay = existingSubscription?.provider === "google_play" && (options?.provider ?? "none") !== "google_play";
+
   const now = new Date().toISOString();
   const isEnteringFreshActivePeriod =
     resolvedStatus === "active" &&
@@ -166,7 +171,7 @@ export async function grantMemberTier(
     userId,
     packageId: resolvedPackageId,
     billingOptionId:
-      options?.billingOptionId !== undefined ? options.billingOptionId : existingSubscription?.billingOptionId ?? null,
+      options?.billingOptionId !== undefined ? options.billingOptionId : leavingPlay ? null : existingSubscription?.billingOptionId ?? null,
     status: resolvedStatus,
     pausedUntil: null,
     statusBeforePause: null,
@@ -175,10 +180,12 @@ export async function grantMemberTier(
     providerSubscriptionId:
       options?.providerSubscriptionId !== undefined
         ? options.providerSubscriptionId
-        : existingSubscription?.providerSubscriptionId ?? null,
+        : leavingPlay
+          ? null
+          : existingSubscription?.providerSubscriptionId ?? null,
     providerSetupOrderId: existingSubscription?.providerSetupOrderId ?? null,
     currentPeriodEnd:
-      options?.currentPeriodEnd !== undefined ? options.currentPeriodEnd : existingSubscription?.currentPeriodEnd ?? null,
+      options?.currentPeriodEnd !== undefined ? options.currentPeriodEnd : leavingPlay ? null : existingSubscription?.currentPeriodEnd ?? null,
     lastWebhookEventAt: existingSubscription?.lastWebhookEventAt ?? null,
     sessionsUsedThisPeriod: isEnteringFreshActivePeriod ? 0 : existingSubscription?.sessionsUsedThisPeriod ?? 0,
     extraSessionGrants: isEnteringFreshActivePeriod ? [] : existingSubscription?.extraSessionGrants ?? [],

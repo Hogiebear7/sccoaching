@@ -499,3 +499,12 @@ Recorded against base `454187f`. The detail, evidence and decision table are in 
 | Refund and revocation handling, acknowledgement retry, call timeouts, provider error pass-through, kill switch | **Open** | Readiness doc, GP-3, GP-5, GP-8, GP-9, GP-11 |
 | Revenue amount basis for Play | **Open, decision required** | Readiness doc, GP-4 and decision 3 |
 | `source-map-js` production advisory | **Fixed by PR #58** (merge `454187f`); deployment unverified | `package-lock.json` |
+
+### 12.8 Update 2026-10-07: tenant context and App Subscription implementation
+
+A single verified tenant context, a classification of every route (227) and every datastore collection (72) and module cache,
+and drift guards that fail when a route, a collection or a cache is added without being classified, are in
+`docs/tenant-context-and-authorization-2026-10.md` (PR #61). The Google Play rows in section 12.7 that were **Open** are
+addressed in PRs #62 and #63; the per-row status is in `docs/google-play-iap-readiness-2026-10.md` section 14. The overall
+status, with the five-way labels and the open owner decisions, is `docs/iap-implementation-status-2026-10.md`. None of it is
+merged or deployed, and none of it has run against Google.
