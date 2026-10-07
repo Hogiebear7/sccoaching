@@ -52,11 +52,13 @@ import { iapDisabledReason, iapEnvironment } from "./config";
 import {
   ENTITLEMENT_CONFLICT_MEMBER_MESSAGE,
   evaluateEntitlementConflict,
+  evaluateProviderTransition,
   isCurrentPlayToken,
   liveEntitlement,
   packageScopeResolver,
   type EntitlementConflictCode,
 } from "./entitlement-conflict";
+import { recordProviderConflict } from "./provider-guard";
 import "./google-adapter";
 
 const ENTITLING_STATUSES: ReadonlySet<string> = new Set(["active", "past_due", "paused"]);
@@ -117,6 +119,8 @@ type EntitlementOutcome =
   | { kind: "pending" }
   | { kind: "stale" }
   | { kind: "membership_conflict" }
+  /** A live subscription billed through Stripe or Revolut. Never replaced by a Play purchase or notification. */
+  | { kind: "provider_conflict" }
   | { kind: "package_missing" }
   | { kind: "unknown_token" }
   | { kind: "stale_snapshot" };
@@ -190,6 +194,21 @@ function applyEntitlement(args: {
   const live = liveEntitlement(existing, packageScopeResolver);
 
   if (!isCurrent && !isSuccessor) {
+    // A live Stripe or Revolut subscription is never replaced by a Play purchase or a Play notification. Audited as a
+    // cross-provider refusal; the row is left exactly as it is.
+    const providerConflict = evaluateProviderTransition(existing, "google_play");
+    if (existing && providerConflict) {
+      recordProviderConflict({
+        userId,
+        incoming: "google_play",
+        existingProvider: existing.provider,
+        conflict: providerConflict,
+        source: actor === "user" ? "google_play_claim" : "google_play_notification",
+        reference: token,
+      });
+      return { kind: "provider_conflict" };
+    }
+
     // A purchase that is not the one the row is billed through may only take the row over when the row grants
     // nothing and this purchase does. It must never overwrite a live entitlement, and a non-entitling snapshot
     // never replaces a row that belongs to something else (history is preserved, D2).
@@ -218,6 +237,8 @@ function applyEntitlement(args: {
   if (!appPackage) return { kind: "package_missing" };
 
   const nowIso = new Date().toISOString();
+  const pendingStripeCheckout = !!existing && existing.provider === "stripe" && existing.status === "pending" && !!existing.providerSetupOrderId;
+  const keepParked = !!existing && existing.provider === "google_play";
   const fresh = status === "active" && (existing?.status !== "active" || existing?.packageId !== appPackage.id || !isCurrent);
   const row: SubscriptionRecord = {
     userId,
@@ -229,7 +250,16 @@ function applyEntitlement(args: {
     provider: "google_play",
     providerCustomerId: existing?.providerCustomerId ?? null,
     providerSubscriptionId: token,
-    providerSetupOrderId: existing?.providerSetupOrderId ?? null,
+    // A Play-billed row has no Stripe setup order. If it replaces a PENDING Stripe checkout (nothing live, so nothing is
+    // being overwritten), that checkout intent moves to the pending-switch fields instead of being lost or left where a
+    // later Stripe completion could match it unguarded. The Stripe webhook then promotes it only if no Play entitlement is
+    // live at that moment (see app/api/stripe/webhook/route.ts).
+    providerSetupOrderId: null,
+    // Later Play updates for the same row (renewal, expiry) keep that parked intent.
+    pendingPackageId: pendingStripeCheckout ? existing.packageId ?? null : keepParked ? existing.pendingPackageId ?? null : null,
+    pendingBillingOptionId: pendingStripeCheckout ? existing.billingOptionId ?? null : keepParked ? existing.pendingBillingOptionId ?? null : null,
+    pendingSetupOrderId: pendingStripeCheckout ? existing.providerSetupOrderId ?? null : keepParked ? existing.pendingSetupOrderId ?? null : null,
+    pendingStartedAt: pendingStripeCheckout ? existing.updatedAt : keepParked ? existing.pendingStartedAt ?? null : null,
     currentPeriodEnd: isoFromMillis(purchase.expiryTimeMillis),
     lastWebhookEventAt: existing?.lastWebhookEventAt ?? null,
     sessionsUsedThisPeriod: fresh ? 0 : existing?.sessionsUsedThisPeriod ?? 0,
@@ -399,6 +429,11 @@ export async function verifyAndClaimPurchase(
   const conflictCode: EntitlementConflictCode | null = membershipConflict?.code ?? (otherPlayLive ? "play_billing_active" : null);
   // An already-owned purchase that grants nothing right now may still be refreshed for history (see refreshOnly below).
   if (conflictCode && (entitlingNow || !existing)) {
+    // A live Stripe or Revolut subscription is also audited as a cross-provider refusal.
+    const claimProviderConflict = evaluateProviderTransition(subscription, "google_play");
+    if (subscription && claimProviderConflict) {
+      recordProviderConflict({ userId, incoming: "google_play", existingProvider: subscription.provider, conflict: claimProviderConflict, source: "google_play_claim", reference: token });
+    }
     appendIapEvent({ type: "claim_rejected_conflict", userId, purchaseToken: token, actor: "user", detail: { code: conflictCode, source: "verify" } });
     return fail(409, conflictCode, ENTITLEMENT_CONFLICT_MEMBER_MESSAGE[conflictCode]);
   }
@@ -441,6 +476,7 @@ export async function verifyAndClaimPurchase(
   if (outcome.kind === "pending") return fail(409, "purchase_pending", MESSAGES.pending);
   if (outcome.kind === "package_missing") return fail(500, "not_set_up", MESSAGES.notSetUp);
   if (outcome.kind === "membership_conflict") return fail(409, "membership_active", ENTITLEMENT_CONFLICT_MEMBER_MESSAGE.membership_active);
+  if (outcome.kind === "provider_conflict") return fail(409, "other_provider_active", ENTITLEMENT_CONFLICT_MEMBER_MESSAGE.other_provider_active);
 
   // Acknowledge only a purchase that was actually entitled, after the entitlement is written (D5, I5).
   let acknowledged = !!findGooglePlayPurchaseByToken(token)?.acknowledged;

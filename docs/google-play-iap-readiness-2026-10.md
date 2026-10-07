@@ -445,7 +445,7 @@ Every row below is "tested with a fake provider" at most. The contract is `docs/
 | ID | Status after the stack |
 |---|---|
 | GP-1 | Implemented: `GET /api/mobile/billing/google-play/purchase-context`. Mobile consumption is in `sc-coaching-mobile#11`, not enabled |
-| GP-2a | Implemented and tested: conflict rules at every synchronous entry point (PR #62) and on the claim path (PR #63). The Stripe or Revolut checkout that completes after a Play purchase is **still open** |
+| GP-2a | Implemented and tested: conflict rules at every synchronous entry point (PR #62) and on the claim path (PR #63). A Stripe or Revolut completion can no longer overwrite a live Play entitlement (cross-provider guard, see the schema document section 7). **Moving a paying member between providers deliberately is a follow-up: no transition API exists** |
 | GP-2b | Implemented and tested: a stale token cannot overwrite the row; a successor token can take over |
 | GP-3 | Implemented and tested for a voided current order. **Payload shapes and refund semantics need real-provider verification.** Revenue reversal is **not implemented** (accounting decision) |
 | GP-4 | Open. Revenue is still the configured placeholder price |

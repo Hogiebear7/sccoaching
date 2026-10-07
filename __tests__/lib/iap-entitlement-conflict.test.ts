@@ -6,7 +6,10 @@ import {
   ENTITLEMENT_CONFLICT_MEMBER_MESSAGE,
   ENTITLEMENT_CONFLICT_MESSAGE,
   evaluateEntitlementConflict,
+  evaluateProviderTransition,
+  evaluateReferenceMismatch,
   isCurrentPlayToken,
+  isProviderEntitled,
   liveEntitlement,
   scopeOfPackage,
   type EntitlementScope,
@@ -147,7 +150,7 @@ describe("writes that do not conflict", () => {
 describe("messages", () => {
   it("are stable, non-empty and free of identifiers or dates, for staff and for members", () => {
     for (const table of [ENTITLEMENT_CONFLICT_MESSAGE, ENTITLEMENT_CONFLICT_MEMBER_MESSAGE]) {
-      expect(Object.keys(table).sort()).toEqual(["app_subscription_active", "membership_active", "play_billing_active"]);
+      expect(Object.keys(table).sort()).toEqual(["app_subscription_active", "membership_active", "other_provider_active", "play_billing_active"]);
       for (const message of Object.values(table)) {
         expect(message.length).toBeGreaterThan(20);
         expect(message).not.toMatch(/\d{4}-\d{2}-\d{2}|[0-9a-f]{8}-[0-9a-f]{4}|GPA\.|@/i);
@@ -166,5 +169,57 @@ describe("isCurrentPlayToken", () => {
     expect(isCurrentPlayToken({ provider: "stripe", providerSubscriptionId: "token-current" }, "token-current")).toBe(false);
     expect(isCurrentPlayToken({ provider: "none", providerSubscriptionId: null }, "x")).toBe(false);
     expect(isCurrentPlayToken(undefined, "x")).toBe(false);
+  });
+});
+
+describe("cross-provider rules (pure)", () => {
+  type P = "none" | "stripe" | "revolut" | "google_play";
+  const r = (provider: P, status: NonNullable<Row>["status"], currentPeriodEnd: string | null = FUTURE) => ({ provider, status, currentPeriodEnd });
+  const code = (existing: ReturnType<typeof r> | undefined, incoming: P) => evaluateProviderTransition(existing, incoming, NOW)?.code ?? null;
+
+  it.each(["stripe", "revolut", "google_play"] as const)("a live %s row refuses a completion from either other paid provider", (held) => {
+    for (const status of ["active", "past_due", "paused"] as const) {
+      for (const incoming of (["stripe", "revolut", "google_play"] as const).filter((p) => p !== held)) {
+        expect(code(r(held, status), incoming)).toBe("other_provider_active");
+      }
+    }
+  });
+
+  it("the same provider is always allowed, live or not", () => {
+    for (const p of ["stripe", "revolut", "google_play"] as const) {
+      expect(code(r(p, "active"), p)).toBeNull();
+      expect(code(r(p, "canceled"), p)).toBeNull();
+    }
+  });
+
+  it("a cancelled-but-still-paid row (active, future paid-through) is live, and stops being live once the period has passed", () => {
+    expect(code(r("google_play", "active", FUTURE), "stripe")).toBe("other_provider_active");
+    expect(code(r("google_play", "active", PAST), "stripe")).toBeNull();
+    expect(isProviderEntitled({ status: "active", currentPeriodEnd: PAST }, NOW)).toBe(false);
+    expect(isProviderEntitled({ status: "past_due", currentPeriodEnd: PAST }, NOW)).toBe(true); // grace
+  });
+
+  it.each(["pending", "inactive", "canceled"] as const)("a %s row of another provider does not block", (status) => {
+    expect(code(r("google_play", status), "stripe")).toBeNull();
+  });
+
+  it("manual rows and absent rows never conflict, and a manual incoming provider is not a paid provider", () => {
+    expect(code(r("none", "active"), "stripe")).toBeNull();
+    expect(code(undefined, "stripe")).toBeNull();
+    expect(code(r("stripe", "active"), "none")).toBeNull();
+  });
+
+  it("a reference found on another paid provider's row is refused whether or not that row is live", () => {
+    expect(evaluateReferenceMismatch({ provider: "google_play" }, "stripe")?.code).toBe("other_provider_active");
+    expect(evaluateReferenceMismatch({ provider: "revolut" }, "stripe")?.code).toBe("other_provider_active");
+    expect(evaluateReferenceMismatch({ provider: "stripe" }, "stripe")).toBeNull();
+    expect(evaluateReferenceMismatch({ provider: "none" }, "stripe")).toBeNull();
+  });
+
+  it("a Play claim over a live Stripe or Revolut App Subscription is other_provider_active, over a Membership it stays membership_active", () => {
+    const app = (provider: P) => row({ packageId: "pkg-app", provider });
+    expect(check(app("stripe"), PLAY_CLAIM)).toBe("other_provider_active");
+    expect(check(app("revolut"), PLAY_CLAIM)).toBe("other_provider_active");
+    expect(check(row({ provider: "stripe" }), PLAY_CLAIM)).toBe("membership_active");
   });
 });

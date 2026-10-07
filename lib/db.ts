@@ -1222,12 +1222,16 @@ export type IapEventType =
   | "acknowledgement_failed"
   | "notification_stale"
   | "reconciliation_run"
-  | "staff_write_rejected";
+  | "staff_write_rejected"
+  /** A Stripe, Revolut or Google Play completion was refused because ANOTHER provider already holds a live
+      entitlement for the account. Written by the webhook and claim paths; the existing row is left untouched. */
+  | "provider_conflict_rejected";
 
 export interface IapEventRecord {
   id: string;
   at: string;
-  provider: "google_play";
+  /** The provider whose event or claim this row is about. Not necessarily the provider that holds the entitlement. */
+  provider: "google_play" | "stripe" | "revolut";
   type: IapEventType;
   /** Opaque account id, or null when the event has no resolvable account. */
   userId: string | null;
@@ -3397,6 +3401,8 @@ export function sanitizeIapDetail(detail: Record<string, unknown> | undefined): 
 }
 
 export interface IapEventInput {
+  /** Defaults to "google_play" (the original and still most common writer). */
+  provider?: IapEventRecord["provider"];
   type: IapEventType;
   userId: string | null;
   /** The RAW purchase token is hashed here, never stored. Pass the token or null. */
@@ -3410,7 +3416,7 @@ function buildIapEvent(input: IapEventInput): IapEventRecord {
   return {
     id: randomUUID(),
     at: input.at ?? new Date().toISOString(),
-    provider: "google_play",
+    provider: input.provider ?? "google_play",
     type: input.type,
     userId: input.userId,
     purchaseTokenHash: input.purchaseToken ? hashPurchaseToken(input.purchaseToken) : null,

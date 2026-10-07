@@ -155,6 +155,7 @@ export const STATIC_LOOKUP_CONSTANTS: readonly { file: string; symbol: string }[
   { file: "lib/class-covers.ts", symbol: "BUILTIN_DEFAULT_ALTS" },
   { file: "lib/countries.ts", symbol: "COUNTRY_VALUES" },
   { file: "lib/iap/entitlement-conflict.ts", symbol: "LIVE_STATUSES" },
+  { file: "lib/iap/entitlement-conflict.ts", symbol: "PAID_PROVIDERS" },
   { file: "lib/iap/service.ts", symbol: "ENTITLING_STATUSES" },
   { file: "lib/nutrition-data.ts", symbol: "DIET_LABEL" },
   { file: "lib/permissions.ts", symbol: "PLATFORM_ONLY_CAPABILITIES" },
