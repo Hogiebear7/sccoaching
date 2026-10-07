@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { getPurchaseContext } from "@/lib/iap/service";
-import { verifyRequestSession } from "@/lib/mobile-auth";
+import { resolveTenantRequest } from "@/lib/tenant-request";
 
 // Delivers the account binding the Android client must set (setObfuscatedAccountId) BEFORE it launches the
 // purchase flow. Without it the server refuses to claim the resulting token, so this is the only way a purchase
@@ -12,12 +12,10 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 // client-supplied id, and is returned only to that user. Gated by the kill switch, and refused for a member who
 // cannot take a purchase (active Membership, or a live Google Play subscription), so no purchase intent starts.
 export async function GET(request: NextRequest) {
-  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
-  if (!sessionUserId) {
-    return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
-  }
+  const tenant = resolveTenantRequest(request);
+  if (!tenant.ok) return tenant.response;
 
-  const result = getPurchaseContext(sessionUserId);
+  const result = getPurchaseContext(tenant.ctx.userId);
   if (!result.ok) {
     return NextResponse.json({ success: false, code: result.code, message: result.message }, { status: result.httpStatus });
   }

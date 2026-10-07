@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findSubscriptionByUserId, findUserById, saveSubscription } from "@/lib/db";
+import { appendIapEvent, findSubscriptionByUserId, findUserById, saveSubscription } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -53,6 +53,22 @@ export async function POST(
     return NextResponse.json(
       { success: false, message: "This member has no membership to pause." },
       { status: 404 }
+    );
+  }
+
+  // A Google Play subscription is paused, resumed and cancelled by the member inside Google Play, and its status here mirrors
+  // Play's. A staff pause or resume would write a status that contradicts the store (for example "active" while Play still has it
+  // paused, or "paused" while Play keeps billing) and could not be undone from this side. Refused with a stable code; the row,
+  // purchase token, provider and paid-through date are not touched, and nothing is sent to Google.
+  if ((action === "pause" || action === "resume") && subscription.provider === "google_play") {
+    appendIapEvent({ type: "staff_write_rejected", userId: member.id, actor: "staff", detail: { code: "play_billing_active", action, source: "staff_pause_resume" } });
+    return NextResponse.json(
+      {
+        success: false,
+        code: "play_billing_active",
+        message: "This membership is billed through Google Play. The member pauses, resumes or cancels it in Google Play, so it can't be changed here.",
+      },
+      { status: 409 }
     );
   }
 

@@ -91,7 +91,7 @@ export const COLLECTION_SCOPE = {
   gyms: { kind: "gym-direct", owner: "id", note: "The tenant record itself. Moderation is exact-role platform_operator." },
   membershipBillingOptions: parent("packageId", "Tenant is the package's tenant."),
   subscriptions: user("userId", "One row per user. ownerGym is provenance, not access control."),
-  googlePlayPurchases: user("userId", "Purchase-token ownership record; first valid binding wins."),
+  googlePlayPurchases: user("userId", "Purchase-token ownership record; first valid binding wins. userId becomes an opaque deleted: owner id when the member is hard-deleted after the entitlement ended; the record is anonymised, never deleted (docs/member-deletion-protection-2026-10.md)."),
   iapEvents: user("userId", "Append-only audit log of App Subscription transitions. userId is null for an event with no resolvable account. Not exposed to any gym role yet; a reader must authorise through the owner's gym or the platform. Kept after account deletion (owner decision 6 is open)."),
   iapNotifications: platform("Pub/Sub message-id dedupe for provider notifications. No tenant, no user."),
   purchases: user("userId", "ownerGym is provenance, not access control."),

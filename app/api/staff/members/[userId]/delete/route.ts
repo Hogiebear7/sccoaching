@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { deleteUserAndOwnedRecords, findUserById } from "@/lib/db";
+import { appendIapEvent, deleteUserAndOwnedRecords, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
+import { ACTIVE_SUBSCRIPTION_CODE, ACTIVE_SUBSCRIPTION_MESSAGE, MemberDeletionRefused } from "@/lib/member-deletion-guard";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
 
 // PERMANENT deletion of an archived member and all of their owned records.
@@ -38,7 +39,22 @@ export async function POST(
     );
   }
 
-  const removed = deleteUserAndOwnedRecords(target.id);
+  // Refused (nothing changed) while the member holds a protected Google Play entitlement. Nothing is cancelled or refunded.
+  let removed: Record<string, number>;
+  try {
+    removed = deleteUserAndOwnedRecords(target.id);
+  } catch (error) {
+    if (error instanceof MemberDeletionRefused) {
+      appendIapEvent({
+        type: "staff_write_rejected",
+        userId: target.id,
+        actor: "staff",
+        detail: { code: ACTIVE_SUBSCRIPTION_CODE, source: "member_hard_delete", state: error.state },
+      });
+      return NextResponse.json({ success: false, code: ACTIVE_SUBSCRIPTION_CODE, message: ACTIVE_SUBSCRIPTION_MESSAGE }, { status: 409 });
+    }
+    throw error;
+  }
 
   return NextResponse.json(
     { success: true, message: `${target.email} was permanently deleted.`, removed },

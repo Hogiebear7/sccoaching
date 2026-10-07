@@ -9,7 +9,6 @@ import {
   findMembershipPackageById,
   findPurchaseByIdempotencyKey,
   findSubscriptionByUserId,
-  findUserById,
   savePurchase,
   saveSubscription,
   type MoneyRecordOwnerGym,
@@ -17,11 +16,12 @@ import {
   type SubscriptionRecord,
 } from "@/lib/db";
 import { activeBillingProvider, createCatalogCheckout, isPendingCheckoutStale } from "@/lib/billing";
-import { catalogScopesMatch, isGlobalCatalogPackage, ownerGymForCatalogPackage, sameGym } from "@/lib/gym-scope";
+import { catalogScopesMatch, isGlobalCatalogPackage, ownerGymForCatalogPackage } from "@/lib/gym-scope";
 import { ENTITLEMENT_CONFLICT_MEMBER_MESSAGE, evaluateEntitlementConflict, packageScopeResolver, scopeOfPackage } from "@/lib/iap/entitlement-conflict";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { isPurchaseCheckoutReusable } from "@/lib/payments";
-import { verifyRequestSession } from "@/lib/mobile-auth";
+import { inTenant } from "@/lib/tenant-context";
+import { resolveTenantRequest } from "@/lib/tenant-request";
 
 // Catalog checkout: the member picked a billing option (a price) under a
 // package (the entitlement). Recurring → subscription checkout that the
@@ -29,15 +29,10 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 // a pass-pack PurchaseRecord that the webhook credits by package. Entitlement
 // always comes from the package, never from the price.
 export async function POST(request: NextRequest) {
-  const userId = verifyRequestSession(request)?.userId ?? null;
-  const user = userId ? findUserById(userId) : undefined;
-
-  if (!user) {
-    return NextResponse.json(
-      { success: false, message: "You must be signed in to check out." },
-      { status: 401 }
-    );
-  }
+  // The member's tenant is derived from the authenticated account, never from the request body.
+  const tenant = resolveTenantRequest(request, { unauthenticatedMessage: "You must be signed in to check out." });
+  if (!tenant.ok) return tenant.response;
+  const { user, ctx } = tenant;
 
   let body: unknown;
   try {
@@ -65,7 +60,7 @@ export async function POST(request: NextRequest) {
   // missing/hidden option so a cross-gym option's existence isn't revealed,
   // and it runs before any subscription/purchase is saved.
   const category = pkg ? findMembershipCategoryById(pkg.categoryId) : undefined;
-  const ownedByMemberGym = !!pkg && (isGlobalCatalogPackage(pkg) || (!!category && sameGym(user, category)));
+  const ownedByMemberGym = !!pkg && (isGlobalCatalogPackage(pkg) || (!!category && inTenant(ctx, category)));
 
   if (!option || !pkg || !option.visible || !pkg.visible || !ownedByMemberGym) {
     return NextResponse.json(
