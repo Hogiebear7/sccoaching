@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     include: ["__tests__/**/*.test.ts"],
     environment: "node",
+    // Blocks real network access from every test file (loopback stays open). See __tests__/setup/network-guard.ts.
+    setupFiles: ["./__tests__/setup/network-guard.ts"],
     env: {
       SESSION_SECRET: "test-session-secret-do-not-use-in-production",
     },
