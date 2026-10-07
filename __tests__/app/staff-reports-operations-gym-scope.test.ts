@@ -9,7 +9,7 @@
 // mobile Business revenue section is deliberately NOT asserted as scoped: gym
 // ownership of revenue is a pending Finance decision (see the audit report).
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
@@ -49,6 +49,22 @@ vi.mock("@/lib/finance", () => ({ buildFinanceLedgerLines: () => [] }));
 vi.mock("@/app/(staff)/staff/reports/ReportsView", () => ({ ReportsView: () => null }));
 vi.mock("@/app/(staff)/staff/operations/OperationsView", () => ({ OperationsView: () => null }));
 
+// The clock is pinned to a fixed instant, and every date below is derived from it, so this file does not depend on
+// the wall clock. It used to take "today" from the UTC date while lib/class-time.ts reads a class's start time in
+// the gym's own timezone (Europe/Dublin, UTC+1 in summer): between 23:00 and 24:00 UTC the UTC date is still
+// "yesterday" in Dublin, so the 23:59 class below was already in the past and the upcoming-classes filter dropped
+// it. Only Date is faked, so promises and timers behave normally. The instant is mid-day in both UTC and Dublin.
+const NOW = new Date("2026-10-07T12:00:00.000Z");
+const TODAY = "2026-10-07"; // the same calendar day in UTC and in Europe/Dublin at NOW
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 type U = { id: string; email: string; role: string; gymId: string | null; archivedAt: string | null; createdAt: string };
 const user = (id: string, role: string, gymId: string | null): U => ({
   id,
@@ -56,7 +72,7 @@ const user = (id: string, role: string, gymId: string | null): U => ({
   role,
   gymId,
   archivedAt: null,
-  createdAt: new Date().toISOString(), // "this month" for the business snapshot
+  createdAt: NOW.toISOString(), // "this month" for the business snapshot
 });
 
 // Gym A = primary gym (gymId: null). Gym B = "gym-b".
@@ -68,12 +84,11 @@ const MEMBER_A = user("member-a", "member", null);
 const MEMBER_B = user("member-b", "member", "gym-b");
 const EVERYONE = [ADMIN_A, ADMIN_B, COACH_A, COACH_B, MEMBER_A, MEMBER_B];
 
-const thisMonth = new Date().toISOString().slice(0, 10);
 const cls = (id: string, coachUserId: string) => ({
   id,
   title: id,
   category: "strength",
-  date: thisMonth,
+  date: TODAY,
   startTime: "23:59",
   capacity: 10,
   coachUserId,
@@ -186,6 +201,16 @@ describe("/staff/operations — gym-scoped props", () => {
 
     expect(props.members.map((m) => m.userId)).toEqual(["member-b"]);
     expect(props.classes.map((c) => c.classId)).toEqual(["class-b"]);
+  });
+
+  it("lists a late class on the gym's calendar day even during the UTC hour before Dublin midnight (regression for the clock flake)", async () => {
+    // 23:30 UTC on 6 Oct is 00:30 on 7 Oct in Europe/Dublin (BST). The class is on 7 Oct at 23:59 gym time, so it is
+    // still upcoming. This is the instant at which the test previously failed when it read the UTC date.
+    vi.setSystemTime(new Date("2026-10-06T23:30:00.000Z"));
+
+    const { props } = await operationsPage();
+
+    expect(props.classes.map((c) => c.classId)).toEqual(["class-a"]);
   });
 
   it("keeps redirects unchanged for a member / anonymous visitor, loading nothing", async () => {
