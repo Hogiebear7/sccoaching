@@ -172,9 +172,10 @@ export async function POST(
     statusBeforePause: null,
     provider: "none",
     providerCustomerId: existingSubscription?.providerCustomerId ?? null,
-    providerSubscriptionId: existingSubscription?.providerSubscriptionId ?? null,
+    // A manual override over an ended Google Play row must not keep the old Play purchase token or paid period.
+    providerSubscriptionId: existingSubscription?.provider === "google_play" ? null : existingSubscription?.providerSubscriptionId ?? null,
     providerSetupOrderId: existingSubscription?.providerSetupOrderId ?? null,
-    currentPeriodEnd: existingSubscription?.currentPeriodEnd ?? null,
+    currentPeriodEnd: existingSubscription?.provider === "google_play" ? null : existingSubscription?.currentPeriodEnd ?? null,
     lastWebhookEventAt: existingSubscription?.lastWebhookEventAt ?? null,
     sessionsUsedThisPeriod: isEnteringFreshActivePeriod
       ? 0

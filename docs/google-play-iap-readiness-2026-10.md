@@ -439,3 +439,25 @@ Each of these needs provider documentation or confirmation before it is relied o
 - `docs/membership-switching.md`
 - `docs/deployment-operations.md`
 - `docs/privacy-policy-audit-2026-08.md` (predates this work; re-check §8 before any submission)
+
+## 14. Update 2026-10-07: implementation status of the findings
+
+Implementation of the owner defaults is in the stack described in `docs/iap-implementation-status-2026-10.md` (gym-app PRs
+#60 to #63 plus this one, and `sc-coaching-mobile#11`). **Nothing is merged or deployed, and nothing has run against Google.**
+Every row below is "tested with a fake provider" at most. The contract is `docs/google-play-server-contract-2026-10.md`.
+
+| ID | Status after the stack |
+|---|---|
+| GP-1 | Implemented: `GET /api/mobile/billing/google-play/purchase-context`. Mobile consumption is in `sc-coaching-mobile#11`, not enabled |
+| GP-2a | Implemented and tested: conflict rules at every synchronous entry point (PR #62) and on the claim path (PR #63). The Stripe or Revolut checkout that completes after a Play purchase is **still open** |
+| GP-2b | Implemented and tested: a stale token cannot overwrite the row; a successor token can take over |
+| GP-3 | Implemented and tested for a voided current order. **Payload shapes and refund semantics need real-provider verification.** Revenue reversal is **not implemented** (accounting decision) |
+| GP-4 | Open. Revenue is still the configured placeholder price |
+| GP-5 | Implemented and tested: acknowledgement retry job with interval, attempt cap and window. The three-day window needs provider confirmation |
+| GP-6 | Open (decision 6) |
+| GP-7 | Not changed |
+| GP-8 | Implemented and tested: 10 s timeout on every Google call |
+| GP-9 | Implemented and tested: no provider text reaches a caller |
+| GP-10 | Implemented: a claim is always created through the atomic helper with an owner |
+| GP-11 | Implemented and tested: kill switch, default off, gating new claims only |
+| GP-12 | Documented in the runbook (section 7); not changed |
