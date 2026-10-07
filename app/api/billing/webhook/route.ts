@@ -12,6 +12,7 @@ import {
   findRevenueEventByProviderRef,
   findSubscriptionByProviderOrderId,
   hasPaymentEvent,
+  hashPurchaseToken,
   recordPaymentEvent,
   saveSubscription,
 } from "@/lib/db";
@@ -201,14 +202,28 @@ export async function POST(request: NextRequest) {
   // interleave.
   const providerConflict = evaluateReferenceMismatch(subscription, "revolut");
   if (providerConflict) {
-    recordProviderConflict({
-      userId: subscription.userId,
-      incoming: "revolut",
-      existingProvider: subscription.provider,
-      conflict: providerConflict,
-      source: "revolut_webhook",
-      reference: entityId,
-    });
+    // Revolut has no per-event id here, so a redelivery of the same refused event used to add a duplicate audit row each time.
+    // Dedupe on a stable key: a SHA-256 of "<event>:<order id>". Only the hash is stored (the reference and payload are not),
+    // and only the AUDIT is deduplicated: the response and the untouched row are the same on every delivery.
+    const conflictKey = `revolut_conflict:${hashPurchaseToken(`${event}:${entityId}`)}`;
+    if (!hasPaymentEvent(conflictKey)) {
+      recordPaymentEvent({
+        key: conflictKey,
+        provider: "revolut",
+        type: event,
+        entityId: null,
+        receivedAt: new Date().toISOString(),
+        ownerGym: subscription.ownerGym ?? { scope: "unresolved" },
+      });
+      recordProviderConflict({
+        userId: subscription.userId,
+        incoming: "revolut",
+        existingProvider: subscription.provider,
+        conflict: providerConflict,
+        source: "revolut_webhook",
+        reference: entityId,
+      });
+    }
     console.warn("[billing webhook] cross-provider conflict: event not applied", { code: providerConflict.code });
     return NextResponse.json({ success: true, message: "Not applied: another provider's subscription is already active." }, { status: 200 });
   }
