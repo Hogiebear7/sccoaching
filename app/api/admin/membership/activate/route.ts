@@ -6,28 +6,21 @@ import {
   findMembershipCategoryById,
   findMembershipPackageById,
   findSubscriptionByUserId,
-  findUserById,
   saveSubscription,
   type SubscriptionRecord,
 } from "@/lib/db";
 import { ownerGymForCatalogPackage, sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { evaluateEntitlementConflict, packageScopeResolver, scopeOfPackage } from "@/lib/iap/entitlement-conflict";
-import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { loadTenantUser, resolveTenantRequest } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
-  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
+  // The tenant is derived from the authenticated account, never from the request.
+  const tenant = resolveTenantRequest(request);
+  if (!tenant.ok) return tenant.response;
+  const { user: staffUser, ctx } = tenant;
 
-  if (!sessionUserId) {
-    return NextResponse.json(
-      { success: false, message: "You must be signed in." },
-      { status: 401 }
-    );
-  }
-
-  const staffUser = findUserById(sessionUserId);
-
-  if (!staffUser || !can(staffUser.role, "members.billing")) {
+  if (!can(staffUser.role, "members.billing")) {
     return NextResponse.json(
       { success: false, message: "Only staff can activate memberships." },
       { status: 403 }
@@ -60,7 +53,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const member = findUserById(userId.trim());
+  const member = loadTenantUser(ctx, userId.trim());
 
   // The target must be in the acting admin's own gym. A cross-gym target is
   // folded into the same not-found response as a missing one, and this gate

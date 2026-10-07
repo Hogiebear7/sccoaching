@@ -32,7 +32,7 @@ authenticated account and never of anything the client sends.
 
 The existing routes are **not migrated** onto the new helpers in this PR. They already carry `sameGym` checks
 with route-level tests (audit 12.1). The manifest records which check protects each one and fails when that
-stops being true. The new Google Play routes in PR 3 and PR 4 are written against the helpers from the start.
+stops being true. **Correction (2026-10-07, post-merge audit):** an earlier version of this sentence said the new Google Play routes were written against the helpers. They were not, and at that point no production route used the helpers. Seven routes now do (including both Google Play routes), and the rest are listed in `docs/runtime-tenant-context-adoption-2026-10.md`. The route count is now 228, not 227, after `purchase-context` was added.
 
 ## 3. Drift guards (each one fails the build, and each was shown to fail by temporarily breaking it)
 

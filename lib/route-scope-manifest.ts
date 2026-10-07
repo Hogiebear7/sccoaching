@@ -42,10 +42,13 @@ export interface RouteScopeEntry {
   /** Source tokens proving the tenant check. Each must appear literally in the source. */
   evidence?: string[];
   note?: string;
+  /** True when the route derives its tenant through lib/tenant-request.ts (resolveTenantRequest). The manifest test fails if
+      this flag and the route source disagree, so the flag is a statement that is checked, not a hope. */
+  runtimeTenantContext?: true;
 }
 
 export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
-  { route: "admin/membership/activate", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym(", "staffAuthorizedForCatalogPackage", "ownerGymFor"] },
+  { route: "admin/membership/activate", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym(", "staffAuthorizedForCatalogPackage", "ownerGymFor"], runtimeTenantContext: true },
   { route: "ai/chat", scope: "self" },
   { route: "ai/coach-summary", scope: "tenant-staff", capabilities: ["members.coaching"], evidence: ["sameGym("] },
   { route: "ai/draft-reply", scope: "tenant-staff", capabilities: ["members.coaching"], evidence: ["sameGym("] },
@@ -75,14 +78,14 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "exercise-library/names", scope: "self" },
   { route: "gyms/signup", scope: "public", note: "Anonymous self-serve tenant creation; the new gym starts unapproved and only a platform operator can approve it." },
   { route: "invites/redeem", scope: "self-tenant-checked", evidence: ["sameGymAsStaff", "resolveInviteGymId"] },
-  { route: "membership/checkout", scope: "self-tenant-checked", evidence: ["sameGym(", "isGlobalCatalogPackage", "catalogScopesMatch", "ownerGymFor"] },
+  { route: "membership/checkout", scope: "self-tenant-checked", evidence: ["inTenant(", "isGlobalCatalogPackage", "catalogScopesMatch", "ownerGymFor"], runtimeTenantContext: true },
   { route: "messages/send", scope: "self-tenant-checked", evidence: ["sameGym("] },
   { route: "mobile/auth/login", scope: "public", note: "Credential login; the session's tenant comes from the stored account." },
   { route: "mobile/auth/me", scope: "self" },
   { route: "mobile/auth/signup", scope: "public", note: "Gym is resolved from a server-verified invite, never from the request body; otherwise the primary gym." },
   { route: "mobile/auth/web-handoff", scope: "self" },
-  { route: "mobile/billing/google-play/purchase-context", scope: "self" },
-  { route: "mobile/billing/google-play/verify", scope: "self" },
+  { route: "mobile/billing/google-play/purchase-context", scope: "self", runtimeTenantContext: true },
+  { route: "mobile/billing/google-play/verify", scope: "self", runtimeTenantContext: true },
   { route: "mobile/coach/provision-member-profile", scope: "self" },
   { route: "mobile/community/comments/[id]", scope: "self" },
   { route: "mobile/community/comments/[id]/report", scope: "self-tenant-checked", evidence: ["sameGymAsStaff"] },
@@ -253,9 +256,9 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/members/[userId]/delete", scope: "tenant-staff", capabilities: ["members.hardDelete"], evidence: ["sameGym("] },
   { route: "staff/members/[userId]/extra-sessions", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym("] },
   { route: "staff/members/[userId]/pause", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym("] },
-  { route: "staff/members/[userId]/subscription", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym(", "staffAuthorizedForCatalogPackage", "ownerGymFor"] },
-  { route: "staff/members/[userId]/tier", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGym("] },
-  { route: "staff/members/bulk-tier", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGymAsStaff"] },
+  { route: "staff/members/[userId]/subscription", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym(", "staffAuthorizedForCatalogPackage", "ownerGymFor"], runtimeTenantContext: true },
+  { route: "staff/members/[userId]/tier", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGym("], runtimeTenantContext: true },
+  { route: "staff/members/bulk-tier", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGymAsStaff"], runtimeTenantContext: true },
   { route: "staff/members/notes", scope: "tenant-staff", capabilities: ["members.edit"], evidence: ["sameGym("] },
   { route: "staff/members/reset-password", scope: "tenant-staff", capabilities: ["members.account"], evidence: ["sameGym(", "targetOutranksActor", "protectedOperatorTarget"] },
   { route: "staff/members/update", scope: "tenant-staff", capabilities: ["members.edit", "members.account"], evidence: ["sameGym(", "targetOutranksActor", "protectedOperatorTarget"] },

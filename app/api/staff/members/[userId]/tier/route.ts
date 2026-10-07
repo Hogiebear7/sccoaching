@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import type { MemberTier } from "@/lib/member-access";
-import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { grantMemberTier } from "@/lib/tier-grant";
+import { loadTenantUser, resolveTenantRequest } from "@/lib/tenant-request";
 
 const TIER_VALUES: MemberTier[] = ["free", "app_subscription", "membership"];
 
@@ -16,23 +15,18 @@ const TIER_VALUES: MemberTier[] = ["free", "app_subscription", "membership"];
 // internally, so staff pick a tier from a dropdown, not a package from the
 // full catalog.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
-  const sessionUserId = verifyRequestSession(request)?.userId ?? null;
-
-  if (!sessionUserId) {
-    return NextResponse.json({ success: false, message: "You must be signed in to manage memberships." }, { status: 401 });
-  }
-
-  const staffUser = findUserById(sessionUserId);
-  if (!staffUser) {
-    return NextResponse.json({ success: false, message: "You must be signed in to manage memberships." }, { status: 401 });
-  }
+  // The tenant is derived from the authenticated account here, at the first line, and never from the request.
+  const tenant = resolveTenantRequest(request, { unauthenticatedMessage: "You must be signed in to manage memberships." });
+  if (!tenant.ok) return tenant.response;
+  const { user: staffUser, ctx } = tenant;
 
   if (!can(staffUser.role, "members.grantTier")) {
     return NextResponse.json({ success: false, message: "Only staff can manage memberships." }, { status: 403 });
   }
 
   const { userId } = await params;
-  const member = findUserById(userId);
+  // A missing target and another tenant's target are the same answer. The sameGym check is kept as defence in depth.
+  const member = loadTenantUser(ctx, userId);
   if (!member || !sameGym(staffUser, member)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
