@@ -1,4 +1,5 @@
 import {
+  appendIapEvent,
   findMembershipCategories,
   findMembershipPackageById,
   findMembershipPackages,
@@ -14,6 +15,7 @@ import { ownerGymForCatalogPackage, sameGym } from "@/lib/gym-scope";
 import type { MemberTier } from "@/lib/member-access";
 import { resolveMemberTier } from "@/lib/membership-entitlement";
 import { cancelProviderSubscription } from "@/lib/billing";
+import { evaluateEntitlementConflict, packageScopeResolver, type EntitlementConflictCode } from "@/lib/iap/entitlement-conflict";
 
 // The one catalog package Tier 2 grants are backed by (see
 // scripts/seed-app-subscription-package.mjs) — billingChannel "manual",
@@ -42,6 +44,9 @@ export interface GrantTierResult {
   message: string;
   warning?: string | null;
   tier?: MemberTier;
+  /** Set when the grant was refused because it would replace a live entitlement of the other
+      kind or a live Google Play subscription. Stable; see lib/iap/entitlement-conflict.ts. */
+  code?: EntitlementConflictCode;
 }
 
 // Shared by the staff "change tier" route and invite redemption — both boil
@@ -117,6 +122,23 @@ export async function grantMemberTier(
     // defaultMembershipPackage's own filter), so this always resolves "gym",
     // never "platform" — consistent with ownerGymForCatalogPackage's own logic.
     freshOwnerGym = ownerGymForCatalogPackage(pkg, findMembershipCategories().find((c) => c.id === pkg.categoryId));
+  }
+
+  // No overlap and no silent replacement (owner defaults D1 and D2). A staff, invite or other
+  // manual grant may not replace a live entitlement of the other kind, nor any live Google Play
+  // subscription. Grants that ARE a verified Play purchase (provider "google_play") are applied by
+  // the Play verify and notification paths, which enforce their own rules (lib/iap).
+  if ((options?.provider ?? "none") !== "google_play") {
+    const entitling = tier !== "free" && (resolvedStatus === "active" || resolvedStatus === "past_due");
+    const conflict = evaluateEntitlementConflict(
+      existingSubscription,
+      { kind: "staff_write", scope: tier === "free" ? null : tier === "app_subscription" ? "app_subscription" : "membership", entitling },
+      packageScopeResolver
+    );
+    if (conflict) {
+      appendIapEvent({ type: "staff_write_rejected", userId, actor: "staff", detail: { code: conflict.code, tier, source: "grantMemberTier" } });
+      return { ok: false, message: conflict.message, code: conflict.code };
+    }
   }
 
   const now = new Date().toISOString();

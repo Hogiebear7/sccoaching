@@ -93,6 +93,11 @@ export async function redeemInviteForUser(token: string, user: Pick<StoredUser, 
 
   const grant = await grantMemberTier(user.id, invite.tier);
   if (!grant.ok) {
+    // A refused conflict leaves the invite pending (it is not consumed). The member-facing wording
+    // is neutral: the staff-facing messages talk about "this member".
+    if (grant.code) {
+      return { ok: false, message: "Your account already has an active subscription, so this invite can't be applied yet. Ask staff for help.", invite };
+    }
     return { ok: false, message: grant.message, invite };
   }
 

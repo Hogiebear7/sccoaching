@@ -14,6 +14,8 @@ export interface BulkTierResult {
   userId: string;
   ok: boolean;
   message: string;
+  /** Present when this member was skipped because the grant would replace a live entitlement. */
+  code?: string;
 }
 
 // Bulk sibling of POST .../[userId]/tier — same underlying grantMemberTier()
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await grantMemberTier(member.id, tier as MemberTier);
-    results.push({ userId, ok: result.ok, message: result.warning ?? result.message });
+    results.push({ userId, ok: result.ok, message: result.warning ?? result.message, ...(result.code ? { code: result.code } : {}) });
   }
 
   return NextResponse.json({ success: true, data: { results } }, { status: 200 });

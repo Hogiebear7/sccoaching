@@ -55,6 +55,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   if (!result.ok) {
+    // A refused conflict (replacing a live entitlement of the other kind, or a live Google Play
+    // subscription) is a state conflict, not a bad request. The code is the stable contract.
+    if (result.code) {
+      return NextResponse.json({ success: false, code: result.code, message: result.message }, { status: 409 });
+    }
     return NextResponse.json({ success: false, message: result.message }, { status: result.message.includes("hasn't been set up") || result.message.includes("No Membership-tier") ? 500 : 400 });
   }
 

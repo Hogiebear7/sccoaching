@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  appendIapEvent,
   findMembershipCategoryById,
   findMembershipPackageById,
   findSubscriptionByUserId,
@@ -10,6 +11,7 @@ import {
   type SubscriptionRecord,
 } from "@/lib/db";
 import { ownerGymForCatalogPackage, sameGym, staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
+import { evaluateEntitlementConflict, packageScopeResolver, scopeOfPackage } from "@/lib/iap/entitlement-conflict";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -113,6 +115,14 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
   const existing = findSubscriptionByUserId(member.id);
+
+  // This route REPLACES the member's one subscription row. It must not silently replace a live
+  // entitlement of the other kind or a live Google Play subscription (see lib/iap/entitlement-conflict.ts).
+  const conflict = evaluateEntitlementConflict(existing, { kind: "staff_write", scope: scopeOfPackage(pkg), entitling: true }, packageScopeResolver);
+  if (conflict) {
+    appendIapEvent({ type: "staff_write_rejected", userId: member.id, actor: "staff", detail: { code: conflict.code, source: "admin_membership_activate" } });
+    return NextResponse.json({ success: false, code: conflict.code, message: conflict.message }, { status: 409 });
+  }
 
   const subscription: SubscriptionRecord = {
     userId: member.id,

@@ -68,6 +68,16 @@ export function resolveSubscriptionEntitlement(
   return planShapeForPackage(pkg, option);
 }
 
+// Renewal and the notification that records it are separate events, so the clock is allowed a small
+// margin before an "active" Google Play row is treated as ended. This is a tolerance for event
+// ordering, not a grace period: a lapsed row never regains access by waiting.
+export const GOOGLE_PLAY_EXPIRY_TOLERANCE_MS = 10 * 60 * 1000;
+
+function isGooglePlayPeriodOver(subscription: Pick<SubscriptionRecord, "provider" | "status" | "currentPeriodEnd">): boolean {
+  if (subscription.provider !== "google_play" || subscription.status !== "active" || !subscription.currentPeriodEnd) return false;
+  return new Date(subscription.currentPeriodEnd).getTime() + GOOGLE_PLAY_EXPIRY_TOLERANCE_MS < Date.now();
+}
+
 // Resolves a subscription straight to one of the three member-facing access
 // tiers (see lib/member-access.ts for what each tier unlocks). Reuses the
 // deliveryChannel/accessType classification already on the catalog package —
@@ -80,6 +90,12 @@ export function resolveSubscriptionEntitlement(
 export function resolveMemberTier(subscription: SubscriptionRecord | undefined | null): MemberTier {
   if (!subscription?.packageId) return "free";
   if (subscription.status !== "active" && subscription.status !== "past_due") return "free";
+
+  // A Google Play row stays "active" until a notification or reconciliation moves it. If its paid
+  // period has ended and nothing has, access must still end at the paid expiry rather than depend
+  // on a lost notification. (Other providers have their own lapse handling, see
+  // lib/jobs/drop-lapsed-manual-memberships.ts; this does not change them.)
+  if (isGooglePlayPeriodOver(subscription)) return "free";
 
   const pkg = findMembershipPackageById(subscription.packageId);
   if (!pkg) return "free";

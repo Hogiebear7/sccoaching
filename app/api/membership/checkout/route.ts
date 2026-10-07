@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  appendIapEvent,
   findMembershipBillingOptionById,
   findMembershipCategoryById,
   findMembershipPackageById,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/db";
 import { activeBillingProvider, createCatalogCheckout, isPendingCheckoutStale } from "@/lib/billing";
 import { catalogScopesMatch, isGlobalCatalogPackage, ownerGymForCatalogPackage, sameGym } from "@/lib/gym-scope";
+import { ENTITLEMENT_CONFLICT_MEMBER_MESSAGE, evaluateEntitlementConflict, packageScopeResolver, scopeOfPackage } from "@/lib/iap/entitlement-conflict";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { isPurchaseCheckoutReusable } from "@/lib/payments";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -266,7 +268,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // ── FRESH JOIN / RENEW: no active membership to protect. Existing flow. ──
+  // ── FRESH JOIN / RENEW ──
+  // The branch below writes a fresh "pending" row over whatever the member has. An ACTIVE App
+  // Subscription never reaches here (the switch branch's cross-scope guard answers it above), but a
+  // past_due or paused one would be silently replaced, and a live Google Play subscription would be
+  // orphaned. Refuse that, with a stable code, before any row or provider checkout is created.
+  const freshJoinConflict = evaluateEntitlementConflict(
+    existingSubscription,
+    { kind: "staff_write", scope: scopeOfPackage(pkg), entitling: true },
+    packageScopeResolver
+  );
+  if (freshJoinConflict) {
+    appendIapEvent({ type: "staff_write_rejected", userId: user.id, actor: "user", detail: { code: freshJoinConflict.code, source: "web_checkout" } });
+    return NextResponse.json({ success: false, code: freshJoinConflict.code, message: ENTITLEMENT_CONFLICT_MEMBER_MESSAGE[freshJoinConflict.code] }, { status: 409 });
+  }
+
+  // No active membership to protect from here on. Existing flow.
   // Don't stack a duplicate checkout while a fresh one for this exact option
   // is still in progress.
   if (
