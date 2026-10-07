@@ -8,7 +8,7 @@ production data, secret, `.env` value or `data/db.json` was read, and no real pu
 
 > **Update (post-merge).** The stack below is merged. The follow-up hardening PRs and where each audit finding is handled are listed in
 > `docs/post-merge-hardening-2026-10.md`. Where this document says hard delete frees a Play token, or a stale checkout is lost, read that
-> document: those gaps have their own PRs (open when this note was written).
+> document: those gaps are addressed by PRs `#68` and `#69` (owner decision 6 itself stays open).
 
 ## 1. The stack
 

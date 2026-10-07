@@ -1,7 +1,7 @@
 # Post-merge hardening: findings and where each one is handled (2026-10)
 
 After the multi-tenant and Google Play stack (`#60` to `#66`) was merged at `fa4bc02`, a final audit found no blockers but eight items. Each is
-handled by its own focused PR, none merged at the time of writing. **This is not a production-readiness statement**, and Google Play IAP stays
+handled by its own focused PR (`#67` to `#70` were merged in that order on 2026-10-07, followed by this documentation PR). **This is not a production-readiness statement**, and Google Play IAP stays
 off (`GOOGLE_PLAY_IAP_ENABLED` is unset by default).
 
 | Finding | Severity | Handled in | Status |
@@ -17,8 +17,8 @@ off (`GOOGLE_PLAY_IAP_ENABLED` is unset by default).
 | Mobile shows `other_provider_active` as a generic error | Low | PR `#70` (documented) | Follow-up in `sc-coaching-mobile`, which was **not** modified. |
 | Base branch is unprotected and pushes do not run CI | Process | `docs/repository-branch-protection-2026-10.md` (this PR) | Recommended settings only; **no repository setting was changed**. |
 
-PR numbers `#67` to `#70` are as opened; re-check them if any PR is closed and recreated. The docs marked "added by that PR" exist on the base
-branch only once that PR merges.
+PR numbers `#67` to `#70` are as opened; re-check them if any PR is closed and recreated. The docs marked "added by that PR" are on the base
+branch now that those PRs are merged.
 
 ## Rules that stay in force
 
