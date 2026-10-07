@@ -63,7 +63,7 @@ against every datastore collection, so a PR that adds a collection must build on
 | iOS / Apple | out of scope by owner default D6. No Apple provider exists |
 | Revenue reversal on refund; the revenue amount basis | open accounting decision (D8). Revenue is booked at the configured placeholder price |
 | Account deletion with an active subscription | owner decision 6. Hard delete frees the token for another account |
-| A Stripe or Revolut checkout completing after a Play purchase | the member has already paid; needs an owner decision |
+| A Stripe or Revolut checkout completing after a Play purchase | now **refused and audited** by the cross-provider guard (tested). Still open: what happens for the member who paid at the refused provider (manual cancel and refund today), and a deliberate provider-transition API, which needs an owner decision |
 | An admin view of the audit log | the log is written but no role can read it yet |
 | Free-text console logging audit | not covered |
 

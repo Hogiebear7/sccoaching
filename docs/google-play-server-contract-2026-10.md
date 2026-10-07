@@ -39,6 +39,7 @@ PII. It is returned only to the session user.
 | 503 | `not_configured` / `binding_unavailable` | provider or `SESSION_SECRET` not configured |
 | 409 | `membership_active` | the member has an active gym Membership, so no purchase intent may start (D1) |
 | 409 | `play_billing_active` | the member already has a live Google Play subscription |
+| 409 | `other_provider_active` | the member has a live Stripe or Revolut App Subscription (a live Stripe or Revolut **Membership** answers `membership_active`) |
 
 ### 1.2 `POST verify`
 
@@ -63,6 +64,7 @@ branch on `code`, never on `message`.**
 | 409 | `owned_by_other` | the token is already bound to another account. Never reassigned | show "already linked to another account" |
 | 409 | `membership_active` | an active Membership exists. Nothing created, not acknowledged | explain; direct to the gym |
 | 409 | `play_billing_active` | a different live Play subscription already exists | explain |
+| 409 | `other_provider_active` | a live Stripe or Revolut App Subscription exists | explain; nothing was acknowledged |
 | 409 | `purchase_pending` | Google reports the purchase as pending | poll later; entitlement arrives by notification |
 | 500 | `not_set_up` | the App Subscription package is missing | contact support |
 | 502 | `provider_unavailable` | timeout or provider outage (retryable) | retry with backoff |
@@ -167,7 +169,7 @@ deployment cannot be switched onto it by configuration.
 `iapEvents` (append-only) records: `purchase_claimed`, `claim_rejected_owner`, `claim_rejected_binding`,
 `claim_rejected_conflict`, `claim_rejected_product`, `claim_rejected_disabled`, `entitlement_granted`,
 `entitlement_updated`, `entitlement_revoked`, `entitlement_expired`, `acknowledgement_succeeded`,
-`acknowledgement_failed`, `notification_stale`, `reconciliation_run`, `staff_write_rejected`. It holds the SHA-256 of a
+`acknowledgement_failed`, `notification_stale`, `reconciliation_run`, `staff_write_rejected`, `provider_conflict_rejected`. It holds the SHA-256 of a
 purchase token, never the token, a binding value or provider text (tests assert it).
 
 ## 7. Tenant and authorization notes
@@ -193,7 +195,7 @@ environment change). To remove the feature, revert the PR: the extra fields and 
 | Pub/Sub delivery behaviour (ordering, redelivery) | **Requires staging** |
 | Revenue amount basis and revenue recognition | **Open owner and accounting decision** |
 | Account deletion with an active subscription, and who handles refunds | **Open owner decisions 5 and 6** |
-| A Stripe or Revolut checkout that completes after a Play purchase (it would overwrite the row) | **Open, owner decision required** (the member has already paid) |
+| A Stripe or Revolut checkout that completes after a Play purchase | **Guarded and tested:** refused and audited while Play is live, so the Play row, token and paid-through date are untouched (schema document section 7). Handling the member who paid at the refused provider is a manual staff action and an **open owner decision** |
 | Production enablement | **Requires production approval.** Nothing in this repository enables it |
 
 ### Staging checklist (not performed by this work)

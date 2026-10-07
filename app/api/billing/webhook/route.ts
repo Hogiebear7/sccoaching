@@ -15,6 +15,8 @@ import {
   recordPaymentEvent,
   saveSubscription,
 } from "@/lib/db";
+import { evaluateReferenceMismatch } from "@/lib/iap/entitlement-conflict";
+import { recordProviderConflict } from "@/lib/iap/provider-guard";
 import {
   applyPaidPassPurchase,
   applyRefundedPassPurchase,
@@ -189,6 +191,26 @@ export async function POST(request: NextRequest) {
       { success: true, message: "No matching subscription for this order." },
       { status: 200 }
     );
+  }
+
+  // Cross-provider guard. The row was found by an id this event carries, but it is billed through a DIFFERENT paid
+  // provider (Stripe or Google Play). Never overwrite it: the row, its provider, reference, paid-through date and audit
+  // history stay exactly as they are, the refusal is audited (no payload text), and the webhook is acknowledged with a
+  // 200 so Revolut stops retrying. Nothing is cancelled or refunded automatically; staff reconcile from the audit event.
+  // This is one synchronous block from the lookup above to the save below (no await), so a concurrent delivery cannot
+  // interleave.
+  const providerConflict = evaluateReferenceMismatch(subscription, "revolut");
+  if (providerConflict) {
+    recordProviderConflict({
+      userId: subscription.userId,
+      incoming: "revolut",
+      existingProvider: subscription.provider,
+      conflict: providerConflict,
+      source: "revolut_webhook",
+      reference: entityId,
+    });
+    console.warn("[billing webhook] cross-provider conflict: event not applied", { code: providerConflict.code });
+    return NextResponse.json({ success: true, message: "Not applied: another provider's subscription is already active." }, { status: 200 });
   }
 
   // Revolut doesn't guarantee webhook delivery order. If a fresher event was

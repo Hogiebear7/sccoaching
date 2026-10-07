@@ -71,6 +71,7 @@ Read-only. Counts only: no id, token, hash, order id or binding is printed.
 | Verify answers `membership_active` | the member has an active gym Membership | by design (D1). Nothing was acknowledged, so Google refunds it. Staff end the Membership first if the member wants the App Subscription |
 | Staff get `play_billing_active` | a live Google Play subscription | by design. The member cancels in Google Play; access continues to the paid expiry |
 | A member kept access after refunding | the voided-purchase notification did not arrive or did not match the current order | reconciliation re-checks. If Google does not report the state as ended, **this needs the real-provider verification in section 2** |
+| A member says they were charged by Stripe or Revolut but their access is on Google Play, and the audit report shows `provider_conflict_rejected` | the cross-provider guard refused that provider's completion because a Play entitlement was live | **Do not edit the datastore.** Cancel the refused subscription at Stripe or Revolut by hand, and refund it if that is the decision. No automatic cancel or refund exists. The member keeps the Play entitlement. Owner decision on policy is open |
 
 ## 5. Refunds and revocations
 
@@ -107,5 +108,5 @@ collections. The backfill writes a timestamped backup before it changes anything
 ## 9. Not covered, and why
 
 Account deletion with an active subscription (owner decision 6), merchant and account ownership (4), refund responsibility
-(5), revenue basis and recognition (3, D8), a Stripe or Revolut checkout that completes after a Play purchase, and
+(5), revenue basis and recognition (3, D8), the member who paid at a provider whose completion was refused (see section 4), and
 production enablement. Each is an open owner decision; none is implemented or assumed here.

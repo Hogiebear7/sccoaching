@@ -35,6 +35,8 @@ import {
   transitionPurchase,
 } from "@/lib/payments";
 import { ownerGymForCatalogPackage } from "@/lib/gym-scope";
+import { evaluateProviderTransition, evaluateReferenceMismatch, type EntitlementConflict } from "@/lib/iap/entitlement-conflict";
+import { recordProviderConflict } from "@/lib/iap/provider-guard";
 import {
   isStripeWebhookConfigured,
   verifyStripeSignature,
@@ -129,6 +131,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, message }, { status: 200 });
   };
 
+  // A completion or reference that would touch a row billed by a DIFFERENT paid provider (Google Play or Revolut) while
+  // that provider's entitlement is live. The row is left exactly as it is (provider, reference, paid-through date, token),
+  // the refusal is audited, and the webhook is still acknowledged with a 200 (a retry would be refused the same way, and
+  // the event id is recorded so a redelivery is skipped). Nothing is cancelled or refunded automatically: moving a paying
+  // member between providers is a policy decision, so staff reconcile from the audit event.
+  const refuse = (row: SubscriptionRecord, conflict: EntitlementConflict, reference: string | null) => {
+    recordProviderConflict({ userId: row.userId, incoming: "stripe", existingProvider: row.provider, conflict, source: "stripe_webhook", reference });
+    console.warn("[stripe webhook] cross-provider conflict: completion not applied", { code: conflict.code });
+    return ack("Not applied: another provider's subscription is already active.", ownerGymForSubscription(row));
+  };
+
   // ── Checkout session lifecycle ────────────────────────────────────────
   if (
     event.type === "checkout.session.completed" ||
@@ -193,6 +206,10 @@ export async function POST(request: NextRequest) {
       // simply never reaches here and leaves the member on their old plan.
       const switching = findSubscriptionByPendingSetupOrderId(sessionId);
       if (switching) {
+        // Check and write below are one synchronous block (no await), so a concurrent delivery cannot interleave.
+        const switchConflict = evaluateProviderTransition(switching, "stripe");
+        if (switchConflict) return refuse(switching, switchConflict, sessionId);
+
         const newSubId =
           typeof object.subscription === "string" ? object.subscription : switching.providerSubscriptionId;
         const previousSubId = switching.provider === "stripe" ? switching.providerSubscriptionId : null;
@@ -203,6 +220,7 @@ export async function POST(request: NextRequest) {
 
         saveSubscription({
           ...switching,
+          provider: "stripe",
           packageId: switching.pendingPackageId ?? switching.packageId,
           billingOptionId: switching.pendingBillingOptionId ?? switching.billingOptionId,
           status: "active",
@@ -243,6 +261,10 @@ export async function POST(request: NextRequest) {
         console.warn("[stripe webhook] no subscription matches session", { sessionId });
         return ack("No matching subscription.");
       }
+      // Found by setup-order id alone, which a row can carry after it was taken over by another provider. Never trust it
+      // by itself: refuse when a different provider holds a live entitlement. One synchronous block, as above.
+      const freshConflict = evaluateProviderTransition(subscription, "stripe");
+      if (freshConflict) return refuse(subscription, freshConflict, sessionId);
       const previousSubId = subscription.provider === "stripe" ? subscription.providerSubscriptionId : null;
       const newSubId =
         typeof object.subscription === "string" ? object.subscription : subscription.providerSubscriptionId;
@@ -250,6 +272,7 @@ export async function POST(request: NextRequest) {
       const isFreshPeriod = subscription.status !== "active";
       saveSubscription({
         ...subscription,
+        provider: "stripe",
         status: "active",
         providerSubscriptionId: newSubId,
         providerCustomerId:
@@ -349,6 +372,8 @@ export async function POST(request: NextRequest) {
       : undefined;
 
     if (!subscription) return ack("No matching subscription for invoice.");
+    const invoiceMismatch = evaluateReferenceMismatch(subscription, "stripe");
+    if (invoiceMismatch) return refuse(subscription, invoiceMismatch, subscriptionId);
     const subscriptionOwnerGym = ownerGymForSubscription(subscription);
 
     // A canceled membership stays canceled — a final invoice settling after
@@ -420,6 +445,8 @@ export async function POST(request: NextRequest) {
       // providerSubscriptionId, which this finder matches on.
       const subscription = findSubscriptionByProviderOrderId(subscriptionId);
       if (subscription) {
+        const statusMismatch = evaluateReferenceMismatch(subscription, "stripe");
+        if (statusMismatch) return refuse(subscription, statusMismatch, subscriptionId);
         saveSubscription({
           ...subscription,
           status: event.type === "invoice.payment_failed" ? "past_due" : "canceled",

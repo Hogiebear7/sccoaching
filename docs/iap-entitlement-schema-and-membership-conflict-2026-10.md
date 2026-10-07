@@ -102,9 +102,52 @@ them. The backfill writes a timestamped backup before it changes anything, and r
 | Gap | Where it is handled |
 |---|---|
 | The existing Google Play **verify** route and **notification** route still apply a Play purchase through `grantMemberTier`'s provider path, which deliberately skips these rules. A Play claim over an active Membership is therefore **not yet refused** on that path, and a stale-token notification can still overwrite the row | **Closed by PR 4** (stacked on this one), which replaces both routes with `lib/iap/service.ts`. See `docs/google-play-server-contract-2026-10.md`. **Do not enable the Play flow from this PR alone**; there is no purchase flow in the mobile app today, so nothing reaches it |
-| A Stripe or Revolut checkout started while the member had nothing live can complete after they buy through Google Play, and its webhook would then write an active Membership over the Play row | Needs a provider-side decision, because the member has already paid. Open, owner decision required |
+| A Stripe or Revolut checkout started while the member had nothing live can complete after they buy through Google Play | **Closed by the cross-provider guard (section 7).** The completion is now refused and audited while another provider's entitlement is live. What to do for the member who paid in that case (cancel and refund at the refused provider) is a manual staff action and an **open owner decision**; no automatic cancel or refund exists |
 | Hard-deleting an archived member removes their `googlePlayPurchases` rows, which frees the token for another account to claim | Owner decision 6 (account deletion with an active subscription) is open. `iapEvents` is kept after deletion for the same reason |
 | `grantMemberTier` has no actor id, so a refused write's event has `actor: "staff"` and no staff user id | Low value to fix before the audit-reader exists |
 | Counting a `paused` Membership as active means a member on a pause cannot take an App Subscription | Interpretation I3, owner to confirm |
 | The 10-minute tolerance on Play expiry is a judgement about event ordering, not a policy | Owner to confirm |
 | No tests run against Google Play. Every test uses fake tokens and a temporary datastore | Requires the staging and real-provider verification listed in the final report |
+
+## 7. Cross-provider guard (Stripe, Revolut and Google Play)
+
+A subscription row is billed through exactly one provider (`SubscriptionRecord.provider`). A provider event is the provider
+reporting something. It is **not** the member or staff choosing to move the account, so a webhook never infers that consent.
+
+| Existing row | Incoming provider event | Result |
+|---|---|---|
+| entitled (active, past_due or paused; an `active` row is entitled until its paid-through date, which covers cancelled-but-still-paid) and billed by A | a completion or claim from B | **rejected**: the row, its provider, reference, paid-through date and token are left exactly as they are; a `provider_conflict_rejected` audit event is written; the webhook still answers 200 |
+| ended (cancelled, expired, lapsed) or never started (pending) | a completion or claim from another provider | allowed: nothing is being replaced |
+| billed by the same provider | its own event | allowed and idempotent (event-id dedupe, period only rolls forward) |
+| manual (`provider: "none"`) | a member-initiated web switch | unchanged: not a paid provider |
+| any paid provider | an event found **by that provider's own reference** (invoice, status update, cancellation) but the row belongs to a different paid provider | rejected whether or not the row is live (the reference cannot legitimately belong to it) |
+
+- **Where:** `evaluateProviderTransition` and `evaluateReferenceMismatch` in `lib/iap/entitlement-conflict.ts`, called from the Stripe
+  webhook (switch completion, fresh completion, invoice, payment failure, subscription deletion), the Revolut webhook, and the
+  Play claim and notification paths. The staff, admin and web-checkout paths already share the same module.
+- **Stable code:** `other_provider_active`. A Play claim over a live Stripe or Revolut **Membership** still answers
+  `membership_active` (the established code); over a live Stripe or Revolut App Subscription it answers `other_provider_active`.
+- **Concurrency:** the datastore is one synchronous file in one process. Each guarded handler reads the row, evaluates the rule
+  and writes with **no `await` in between**, so a concurrent webhook or claim cannot interleave. Whichever block runs first wins and
+  the other sees its result and is refused. The Stripe event id is recorded even for a refusal, so a redelivery is skipped. This is
+  the equivalent safe guard for the file-backed datastore, and it **holds only while the app is one process over one JSON file**.
+  A refused Revolut event has no event id to dedupe on, so a replay writes another audit row (the subscription row is never changed).
+- **Required before moving to SQL or more than one process (not implemented, and the guard is NOT safe without it):**
+  1. read, evaluate and write the subscription row inside **one transaction** that locks the row (`SELECT ... FOR UPDATE`) or uses a
+     **conditional update** (compare-and-set on provider, status and a version or `updated_at`), so two deliveries cannot both pass the check;
+  2. a **unique constraint** on (provider, provider reference) so one provider subscription can belong to only one account, and on the Play
+     purchase token (already one row per token in this store);
+  3. the **event-id dedupe row and the audit event written in the same transaction** as the refusal or the write;
+  4. an automated **concurrency test** against the real database with two simultaneous completions for one account.
+- **Unresolvable package:** the claim and purchase-context checks decide on the row's provider and status without resolving its package,
+  because a row whose package was deleted is still being billed. Both are refused before any purchase row exists.
+- **Pending checkout intent is parked, not lost:** when a Play purchase replaces a *pending* Stripe checkout, the checkout's
+  package, option and session move to the `pending*` fields and the Play row's setup-order reference is cleared. A later Stripe
+  completion for that session is promoted only if no Play entitlement is live then, and then records `provider: "stripe"` (the
+  webhook previously left the old provider name on the row).
+- **Audit:** the event stores the account, the incoming and existing provider, the code, the source, and a SHA-256 of the incoming
+  reference. No payload text, token or secret.
+- **Not automatic:** a refused completion means the member may have paid the refused provider. Nothing is cancelled or refunded
+  automatically (D2). Staff find it from the audit event and cancel and refund at that provider by hand.
+- **Follow-up, not built:** a deliberate, policy-controlled provider transition (cancel at the old provider, then activate the new
+  one with explicit consent). The architecture has no place for it yet, so none is offered. Decision needed from the owner.
