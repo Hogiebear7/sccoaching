@@ -87,3 +87,69 @@ of other gyms see no support row, because a gym's own `contactEmail` is self-ent
 No tenant context, authorization, schema, payment record, webhook, migration, workflow, package, `sc-coaching-mobile`, `eas.json`, provider or
 production configuration changed, and `GOOGLE_PLAY_IAP_ENABLED` is untouched. No analytics or tracking was added. No real data or credentials were
 used; browser checks ran against an isolated server with a temporary datastore and a fake account.
+
+## Release validation status (release candidate `2ec2a91`)
+
+Recorded 2026-10-09 for `redesign/index-html-blueprint` at `2ec2a91282c27c2db76131c6dfa68f0cd904380c`, the merge of PRs #72 to #75. **Visual validation is
+still pending.** Everything else listed here passed.
+
+### Passed
+
+| Check | Result |
+| --- | --- |
+| `git diff --check` | clean |
+| ESLint on the 13 files this release changed | 0 problems |
+| `tsc --noEmit` | clean |
+| Focused app-polish tests (tour, support and rating, password recovery) | 4 files, 52 tests passed |
+| Full test suite (unit and integration) | 217 files, 2848 tests passed |
+| Production build (`next build --webpack`, isolated worktree, placeholder environment values) | succeeded |
+| In-app browser checks, isolated dev server, temporary datastore, fake accounts | passed (below) |
+
+The repository-wide ESLint run still reports 25 errors and 8 warnings in files outside this release; CI lints changed files only, and none of
+the 13 changed files has a problem.
+
+In-app browser checks (the Claude desktop app's built-in browser, not Playwright):
+
+- **Onboarding:** shown on first login; focus enters the labelled dialog; Next, Back, Skip, Finish and Escape work; Tab and Shift+Tab stay inside the
+  card; it does not return after refresh or after logout and login; a second account in the same browser gets its own first run; Replay in Settings shows
+  it again; a member of a non-primary gym also sees it, so it does not depend on tenant, and it does not read payment or entitlement state.
+- **Support:** the primary-gym member sees the row with a `mailto:info@sandccoaching.com` link, subject "S&C app feedback" and no account, tenant or
+  payment data in the message; the non-primary-gym member sees no support row and no mailto anywhere; the Copy address fallback message and the visible
+  address cover a device with no mail client.
+- **Rating link:** shown only under an Android user agent, as a plain link to
+  `https://play.google.com/store/apps/details?id=com.sandcperformancecoaching.app` with `target="_blank"` and `rel="noopener noreferrer"`, and no in-app
+  review claim; absent on desktop. The iOS user-agent case could not be emulated in that browser and is covered by a unit test only. The link was not
+  followed.
+- **Password recovery:** covered by the 15-test regression suite (hashed tokens, 15-minute expiry, single use, identical answers for known and unknown
+  emails, a weak password not consuming a valid token, account, tenant and payment records intact). Browser coverage of the reset screens was not part of
+  these checks.
+
+### Not run: Playwright visual validation
+
+- **The Playwright visual suite (`e2e/visual.spec.ts`) has not been run, and nothing here claims it passed.**
+- Chromium could not be installed on the validation machine. `npx playwright install chromium` failed on every attempt (six runs over two sessions)
+  because Playwright's own downloader timed out requesting `https://cdn.playwright.dev/builds/cft/153.0.8010.12/win64/chrome-win64.zip`
+  (`Request ... timed out`). `curl` could reach the same host, so the fault is in the Node downloader on that machine.
+- Some of those attempts only changed how the same command connected to the same host (a longer connection timeout, the system certificate store,
+  IPv4-first name resolution). None helped.
+- **No workaround was used:** no manual download or unpacking of browser archives, no Playwright cache markers written, no mirror, no other browser
+  engine. The app was not started for visual testing.
+- **No snapshots were updated or created.**
+- Visual validation remains pending on an approved environment.
+
+To run it there, from the repository root, using isolated temporary data (set `DATA_DIR` to a new temporary directory), seeding only fake accounts, and
+**never** passing `--update-snapshots`:
+
+```
+npx playwright install chromium
+npx next dev --webpack -p 3000
+npx playwright test
+```
+
+`npm run dev` uses Turbopack, which rejects a Windows junction in an isolated worktree, so start the server with the webpack command above. If any visual
+test differs, classify it (product defect, environment difference or approved change) and report it before touching a baseline.
+
+### Nothing else changed
+
+No deployment, no IAP activation (`GOOGLE_PLAY_IAP_ENABLED` untouched), no provider contact, no production access, no secret access, no
+`sc-coaching-mobile` or `eas.json` change, no payment, entitlement or tenant change, and no repository change beyond this note.
