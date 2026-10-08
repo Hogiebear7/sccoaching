@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import type { MeasurementUnits, ProfileRecord } from "@/lib/profile-schema";
 import { AppearancePanel } from "@/components/settings/AppearancePanel";
+import { SupportPanel } from "@/components/settings/SupportPanel";
 // TRIAL-ONLY — see docs/bug-reports.md.
 import { BugReportPanel } from "@/components/settings/BugReportPanel";
 
@@ -76,10 +77,13 @@ export function SettingsView({
   email,
   profile,
   membership,
+  supportEmail,
 }: {
   email: string;
   profile: ProfileRecord;
   membership: MembershipInfo;
+  /** The verified support address for this member's gym, or null when there is none (the entry is then hidden). */
+  supportEmail: string | null;
 }) {
   const router = useRouter();
 
@@ -177,16 +181,21 @@ export function SettingsView({
   const [pushError, setPushError] = useState<string | null>(null);
   const [pushSuccess, setPushSuccess] = useState<string | null>(null);
 
+  // Read the browser's push support after mount. Applied from a timer callback rather than synchronously in the effect body (the
+  // react-hooks/set-state-in-effect rule); the "checking" state simply lasts one tick longer.
   useEffect(() => {
-    if (
-      !("Notification" in window) ||
-      !("serviceWorker" in navigator) ||
-      !("PushManager" in window)
-    ) {
-      setPushPermission("unsupported");
-      return;
-    }
-    setPushPermission(Notification.permission as PushPermState);
+    const timer = setTimeout(() => {
+      if (
+        !("Notification" in window) ||
+        !("serviceWorker" in navigator) ||
+        !("PushManager" in window)
+      ) {
+        setPushPermission("unsupported");
+        return;
+      }
+      setPushPermission(Notification.permission as PushPermState);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // Called from the "Enable push notifications" button (default permission state).
@@ -488,6 +497,7 @@ export function SettingsView({
             </button>
           </div>
         </div>
+        <SupportPanel supportEmail={supportEmail} />
       </div>
 
       {/* Appearance */}
