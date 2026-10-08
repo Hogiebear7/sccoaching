@@ -1,46 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 
-interface TourStep {
-  target: string | null; // data-tour value, or null for a centered intro/outro card
-  title: string;
-  body: string;
-}
-
-const STEPS: TourStep[] = [
-  {
-    target: null,
-    title: "Welcome to your dashboard",
-    body: "A quick 30-second look at where everything lives before you get started.",
-  },
-  {
-    target: "next-session",
-    title: "Your next session",
-    body: "Whatever you've got booked shows here first. Nothing on the books yet? You can book straight from this card.",
-  },
-  {
-    target: "readiness",
-    title: "Readiness",
-    body: "Log a daily recovery check-in and this fills in with a readiness score, your 7-day training load, sleep, and session guidance.",
-  },
-  {
-    target: "nutrition",
-    title: "Nutrition",
-    body: "Log meals and hydration, and get an AI coach that already knows your goals, dietary needs, and training load.",
-  },
-  {
-    target: "club",
-    title: "Membership & your coach",
-    body: "Check your plan status and message your coach directly — both live right here.",
-  },
-  {
-    target: "quick-actions",
-    title: "You're set",
-    body: "Everything else — workouts, profile, settings — is one tap away from here or the nav. Have a good session.",
-  },
-];
+import {
+  TOUR_STEPS as STEPS,
+  isFirstStep,
+  isLastStep,
+  nextFocusIndex,
+  nextStepIndex,
+  prevStepIndex,
+  primaryActionLabel,
+  tourKeyAction,
+} from "@/lib/dashboard-tour";
 
 interface Rect {
   top: number;
@@ -54,8 +26,14 @@ const PAD = 8;
 export function DashboardTour({ initialCompleted }: { initialCompleted: boolean }) {
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
-  const [rect, setRect] = useState<Rect | null>(null);
+  // The measured spotlight box, tagged with the step it was measured for, so a centred step (no target) or a step that has not been
+  // measured yet simply has no box. Deriving it keeps the effect below free of synchronous setState.
+  const [measured, setMeasured] = useState<{ index: number; rect: Rect } | null>(null);
   const finishedRef = useRef(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
+  const bodyId = useId();
 
   useEffect(() => {
     if (initialCompleted) return;
@@ -72,17 +50,15 @@ export function DashboardTour({ initialCompleted }: { initialCompleted: boolean 
     if (!active) return;
 
     const step = STEPS[stepIndex];
-    if (!step.target) {
-      setRect(null);
-      return;
-    }
+    if (!step.target) return;
 
     const el = document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`);
     if (!el) {
       // Target isn't on this page (e.g. member has no relevant section) —
       // skip straight past it rather than stalling the tour.
-      setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
-      return;
+      // Deferred a tick (not set synchronously in the effect body).
+      const skipTimer = setTimeout(() => setStepIndex((i) => nextStepIndex(i, STEPS.length)), 0);
+      return () => clearTimeout(skipTimer);
     }
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -90,7 +66,7 @@ export function DashboardTour({ initialCompleted }: { initialCompleted: boolean 
 
     const measure = () => {
       const r = el.getBoundingClientRect();
-      setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      setMeasured({ index: stepIndex, rect: { top: r.top, left: r.left, width: r.width, height: r.height } });
     };
     const settleTimer = setTimeout(measure, reduceMotion ? 0 : 380);
 
@@ -103,22 +79,57 @@ export function DashboardTour({ initialCompleted }: { initialCompleted: boolean 
     };
   }, [active, stepIndex]);
 
+  // Keyboard and screen-reader support. When the walkthrough opens, remember what had focus and move focus into the card; on every
+  // step change put it back on the card so the new title is announced (the card is labelled by its title); when it closes, hand focus
+  // back to where it came from.
+  useEffect(() => {
+    if (!active) return;
+    if (!returnFocusRef.current) returnFocusRef.current = document.activeElement as HTMLElement | null;
+    cardRef.current?.focus({ preventScroll: true });
+  }, [active, stepIndex]);
+
+  useEffect(() => {
+    return () => {
+      returnFocusRef.current?.focus?.({ preventScroll: true });
+    };
+  }, []);
+
   function finish() {
     if (finishedRef.current) return;
     finishedRef.current = true;
     setActive(false);
+    returnFocusRef.current?.focus?.({ preventScroll: true });
+    // Best-effort: if this fails the walkthrough is simply offered again next visit, and Skip/Finish never blocks the member.
     void fetch("/api/profile/tour", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ completed: true }),
-    });
+    }).catch(() => undefined);
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (tourKeyAction(event.key) === "skip") {
+      event.preventDefault();
+      finish();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    // Trap Tab inside the card: the page behind a modal dialog must not be reachable by keyboard.
+    const controls = Array.from(cardRef.current?.querySelectorAll<HTMLElement>("button:not([disabled])") ?? []);
+    const current = controls.indexOf(document.activeElement as HTMLElement);
+    const next = nextFocusIndex(controls.length, current, event.shiftKey);
+    if (next >= 0) {
+      event.preventDefault();
+      controls[next].focus();
+    }
   }
 
   if (!active) return null;
 
   const step = STEPS[stepIndex];
-  const isLast = stepIndex === STEPS.length - 1;
-  const isFirst = stepIndex === 0;
+  const rect = step.target && measured?.index === stepIndex ? measured.rect : null;
+  const isLast = isLastStep(stepIndex, STEPS.length);
+  const isFirst = isFirstStep(stepIndex);
 
   // Card position: centered for intro/outro steps without a rect, otherwise
   // anchored under (or over, if there's no room below) the spotlighted rect.
@@ -155,8 +166,10 @@ export function DashboardTour({ initialCompleted }: { initialCompleted: boolean 
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Dashboard walkthrough"
+      aria-labelledby={titleId}
+      aria-describedby={bodyId}
       className="fixed inset-0 z-[200]"
+      onKeyDown={handleKeyDown}
     >
       {/* Dark scrim with a spotlight cutout around the current target, drawn
           via an oversized box-shadow rather than an SVG mask — simplest way
@@ -182,20 +195,22 @@ export function DashboardTour({ initialCompleted }: { initialCompleted: boolean 
       {!rect && <div aria-hidden="true" className="fixed inset-0 bg-[rgba(6,8,14,0.78)]" />}
 
       <div
-        className="surface-card surface-card--accent anim-rise p-5"
+        ref={cardRef}
+        tabIndex={-1}
+        className="surface-card surface-card--accent anim-rise p-5 outline-none"
         style={cardStyle}
       >
-        <p className="label-caps text-[9px] text-primary">
+        <p className="label-caps text-[9px] text-primary" aria-live="polite">
           Step {stepIndex + 1} of {STEPS.length}
         </p>
-        <h3 className="text-display mt-1.5 text-[17px]">{step.title}</h3>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-zinc-400">{step.body}</p>
+        <h3 id={titleId} className="text-display mt-1.5 text-[17px]">{step.title}</h3>
+        <p id={bodyId} className="mt-1.5 text-[13px] leading-relaxed text-zinc-400">{step.body}</p>
 
         <div className="mt-4 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={finish}
-            className="text-[12px] font-medium text-zinc-500 transition-colors duration-150 hover:text-zinc-300"
+            className="min-h-11 px-1 text-[12px] font-medium text-zinc-500 transition-colors duration-150 hover:text-zinc-300"
           >
             Skip tour
           </button>
@@ -203,18 +218,18 @@ export function DashboardTour({ initialCompleted }: { initialCompleted: boolean 
             {!isFirst && (
               <button
                 type="button"
-                onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-                className="rounded-lg border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.08]"
+                onClick={() => setStepIndex((i) => prevStepIndex(i))}
+                className="min-h-11 rounded-lg border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 text-[13px] font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.08]"
               >
                 Back
               </button>
             )}
             <button
               type="button"
-              onClick={() => (isLast ? finish() : setStepIndex((i) => i + 1))}
-              className="btn-primary px-4 py-2 text-[13px]"
+              onClick={() => (isLast ? finish() : setStepIndex((i) => nextStepIndex(i, STEPS.length)))}
+              className="btn-primary min-h-11 px-4 py-2 text-[13px]"
             >
-              {isLast ? "Done" : "Next"}
+              {primaryActionLabel(stepIndex, STEPS.length)}
             </button>
           </div>
         </div>
