@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { findProfileByUserId, findSubscriptionByUserId, findUserById } from "@/lib/db";
 import { SUBSCRIPTION_STATUS_LABEL } from "@/lib/membership-status";
+import { resolveSupportEmail } from "@/lib/support-contact";
 import { verifySession } from "@/lib/session";
 import { SettingsView } from "./SettingsView";
 
@@ -42,6 +43,7 @@ export default async function SettingsPage() {
         startedAt: subscription?.createdAt ?? null,
         renewsAt: subscription?.currentPeriodEnd ?? null,
       }}
+      supportEmail={resolveSupportEmail(user.gymId)}
     />
   );
 }
