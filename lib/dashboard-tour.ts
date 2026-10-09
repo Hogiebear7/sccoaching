@@ -83,3 +83,33 @@ export function nextFocusIndex(count: number, current: number, shiftKey: boolean
   if (current < 0) return shiftKey ? count - 1 : 0;
   return shiftKey ? (current - 1 + count) % count : (current + 1) % count;
 }
+
+export interface TourRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+export type CardPlacement =
+  | { mode: "center"; width: number }
+  | { mode: "anchored"; width: number; left: number; top: number | undefined; bottom: number | undefined };
+
+/**
+ * Where the walkthrough card goes. With no spotlight (the intro and outro steps) it is CENTRED, and the component centres it with a
+ * flex wrapper rather than a CSS transform. With a spotlight it is anchored under the highlighted box, or above it when there is no room
+ * below, and kept 16px inside the viewport edges.
+ */
+export function cardPlacement(rect: TourRect | null, viewportW: number, viewportH: number, pad: number): CardPlacement {
+  const width = Math.min(340, viewportW - 32);
+  if (!rect) return { mode: "center", width };
+  const spaceBelow = viewportH - (rect.top + rect.height);
+  const placeBelow = spaceBelow > 200 || spaceBelow > rect.top;
+  return {
+    mode: "anchored",
+    width,
+    left: Math.max(16, Math.min(rect.left, viewportW - width - 16)),
+    top: placeBelow ? Math.min(rect.top + rect.height + pad * 2, viewportH - 20) : undefined,
+    bottom: !placeBelow ? viewportH - rect.top + pad * 2 : undefined,
+  };
+}

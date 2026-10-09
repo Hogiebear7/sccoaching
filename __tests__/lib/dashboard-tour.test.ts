@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { DashboardTour } from "@/components/dashboard/DashboardTour";
 import {
   TOUR_STEPS,
+  cardPlacement,
   isFirstStep,
   isLastStep,
   nextFocusIndex,
@@ -84,5 +85,38 @@ describe("component", () => {
   it("renders nothing for a member who has already seen it (and nothing on the server for anyone: it opens after mount)", () => {
     expect(renderToStaticMarkup(createElement(DashboardTour, { initialCompleted: true }))).toBe("");
     expect(renderToStaticMarkup(createElement(DashboardTour, { initialCompleted: false }))).toBe("");
+  });
+});
+
+describe("card placement", () => {
+  const pad = 8;
+
+  it("centres a step with no spotlight, and never with a transform: the placement carries no offset to override", () => {
+    const p = cardPlacement(null, 390, 844, pad);
+    expect(p).toEqual({ mode: "center", width: 340 });
+    expect(Object.keys(p).sort()).toEqual(["mode", "width"]);
+  });
+
+  it("keeps the card inside narrow viewports (16px margins) and caps it at 340px on wide ones", () => {
+    expect((cardPlacement(null, 320, 640, pad) as { width: number }).width).toBe(288);
+    expect((cardPlacement(null, 390, 844, pad) as { width: number }).width).toBe(340);
+    expect((cardPlacement(null, 1440, 900, pad) as { width: number }).width).toBe(340);
+  });
+
+  it("anchors under the spotlight when there is room below, clamped to 16px from the left and right edges", () => {
+    const below = cardPlacement({ top: 100, left: 4, width: 200, height: 80 }, 390, 844, pad);
+    expect(below).toMatchObject({ mode: "anchored", top: 196, bottom: undefined, left: 16, width: 340 });
+    const right = cardPlacement({ top: 100, left: 380, width: 200, height: 80 }, 390, 844, pad);
+    expect((right as { left: number }).left).toBe(390 - 340 - 16);
+  });
+
+  it("anchors above the spotlight when there is no room below", () => {
+    const above = cardPlacement({ top: 700, left: 20, width: 200, height: 100 }, 390, 844, pad);
+    expect(above).toMatchObject({ mode: "anchored", top: undefined, bottom: 844 - 700 + pad * 2 });
+  });
+
+  it("never places a card below the bottom edge of the viewport", () => {
+    const p = cardPlacement({ top: 10, left: 20, width: 200, height: 780 }, 390, 844, pad) as { top: number | undefined };
+    expect(p.top).toBeLessThanOrEqual(844 - 20);
   });
 });

@@ -6,6 +6,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   TOUR_STEPS as STEPS,
   isFirstStep,
+  cardPlacement,
   isLastStep,
   nextFocusIndex,
   nextStepIndex,
@@ -131,69 +132,18 @@ export function DashboardTour({ initialCompleted }: { initialCompleted: boolean 
   const isLast = isLastStep(stepIndex, STEPS.length);
   const isFirst = isFirstStep(stepIndex);
 
-  // Card position: centered for intro/outro steps without a rect, otherwise
-  // anchored under (or over, if there's no room below) the spotlighted rect.
+  // Card position. A step with no spotlight (the intro and outro) is centred by a flex wrapper, NOT by a CSS transform: the card's entrance
+  // animation (anim-rise) ends with transform: none and fill-mode both, which overrides an inline translate(-50%, -50%) and leaves the card's
+  // top-left corner at the centre of the screen, with its Next button off the edge of a phone. A step with a spotlight anchors the card to it.
   const viewportH = typeof window !== "undefined" ? window.innerHeight : 800;
   const viewportW = typeof window !== "undefined" ? window.innerWidth : 400;
-  const cardWidth = Math.min(340, viewportW - 32);
-  let cardStyle: CSSProperties;
-  if (!rect) {
-    cardStyle = {
-      position: "fixed",
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      width: cardWidth,
-    };
-  } else {
-    const spaceBelow = viewportH - (rect.top + rect.height);
-    const placeBelow = spaceBelow > 200 || spaceBelow > rect.top;
-    const top = placeBelow
-      ? Math.min(rect.top + rect.height + PAD * 2, viewportH - 20)
-      : undefined;
-    const bottom = !placeBelow ? viewportH - rect.top + PAD * 2 : undefined;
-    const left = Math.max(16, Math.min(rect.left, viewportW - cardWidth - 16));
-    cardStyle = {
-      position: "fixed",
-      top,
-      bottom,
-      left,
-      width: cardWidth,
-    };
-  }
+  const placement = cardPlacement(rect, viewportW, viewportH, PAD);
+  const cardStyle: CSSProperties =
+    placement.mode === "center"
+      ? { width: placement.width }
+      : { position: "fixed", top: placement.top, bottom: placement.bottom, left: placement.left, width: placement.width };
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={bodyId}
-      className="fixed inset-0 z-[200]"
-      onKeyDown={handleKeyDown}
-    >
-      {/* Dark scrim with a spotlight cutout around the current target, drawn
-          via an oversized box-shadow rather than an SVG mask — simplest way
-          to get a soft-edged "hole" that animates smoothly between steps. */}
-      <div
-        className="absolute inset-0 bg-black/10"
-        style={{ pointerEvents: "auto" }}
-        aria-hidden="true"
-      />
-      {rect && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none fixed rounded-xl ring-2 ring-primary/70 transition-all duration-300 ease-out"
-          style={{
-            top: rect.top - PAD,
-            left: rect.left - PAD,
-            width: rect.width + PAD * 2,
-            height: rect.height + PAD * 2,
-            boxShadow: "0 0 0 9999px rgba(6,8,14,0.78)",
-          }}
-        />
-      )}
-      {!rect && <div aria-hidden="true" className="fixed inset-0 bg-[rgba(6,8,14,0.78)]" />}
-
+  const card = (
       <div
         ref={cardRef}
         tabIndex={-1}
@@ -234,6 +184,47 @@ export function DashboardTour({ initialCompleted }: { initialCompleted: boolean 
           </div>
         </div>
       </div>
+  );
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={bodyId}
+      className="fixed inset-0 z-[200]"
+      onKeyDown={handleKeyDown}
+    >
+      {/* Dark scrim with a spotlight cutout around the current target, drawn
+          via an oversized box-shadow rather than an SVG mask — simplest way
+          to get a soft-edged "hole" that animates smoothly between steps. */}
+      <div
+        className="absolute inset-0 bg-black/10"
+        style={{ pointerEvents: "auto" }}
+        aria-hidden="true"
+      />
+      {rect && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed rounded-xl ring-2 ring-primary/70 transition-all duration-300 ease-out"
+          style={{
+            top: rect.top - PAD,
+            left: rect.left - PAD,
+            width: rect.width + PAD * 2,
+            height: rect.height + PAD * 2,
+            boxShadow: "0 0 0 9999px rgba(6,8,14,0.78)",
+          }}
+        />
+      )}
+      {!rect && <div aria-hidden="true" className="fixed inset-0 bg-[rgba(6,8,14,0.78)]" />}
+
+      {placement.mode === "center" ? (
+        <div className="pointer-events-none fixed inset-0 flex items-center justify-center p-4">
+          <div className="pointer-events-auto">{card}</div>
+        </div>
+      ) : (
+        card
+      )}
     </div>
   );
 }
