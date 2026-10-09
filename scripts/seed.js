@@ -1,16 +1,33 @@
-// Demo seed script. Replaces data/db.json with a small, realistic dataset
+/* eslint-disable @typescript-eslint/no-require-imports -- a CommonJS script run directly with `node`; it has no ES module syntax to import with. */
+// Demo seed script. Replaces the datastore with a small, realistic dataset
 // covering every membership/recovery/messaging/booking state in the app, so
 // the prototype can be demoed without manually clicking through every flow
 // first. Safe to re-run — it always starts from a clean slate.
 //
 // Usage: npm run seed
+//        node scripts/seed.js --dry-run     report the target file, write nothing
+//
+// WHICH FILE IS REPLACED (see scripts/seed-target.cjs): GYM_DB_PATH, else
+// DATA_DIR/db.json, else SANDC_APP_CONFIG's dataDir, else <repo>/data/db.json
+// (found from this script's location, not from the working directory). The
+// resolved path is printed before anything is written. For staging, export the
+// same DATA_DIR the app uses, and run with --dry-run first.
 
 const { mkdirSync, writeFileSync } = require("fs");
 const path = require("path");
 const { randomUUID, randomBytes, scryptSync } = require("crypto");
+const { resolveSeedTarget } = require("./seed-target.cjs");
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "db.json");
+let TARGET;
+try {
+  TARGET = resolveSeedTarget(process.env, __dirname);
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
+const DB_PATH = TARGET.dbPath;
+const DRY_RUN = process.argv.slice(2).includes("--dry-run");
+const IS_DEFAULT_TARGET = TARGET.source.startsWith("default");
 
 const DEMO_PASSWORD = "Demo1234!";
 
@@ -464,10 +481,17 @@ const db = {
   cyclePrivacyPreferences,
 };
 
-mkdirSync(DATA_DIR, { recursive: true });
+// Only the path and which rule chose it: never any file contents, and no other environment value.
+console.log(`Seed target: ${DB_PATH} (from ${TARGET.source})`);
+if (DRY_RUN) {
+  console.log("Dry run: nothing was written.");
+  process.exit(0);
+}
+
+mkdirSync(path.dirname(DB_PATH), { recursive: true });
 writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
 
-console.log("Seeded data/db.json with demo data.\n");
+console.log(`Seeded ${IS_DEFAULT_TARGET ? "data/db.json" : DB_PATH} with demo data.\n`);
 console.log("Demo accounts (all use password: " + DEMO_PASSWORD + "):");
 console.log("  Staff:  coach@demo.local   (Casey Coach)");
 console.log("  Member: alex@demo.local    (Alex Athlete)   — active Premium (unlimited), 5 days of recovery logs, upcoming + past bookings, message thread");
