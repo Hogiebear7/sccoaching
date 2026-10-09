@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "seed": "node scripts/seed.js",
+    "seed:staging-fixtures": "node scripts/seed-staging-fixtures.mjs",
     "seed:exercises": "node scripts/seed-exercise-library.mjs",
     "import:exercises": "tsx scripts/import-exercise-library.ts",
     "seed:common-foods": "node scripts/seed-common-foods.mjs",
