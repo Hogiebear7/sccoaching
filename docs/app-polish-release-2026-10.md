@@ -56,7 +56,7 @@ of other gyms see no support row, because a gym's own `contactEmail` is self-ent
 3. **Confirm the Google Play listing is public** for `com.sandcperformancecoaching.app`. If the app is still on a closed or internal track, the rating link
    resolves only for people with access.
 4. **Confirm what the live Android build contains** (tour, Community, photo and describe food logging) before the store copy is used.
-5. **Confirm or drop the "15+ years" claim** from the earlier store draft.
+5. The unverified experience-duration claim was intentionally omitted from the store listing.
 
 ## Deferred follow-ups (recorded, not implemented)
 

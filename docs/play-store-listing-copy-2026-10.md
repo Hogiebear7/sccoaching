@@ -67,9 +67,7 @@ Notes on the draft:
 - "Review ... before anything is saved" is true of the photo and describe-food flows in the source (editable cards, nothing saved until
   confirmed). "Photo of the label" and "describing it" are AI-assisted; the sentence does not say "AI" to avoid overpromising accuracy.
   The owner may add "AI-assisted" if comfortable with it.
-- The earlier draft's closing line ("Built and coached by a highly qualified coach with 15+ years of hands-on experience") is an owner claim
-  that cannot be verified from the repository, so it is **left out here**. Add it back only if the owner confirms it is current and
-  supportable.
+- The unverified experience-duration claim was intentionally omitted from the store listing.
 - The earlier draft also lists "Manage your membership". Membership is bought on the website, not in the app, so this draft says "See your
   plan and membership status", which is what the app does.
 - **Community** (wins, leaderboards, feed) exists in the source but the tester report asked for community features, which suggests it may not be in
@@ -139,7 +137,7 @@ If the owner later enables IAP, add such lines in a new revision, marked "future
 ## Owner checklist before publishing
 
 1. Confirm each line against the live Android build (especially Community, the walkthrough, photo/describe food logging, programmes).
-2. Confirm or remove the "15+ years" claim from the earlier draft.
+2. The unverified experience-duration claim was intentionally omitted from the store listing.
 3. Capture screenshots from a real device with fake data; check them for personal information.
 4. Confirm the support address is monitored.
 5. Enter the text in Play Console yourself. This work does not publish.
