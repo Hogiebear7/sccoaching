@@ -15,6 +15,9 @@ Do not run this against production, a real member datastore, or the repository's
 - **For device checks:** a no-charge manual plan per gym (catalog entry plus an active manual membership with no provider), classes (three in the primary
   gym, one in the second), bookings, and for one primary member a programme, three recovery check-ins and a coach conversation. That member's profile
   starts on the first-run walkthrough.
+- **The `provider: "none"` plan is a no-charge staging entitlement, not a payment fixture.** It is an ordinary manual membership of the kind staff can
+  grant, kept only so plan status and class booking can be checked on a device. It does not simulate Stripe, Revolut, Google Play, Apple or any provider,
+  and carries no price, provider or customer reference, payment token, checkout, webhook or IAP behaviour.
 - **Not created:** any payment, purchase, revenue, provider, webhook, push-token or IAP record. Billing options have an amount of 0 and no provider
   price reference, so no price appears in the app.
 
@@ -60,6 +63,8 @@ A second run on the same target **refuses** with a message. `--reset` replaces a
 and issues new passwords. It cannot be used on anything that is not a fixture datastore.
 
 ## Cleanup and wipe
+**Staging fixture data, its backups and the credentials file must be wiped as soon as validation is finished** (and no later than the end of the
+validation window). They are fake, but a reachable server with known accounts is a risk for as long as it exists.
 1. Stop the staging app.
 2. Delete the staging datastore file, any `db.json.bak-*` copies, and the credentials file. They hold only fake data and fixture hashes.
 3. To start again, run the generator against a new path, or with `--reset` before deleting.

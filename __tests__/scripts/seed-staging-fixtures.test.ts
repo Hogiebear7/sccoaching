@@ -4,9 +4,10 @@
 // written: the only runs that name it are refusals, and those are decided by path alone before any disk access. Fixture passwords
 // are random per run and live only in a temporary credentials file the test itself creates. No fixed password appears in this file.
 import { spawnSync } from "child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
+import { pathToFileURL } from "url";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -349,5 +350,49 @@ describe("the generated datastore works in the real app", () => {
     expect((await pause("admin", "member-a1")).status).toBe(200);
     expect(db.findSubscriptionByUserId(id("member-a1"))?.status).toBe("paused");
     expect((await pause("gymb-admin", "gymb-member")).status).toBe(200);
+  });
+});
+
+describe("symlinked repository paths", () => {
+  // Uses the script's own resolveTargets with a FAKE repository root inside the temp folder, so the real repository, and its data/
+  // folder, are never involved. A directory link (a junction on Windows, which needs no special privilege) stands in for the symlink.
+  async function setup() {
+    const fakeRepo = path.join(root, "fake-repo");
+    const outside = path.join(root, "outside");
+    mkdirSync(path.join(fakeRepo, "data"), { recursive: true });
+    mkdirSync(outside);
+    symlinkSync(path.join(fakeRepo, "data"), path.join(outside, "link-to-data"), "junction");
+    symlinkSync(fakeRepo, path.join(outside, "link-to-repo"), "junction");
+    const mod = (await import(pathToFileURL(SCRIPT).href)) as {
+      resolveTargets: (env: Record<string, string>, args: { dryRun: boolean; credentialsOut: string | null }, repoRoot: string) => { dbPath: string; credentialsPath: string | null };
+    };
+    return { fakeRepo, outside, resolve: mod.resolveTargets };
+  }
+
+  it("refuses a datastore reached through a link to the repository data folder, existing or new", async () => {
+    const { fakeRepo, outside, resolve } = await setup();
+    const args = { dryRun: true, credentialsOut: null };
+    expect(() => resolve({ GYM_DB_PATH: path.join(fakeRepo, "data", "db.json") }, args, fakeRepo)).toThrow(/inside the repository data folder/);
+    expect(() => resolve({ GYM_DB_PATH: path.join(outside, "link-to-data", "db.json") }, args, fakeRepo)).toThrow(/inside the repository data folder/);
+    expect(() => resolve({ GYM_DB_PATH: path.join(outside, "link-to-data", "sub", "new.json") }, args, fakeRepo)).toThrow(/inside the repository data folder/);
+    expect(() => resolve({ GYM_DB_PATH: path.join(outside, "link-to-repo", "data", "db.json") }, args, fakeRepo)).toThrow(/inside the repository data folder/);
+  });
+
+  it("refuses a credentials file reached through a link into the repository", async () => {
+    const { fakeRepo, outside, resolve } = await setup();
+    const db = path.join(outside, "staging.json");
+    expect(() => resolve({ GYM_DB_PATH: db }, { dryRun: false, credentialsOut: path.join(outside, "link-to-repo", "creds.json") }, fakeRepo)).toThrow(/inside the repository/);
+  });
+
+  it("still allows an ordinary path outside the repository (control)", async () => {
+    const { fakeRepo, outside, resolve } = await setup();
+    const t = resolve({ GYM_DB_PATH: path.join(outside, "staging.json") }, { dryRun: true, credentialsOut: null }, fakeRepo);
+    expect(t.dbPath).toBe(path.join(outside, "staging.json"));
+  });
+
+  it("writes nothing while refusing", async () => {
+    const { fakeRepo, outside, resolve } = await setup();
+    expect(() => resolve({ GYM_DB_PATH: path.join(outside, "link-to-data", "db.json") }, { dryRun: true, credentialsOut: null }, fakeRepo)).toThrow();
+    expect(readdirSync(path.join(fakeRepo, "data"))).toEqual([]);
   });
 });
