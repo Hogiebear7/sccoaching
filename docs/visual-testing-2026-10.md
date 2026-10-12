@@ -14,7 +14,7 @@ allows one per project folder) and never touches local data.
 | First-run walkthrough overlay | Global setup marks it seen through the app's own `/api/profile/tour` route. Each test also asserts no dialog is open. |
 | AI | The test server runs with `ANTHROPIC_API_KEY` empty, so Messages shows "AI coach unavailable". The messages test asserts that text. |
 | Stripe | The test server runs with the Stripe keys empty, so Membership shows "Online payment isn't set up yet". The membership test asserts that text. |
-| Clock-dependent dates | The demo member's billing end date is set to the fixed day `2099-01-01` in the seeded datastore. Other dates stay masked as before (`.tabular-nums`, weekday names). |
+| Clock-dependent dates | The demo member's billing end date is set to the fixed day `2099-01-01` in the seeded datastore. On Linux CI the **whole run's clock is frozen** with libfaketime at `2026-10-12 12:00:00` UTC (a Monday), so seeding, the server and the browser agree on "today"; this matters because the home KPI strip, the recovery week grid and relative class dates change with the weekday (a run with the clock moved three days produced a different home screen height before the freeze). Dates and the week grid are also masked (`.tabular-nums`, weekday names, ISO dates, the date field, the "Training weeks" card). |
 | OS fonts and rendering | Baselines are per OS. The `-linux` set is generated and compared on a pinned `ubuntu-24.04` runner with Playwright's bundled Chromium. |
 
 The server environment for those settings is set with empty strings, which count as "set", so a developer's `.env.local` cannot fill them back in. Only the test server
@@ -25,7 +25,7 @@ No secret or provider credential is used anywhere in the suite. `.github/workflo
 ## Running it
 - **Linux CI:** `.github/workflows/visual-suite.yml` runs on pull requests that touch `e2e/`, `app/`, `components/` or the config, and on demand. It is informational (not a
   required check).
-- **Locally (Linux):** `npx playwright install chromium`, then `npm run test:visual`.
+- **Locally (Linux):** `npx playwright install chromium`, install `faketime`, then `faketime -f "@2026-10-12 12:00:00" npx playwright test` (the same clock as CI; `TZ=UTC`).
 - **Locally (Windows/macOS):** the `-linux` baselines do not apply. Playwright reports a missing baseline for your OS; do not commit one generated there.
 
 ## Regenerating the Linux baselines

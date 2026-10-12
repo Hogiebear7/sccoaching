@@ -32,6 +32,11 @@ permissions:
 env:
   NEXT_TELEMETRY_DISABLED: "1"
   CI: "true"
+  TZ: UTC
+  # The whole suite (seeding, the server and the browser) runs under libfaketime from this fixed instant (a Monday), so anything that depends on
+  # today's date or weekday (the home KPI strip, the recovery week grid, relative class dates) renders identically on every run. The clock still
+  # ticks forward from here. Changing this value changes the screens: regenerate the baselines if you do.
+  VISUAL_CLOCK: "2026-10-12 12:00:00"
 
 jobs:
   visual:
@@ -47,6 +52,8 @@ jobs:
           cache: npm
       - name: Pin npm to 11.13.0 (see pr-checks.yml)
         run: npm install -g npm@11.13.0
+      - name: Install libfaketime
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq faketime
       - name: Print toolchain versions
         run: |
           git rev-parse HEAD
@@ -62,10 +69,10 @@ jobs:
           node -e 'const {chromium}=require("@playwright/test");chromium.launch().then(async b=>{console.log("Chromium",b.version());await b.close()})'
       - name: Run the visual suite (compare against the committed baselines)
         if: ${{ !inputs.update_snapshots }}
-        run: npx playwright test --update-snapshots=none --reporter=list,html
+        run: faketime -f "@$VISUAL_CLOCK" npx playwright test --update-snapshots=none --reporter=list,html
       - name: Regenerate the Linux baselines (artifact only, never committed)
         if: ${{ inputs.update_snapshots }}
-        run: npx playwright test --update-snapshots=all --reporter=list
+        run: faketime -f "@$VISUAL_CLOCK" npx playwright test --update-snapshots=all --reporter=list
       - name: Upload the regenerated baselines for review
         if: ${{ always() && inputs.update_snapshots }}
         uses: actions/upload-artifact@v4
