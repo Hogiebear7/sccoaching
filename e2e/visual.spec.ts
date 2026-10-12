@@ -23,6 +23,11 @@ function masks(page: Page) {
   return [
     page.locator(".tabular-nums"),
     page.getByText(/\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*day\b/i),
+    // Anything that shows today's date or the current week: the recovery check-in's date field, the "Recent days" dates, and the
+    // "Training weeks" grid (its dots land in the weekday columns of the current week).
+    page.locator('input[type="date"]'),
+    page.getByText(/\b\d{4}-\d{2}-\d{2}\b/),
+    page.locator(".surface-card").filter({ hasText: "Training weeks" }),
   ];
 }
 
