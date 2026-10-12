@@ -1,0 +1,92 @@
+name: Visual suite
+
+# Runs the Playwright visual suite on Linux, where the committed `-linux` baselines were generated. It is NOT a required check: it informs, and a red
+# run means a screen changed (confirm it is intended, then regenerate the baselines on Linux; see docs/visual-testing-2026-10.md).
+#
+# The suite starts its own server on its own temporary datastore (playwright.config.ts, e2e/global-setup.ts) with AI, Stripe and every provider
+# unconfigured. This workflow reads no secret, contacts no provider, and deploys nothing. It never commits: with `update_snapshots` it only
+# uploads the regenerated Linux baselines as an artifact, for a person to review image by image before committing.
+on:
+  pull_request:
+    branches: [redesign/index-html-blueprint]
+    paths:
+      - "e2e/**"
+      - "playwright.config.ts"
+      - "app/**"
+      - "components/**"
+      - ".github/workflows/visual-suite.yml"
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: "Regenerate the Linux baselines and upload them as an artifact (does not commit)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: visual-suite-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  CI: "true"
+  TZ: UTC
+  # The whole suite (seeding, the server and the browser) runs under libfaketime from this fixed instant (a Monday), so anything that depends on
+  # today's date or weekday (the home KPI strip, the recovery week grid, relative class dates) renders identically on every run. The clock still
+  # ticks forward from here. Changing this value changes the screens: regenerate the baselines if you do.
+  VISUAL_CLOCK: "2026-10-12 12:00:00"
+
+jobs:
+  visual:
+    name: Playwright visual suite
+    # Pinned image: the baselines depend on the OS fonts, so the runner must not change under them unannounced.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Pin npm to 11.13.0 (see pr-checks.yml)
+        run: npm install -g npm@11.13.0
+      - name: Install libfaketime
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq faketime
+      - name: Print toolchain versions
+        run: |
+          git rev-parse HEAD
+          node --version
+          npm --version
+          lsb_release -ds
+      - run: npm ci --include=dev
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Print Playwright and Chromium versions
+        run: |
+          npx playwright --version
+          node -e 'const {chromium}=require("@playwright/test");chromium.launch().then(async b=>{console.log("Chromium",b.version());await b.close()})'
+      - name: Run the visual suite (compare against the committed baselines)
+        if: ${{ !inputs.update_snapshots }}
+        run: faketime -f "@$VISUAL_CLOCK" npx playwright test --update-snapshots=none --reporter=list,html
+      - name: Regenerate the Linux baselines (artifact only, never committed)
+        if: ${{ inputs.update_snapshots }}
+        run: faketime -f "@$VISUAL_CLOCK" npx playwright test --update-snapshots=all --reporter=list
+      - name: Upload the regenerated baselines for review
+        if: ${{ always() && inputs.update_snapshots }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines-linux
+          retention-days: 7
+          path: e2e/visual.spec.ts-snapshots/*-linux.png
+      - name: Upload report and failure images
+        if: ${{ always() && !inputs.update_snapshots }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-suite-results
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            playwright-report
+            test-results
