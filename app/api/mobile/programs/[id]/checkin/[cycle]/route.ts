@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { generateProgrammeCheckIn, isAiConfigured } from "@/lib/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
-import { findTrainingProgramById, findUserById, findWorkoutSessionsByUserId, saveTrainingProgram } from "@/lib/db";
+import { findTrainingProgramById, findUserById, findWorkoutSessionsByUserId, updateTrainingProgram } from "@/lib/db";
 import { buildProgrammeCheckInData, formatProgrammeCheckInContext } from "@/lib/programme-checkin";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { isExerciseRefreshEligible } from "@/lib/training-programs";
@@ -79,9 +79,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       exerciseRefreshDecision: null as "accepted" | "declined" | null,
     };
 
-    saveTrainingProgram({ ...program, checkIns: [...(program.checkIns ?? []), entry], updatedAt: new Date().toISOString() });
+    // Generating took a while (AI call): append to the programme as it is NOW, and if another request already stored this cycle's check-in, return that one.
+    let stored: typeof entry = entry;
+    updateTrainingProgram(program.id, (current) => {
+      const already = (current.checkIns ?? []).find((ci) => ci.cycleIndex === cycleIndex);
+      if (already) {
+        stored = already as typeof entry;
+        return null;
+      }
+      return { ...current, checkIns: [...(current.checkIns ?? []), entry], updatedAt: new Date().toISOString() };
+    });
 
-    return NextResponse.json({ success: true, configured: true, data: entry });
+    return NextResponse.json({ success: true, configured: true, data: stored });
   } catch (err) {
     console.error(`[programs/checkin] generation failed for user ${user.id}, program ${id}, cycle ${cycleIndex}:`, err);
     return NextResponse.json(

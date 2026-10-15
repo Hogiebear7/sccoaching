@@ -22,8 +22,10 @@
 // Set GYM_DB_PATH to target a different db file (used by tests). Run against
 // production only deliberately, from the deployed host, in a quiet window.
 
-import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = process.env.GYM_DB_PATH ?? fileURLToPath(new URL("../data/db.json", import.meta.url));
 
@@ -54,7 +56,7 @@ const line = (e) => `  ${e.id}  ${e.provider}  ${e.providerRef}  ${money(e)}  ${
 const args = parseArgs(process.argv.slice(2));
 if (!existsSync(DB_PATH)) fail(`Database not found at ${DB_PATH}.`);
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 const events = db.revenueEvents ?? [];
 
 if (args.list) {
@@ -107,7 +109,7 @@ copyFileSync(DB_PATH, backup);
 
 const drop = new Set(selected.map((e) => e.id));
 db.revenueEvents = events.filter((e) => !drop.has(e.id));
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+writeForScript(DB_PATH, db, dbToken);
 
 console.log(`\n✓ Removed ${selected.length} revenue event${selected.length === 1 ? "" : "s"}.`);
 console.log(`  Backup written: ${backup}\n`);

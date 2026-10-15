@@ -99,6 +99,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // The live Open Food Facts call (only when enabled) can take a while: if another reviewer decided this submission meanwhile, don't overwrite their decision.
+  const latest = findFoodSubmissionById(existing.id);
+  if (!latest || latest.status !== "pending_review") {
+    return NextResponse.json({ success: false, message: `This submission was ${latest?.status ?? "removed"} by someone else while it was being reviewed.` }, { status: 409 });
+  }
   saveFoodSubmission(updated);
 
   return NextResponse.json({ success: true, message: "Submission approved.", data: updated }, { status: 200 });

@@ -20,6 +20,14 @@ const failingJob = {
   run: vi.fn().mockRejectedValue(new Error("Boom")),
 };
 
+// The run lease is exercised against real processes in __tests__/datastore/shared-state.test.ts; here it is a stand-in so the runner's own behaviour is what is tested.
+const lease = vi.hoisted(() => ({ claim: vi.fn(() => "lease-1" as string | null), release: vi.fn() }));
+vi.mock("@/lib/jobs/lease", () => ({
+  claimJobRunLease: lease.claim,
+  releaseJobRunLease: lease.release,
+  JobRunInProgressError: class JobRunInProgressError extends Error {},
+}));
+
 vi.mock("@/lib/jobs/registry", () => ({
   ALL_JOBS: [succeedingJob, failingJob],
 }));
@@ -76,6 +84,9 @@ describe("runJob", () => {
 
 describe("runAllJobs", () => {
   beforeEach(() => {
+    lease.claim.mockClear();
+    lease.release.mockClear();
+    lease.claim.mockReturnValue("lease-1");
     mockCreateJobRun.mockReset();
     succeedingJob.run.mockClear();
     failingJob.run.mockClear();
@@ -92,5 +103,28 @@ describe("runAllJobs", () => {
     expect(outcomes[0].status).toBe("success");
     expect(outcomes[1].status).toBe("error");
     expect(mockCreateJobRun).toHaveBeenCalledTimes(2);
+    expect(lease.claim).toHaveBeenCalledTimes(1);
+    expect(lease.release).toHaveBeenCalledWith("lease-1");
+  });
+
+  it("runs nothing and throws JobRunInProgressError when another run holds the lease", async () => {
+    lease.claim.mockReturnValueOnce(null);
+    const { runAllJobs } = await import("@/lib/jobs/runner");
+    const { JobRunInProgressError } = await import("@/lib/jobs/lease");
+
+    await expect(runAllJobs("cron")).rejects.toBeInstanceOf(JobRunInProgressError);
+    expect(succeedingJob.run).not.toHaveBeenCalled();
+    expect(mockCreateJobRun).not.toHaveBeenCalled();
+    expect(lease.release).not.toHaveBeenCalled(); // it never held it
+  });
+
+  it("releases the lease even when the run throws", async () => {
+    mockCreateJobRun.mockImplementationOnce(() => {
+      throw new Error("datastore write failed");
+    });
+    const { runAllJobs } = await import("@/lib/jobs/runner");
+
+    await expect(runAllJobs("manual")).rejects.toThrow("datastore write failed");
+    expect(lease.release).toHaveBeenCalledWith("lease-1");
   });
 });

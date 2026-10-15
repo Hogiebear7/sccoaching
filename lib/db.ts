@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { DatastoreError, parseDatastoreText, readInTurn, writeInTurn } from "@/lib/datastore/core";
 import path from "path";
 import { randomUUID, randomBytes, createHash } from "crypto";
 
@@ -2057,6 +2057,10 @@ export type DatabaseCollectionName = keyof Database;
 const configuredDataDir = getConfiguredDataDir();
 const DATA_DIR = configuredDataDir ? path.resolve(configuredDataDir) : path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
+/** The folder that holds db.json (and the small side files beside it: the job-run lease, shared rate-limit counters). */
+export function dataDirectory(): string {
+  return DATA_DIR;
+}
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 const MOBILE_HANDOFF_TOKEN_TTL_MS = 60 * 1000;
 const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -2099,8 +2103,8 @@ export function normalizeRecoveryScale(log: RecoveryLogRecord): RecoveryLogRecor
   };
 }
 
-function readDb(): Database {
-  if (!existsSync(DB_PATH)) {
+function normalizeDatabase(raw: string | null): Database {
+  if (raw === null) {
     return {
       users: [],
       profiles: [],
@@ -2179,10 +2183,9 @@ function readDb(): Database {
     };
   }
 
-  const raw = readFileSync(DB_PATH, "utf-8");
-  const parsed = JSON.parse(raw) as Partial<Database>;
+  const parsed = parseDatastoreText(raw, DB_PATH) as Partial<Database>;
 
-  return {
+  const mapped: Database = {
     users: (parsed.users ?? []).map((user) => ({
       ...user,
       // Migrate the legacy single elevated role to the top of the new
@@ -2364,14 +2367,41 @@ function readDb(): Database {
     recipes: parsed.recipes ?? [],
     shoppingListItems: parsed.shoppingListItems ?? [],
   };
+
+  // The normaliser rebuilds the object from the keys this version knows. Any other top-level key in the file (written by a NEWER version of the app,
+  // or kept by an older one) must survive a rewrite, or rolling the code back would silently delete that data on the next save.
+  const extras: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(parsed)) if (!(key in mapped)) extras[key] = value;
+  unknownTopLevelKeys.set(mapped, extras);
+  return mapped;
+}
+
+// ── Persistence boundary (the only code that touches db.json) ─────────────────────────────────────────────────────────────────────────────────
+// readDb takes the cross-process datastore lock for the current synchronous turn (see lib/datastore/core.js) and returns the LATEST file contents.
+// writeDb commits one snapshot, atomically, and only if that snapshot was read in this same turn and the file has not changed underneath it.
+// Neither function is exported: every application read and write of db.json goes through these two, and nothing else in app/ or lib/ opens the file.
+const snapshotEpochs = new WeakMap<object, number>();
+const unknownTopLevelKeys = new WeakMap<object, Record<string, unknown>>();
+
+// In production a missing datastore is an error unless a brand-new install is explicitly declared. Everywhere else (dev, tests) it starts empty.
+function mayStartNewDatastore(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.SANDC_ALLOW_NEW_DATASTORE === "1";
+}
+
+function readDb(): Database {
+  const { text, epoch } = readInTurn(DB_PATH, { allowNew: mayStartNewDatastore() });
+  const db = normalizeDatabase(text);
+  snapshotEpochs.set(db, epoch);
+  return db;
 }
 
 function writeDb(db: Database) {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
+  const epoch = snapshotEpochs.get(db);
+  if (epoch === undefined) {
+    throw new DatastoreError("STALE_SNAPSHOT", "writeDb was given a datastore object that did not come from readDb.");
   }
-
-  writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
+  const extras = unknownTopLevelKeys.get(db) ?? {};
+  writeInTurn(DB_PATH, JSON.stringify({ ...db, ...extras }, null, 2), epoch);
 }
 
 // ─── Transactional email toggles (staff-controlled, optional emails only) ──────
@@ -2757,6 +2787,31 @@ export function saveTrainingProgram(program: TrainingProgramRecord): void {
   writeDb(db);
 }
 
+/** Changes one programme inside a single datastore turn, from its CURRENT state (see updateSubscription). `change` returns the whole new record or null to leave it. */
+export function updateTrainingProgram(
+  id: string,
+  change: (current: TrainingProgramRecord) => TrainingProgramRecord | null
+): TrainingProgramRecord | undefined {
+  const db = readDb();
+  const index = db.trainingPrograms.findIndex((p) => p.id === id);
+  if (index === -1) return undefined;
+  const next = change(db.trainingPrograms[index]);
+  if (!next) return db.trainingPrograms[index];
+  db.trainingPrograms[index] = next;
+  writeDb(db);
+  return next;
+}
+
+/** Saves a programme only if it has not changed since the caller read it (compared by updatedAt). Returns false, writing nothing, if it changed meanwhile. */
+export function saveTrainingProgramIfUnchanged(program: TrainingProgramRecord, expectedUpdatedAt: string): boolean {
+  const db = readDb();
+  const index = db.trainingPrograms.findIndex((p) => p.id === program.id);
+  if (index === -1 || db.trainingPrograms[index].updatedAt !== expectedUpdatedAt) return false;
+  db.trainingPrograms[index] = program;
+  writeDb(db);
+  return true;
+}
+
 export function deleteTrainingProgram(id: string): void {
   const db = readDb();
   db.trainingPrograms = db.trainingPrograms.filter((p) => p.id !== id);
@@ -3117,6 +3172,22 @@ export function saveFoodSubmission(record: FoodSubmissionRecord): void {
   writeDb(db);
 }
 
+/** Sets fields on one workout session from its CURRENT state inside a single datastore turn (see updateSubscription). */
+export function updateWorkoutSession(
+  id: string,
+  change: (current: WorkoutSessionRecord) => Partial<WorkoutSessionRecord> | null
+): WorkoutSessionRecord | undefined {
+  const db = readDb();
+  const index = db.workoutSessions.findIndex((s) => s.id === id);
+  if (index === -1) return undefined;
+  const current = db.workoutSessions[index];
+  const patch = change(current);
+  if (!patch) return current;
+  db.workoutSessions[index] = { ...current, ...patch };
+  writeDb(db);
+  return db.workoutSessions[index];
+}
+
 export function findWorkoutSessionsByUserId(userId: string): WorkoutSessionRecord[] {
   const db = readDb();
   return db.workoutSessions
@@ -3415,6 +3486,26 @@ export function saveSubscription(subscription: SubscriptionRecord) {
   }
 
   writeDb(db);
+}
+
+/**
+ * Changes ONE subscription row inside a single datastore turn. `change` receives the row as it is NOW (re-read here, after any `await` the caller did) and returns
+ * the fields to set, or null to leave it alone. Use this instead of `saveSubscription({ ...rowReadEarlier, ... })` whenever something slow (a payment-provider call, an
+ * AI call) happened between reading the row and writing it: the stale copy would otherwise overwrite a webhook or another request's change to the same row.
+ */
+export function updateSubscription(
+  userId: string,
+  change: (current: SubscriptionRecord) => Partial<SubscriptionRecord> | null
+): SubscriptionRecord | undefined {
+  const db = readDb();
+  const index = db.subscriptions.findIndex((s) => s.userId === userId);
+  if (index === -1) return undefined;
+  const current = db.subscriptions[index];
+  const patch = change(current);
+  if (!patch) return current;
+  db.subscriptions[index] = { ...current, ...patch };
+  writeDb(db);
+  return db.subscriptions[index];
 }
 
 export function findGooglePlayPurchaseByToken(

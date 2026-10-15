@@ -53,7 +53,8 @@ describe("explicit GYM_DB_PATH", () => {
     expect(r.code).toBe(0);
     expect(existsSync(target)).toBe(true);
     expect(existsSync(otherDataDir)).toBe(false);
-    expect(files(root).sort()).toEqual([path.join("named", "staging.json")]);
+    // The only extra file a seed leaves is the datastore marker (lib/datastore/core.js), in the same folder as the datastore, so a lost db.json is never mistaken for a fresh install.
+    expect(files(root).sort()).toEqual([path.join("named", ".datastore-initialised"), path.join("named", "staging.json")]);
     expect(readdirSync(cwd)).toEqual([]);
   });
 
@@ -69,7 +70,7 @@ describe("DATA_DIR", () => {
     const dataDir = path.join(root, "staging", "data");
     const r = run({ DATA_DIR: dataDir });
     expect(r.code).toBe(0);
-    expect(files(dataDir)).toEqual(["db.json"]);
+    expect(files(dataDir).sort()).toEqual([".datastore-initialised", "db.json"]);
     expect(readdirSync(cwd)).toEqual([]);
   });
 
@@ -88,7 +89,7 @@ describe("SANDC_APP_CONFIG", () => {
     const cfg = `sessionSecret=not-a-real-secret|appUrl=https://x.example|dataDir=${dir}|resendApiKey=nope`;
     const r = run({ SANDC_APP_CONFIG: cfg });
     expect(r.code).toBe(0);
-    expect(files(dir)).toEqual(["db.json"]);
+    expect(files(dir).sort()).toEqual([".datastore-initialised", "db.json"]);
     expect(r.out + r.err).not.toContain("not-a-real-secret");
     expect(r.out + r.err).not.toContain("nope");
   });

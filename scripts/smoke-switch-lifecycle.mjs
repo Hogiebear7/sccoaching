@@ -21,8 +21,10 @@
 // Safe to re-run: it seeds a uniquely-ided throwaway subscription row and
 // removes exactly that row on exit, leaving all real data untouched.
 
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync } from "fs";
 import { createHmac } from "crypto";
+import { createRequire } from "node:module";
+const { readForScript, writeTextForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = new URL("../data/db.json", import.meta.url);
 const ENV_PATH = new URL("../.env.local", import.meta.url);
@@ -54,8 +56,8 @@ if (!secret) {
   process.exit(1);
 }
 
-const readDb = () => JSON.parse(readFileSync(DB_PATH, "utf8"));
-const writeDb = (db) => writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+const readDb = () => readForScript(DB_PATH).db;
+const writeDb = (db) => writeTextForScript(DB_PATH, JSON.stringify(db, null, 2));
 
 const stamp = Date.now();
 const SMOKE_USER = `smoke-switch-${stamp}`;

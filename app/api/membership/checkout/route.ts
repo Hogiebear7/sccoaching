@@ -11,6 +11,7 @@ import {
   findSubscriptionByUserId,
   savePurchase,
   saveSubscription,
+  updateSubscription,
   type MoneyRecordOwnerGym,
   type PurchaseRecord,
   type SubscriptionRecord,
@@ -233,14 +234,12 @@ export async function POST(request: NextRequest) {
     if (switchCheckout.error || !switchCheckout.sessionId) {
       // Roll the staged switch back so the member is left cleanly on their
       // current membership, exactly as before they clicked.
-      saveSubscription({
-        ...sub,
-        pendingPackageId: null,
-        pendingBillingOptionId: null,
-        pendingSetupOrderId: null,
-        pendingStartedAt: null,
-        updatedAt: new Date().toISOString(),
-      });
+      // The Stripe call above took a while: undo only OUR staged switch, on the row as it is NOW (a webhook may have promoted or changed it meanwhile).
+      updateSubscription(user.id, (current) =>
+        current.pendingStartedAt === startedAt
+          ? { pendingPackageId: null, pendingBillingOptionId: null, pendingSetupOrderId: null, pendingStartedAt: null, updatedAt: new Date().toISOString() }
+          : null
+      );
       return NextResponse.json(
         { success: false, message: `Could not start checkout: ${switchCheckout.error ?? "unknown error"}` },
         { status: 502 }
@@ -248,14 +247,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Attach the session id so the webhook can find and promote this switch.
-    saveSubscription({
-      ...sub,
-      pendingPackageId: pkg.id,
-      pendingBillingOptionId: option.id,
-      pendingSetupOrderId: switchCheckout.sessionId,
-      pendingStartedAt: startedAt,
-      updatedAt: new Date().toISOString(),
-    });
+    updateSubscription(user.id, (current) =>
+      current.pendingStartedAt === startedAt
+        ? { pendingSetupOrderId: switchCheckout.sessionId, updatedAt: new Date().toISOString() }
+        : null
+    );
 
     return NextResponse.json(
       { success: true, checkoutUrl: switchCheckout.checkoutUrl, message: "Redirecting you to checkout to switch." },
@@ -342,7 +338,8 @@ export async function POST(request: NextRequest) {
   }
 
   // The webhook finds this subscription by its setup-order (session) id.
-  saveSubscription({ ...pendingBase, providerSetupOrderId: checkout.sessionId, updatedAt: new Date().toISOString() });
+  // Only the setup-order id is added, to the row as it is NOW (the Stripe call took a while).
+  updateSubscription(user.id, () => ({ providerSetupOrderId: checkout.sessionId, updatedAt: new Date().toISOString() }));
 
   return NextResponse.json(
     { success: true, checkoutUrl: checkout.checkoutUrl, message: "Redirecting you to checkout." },

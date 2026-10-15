@@ -116,14 +116,6 @@ export async function POST(
 
   const now = new Date().toISOString();
 
-  // Switching into "active" (or onto a different package) starts a fresh
-  // billing period as far as this app is concerned, so the session count
-  // resets. Re-saving an already-active subscription on the same package
-  // doesn't touch usage.
-  const isEnteringFreshActivePeriod =
-    status === "active" &&
-    (existingSubscription?.status !== "active" || existingSubscription?.packageId !== resolvedPackageId);
-
   // A manual staff override always records provider: "none" — it's separate
   // from the Revolut-backed flow (cash payment, comp membership, correcting
   // a stuck state, etc). It does not touch any in-flight Revolut order.
@@ -148,29 +140,57 @@ export async function POST(
     }
   }
 
+  // The provider call above can take a while. Re-read the row NOW and re-run the entitlement check against it, so a webhook or another request that changed it
+  // meanwhile is neither overwritten nor bypassed; everything below is built from the fresh row.
+  const current = findSubscriptionByUserId(member.id);
+  const conflictNow = evaluateEntitlementConflict(
+    current,
+    { kind: "staff_write", scope: scopeOfPackage(resolvedPackage), entitling: status === "active" || status === "past_due" },
+    packageScopeResolver
+  );
+  if (conflictNow) {
+    appendIapEvent({ type: "staff_write_rejected", userId: member.id, actor: "staff", detail: { code: conflictNow.code, source: "staff_subscription_override" } });
+    return NextResponse.json(
+      {
+        success: false,
+        code: conflictNow.code,
+        message: providerCancelWarning ? `${conflictNow.message} ${providerCancelWarning}` : conflictNow.message,
+      },
+      { status: 409 }
+    );
+  }
+
+  // Switching into "active" (or onto a different package) starts a fresh
+  // billing period as far as this app is concerned, so the session count
+  // resets. Re-saving an already-active subscription on the same package
+  // doesn't touch usage.
+  const isEnteringFreshActivePeriod =
+    status === "active" &&
+    (current?.status !== "active" || current?.packageId !== resolvedPackageId);
+
   const subscription: SubscriptionRecord = {
     userId: member.id,
     packageId: resolvedPackageId,
-    billingOptionId: existingSubscription?.billingOptionId ?? null,
+    billingOptionId: current?.billingOptionId ?? null,
     status: status as SubscriptionStatus,
     pausedUntil: null,
     statusBeforePause: null,
     provider: "none",
-    providerCustomerId: existingSubscription?.providerCustomerId ?? null,
+    providerCustomerId: current?.providerCustomerId ?? null,
     // A manual override over an ended Google Play row must not keep the old Play purchase token or paid period.
-    providerSubscriptionId: existingSubscription?.provider === "google_play" ? null : existingSubscription?.providerSubscriptionId ?? null,
-    providerSetupOrderId: existingSubscription?.providerSetupOrderId ?? null,
-    currentPeriodEnd: existingSubscription?.provider === "google_play" ? null : existingSubscription?.currentPeriodEnd ?? null,
-    lastWebhookEventAt: existingSubscription?.lastWebhookEventAt ?? null,
+    providerSubscriptionId: current?.provider === "google_play" ? null : current?.providerSubscriptionId ?? null,
+    providerSetupOrderId: current?.providerSetupOrderId ?? null,
+    currentPeriodEnd: current?.provider === "google_play" ? null : current?.currentPeriodEnd ?? null,
+    lastWebhookEventAt: current?.lastWebhookEventAt ?? null,
     sessionsUsedThisPeriod: isEnteringFreshActivePeriod
       ? 0
-      : existingSubscription?.sessionsUsedThisPeriod ?? 0,
+      : current?.sessionsUsedThisPeriod ?? 0,
     extraSessionGrants: isEnteringFreshActivePeriod
       ? []
-      : existingSubscription?.extraSessionGrants ?? [],
+      : current?.extraSessionGrants ?? [],
     periodLapsedNotifiedAt: isEnteringFreshActivePeriod
       ? null
-      : existingSubscription?.periodLapsedNotifiedAt ?? null,
+      : current?.periodLapsedNotifiedAt ?? null,
     // Immutable historical provenance: if this member already has a row, its
     // ownerGym wins exactly as stored — falling back to explicit
     // "unresolved" (never silently recomputed) for a row that predates this
@@ -179,12 +199,12 @@ export async function POST(
     // lib/db.ts). Fresh ownership (from the same already-authorized
     // package/category above) is only ever stamped the first time this
     // member gets a subscription row at all.
-    ownerGym: existingSubscription
-      ? existingSubscription.ownerGym ?? { scope: "unresolved" }
+    ownerGym: current
+      ? current.ownerGym ?? { scope: "unresolved" }
       : resolvedPackage
         ? ownerGymForCatalogPackage(resolvedPackage, resolvedCategory)
         : undefined,
-    createdAt: existingSubscription?.createdAt ?? now,
+    createdAt: current?.createdAt ?? now,
     updatedAt: now,
   };
 
