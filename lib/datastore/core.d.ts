@@ -15,3 +15,4 @@ export function _identityOf(dbPath: string): string;
 export function _atomicReplace(dbPath: string, text: string): void;
 export function withFileLock<T>(filePath: string, fn: () => T): T;
 export function replaceFileAtomically(filePath: string, text: string): void;
+export function _foreignWriteCount(): number;
