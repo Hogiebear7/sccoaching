@@ -43,8 +43,10 @@
 // --confirm. The db file is backed up to <db>.bak-<ts> first.
 // Set GYM_DB_PATH to target a different db file (used by tests).
 
-import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = process.env.GYM_DB_PATH ?? fileURLToPath(new URL("../data/db.json", import.meta.url));
 
@@ -70,7 +72,7 @@ if (args.report && (args.confirm || args.financeUnresolvedToPlatform)) {
 }
 if (!existsSync(DB_PATH)) fail(`Database not found at ${DB_PATH}.`);
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 
 const packagesById = new Map((db.membershipPackages ?? []).map((p) => [p.id, p]));
 const categoriesById = new Map((db.membershipCategories ?? []).map((c) => [c.id, c]));
@@ -189,7 +191,7 @@ if (!args.confirm) {
 
 const backup = `${DB_PATH}.bak-${Date.now()}`;
 copyFileSync(DB_PATH, backup);
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+writeForScript(DB_PATH, db, dbToken);
 
 console.log(`\n✓ Backfill applied.`);
 console.log(`  Backup written: ${backup}\n`);

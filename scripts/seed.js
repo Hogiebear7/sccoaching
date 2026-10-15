@@ -13,7 +13,7 @@
 // resolved path is printed before anything is written. For staging, export the
 // same DATA_DIR the app uses, and run with --dry-run first.
 
-const { mkdirSync, writeFileSync } = require("fs");
+const { mkdirSync } = require("fs");
 const path = require("path");
 const { randomUUID, randomBytes, scryptSync } = require("crypto");
 const { resolveSeedTarget } = require("./seed-target.cjs");
@@ -489,7 +489,7 @@ if (DRY_RUN) {
 }
 
 mkdirSync(path.dirname(DB_PATH), { recursive: true });
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
+require("../lib/datastore/core.js").writeTextForScript(DB_PATH, JSON.stringify(db, null, 2));
 
 console.log(`Seeded ${IS_DEFAULT_TARGET ? "data/db.json" : DB_PATH} with demo data.\n`);
 console.log("Demo accounts (all use password: " + DEMO_PASSWORD + "):");

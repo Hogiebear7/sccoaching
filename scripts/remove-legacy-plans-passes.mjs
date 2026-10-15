@@ -11,10 +11,12 @@
 //   • pass_pack purchase history (refunds read the ledger, not the product).
 //
 // Idempotent: safe to re-run. Prints a summary of what was removed/retained.
-import { readFileSync, writeFileSync } from "fs";
+import {} from "fs";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = new URL("../data/db.json", import.meta.url);
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 
 const subs = db.subscriptions ?? [];
 const legacySubs = subs.filter((s) => !s.packageId); // planId-only / bare rows
@@ -36,7 +38,7 @@ db.subscriptions = keptSubs.map((s) => {
 delete db.membershipPlans;
 delete db.classPassProducts;
 
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+writeForScript(DB_PATH, db, dbToken);
 
 console.log("Legacy Plans/Passes removal — summary");
 console.log("  Deleted legacy subscriptions:", legacySubs.length);

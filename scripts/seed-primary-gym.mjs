@@ -30,8 +30,10 @@
 // Set GYM_DB_PATH to target a different db file (used by tests).
 
 import { randomUUID } from "crypto";
-import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = process.env.GYM_DB_PATH ?? fileURLToPath(new URL("../data/db.json", import.meta.url));
 const CONFIRM = process.argv.slice(2).includes("--confirm");
@@ -55,7 +57,7 @@ if (!existsSync(DB_PATH)) {
   process.exit(1);
 }
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 
 const existing = (db.gyms ?? []).find((g) => g.slug === PRIMARY_GYM_SLUG);
 
@@ -102,7 +104,7 @@ const gym = {
 };
 
 db.gyms = [...(db.gyms ?? []), gym];
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+writeForScript(DB_PATH, db, dbToken);
 
 console.log(`✓ Created gym (id: ${gym.id}).`);
 console.log(`  Backup written: ${backup}\n`);

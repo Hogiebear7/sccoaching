@@ -3,7 +3,9 @@
 // re-seeding overwrites those rows only — existing plans, passes,
 // subscriptions and other catalog rows are left untouched. Run with:
 //   node scripts/seed-catalog.mjs
-import { readFileSync, writeFileSync } from "fs";
+import {} from "fs";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = new URL("../data/db.json", import.meta.url);
 const now = new Date().toISOString();
@@ -73,7 +75,7 @@ const billingOptions = [
   oneTime("opt_oa_pass", "pkg_oa_pass", "One-off", 13, 0),
 ];
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 db.membershipCategories ??= [];
 db.membershipPackages ??= [];
 db.membershipBillingOptions ??= [];
@@ -89,7 +91,7 @@ upsert(db.membershipCategories, categories);
 upsert(db.membershipPackages, packages);
 upsert(db.membershipBillingOptions, billingOptions);
 
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+writeForScript(DB_PATH, db, dbToken);
 console.log(
   `seeded ${categories.length} categories, ${packages.length} packages, ${billingOptions.length} billing options`
 );

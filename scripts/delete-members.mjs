@@ -18,8 +18,10 @@
 // Set GYM_DB_PATH to target a different db file (used by tests).
 
 import { createHash } from "crypto";
-import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = process.env.GYM_DB_PATH ?? fileURLToPath(new URL("../data/db.json", import.meta.url));
 const args = process.argv.slice(2);
@@ -36,7 +38,7 @@ if (!existsSync(DB_PATH)) {
   process.exit(1);
 }
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 const users = db.users ?? [];
 
 const STAFF_ROLES = new Set(["coach", "admin", "admin_manager", "staff"]);
@@ -132,7 +134,7 @@ if (Array.isArray(db.customFoods)) db.customFoods = db.customFoods.filter((f) =>
 if (Array.isArray(db.follows)) db.follows = db.follows.filter((f) => !doomedIds.has(f.followerId) && !doomedIds.has(f.followingId));
 if (Array.isArray(db.commentReports)) db.commentReports = db.commentReports.filter((r) => !doomedIds.has(r.reporterId));
 
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+writeForScript(DB_PATH, db, dbToken);
 
 console.log(`\n✓ Deleted ${doomed.length} account(s) and their owned records.`);
 console.log(`  Backup written: ${backup}\n`);

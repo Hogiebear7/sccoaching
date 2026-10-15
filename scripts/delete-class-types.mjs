@@ -25,8 +25,10 @@
 //  - Backs up data/db.json to data/db.json.bak-<ts> before writing.
 // Set GYM_DB_PATH to target a different db file (used by tests).
 
-import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = process.env.GYM_DB_PATH ?? fileURLToPath(new URL("../data/db.json", import.meta.url));
 const args = process.argv.slice(2);
@@ -43,7 +45,7 @@ if (!existsSync(DB_PATH)) {
   process.exit(1);
 }
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 const categories = db.classCategories ?? [];
 
 const targets = categories.filter((c) => slugs.includes(c.slug));
@@ -96,7 +98,7 @@ db.deletedCategoryLabels = { ...db.deletedCategoryLabels };
 for (const c of targets) db.deletedCategoryLabels[c.slug] = c.name;
 db.classCategories = categories.filter((c) => !targetSlugs.has(c.slug));
 
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+writeForScript(DB_PATH, db, dbToken);
 
 console.log(`\n✓ Deleted ${targets.length} class type(s), ${classes.length} class(es), ${bookings.length} booking(s), ${waitlist.length} waitlist entr${waitlist.length === 1 ? "y" : "ies"}.`);
 console.log(`  Backup written: ${backup}\n`);

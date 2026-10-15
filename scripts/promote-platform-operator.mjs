@@ -21,8 +21,10 @@
 // Set GYM_DB_PATH to target a different db file (used by tests). Do NOT point
 // this at production data except deliberately, from the deployed host.
 
-import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = process.env.GYM_DB_PATH ?? fileURLToPath(new URL("../data/db.json", import.meta.url));
 
@@ -56,7 +58,7 @@ if ((userId ? 1 : 0) + (email ? 1 : 0) !== 1) {
 }
 if (!existsSync(DB_PATH)) fail(`Database not found at ${DB_PATH}.`);
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 const users = db.users ?? [];
 const matches = userId
   ? users.filter((u) => u.id === userId)
@@ -90,7 +92,7 @@ copyFileSync(DB_PATH, backup);
 
 target.role = OPERATOR_ROLE;
 target.updatedAt = new Date().toISOString();
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+writeForScript(DB_PATH, db, dbToken);
 
 console.log(`\n✓ Promoted ${target.id}.`);
 console.log(`  Backup written: ${backup}\n`);
