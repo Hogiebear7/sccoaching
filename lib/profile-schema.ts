@@ -172,6 +172,10 @@ export interface ProfileRecord {
   // compatibility; readers treat undefined as "not yet seen" (see db.ts
   // normalization).
   dashboardTourCompleted?: boolean;
+  // Explicit, informed permission to send this member's own data (typed text, food photos, training and recovery context) to the AI provider. Absent or
+  // null means NOT granted, so every AI request is refused before anything is sent. Withdrawing sets it back to null. A newer `version` (the wording of what is
+  // shared changed) invalidates an older grant, so the member is asked again. See lib/ai-consent.ts.
+  aiDataConsent?: { grantedAt: string; version: number } | null;
   // The gym profile (see GymProfileRecord in lib/db.ts) currently used to
   // filter the exercise library and shape workout generation. null = no
   // active profile, meaning unfiltered ("show all exercises"). Optional for

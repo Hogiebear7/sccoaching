@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { generateProgrammeSkeleton, isAiConfigured, type ProgrammeConditioningProtocol } from "@/lib/ai";
+import { requireAiConsent } from "@/lib/ai-consent";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import {
   findBodyWeightLogsByUserId,
@@ -176,6 +177,10 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
+
+  // Nothing is read from the request or sent to the AI provider until this member has allowed it (lib/ai-consent.ts).
+  const consentRequired = requireAiConsent(user.id);
+  if (consentRequired) return consentRequired;
 
   const rate = checkRateLimit(`ai-programme-generate:${user.id}`, GENERATE_RATE_LIMIT, GENERATE_RATE_WINDOW_MS);
   if (!rate.allowed) {

@@ -6,6 +6,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "./db";
+import { hasAiConsentOnProfile } from "@/lib/ai-consent";
 import { resolveCurrentWeightKg } from "./body-weight";
 import { buildMemberStatsData, sumStatsInRange, type MemberStatTotals } from "./member-stats";
 import type { MemberTier } from "./member-access";
@@ -51,6 +52,8 @@ export interface ProfileData {
   // here (a response every screen already loads) rather than a dedicated
   // round-trip.
   memberTier: MemberTier;
+  // Whether this member has allowed their data to be sent to the AI provider (lib/ai-consent.ts). The apps use it to ask before the first AI request.
+  aiConsentGranted: boolean;
 }
 
 // Shared by the web Profile page (app/(dashboard)/dashboard/profile/
@@ -104,5 +107,6 @@ export function getProfileData(userId: string | undefined): ProfileData | null {
     cycleTrackingEligible: profile.cycleTrackingEligible,
     allTimeStats: sumStatsInRange(statsData, null, null),
     memberTier: resolveMemberTierForUser(user.id),
+    aiConsentGranted: hasAiConsentOnProfile(profile),
   };
 }

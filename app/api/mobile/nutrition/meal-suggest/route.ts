@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { buildDietaryContextBlock } from "@/lib/ai-context";
 import { generateMealSuggestions, isAiConfigured } from "@/lib/ai";
+import { requireAiConsent } from "@/lib/ai-consent";
 import { findProfileByUserId, findUserById } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -43,6 +44,10 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
+
+  // Nothing is read from the request or sent to the AI provider until this member has allowed it (lib/ai-consent.ts).
+  const consentRequired = requireAiConsent(user.id);
+  if (consentRequired) return consentRequired;
 
   const rate = checkRateLimit(`ai-meal-suggest:${user.id}`, SUGGEST_RATE_LIMIT, SUGGEST_RATE_WINDOW_MS);
   if (!rate.allowed) {
