@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { DatastoreError, parseDatastoreText, readInTurn, writeInTurn } from "@/lib/datastore/core";
 import path from "path";
 import { randomUUID, randomBytes, createHash } from "crypto";
 
@@ -2092,8 +2092,8 @@ export function normalizeRecoveryScale(log: RecoveryLogRecord): RecoveryLogRecor
   };
 }
 
-function readDb(): Database {
-  if (!existsSync(DB_PATH)) {
+function normalizeDatabase(raw: string | null): Database {
+  if (raw === null) {
     return {
       users: [],
       profiles: [],
@@ -2172,10 +2172,9 @@ function readDb(): Database {
     };
   }
 
-  const raw = readFileSync(DB_PATH, "utf-8");
-  const parsed = JSON.parse(raw) as Partial<Database>;
+  const parsed = parseDatastoreText(raw, DB_PATH) as Partial<Database>;
 
-  return {
+  const mapped: Database = {
     users: (parsed.users ?? []).map((user) => ({
       ...user,
       // Migrate the legacy single elevated role to the top of the new
@@ -2357,14 +2356,41 @@ function readDb(): Database {
     recipes: parsed.recipes ?? [],
     shoppingListItems: parsed.shoppingListItems ?? [],
   };
+
+  // The normaliser rebuilds the object from the keys this version knows. Any other top-level key in the file (written by a NEWER version of the app,
+  // or kept by an older one) must survive a rewrite, or rolling the code back would silently delete that data on the next save.
+  const extras: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(parsed)) if (!(key in mapped)) extras[key] = value;
+  unknownTopLevelKeys.set(mapped, extras);
+  return mapped;
+}
+
+// ── Persistence boundary (the only code that touches db.json) ─────────────────────────────────────────────────────────────────────────────────
+// readDb takes the cross-process datastore lock for the current synchronous turn (see lib/datastore/core.js) and returns the LATEST file contents.
+// writeDb commits one snapshot, atomically, and only if that snapshot was read in this same turn and the file has not changed underneath it.
+// Neither function is exported: every application read and write of db.json goes through these two, and nothing else in app/ or lib/ opens the file.
+const snapshotEpochs = new WeakMap<object, number>();
+const unknownTopLevelKeys = new WeakMap<object, Record<string, unknown>>();
+
+// In production a missing datastore is an error unless a brand-new install is explicitly declared. Everywhere else (dev, tests) it starts empty.
+function mayStartNewDatastore(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.SANDC_ALLOW_NEW_DATASTORE === "1";
+}
+
+function readDb(): Database {
+  const { text, epoch } = readInTurn(DB_PATH, { allowNew: mayStartNewDatastore() });
+  const db = normalizeDatabase(text);
+  snapshotEpochs.set(db, epoch);
+  return db;
 }
 
 function writeDb(db: Database) {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
+  const epoch = snapshotEpochs.get(db);
+  if (epoch === undefined) {
+    throw new DatastoreError("STALE_SNAPSHOT", "writeDb was given a datastore object that did not come from readDb.");
   }
-
-  writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
+  const extras = unknownTopLevelKeys.get(db) ?? {};
+  writeInTurn(DB_PATH, JSON.stringify({ ...db, ...extras }, null, 2), epoch);
 }
 
 // ─── Transactional email toggles (staff-controlled, optional emails only) ──────
