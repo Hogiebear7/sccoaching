@@ -10,6 +10,9 @@ type ReportRow = CommentReportRecord & {
   reporterName: string;
   commentBody: string | null;
   commentAuthorName: string | null;
+  workoutTitle: string | null;
+  workoutAuthorName: string | null;
+  workoutRemoved: boolean;
 };
 
 type Filter = "open" | "all" | "resolved" | "dismissed";
@@ -63,8 +66,10 @@ export function CommunityReportsView({ reports }: { reports: ReportRow[] }) {
         <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Community reports</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Comments reported by members on the Community feed. Resolving removes the comment;
-          dismissing closes the report with no action.
+          Comments and shared workouts reported by members on the Community feed. Resolving removes
+          the comment, or takes the workout out of Community (it stays in the member&apos;s own
+          history and they can&apos;t share it again); dismissing closes the report with no action.
+          Check open reports regularly so content that breaks the rules comes down promptly.
         </p>
       </div>
 
@@ -115,22 +120,36 @@ export function CommunityReportsView({ reports }: { reports: ReportRow[] }) {
                 <p className="mt-3 text-xs font-medium text-muted-foreground">Reason</p>
                 <p className="text-sm text-foreground">{r.reason}</p>
 
-                <p className="mt-3 text-xs font-medium text-muted-foreground">
-                  Comment{r.commentAuthorName ? ` by ${r.commentAuthorName}` : ""}
-                </p>
-                <p className="whitespace-pre-wrap text-sm text-foreground">
-                  {r.commentBody ?? "(already removed)"}
-                </p>
+                {r.targetType === "workout" ? (
+                  <>
+                    <p className="mt-3 text-xs font-medium text-muted-foreground">
+                      Shared workout{r.workoutAuthorName ? ` by ${r.workoutAuthorName}` : ""}
+                    </p>
+                    <p className="whitespace-pre-wrap text-sm text-foreground">
+                      {r.workoutTitle ?? "(workout no longer exists)"}
+                      {r.workoutRemoved ? " — removed from Community" : ""}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-3 text-xs font-medium text-muted-foreground">
+                      Comment{r.commentAuthorName ? ` by ${r.commentAuthorName}` : ""}
+                    </p>
+                    <p className="whitespace-pre-wrap text-sm text-foreground">
+                      {r.commentBody ?? "(already removed)"}
+                    </p>
+                  </>
+                )}
 
                 {r.status === "open" ? (
                   <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
                     <button
                       type="button"
-                      disabled={isBusy || !r.commentBody}
+                      disabled={isBusy || (r.targetType === "workout" ? !r.workoutTitle : !r.commentBody)}
                       onClick={() => resolve(r.id, "resolve")}
                       className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isBusy ? "Working…" : "Remove comment"}
+                      {isBusy ? "Working…" : r.targetType === "workout" ? "Remove from Community" : "Remove comment"}
                     </button>
                     <button
                       type="button"

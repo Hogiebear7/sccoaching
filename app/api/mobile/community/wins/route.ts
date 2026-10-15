@@ -11,6 +11,7 @@ import {
 import { communityDisplayName } from "@/lib/community-display-name";
 import { sessionPbExerciseName } from "@/lib/community-highlight";
 import { sameGymAsStaff } from "@/lib/gym-scope";
+import { hiddenFromViewer, isSessionOutOfCommunity } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computePersonalBests } from "@/lib/workouts";
 
@@ -49,7 +50,8 @@ export async function GET(request: NextRequest) {
 
   // Same defense-in-depth gym check as the main feed route — a followed
   // member's wins only surface here if they're also in the caller's gym.
-  const followingIds = findFollowingIds(me.id).filter((id) => sameGymAsStaff(me, id));
+  const hidden = hiddenFromViewer(me.id);
+  const followingIds = findFollowingIds(me.id).filter((id) => sameGymAsStaff(me, id) && !hidden.has(id));
 
   const wins: CommunityWinEntry[] = [];
 
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest) {
     );
 
     for (const s of sessions) {
-      if (s.isPrivate) continue;
+      if (isSessionOutOfCommunity(s)) continue;
       const exerciseName = sessionPbExerciseName(s, bests);
       if (!exerciseName) continue;
       wins.push({ id: s.id, userId: authorId, authorName, date: s.date, personalBestExercise: exerciseName });

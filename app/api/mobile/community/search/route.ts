@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { communityDisplayName, isDiscoverable } from "@/lib/community-display-name";
+import { hiddenFromViewer } from "@/lib/community-moderation";
 import { sameGym } from "@/lib/gym-scope";
 import {
   findCommunityEligibleUsers,
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
   }
 
   const url = new URL(request.url);
+  const hidden = hiddenFromViewer(me.id);
   const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
 
   // Blank query: the search sheet itself asks for nothing back (a member
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     const results = findCommunityEligibleUsers()
-      .filter((u) => u.id !== me.id && !u.archivedAt && !isFollowing(me.id, u.id) && sameGym(me, u))
+      .filter((u) => u.id !== me.id && !u.archivedAt && !isFollowing(me.id, u.id) && sameGym(me, u) && !hidden.has(u.id))
       .map((u) => ({ user: u, privacy: findCommunityPrivacyByUserId(u.id) }))
       .filter(({ privacy }) => isDiscoverable(privacy))
       .slice(0, MAX_SUGGESTIONS)
@@ -58,7 +60,7 @@ export async function GET(request: NextRequest) {
   }
 
   const results = findCommunityEligibleUsers()
-    .filter((u) => u.id !== me.id && !u.archivedAt && sameGym(me, u))
+    .filter((u) => u.id !== me.id && !u.archivedAt && sameGym(me, u) && !hidden.has(u.id))
     .map((u) => ({ user: u, profile: findProfileByUserId(u.id), privacy: findCommunityPrivacyByUserId(u.id) }))
     .filter(({ profile }) => (profile?.fullName ?? "").toLowerCase().includes(q))
     .filter(({ privacy }) => isDiscoverable(privacy))

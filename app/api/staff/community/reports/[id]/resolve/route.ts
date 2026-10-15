@@ -8,6 +8,7 @@ import {
   findUserById,
   findWorkoutSessionById,
   saveCommentReport,
+  saveWorkoutSession,
 } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
@@ -44,23 +45,40 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // gymId. A comment or session that no longer exists means ownership can't
   // be verified safely — fail closed into the same not-found response as a
   // genuinely missing report, rather than assume same-gym.
-  const comment = findCommentById(report.commentId);
-  const session = comment ? findWorkoutSessionById(comment.workoutSessionId) : undefined;
+  // A reported workout post (targetType "workout") resolves through its workoutSessionId the same way.
+  const isWorkoutReport = report.targetType === "workout";
+  const comment = isWorkoutReport ? undefined : findCommentById(report.commentId);
+  const session = isWorkoutReport
+    ? report.workoutSessionId
+      ? findWorkoutSessionById(report.workoutSessionId)
+      : undefined
+    : comment
+      ? findWorkoutSessionById(comment.workoutSessionId)
+      : undefined;
   const owner = session ? findUserById(session.userId) : undefined;
   if (!owner || !sameGym(auth.user, owner)) {
     return NextResponse.json({ success: false, message: "Report not found." }, { status: 404 });
   }
 
+  const now = new Date().toISOString();
   if (action === "resolve") {
-    deleteComment(report.commentId);
+    if (isWorkoutReport) {
+      // Takes the workout out of Community for good; it stays in the owner's own history and they can't re-share it.
+      if (session) saveWorkoutSession({ ...session, communityRemovedAt: now, updatedAt: now });
+    } else {
+      deleteComment(report.commentId);
+    }
   }
 
   saveCommentReport({
     ...report,
     status: action === "resolve" ? "resolved" : "dismissed",
     resolvedByStaffId: auth.user.id,
-    resolvedAt: new Date().toISOString(),
+    resolvedAt: now,
   });
 
-  return NextResponse.json({ success: true, message: action === "resolve" ? "Comment removed." : "Dismissed." });
+  return NextResponse.json({
+    success: true,
+    message: action === "resolve" ? (isWorkoutReport ? "Workout removed from Community." : "Comment removed.") : "Dismissed.",
+  });
 }

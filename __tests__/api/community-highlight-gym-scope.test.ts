@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const h = vi.hoisted(() => ({
+  findUserIdsBlocking: vi.fn(() => [] as string[]),
   findUserById: vi.fn(),
   findFollowingIds: vi.fn(),
   findWorkoutSessionsByUserId: vi.fn(),

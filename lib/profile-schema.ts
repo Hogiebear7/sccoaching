@@ -207,6 +207,8 @@ export interface ProfileRecord {
   // null means NOT granted, so every AI request is refused before anything is sent. Withdrawing sets it back to null. A newer `version` (the wording of what is
   // shared changed) invalidates an older grant, so the member is asked again. See lib/ai-consent.ts.
   aiDataConsent?: { grantedAt: string; version: number } | null;
+  // Members this member has blocked in Community (see lib/community-moderation.ts). The block hides each party from the other; absent means none.
+  blockedUserIds?: string[];
   // The gym profile (see GymProfileRecord in lib/db.ts) currently used to
   // filter the exercise library and shape workout generation. null = no
   // active profile, meaning unfiltered ("show all exercises"). Optional for

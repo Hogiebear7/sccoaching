@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import { sameGym, sameGymAsStaff } from "@/lib/gym-scope";
 import { computeLeaderboard, type LeaderboardMemberInput } from "@/lib/leaderboard";
+import { hiddenFromViewer } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // GET /api/mobile/community/highlight
@@ -34,7 +35,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Same defense-in-depth gym check as the main feed/wins routes.
-  const followingIds = findFollowingIds(me.id).filter((id) => sameGymAsStaff(me, id));
+  const hidden = hiddenFromViewer(me.id);
+  const followingIds = findFollowingIds(me.id).filter((id) => sameGymAsStaff(me, id) && !hidden.has(id));
   if (followingIds.length > 0) {
     // No discoverable gating here — this only ever surfaces a member the
     // viewer already follows, which the discoverability policy grandfathers.
@@ -65,7 +67,7 @@ export async function GET(request: NextRequest) {
   // "community," still motivating, still grounded in real data. Same gym
   // boundary as the dedicated leaderboard route.
   const leaderboardMembers: LeaderboardMemberInput[] = findCommunityEligibleUsers()
-    .filter((u) => !u.archivedAt && sameGym(me, u))
+    .filter((u) => !u.archivedAt && sameGym(me, u) && !hidden.has(u.id))
     .map((u) => {
       const profile = findProfileByUserId(u.id);
       return {

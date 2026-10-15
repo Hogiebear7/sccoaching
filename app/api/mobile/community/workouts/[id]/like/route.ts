@@ -13,7 +13,7 @@ import {
   type NotificationRecord,
 } from "@/lib/db";
 import { communityDisplayName } from "@/lib/community-display-name";
-import { sameGymAsStaff } from "@/lib/gym-scope";
+import { canViewCommunitySession } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
 
@@ -36,11 +36,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Cross-gym folded into the same not-found response used for a missing
   // or private session — the toggle below never runs, so no LikeRecord is
   // created, removed, or otherwise touched on denial.
-  if (
-    !target ||
-    (target.isPrivate && target.userId !== me.id) ||
-    !sameGymAsStaff(me, target.userId)
-  ) {
+  if (!target || !canViewCommunitySession(me, target)) {
     return NextResponse.json({ success: false, message: "Workout not found." }, { status: 404 });
   }
 
