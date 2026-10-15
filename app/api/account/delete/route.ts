@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { DELETE_CONFIRM_WORD, GOOGLE_PLAY_ACTIVE_MESSAGE, selfDeletionBlock } from "@/lib/account-deletion";
-import { deleteUserAndOwnedRecords, findSubscriptionByUserId } from "@/lib/db";
+import { deleteUserAndOwnedRecords, findSubscriptionByUserId, findUserById } from "@/lib/db";
 import { ACTIVE_SUBSCRIPTION_CODE, MemberDeletionRefused } from "@/lib/member-deletion-guard";
 import { verifyPassword } from "@/lib/password";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { resolveTenantRequest } from "@/lib/tenant-request";
+import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // A member permanently deletes THEIR OWN account (web cookie or mobile Bearer). Required by the app stores' account-deletion policies.
 // The account comes from the session and nowhere else: a user id in the body is never read. Re-authentication (the current password) and a typed
@@ -22,9 +22,12 @@ const DELETE_RATE_LIMIT = 5;
 const DELETE_RATE_WINDOW_MS = 15 * 60 * 1000;
 
 export async function POST(request: NextRequest) {
-  const tenant = resolveTenantRequest(request, { unauthenticatedMessage: "You must be signed in to delete your account." });
-  if (!tenant.ok) return tenant.response;
-  const { user } = tenant;
+  // verifyRequestSession already treats an archived or deleted account exactly like no session.
+  const userId = verifyRequestSession(request)?.userId ?? null;
+  const user = userId ? findUserById(userId) : undefined;
+  if (!user) {
+    return NextResponse.json({ success: false, message: "You must be signed in to delete your account." }, { status: 401 });
+  }
 
   const rate = checkRateLimit(`delete-account:${user.id}`, DELETE_RATE_LIMIT, DELETE_RATE_WINDOW_MS);
   if (!rate.allowed) {
