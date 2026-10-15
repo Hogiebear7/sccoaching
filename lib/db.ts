@@ -2050,6 +2050,10 @@ export type DatabaseCollectionName = keyof Database;
 const configuredDataDir = getConfiguredDataDir();
 const DATA_DIR = configuredDataDir ? path.resolve(configuredDataDir) : path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
+/** The folder that holds db.json (and the small side files beside it: the job-run lease, shared rate-limit counters). */
+export function dataDirectory(): string {
+  return DATA_DIR;
+}
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 const MOBILE_HANDOFF_TOKEN_TTL_MS = 60 * 1000;
 const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -2774,6 +2778,31 @@ export function saveTrainingProgram(program: TrainingProgramRecord): void {
   writeDb(db);
 }
 
+/** Changes one programme inside a single datastore turn, from its CURRENT state (see updateSubscription). `change` returns the whole new record or null to leave it. */
+export function updateTrainingProgram(
+  id: string,
+  change: (current: TrainingProgramRecord) => TrainingProgramRecord | null
+): TrainingProgramRecord | undefined {
+  const db = readDb();
+  const index = db.trainingPrograms.findIndex((p) => p.id === id);
+  if (index === -1) return undefined;
+  const next = change(db.trainingPrograms[index]);
+  if (!next) return db.trainingPrograms[index];
+  db.trainingPrograms[index] = next;
+  writeDb(db);
+  return next;
+}
+
+/** Saves a programme only if it has not changed since the caller read it (compared by updatedAt). Returns false, writing nothing, if it changed meanwhile. */
+export function saveTrainingProgramIfUnchanged(program: TrainingProgramRecord, expectedUpdatedAt: string): boolean {
+  const db = readDb();
+  const index = db.trainingPrograms.findIndex((p) => p.id === program.id);
+  if (index === -1 || db.trainingPrograms[index].updatedAt !== expectedUpdatedAt) return false;
+  db.trainingPrograms[index] = program;
+  writeDb(db);
+  return true;
+}
+
 export function deleteTrainingProgram(id: string): void {
   const db = readDb();
   db.trainingPrograms = db.trainingPrograms.filter((p) => p.id !== id);
@@ -3134,6 +3163,22 @@ export function saveFoodSubmission(record: FoodSubmissionRecord): void {
   writeDb(db);
 }
 
+/** Sets fields on one workout session from its CURRENT state inside a single datastore turn (see updateSubscription). */
+export function updateWorkoutSession(
+  id: string,
+  change: (current: WorkoutSessionRecord) => Partial<WorkoutSessionRecord> | null
+): WorkoutSessionRecord | undefined {
+  const db = readDb();
+  const index = db.workoutSessions.findIndex((s) => s.id === id);
+  if (index === -1) return undefined;
+  const current = db.workoutSessions[index];
+  const patch = change(current);
+  if (!patch) return current;
+  db.workoutSessions[index] = { ...current, ...patch };
+  writeDb(db);
+  return db.workoutSessions[index];
+}
+
 export function findWorkoutSessionsByUserId(userId: string): WorkoutSessionRecord[] {
   const db = readDb();
   return db.workoutSessions
@@ -3432,6 +3477,26 @@ export function saveSubscription(subscription: SubscriptionRecord) {
   }
 
   writeDb(db);
+}
+
+/**
+ * Changes ONE subscription row inside a single datastore turn. `change` receives the row as it is NOW (re-read here, after any `await` the caller did) and returns
+ * the fields to set, or null to leave it alone. Use this instead of `saveSubscription({ ...rowReadEarlier, ... })` whenever something slow (a payment-provider call, an
+ * AI call) happened between reading the row and writing it: the stale copy would otherwise overwrite a webhook or another request's change to the same row.
+ */
+export function updateSubscription(
+  userId: string,
+  change: (current: SubscriptionRecord) => Partial<SubscriptionRecord> | null
+): SubscriptionRecord | undefined {
+  const db = readDb();
+  const index = db.subscriptions.findIndex((s) => s.userId === userId);
+  if (index === -1) return undefined;
+  const current = db.subscriptions[index];
+  const patch = change(current);
+  if (!patch) return current;
+  db.subscriptions[index] = { ...current, ...patch };
+  writeDb(db);
+  return db.subscriptions[index];
 }
 
 export function findGooglePlayPurchaseByToken(

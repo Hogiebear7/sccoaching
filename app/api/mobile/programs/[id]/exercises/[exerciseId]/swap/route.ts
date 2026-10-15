@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findTrainingProgramById, findUserById, saveTrainingProgram } from "@/lib/db";
+import { findTrainingProgramById, findUserById, saveTrainingProgramIfUnchanged } from "@/lib/db";
 import { exerciseMatchesEquipmentSlugs } from "@/lib/equipment-matching";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
@@ -67,6 +67,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "Exercise not found." }, { status: 404 });
   }
 
-  saveTrainingProgram(updated);
+  if (!saveTrainingProgramIfUnchanged(updated, program.updatedAt)) {
+    return NextResponse.json({ success: false, message: "Your programme changed while this was running. Please try again." }, { status: 409 });
+  }
   return NextResponse.json({ success: true, message: "Done.", data: { program: updated } });
 }

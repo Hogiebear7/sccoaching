@@ -24,7 +24,19 @@ const h = vi.hoisted(() => ({
   saveSubscription: vi.fn(),
   findAiUsageLogsByUserId: vi.fn(),
 }));
-vi.mock("@/lib/db", () => h);
+// updateSubscription is the real helper's contract: change the row as it is NOW. The mock applies the patch to the row the test arranged and records the merged row through saveSubscription, so the assertions below still see the final record.
+vi.mock("@/lib/db", () => ({
+  ...h,
+  updateSubscription: (userId: string, change: (cur: never) => object | null) => {
+    const cur = h.findSubscriptionByUserId(userId);
+    if (!cur) return undefined;
+    const patch = change(cur as never);
+    if (!patch) return cur;
+    const next = { ...cur, ...patch };
+    h.saveSubscription(next);
+    return next;
+  },
+}));
 
 const { mockStaffCanViewMemberData } = vi.hoisted(() => ({ mockStaffCanViewMemberData: vi.fn() }));
 vi.mock("@/lib/member-tier-wall", () => ({ staffCanViewMemberData: mockStaffCanViewMemberData }));

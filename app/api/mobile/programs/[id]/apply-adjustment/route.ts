@@ -5,7 +5,7 @@ import {
   findTrainingProgramById,
   findUserById,
   findWorkoutSessionsByUserId,
-  saveTrainingProgram,
+  saveTrainingProgramIfUnchanged,
   type TrainingProgramRecord,
 } from "@/lib/db";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
@@ -82,7 +82,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       updatedProgram = applyExerciseRefresh(updatedProgram, libraryExercises, program.aiMeta?.equipmentSlugs ?? [], sessions);
     }
 
-    saveTrainingProgram({ ...updatedProgram, updatedAt: new Date().toISOString() });
+    const refreshed = { ...updatedProgram, updatedAt: new Date().toISOString() };
+    if (!saveTrainingProgramIfUnchanged(refreshed, program.updatedAt)) {
+      return NextResponse.json({ success: false, message: "Your programme changed while this was running. Please try again." }, { status: 409 });
+    }
     return NextResponse.json({ success: true, message: "Done.", data: { program: updatedProgram } });
   }
 
@@ -111,7 +114,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  saveTrainingProgram({ ...updatedProgram, updatedAt: new Date().toISOString() });
+  if (!saveTrainingProgramIfUnchanged({ ...updatedProgram, updatedAt: new Date().toISOString() }, program.updatedAt)) {
+    return NextResponse.json({ success: false, message: "Your programme changed while this was running. Please try again." }, { status: 409 });
+  }
 
   return NextResponse.json({ success: true, message: "Done.", data: { program: updatedProgram } });
 }

@@ -34,8 +34,20 @@ vi.mock("@/lib/db", () => ({
   findPurchaseByIdempotencyKey: mockFindPurchaseByKey,
   findSubscriptionByUserId: mockFindSubByUser,
   findUserById: mockFindUserById,
+// updateSubscription is the real helper's contract: change the row as it is NOW. The mock applies the patch to the row the test arranged and records the merged row through saveSubscription, so the assertions below still see the final record.
   savePurchase: mockSavePurchase,
   saveSubscription: mockSaveSubscription,
+  updateSubscription: (userId: string, change: (cur: Record<string, unknown>) => Record<string, unknown> | null) => {
+    // the row as it is NOW: the last one the route saved, else the one the test arranged
+    const last = mockSaveSubscription.mock.calls.at(-1)?.[0] as Record<string, unknown> | undefined;
+    const cur = last ?? (mockFindSubByUser(userId) as Record<string, unknown> | undefined);
+    if (!cur) return undefined;
+    const patch = change(cur);
+    if (!patch) return cur;
+    const next = { ...cur, ...patch };
+    mockSaveSubscription(next);
+    return next;
+  },
 }));
 
 vi.mock("@/lib/billing", async () => {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById, findWorkoutSessionById, saveWorkoutSession } from "@/lib/db";
+import { findUserById, findWorkoutSessionById, updateWorkoutSession } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // POST /api/mobile/workouts/[id]/visibility — { isPrivate: boolean }
@@ -38,7 +38,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "isPrivate must be a boolean." }, { status: 400 });
   }
 
-  saveWorkoutSession({ ...workout, isPrivate, updatedAt: new Date().toISOString() });
+  // The body was awaited after the workout was read: set only the flag, on the workout as it is NOW.
+  updateWorkoutSession(workout.id, () => ({ isPrivate, updatedAt: new Date().toISOString() }));
 
   return NextResponse.json({ success: true, message: "Saved." });
 }

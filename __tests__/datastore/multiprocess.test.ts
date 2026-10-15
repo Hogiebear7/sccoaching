@@ -3,7 +3,7 @@
 // not just "the JSON still parses" or "the row count is plausible".
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
-import { tmpdir } from "node:os";
+import os, { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -99,12 +99,44 @@ describe("process death", () => {
     holder.child.kill("SIGKILL"); // process death while holding the lock
     const codes = await Promise.all(contenders.map((r) => r.done));
     expect(codes).toEqual(Array(4).fill(0));
-    expect(lines(bad)).toEqual([]);
+    expect(lines(bad).slice(0, 3)).toEqual([]); // the first few lines say what went wrong (an overlap, or which error code)
     const expected = Array.from({ length: 4 }, (_, w) => Array.from({ length: 30 }, (_, k) => `w${w}-${k}`)).flat();
     expect([...readDoc().items].sort()).toEqual([...expected].sort());
     expect(readDoc().counter).toBe(120);
     expect(fs.readdirSync(dir).filter((f) => f.includes(".dead-"))).toEqual([]);
   }, 120_000);
+
+  it("many processes finding the SAME dead lock at once: only one reclaims it, nobody overlaps, nothing is lost (8 rounds)", async () => {
+    // Regression for a defect found by a stress run: without a reclaim token, two processes that both saw the dead lock could move aside a LIVE lock the first had
+    // just created, and for a moment two processes were inside the critical section (and one failed with LOCK_LOST).
+    for (let round = 0; round < 8; round++) {
+      const rdir = fs.mkdtempSync(path.join(dir, "dead-"));
+      const rdb = path.join(rdir, "db.json");
+      fs.writeFileSync(`${rdb}.lock`, JSON.stringify({ ownerId: "deadbeefdeadbeef", pid: 2147483000, host: os.hostname(), procStart: null, takenAt: Date.now() - 60_000 }));
+      const ack = path.join(rdir, "ack.txt");
+      const bad = path.join(rdir, "violations.txt");
+      const runs = Array.from({ length: 8 }, (_, i) => start([CHILD("core-txn.cjs"), rdb, String(i), "15", ack, bad, "1"]));
+      expect(await Promise.all(runs.map((r) => r.done))).toEqual(Array(8).fill(0));
+      expect(lines(bad).slice(0, 3)).toEqual([]);
+      const doc = JSON.parse(fs.readFileSync(rdb, "utf8")) as { items: string[]; counter: number };
+      expect(doc.counter).toBe(120);
+      expect(new Set(doc.items).size).toBe(120);
+      expect(fs.readdirSync(rdir).filter((x) => x.includes(".dead-") || x.endsWith(".reclaim"))).toEqual([]);
+    }
+  }, 180_000);
+
+  it("a reclaim token left by a process that died mid-reclaim does not block the lock for ever", async () => {
+    fs.writeFileSync(`${db}.lock`, JSON.stringify({ ownerId: "deadbeefdeadbeef", pid: 2147483000, host: os.hostname(), procStart: null, takenAt: Date.now() - 60_000 }));
+    fs.writeFileSync(`${db}.lock.reclaim`, JSON.stringify({ pid: 2147483000, host: os.hostname(), at: Date.now() - 60_000 }));
+    const old = new Date(Date.now() - 60_000);
+    fs.utimesSync(`${db}.lock.reclaim`, old, old);
+    const ack = path.join(dir, "ack-token.txt");
+    const bad = path.join(dir, "bad-token.txt");
+    const r = start([CHILD("core-txn.cjs"), db, "0", "3", ack, bad, "0"]);
+    expect(await r.done).toBe(0);
+    expect(lines(bad)).toEqual([]);
+    expect(lines(ack)).toHaveLength(3);
+  }, 60_000);
 
   it("a live holder is NEVER displaced, even after the wait budget: the waiter fails with BUSY and writes nothing", async () => {
     const holder = start([CHILD("lock-holder.cjs"), db]);

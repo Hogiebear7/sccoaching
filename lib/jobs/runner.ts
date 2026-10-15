@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 
 import { createJobRun, type JobRunRecord } from "@/lib/db";
+import { claimJobRunLease, JobRunInProgressError, releaseJobRunLease } from "./lease";
 import { ALL_JOBS } from "./registry";
 import type { JobDefinition, JobOutcome } from "./types";
 
@@ -80,6 +81,17 @@ export async function runJob(
 // once the budget's gone, remaining jobs are recorded as skipped rather
 // than started.
 export async function runAllJobs(trigger: "cron" | "manual"): Promise<JobOutcome[]> {
+  // One run at a time across every process (see ./lease.ts). A second caller is told, not queued.
+  const lease = claimJobRunLease();
+  if (!lease) throw new JobRunInProgressError();
+  try {
+    return await runAllJobsHoldingLease(trigger);
+  } finally {
+    releaseJobRunLease(lease);
+  }
+}
+
+async function runAllJobsHoldingLease(trigger: "cron" | "manual"): Promise<JobOutcome[]> {
   const outcomes: JobOutcome[] = [];
   const deadlineAtMs = Date.now() + GLOBAL_DEADLINE_MS;
 

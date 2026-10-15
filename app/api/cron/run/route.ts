@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { timingSafeEqual } from "crypto";
 
 import { findUserById } from "@/lib/db";
+import { JobRunInProgressError } from "@/lib/jobs/lease";
 import { runAllJobs } from "@/lib/jobs/runner";
 import { can } from "@/lib/permissions";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -53,8 +54,14 @@ const ROUTE_HARD_DEADLINE_MS = 160_000;
 
 async function runWithHardDeadline(trigger: "cron" | "manual") {
   return Promise.race([
-    runAllJobs(trigger).then((outcomes) => ({ timedOut: false as const, outcomes })),
-    new Promise<{ timedOut: true }>((resolve) => {
+    runAllJobs(trigger)
+      .then((outcomes) => ({ timedOut: false as const, busy: false as const, outcomes }))
+      .catch((e: unknown) => {
+        // Another process (or an overlapping scheduler call) is already running the jobs: this call does nothing, which is the point.
+        if (e instanceof JobRunInProgressError) return { timedOut: false as const, busy: true as const, outcomes: [] };
+        throw e;
+      }),
+    new Promise<{ timedOut: true; busy?: undefined }>((resolve) => {
       setTimeout(() => resolve({ timedOut: true }), ROUTE_HARD_DEADLINE_MS);
     }),
   ]);
@@ -78,6 +85,9 @@ export async function GET(request: NextRequest) {
         { status: 503 }
       );
     }
+    if (result.busy) {
+      return NextResponse.json({ success: true, trigger: "cron", skipped: true, message: "A housekeeping run is already in progress, so this call did nothing.", outcomes: [] }, { status: 200 });
+    }
     return NextResponse.json({ success: true, trigger: "cron", outcomes: result.outcomes }, { status: 200 });
   }
 
@@ -97,6 +107,9 @@ export async function GET(request: NextRequest) {
         // the run that most needs someone to notice.
         { status: 503 }
       );
+    }
+    if (result.busy) {
+      return NextResponse.json({ success: true, trigger: "manual", skipped: true, message: "A housekeeping run is already in progress, so this call did nothing.", outcomes: [] }, { status: 200 });
     }
     return NextResponse.json({ success: true, trigger: "manual", outcomes: result.outcomes }, { status: 200 });
   }

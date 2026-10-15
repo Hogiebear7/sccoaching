@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById, findWorkoutSessionById, saveWorkoutSession } from "@/lib/db";
+import { findUserById, findWorkoutSessionById, updateWorkoutSession } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -37,7 +37,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   let reviewText = session.reviewText ?? null;
   if (!reviewText) {
     reviewText = await generateWorkoutReview(reviewData);
-    saveWorkoutSession({ ...session, reviewText, reviewGeneratedAt: new Date().toISOString() });
+    // The AI call above can take seconds: set only the review fields on the session as it is NOW, so an edit made meanwhile is not overwritten.
+    updateWorkoutSession(session.id, () => ({ reviewText, reviewGeneratedAt: new Date().toISOString() }));
   }
 
   return NextResponse.json({
