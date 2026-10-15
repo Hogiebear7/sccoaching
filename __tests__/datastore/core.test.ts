@@ -314,3 +314,27 @@ describe("filesystem preflight script", () => {
     expect(r.status).toBe(2);
   });
 });
+
+describe("a writer that does not take the lock is DETECTED (an old build run again against this folder)", () => {
+  it("an in-place rewrite of the file this process committed is reported as a possible foreign write; a hardened process's replacement is not", async () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const before = core._foreignWriteCount();
+    await commit(["a"]);
+    await commit(["b"]); // our own commits: nothing to report
+    expect(core._foreignWriteCount()).toBe(before);
+
+    // another hardened process replaces the file (atomic rename = a new inode): normal, not reported
+    core._atomicReplace(db, JSON.stringify({ items: ["a", "b", "from-other-hardened-process"] }));
+    await commit(["c"]);
+    expect(core._foreignWriteCount()).toBe(before);
+
+    // the OLD build: truncate and rewrite the same inode in place
+    const doc = JSON.parse(fs.readFileSync(db, "utf8")) as { items: string[] };
+    doc.items.push("from-old-unlocked-build");
+    fs.writeFileSync(db, JSON.stringify(doc), "utf8");
+    core.readInTurn(db, { allowNew: false });
+    await endTurn();
+    expect(core._foreignWriteCount()).toBe(before + 1);
+    expect(stderr.mock.calls.map((c) => String(c[0])).join("")).toContain("possible foreign write");
+  });
+});
