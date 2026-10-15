@@ -64,7 +64,7 @@ export default function PrivacyPolicyPage() {
               <li><strong className="text-zinc-100">Messages and coach notes</strong> — messages you send to coaching staff through the app, and any private notes your coaches keep about your training. Coach notes aren&rsquo;t shown to you in the app, but are included if you ask us for a copy of your data.</li>
               <li><strong className="text-zinc-100">Push notification data</strong> — if you enable notifications, a device token and basic device information (model, OS version) so we can deliver them.</li>
               <li><strong className="text-zinc-100">Location (optional)</strong> &mdash; if you use Find a coach and allow it, your device&rsquo;s location is sent with that request so we can list nearby gyms. We use it only to answer that request and do not save it to your account. If you type a place name instead, the text you type is sent to OpenStreetMap&rsquo;s Nominatim search service to find its coordinates.</li>
-              <li><strong className="text-zinc-100">Community activity (optional)</strong> &mdash; if you share workouts, comment, like, or follow other members, that content and your display name are visible to other members according to your Community privacy settings.</li>
+              <li><strong className="text-zinc-100">Community activity (optional)</strong> &mdash; if you share workouts, comment, like, or follow other members, that content and your display name are visible to other members of your gym according to your Community privacy settings. You can block any member (they and you stop seeing each other in Community; your list of blocked members is stored on your profile and removed with your account) and report a comment or shared workout to our coaches for review. Reports include the reason you give and who sent it, and are visible to staff who moderate Community at your gym.</li>
               <li><strong className="text-zinc-100">Contact form submissions</strong> — if you enquire through the website, we collect your name, email, phone (if given), and message to reply to you.</li>
               <li><strong className="text-zinc-100">Bug reports</strong> — if you report a problem in the app, your description and any screenshots you attach.</li>
             </ul>
@@ -136,6 +136,14 @@ export default function PrivacyPolicyPage() {
               post-workout review. When you use these, the relevant data — which may include photos you submit,
               your messages, and training, recovery, weight, or dietary data needed to give you a relevant answer —
               is sent to Anthropic to generate a response.
+            </p>
+            <p className="mt-3">
+              <strong className="text-zinc-100">Your permission comes first.</strong> Nothing is sent to Anthropic until you allow AI features. The first time
+              you use one, the app and website ask you, explaining what is sent and to whom. If you say no, that feature simply doesn&rsquo;t run and the rest of the
+              app works as normal. You can turn AI features on or off at any time in Settings (AI features); turning them off takes effect from your very next
+              request. If your coach uses an AI summary or draft reply about you, it is only produced while your AI features are on. Withdrawing permission
+              stops further sending; content already sent is handled under Anthropic&rsquo;s terms as described below, and deleting your account removes what this app
+              stored.
             </p>
             <p className="mt-3">
               Anthropic processes this data under our agreement with them; we haven&rsquo;t independently verified
