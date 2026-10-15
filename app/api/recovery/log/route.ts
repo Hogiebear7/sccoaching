@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
   const sleepQualityResult = parseRequiredRange(sleepQuality, 1, 10);
   if (!sleepQualityResult.ok) {
     return NextResponse.json(
-      { success: false, message: "Sleep quality must be between 1 and 5." },
+      { success: false, message: "Sleep quality must be between 1 and 10." },
       { status: 400 }
     );
   }
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
   const sorenessResult = parseRequiredRange(soreness, 1, 10);
   if (!sorenessResult.ok) {
     return NextResponse.json(
-      { success: false, message: "Soreness must be between 1 and 5." },
+      { success: false, message: "Soreness must be between 1 and 10." },
       { status: 400 }
     );
   }
