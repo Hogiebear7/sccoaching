@@ -152,6 +152,8 @@ export function NutritionAiCoach({
   // member reviews and sends, nothing fires automatically.
   useEffect(() => {
     if (!open || !prefillPrompt) return;
+    // Intentional one-shot handoff from another tab (consumed immediately by onPrefillConsumed): the input is local state with no other source to derive it from.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInput(prefillPrompt);
     onPrefillConsumed();
     panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
