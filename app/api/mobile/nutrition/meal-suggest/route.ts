@@ -6,7 +6,9 @@ import { generateMealSuggestions, isAiConfigured } from "@/lib/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { findProfileByUserId, findUserById } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
+import { hasAccess } from "@/lib/member-access";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 // Same generous cap as label-scan — food photos need enough resolution to
@@ -36,6 +38,12 @@ export async function POST(request: NextRequest) {
       { success: false, configured: false, message: "You must be signed in." },
       { status: 401 }
     );
+  }
+
+  // The More Tools section is hidden for the Free tier in the apps; this is the server-side half, so hiding it is not the only thing standing between a Free account and a
+  // paid AI feature (the same pattern as programme generation and tracker import).
+  if (!hasAccess(resolveMemberTierForUser(user.id), "nutritionMoreTools")) {
+    return NextResponse.json({ success: false, configured: true, message: "Meal suggestions need App Subscription or above." }, { status: 403 });
   }
 
   if (!isAiConfigured()) {

@@ -20,6 +20,7 @@ import { normalizeDrinkSettings } from "@/lib/drink-settings";
 import { buildCoachingContext } from "@/lib/ai-context";
 import { createCoachChatStream, isAiConfigured } from "@/lib/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
+import { AI_UNAVAILABLE_CODE, AI_UNAVAILABLE_MESSAGE, primeAiStream } from "@/lib/ai-stream";
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -168,24 +169,40 @@ export async function POST(request: NextRequest) {
 
   const encoder = new TextEncoder();
 
+  // Start the provider call BEFORE any byte is sent, and wait for its first text. If it fails before producing anything, answer with a proper error status instead of a
+  // 200 followed by a dropped connection (see lib/ai-stream.ts).
+  type StreamEvent = ReturnType<typeof createCoachChatStream> extends AsyncIterable<infer E> ? E : never;
+  let stream: ReturnType<typeof createCoachChatStream> | null = null;
+  let primed: Awaited<ReturnType<typeof primeAiStream<StreamEvent>>>;
+  try {
+    stream = createCoachChatStream({
+    memberContext: context.text,
+    turns,
+    userId: user.id,
+  });
+    primed = await primeAiStream<StreamEvent>(stream);
+  } catch (err) {
+    primed = { ok: false, error: err };
+  }
+  if (!primed.ok || !stream) {
+    console.error("AI chat could not start:", primed.ok ? "no stream" : primed.error);
+    return NextResponse.json({ success: false, code: AI_UNAVAILABLE_CODE, message: AI_UNAVAILABLE_MESSAGE }, { status: 502 });
+  }
+  const startedStream = stream;
+  const replay = primed.replay;
+
   const readable = new ReadableStream<Uint8Array>({
     async start(controller) {
       let accumulated = "";
       try {
-        const stream = createCoachChatStream({
-          memberContext: context.text,
-          turns,
-          userId: user.id,
-        });
-
-        for await (const event of stream) {
+        for await (const event of replay()) {
           if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             accumulated += event.delta.text;
             controller.enqueue(encoder.encode(event.delta.text));
           }
         }
 
-        const final = await stream.finalMessage();
+        const final = await startedStream.finalMessage();
 
         // Opus-family safety refusals arrive as a stop reason, possibly with
         // no content — surface a friendly, on-brand line instead of silence.
@@ -224,7 +241,9 @@ export async function POST(request: NextRequest) {
           persistAssistant(accumulated);
           controller.close();
         } else {
-          controller.error(err);
+          // Headers are already sent, so an error status is no longer possible: end the reply with a short note rather than dropping the connection.
+          controller.enqueue(encoder.encode(INTERRUPTED_NOTE));
+          controller.close();
         }
       }
     },
