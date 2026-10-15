@@ -37,6 +37,7 @@ const REVIEWED = {
   "app/api/mobile/workouts/[id]/visibility/route.ts::POST": "FIXED: only the flag is set, on the workout as it is after the body was parsed (updateWorkoutSession)",
   "app/api/mobile/community/comments/[id]/report/route.ts::POST": "PARSE-ONLY: the write is a new report record",
   "app/api/mobile/community/workouts/[id]/comments/route.ts::POST": "PARSE-ONLY: the write is a new comment record and new notifications",
+  "app/api/mobile/community/workouts/[id]/report/route.ts::POST": "PARSE-ONLY: the write is a new report record; the duplicate check reads after the last await",
   "lib/push.ts::sendPush": "PARSE-ONLY: the only writes are targeted deletes of one expired token or subscription",
 };
 
