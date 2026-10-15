@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { AI_UNAVAILABLE_CODE, AI_UNAVAILABLE_MESSAGE } from "@/lib/ai-stream";
 import type { NextRequest } from "next/server";
 
 import { findUserById, findWorkoutSessionById, saveWorkoutSession } from "@/lib/db";
@@ -39,7 +40,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // A review already generated and stored is shown. A new one is only requested from the AI provider if this member has allowed it; the comparison below is always returned.
   const aiConsentRequired = !reviewText && !hasAiConsent(user.id);
   if (!reviewText && !aiConsentRequired) {
-    reviewText = await generateWorkoutReview(reviewData);
+    try {
+      reviewText = await generateWorkoutReview(reviewData);
+    } catch (err) {
+      console.error("Workout review failed:", err);
+      return NextResponse.json({ success: false, code: AI_UNAVAILABLE_CODE, message: AI_UNAVAILABLE_MESSAGE }, { status: 502 });
+    }
     saveWorkoutSession({ ...session, reviewText, reviewGeneratedAt: new Date().toISOString() });
   }
 
