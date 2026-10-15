@@ -48,6 +48,7 @@ export interface RouteScopeEntry {
 }
 
 export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
+  { route: "account/delete", scope: "self", note: "Member deletes their own account; the account comes from the session, never the request. Re-authenticates with the password.", runtimeTenantContext: true },
   { route: "admin/membership/activate", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym(", "staffAuthorizedForCatalogPackage", "ownerGymFor"], runtimeTenantContext: true },
   { route: "ai/chat", scope: "self" },
   { route: "ai/coach-summary", scope: "tenant-staff", capabilities: ["members.coaching"], evidence: ["sameGym("] },

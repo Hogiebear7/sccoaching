@@ -150,6 +150,7 @@ export const MODULE_CACHE_SCOPE: readonly ModuleCacheScope[] = [
 // at import time and never written afterwards. They hold no request data. The scan in
 // resource-scope.test.ts ignores exactly these.
 export const STATIC_LOOKUP_CONSTANTS: readonly { file: string; symbol: string }[] = [
+  { file: "lib/account-deletion.ts", symbol: "LIVE_PAID_STATUSES" },
   { file: "lib/ai-context.ts", symbol: "DIETARY_LABEL" },
   { file: "lib/class-covers.ts", symbol: "BUILTIN_COVER_SRCS" },
   { file: "lib/class-covers.ts", symbol: "BUILTIN_DEFAULT_ALTS" },
