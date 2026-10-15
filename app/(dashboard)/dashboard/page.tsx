@@ -426,7 +426,7 @@ export default async function DashboardPage() {
             </p>
             <p className="mt-1 text-[10px] text-zinc-600">
               {latestRecoveryLog?.sleepQuality != null
-                ? `quality ${latestRecoveryLog.sleepQuality}/5`
+                ? `quality ${latestRecoveryLog.sleepQuality}/10`
                 : "last check-in"}
             </p>
           </div>
