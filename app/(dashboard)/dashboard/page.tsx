@@ -141,6 +141,8 @@ export default async function DashboardPage() {
     return d.toISOString().slice(0, 10);
   })()).length;
 
+  // Server component: this runs once per request, so the current time is the intent, not an impure re-render.
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
 
   const nextBooking = user
