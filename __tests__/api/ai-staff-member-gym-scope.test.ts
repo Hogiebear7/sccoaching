@@ -17,11 +17,12 @@ import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 const h = vi.hoisted(() => ({
   findUserById: vi.fn(),
   findMessagesByMemberId: vi.fn(),
+  findProfileByUserId: vi.fn(),
   generateCoachSummary: vi.fn(),
   draftReply: vi.fn(),
   isAiConfigured: vi.fn(),
 }));
-vi.mock("@/lib/db", () => ({ findUserById: h.findUserById, findMessagesByMemberId: h.findMessagesByMemberId }));
+vi.mock("@/lib/db", () => ({ findUserById: h.findUserById, findMessagesByMemberId: h.findMessagesByMemberId, findProfileByUserId: h.findProfileByUserId }));
 vi.mock("@/lib/ai", () => ({
   generateCoachSummary: h.generateCoachSummary,
   draftReply: h.draftReply,
@@ -61,6 +62,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.findUserById.mockImplementation((id: string) => EVERYONE.find((u) => u.id === id));
   h.findMessagesByMemberId.mockReturnValue([{ senderRole: "member", body: "Hi coach" }]);
+  // Both members have allowed AI features (lib/ai-consent.ts); the staff AI uses the MEMBER's consent.
+  h.findProfileByUserId.mockImplementation((id: string) => ({ userId: id, aiDataConsent: { grantedAt: "2026-10-01T00:00:00.000Z", version: 1 } }));
   h.generateCoachSummary.mockResolvedValue("SUMMARY");
   h.draftReply.mockResolvedValue("DRAFT");
   h.isAiConfigured.mockReturnValue(true);
@@ -96,6 +99,24 @@ describe.each([
     }
     expect(generator()).not.toHaveBeenCalled();
     expect(h.findMessagesByMemberId).not.toHaveBeenCalled();
+  });
+
+  it("refuses, before loading any member data or reaching the provider, when the MEMBER has not allowed AI features", async () => {
+    h.findProfileByUserId.mockImplementation((id: string) => ({ userId: id, aiDataConsent: null }));
+    const res = await call(route, { memberId: MEMBER_A.id }, COACH_A);
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ success: false, code: "ai_consent_missing_member" });
+    expect(generator()).not.toHaveBeenCalled();
+    expect(h.findMessagesByMemberId).not.toHaveBeenCalled();
+  });
+
+  it("a cross-gym member is still the plain 404, never the consent answer (nothing about another gym leaks)", async () => {
+    h.findProfileByUserId.mockImplementation((id: string) => ({ userId: id, aiDataConsent: null }));
+    const res = await call(route, { memberId: MEMBER_B.id }, COACH_A);
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual(NOT_FOUND);
   });
 
   it("does not let a cross-gym STAFF id through either", async () => {

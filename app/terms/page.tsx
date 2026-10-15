@@ -74,6 +74,17 @@ export default function TermsPage() {
           </section>
 
           <section>
+            <h2 className="text-base font-semibold text-zinc-50">Community content</h2>
+            <p className="mt-3">
+              If you share workouts, comments or a display name in Community, you are responsible for what you post. Don&rsquo;t post anything unlawful,
+              abusive, hateful, sexually explicit, or that harasses or impersonates someone else. Comments are checked for unmistakable abuse before they are posted, and
+              you can report a comment or a shared workout, and block any member, from the app. Blocking hides each of you from the other in Community. Our coaches
+              review reports and remove content that breaks these rules; a removed workout stays in its owner&rsquo;s own history but can&rsquo;t be shared again. We may
+              also restrict or close accounts that break these rules. To raise a concern, email {CONTACT_INFO.email}.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-base font-semibold text-zinc-50">Acceptable use</h2>
             <p className="mt-3">
               Use your own account. Don&rsquo;t misuse the booking system (e.g. booking spots you don&rsquo;t intend
