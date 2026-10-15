@@ -5,6 +5,7 @@ import {
   createNotification,
   findAllSubscriptions,
   findAnyStaffUser,
+  findMembershipPackageById,
   type NotificationRecord,
 } from "@/lib/db";
 import { isPeriodLapsed } from "@/lib/membership-status";
@@ -15,10 +16,11 @@ import type { JobDefinition } from "./types";
 const GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000;
 
 // Nothing today ever steps a lapsed member down from their paid tier —
-// resolveMemberTier() stays at full tier for as long as status stays
-// "active", and only a real Stripe/Google Play subscription ever gets that
-// status changed for it (via their own webhook-driven dunning/cancellation,
-// already handled elsewhere). A manually-administered membership
+// the gym-Membership access flag stays on for as long as status stays
+// "active", and only a real Stripe subscription ever gets that
+// status changed for it (via its own webhook-driven dunning/cancellation,
+// already handled elsewhere). This job only ever ends a GYM Membership: a complimentary digital grant lives in the
+// digital entitlement store and a legacy complimentary App Subscription row is skipped below. A manually-administered membership
 // (provider: "none" — cash payments, comps, staff-granted tiers) has no
 // external system driving its lifecycle at all, so it would otherwise keep
 // full access forever once granted. This job is what actually drops those
@@ -42,6 +44,8 @@ export const dropLapsedManualMembershipsJob: JobDefinition = {
     for (const subscription of subscriptions) {
       if (subscription.provider !== "none") continue;
       if (!isPeriodLapsed(subscription)) continue;
+      // A legacy complimentary digital row is not a gym Membership; its own period end already ends its access.
+      if (subscription.packageId && findMembershipPackageById(subscription.packageId)?.deliveryChannel === "app_only") continue;
 
       const lapsedForMs = Date.now() - new Date(subscription.currentPeriodEnd!).getTime();
       if (lapsedForMs <= GRACE_PERIOD_MS) continue;

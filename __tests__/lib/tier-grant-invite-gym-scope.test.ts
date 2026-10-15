@@ -29,13 +29,16 @@ const h = vi.hoisted(() => ({
   findSubscriptionByUserId: vi.fn(),
   findUserById: vi.fn(),
   saveSubscription: vi.fn(),
+  findDigitalEntitlement: vi.fn(),
+  grantStaffDigitalEntitlement: vi.fn(),
   findInviteByToken: vi.fn(),
   redeemInvite: vi.fn(),
   cancelProviderSubscription: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
 vi.mock("@/lib/billing", () => ({ cancelProviderSubscription: h.cancelProviderSubscription }));
-vi.mock("@/lib/membership-entitlement", () => ({ resolveMemberTier: () => "membership" }));
+vi.mock("@/lib/membership-entitlement", () => ({ resolveMemberAccessForUser: () => ({ digital: false, gymMembership: true }) }));
+vi.mock("@/lib/digital-entitlement", () => ({ grantStaffDigitalEntitlement: h.grantStaffDigitalEntitlement, revokeStaffDigitalEntitlement: vi.fn() }));
 
 type U = { id: string; email: string; role: string; gymId: string | null };
 const user = (id: string, role: string, gymId: string | null): U => ({ id, email: `${id}@x.test`, role, gymId });
@@ -146,13 +149,14 @@ describe("grantMemberTier — membership package is chosen inside the member's g
     expect(h.saveSubscription).not.toHaveBeenCalled();
   });
 
-  it("leaves the App Subscription and Free grants unchanged (platform-wide app-only package)", async () => {
+  it("a complimentary digital grant writes no subscription row at all; a Free change still ends the gym Membership", async () => {
     h.findMembershipPackages.mockReturnValue([{ ...pkg("pkg-app", "cat-b", 0, "app_only"), slug: "app-subscription-tier-2" }]);
     const { grantMemberTier } = await import("@/lib/tier-grant");
 
     const app = await grantMemberTier(MEMBER_A.id, "app_subscription");
     expect(app.ok).toBe(true);
-    expect(savedPackageId()).toBe("pkg-app");
+    expect(h.saveSubscription).not.toHaveBeenCalled();
+    expect(h.grantStaffDigitalEntitlement).toHaveBeenCalledWith(expect.objectContaining({ userId: MEMBER_A.id }));
 
     h.saveSubscription.mockClear();
     h.findSubscriptionByUserId.mockReturnValue({ userId: MEMBER_A.id, status: "active", packageId: "pkg-a-default", provider: "none" });

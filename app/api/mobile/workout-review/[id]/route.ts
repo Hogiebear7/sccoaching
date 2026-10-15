@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, findWorkoutSessionById, updateWorkoutSession } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
-import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { generateWorkoutReview } from "@/lib/ai";
 import { hasAiConsent } from "@/lib/ai-consent";
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
 
-  if (!hasAccess(resolveMemberTierForUser(user.id), "workoutReview")) {
+  if (!hasAccess(resolveMemberAccessForUser(user.id), "workoutReview")) {
     return NextResponse.json({ success: false, message: "Workout review needs App Subscription or above." }, { status: 403 });
   }
 

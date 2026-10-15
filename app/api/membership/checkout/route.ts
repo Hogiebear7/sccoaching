@@ -70,6 +70,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // The App-only digital plan is sold ONLY through Google Play and the App Store (owner decision D3, 2026-10-15): there is no
+  // website purchase flow for it, so a web checkout for it is refused whatever its visibility. This is the server-side wall;
+  // hiding the option in the page is not what enforces it.
+  if (scopeOfPackage(pkg) === "app_subscription") {
+    appendIapEvent({ type: "staff_write_rejected", userId: user.id, actor: "user", detail: { code: "app_plan_not_assignable", source: "web_checkout_app_only" } });
+    return NextResponse.json({ success: false, code: "app_plan_not_assignable", message: ENTITLEMENT_CONFLICT_MEMBER_MESSAGE.app_plan_not_assignable }, { status: 409 });
+  }
+
   // Same resolution that just authorized this checkout, persisted onto the
   // money record it produces — see lib/gym-scope.ts's MoneyRecordOwnerGym
   // builders. ownedByMemberGym above already guarantees this resolves to a
@@ -260,10 +268,8 @@ export async function POST(request: NextRequest) {
   }
 
   // ── FRESH JOIN / RENEW ──
-  // The branch below writes a fresh "pending" row over whatever the member has. An ACTIVE App
-  // Subscription never reaches here (the switch branch's cross-scope guard answers it above), but a
-  // past_due or paused one would be silently replaced, and a live Google Play subscription would be
-  // orphaned. Refuse that, with a stable code, before any row or provider checkout is created.
+  // The branch below writes a fresh "pending" row over whatever the member has. The app-only plan can no longer reach here
+  // (refused above); this stays as defence in depth against it ever being written as a gym row.
   const freshJoinConflict = evaluateEntitlementConflict(
     existingSubscription,
     { kind: "staff_write", scope: scopeOfPackage(pkg), entitling: true },

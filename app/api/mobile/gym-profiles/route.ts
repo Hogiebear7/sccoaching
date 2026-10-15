@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import { createGymProfile, findProfileByUserId, findUserById, listGymProfilesForUser } from "@/lib/db";
 import { findEquipmentBySlug, GYM_PROFILE_PRESETS } from "@/lib/equipment-catalog";
 import { hasAccess } from "@/lib/member-access";
-import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_NAME_LENGTH = 60;
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
-  if (!hasAccess(resolveMemberTierForUser(user.id), "gymProfiles")) {
+  if (!hasAccess(resolveMemberAccessForUser(user.id), "gymProfiles")) {
     return NextResponse.json({ success: false, message: "Gym profiles need App Subscription or above." }, { status: 403 });
   }
 
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
-  if (!hasAccess(resolveMemberTierForUser(user.id), "gymProfiles")) {
+  if (!hasAccess(resolveMemberAccessForUser(user.id), "gymProfiles")) {
     return NextResponse.json({ success: false, message: "Gym profiles need App Subscription or above." }, { status: 403 });
   }
 

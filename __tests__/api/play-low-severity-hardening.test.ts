@@ -1,5 +1,5 @@
 // Low-severity hardening from the post-merge audit:
-//   - staff pause/resume must not touch a row billed through Google Play (the member manages it in Google Play);
+//   - staff pause/resume apply to the gym Membership only and never reach a member's paid digital plan;
 //   - a refused Revolut event delivered repeatedly writes one audit row, not one per delivery.
 //
 // REAL routes, REAL service and REAL temporary datastore; only the Google adapter is faked. The Revolut webhook is signed with a
@@ -53,83 +53,8 @@ afterEach(() => {
   else process.env.REVOLUT_WEBHOOK_SIGNING_SECRET = savedSecret;
 });
 
-describe("staff pause and resume on a Google Play row", () => {
-  async function livePlay() {
-    await fx.claim(fx.memberA.id, PLAY_TOKEN, { expiryTimeMillis: Date.now() + 30 * DAY });
-    expect(row()).toMatchObject({ provider: "google_play", status: "active", providerSubscriptionId: PLAY_TOKEN });
-  }
-
-  it("refuses a pause with the stable code play_billing_active and changes nothing", async () => {
-    await livePlay();
-    const before = row();
-    const purchase = fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN);
-    const acks = fx.adapter.ackCalls.length;
-
-    const res = await staffPauseResume({ action: "pause", duration: "1m" });
-
-    expect(res.status).toBe(409);
-    const body = await res.json();
-    expect(body).toMatchObject({ success: false, code: "play_billing_active" });
-    expect(body.message).toContain("Google Play");
-    expect(row()).toEqual(before);
-    expect(row()).toMatchObject({ provider: "google_play", providerSubscriptionId: PLAY_TOKEN, status: "active", currentPeriodEnd: before.currentPeriodEnd });
-    expect(fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN)).toEqual(purchase);
-    // Nothing is sent to Google: no acknowledgement, no cancel, no pause.
-    expect(fx.adapter.ackCalls).toHaveLength(acks);
-  });
-
-  it("refuses a resume of a row Google Play itself has paused, keeping the Play status", async () => {
-    await livePlay();
-    fx.adapter.setSnapshot(PLAY_TOKEN, { state: "SUBSCRIPTION_STATE_PAUSED" });
-    await fx.rtdn(fx.subscriptionEvent(PLAY_TOKEN, 10));
-    expect(row().status).toBe("paused");
-    const before = row();
-
-    const res = await staffPauseResume({ action: "resume" });
-
-    expect(res.status).toBe(409);
-    expect((await res.json()).code).toBe("play_billing_active");
-    expect(row()).toEqual(before);
-    expect(row().status).toBe("paused");
-  });
-
-  it("refuses for a cancelled-but-paid Play subscription and keeps its paid-through date", async () => {
-    await livePlay();
-    fx.adapter.setSnapshot(PLAY_TOKEN, { state: "SUBSCRIPTION_STATE_CANCELED", autoRenewing: false });
-    await fx.rtdn(fx.subscriptionEvent(PLAY_TOKEN, 3));
-    const before = row();
-    expect(before.status).toBe("active");
-
-    expect((await staffPauseResume({ action: "pause", duration: "2w" })).status).toBe(409);
-    expect((await staffPauseResume({ action: "resume" })).status).toBe(409);
-    expect(row()).toEqual(before);
-  });
-
-  it("refuses for an expired Play row too, and leaves the token and ownership intact", async () => {
-    await livePlay();
-    fx.db.saveSubscription({ ...row(), status: "inactive", currentPeriodEnd: new Date(Date.now() - DAY).toISOString() });
-    const before = row();
-    const purchase = fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN);
-
-    expect((await staffPauseResume({ action: "pause", duration: "1m" })).status).toBe(409);
-    expect((await staffPauseResume({ action: "resume" })).status).toBe(409);
-    expect(row()).toEqual(before);
-    expect(fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN)).toEqual(purchase);
-  });
-
-  it("audits each refused attempt with the code and action only (no token)", async () => {
-    await livePlay();
-    await staffPauseResume({ action: "pause", duration: "1m" });
-    await staffPauseResume({ action: "resume" });
-    const events = rejected();
-    expect(events.map((e) => e.detail)).toEqual([
-      { code: "play_billing_active", action: "pause", source: "staff_pause_resume" },
-      { code: "play_billing_active", action: "resume", source: "staff_pause_resume" },
-    ]);
-    expect(JSON.stringify(events)).not.toContain(PLAY_TOKEN);
-  });
-
-  it("still pauses and resumes a manually administered (non-Play) membership", async () => {
+describe("staff pause and resume apply to the gym Membership only", () => {
+  it("pauses and resumes a manually administered membership", async () => {
     fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, status: "active", provider: "none", currentPeriodEnd: new Date(Date.now() + 30 * DAY).toISOString() });
     expect((await staffPauseResume({ action: "pause", duration: "1m" })).status).toBe(200);
     expect(row().status).toBe("paused");
@@ -138,8 +63,17 @@ describe("staff pause and resume on a Google Play row", () => {
     expect(rejected()).toHaveLength(0);
   });
 
-  it("an invalid action is still a 400, not a Play refusal", async () => {
-    await livePlay();
+  it("a member's paid digital plan is not a subscription row, so staff pausing the gym Membership cannot touch it", async () => {
+    await fx.claim(fx.memberA.id, PLAY_TOKEN, { expiryTimeMillis: Date.now() + 30 * DAY });
+    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, status: "active", provider: "none", currentPeriodEnd: new Date(Date.now() + 30 * DAY).toISOString() });
+    const before = fx.db.findDigitalEntitlement(fx.memberA.id, "google_play");
+    expect((await staffPauseResume({ action: "pause", duration: "1m" })).status).toBe(200);
+    expect(fx.db.findDigitalEntitlement(fx.memberA.id, "google_play")).toEqual(before);
+    expect((await import("@/lib/membership-entitlement")).resolveMemberAccessForUser(fx.memberA.id)).toEqual({ digital: true, gymMembership: false });
+  });
+
+  it("an invalid action is still a 400", async () => {
+    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, status: "active", provider: "none", currentPeriodEnd: new Date(Date.now() + 30 * DAY).toISOString() });
     expect((await staffPauseResume({ action: "nonsense" })).status).toBe(400);
   });
 });

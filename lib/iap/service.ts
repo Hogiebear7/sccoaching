@@ -1,22 +1,24 @@
-// Google Play App Subscription service: claim, lifecycle, acknowledgement, reconciliation.
+// Google Play digital-plan service: claim, lifecycle, acknowledgement, reconciliation.
 //
-// Routes and jobs are thin callers of this module. Every rule from the owner defaults (plan section 1)
-// is enforced HERE, in one place, against the provider-neutral adapter (./adapter):
+// Routes and jobs are thin callers of this module. Every rule from the owner defaults (plan section 1) is enforced HERE, in
+// one place, against the provider-neutral adapter (./adapter):
 //
-//  - Entitlement is granted only after the provider is asked and answers (D5). A claim that is refused
-//    never creates a purchase row, never acknowledges and never writes a subscription (D1, I5).
-//  - First valid binding wins (D3): a new token must echo the session user's one-way account binding;
-//    a token owned by another account is rejected and never reassigned; a duplicate by the same account
-//    is idempotent.
-//  - Synchronous section: after the provider call returns there is NO await until the purchase row, the
-//    subscription row and the audit events are written, so no other request interleaves (the datastore is
-//    one synchronous JSON file in one process; see plan section 3).
-//  - Stale tokens cannot rewrite the row: a snapshot or notification for a token that is neither the one
+//  - Entitlement is granted only after the provider is asked and answers (D5). A claim that is refused never creates a
+//    purchase row, never acknowledges and never writes an entitlement (D1, I5).
+//  - First valid binding wins (D3): a new token must echo the session user's one-way account binding; a token owned by
+//    another account is rejected and never reassigned; a duplicate by the same account is idempotent.
+//  - Synchronous section: after the provider call returns there is NO await until the purchase row, the entitlement row and
+//    the audit events are written, so no other request interleaves (the datastore is one synchronous JSON file; see plan
+//    section 3).
+//  - Stale tokens cannot rewrite the row (./entitlement-apply): a snapshot or notification for a token that is neither the one
 //    the row is billed through nor its direct successor never overwrites a live entitlement.
-//  - Snapshot ordering: each provider answer carries the time its call was issued; an older answer than the
-//    newest applied is dropped.
+//  - Snapshot ordering: each provider answer carries the time its call was issued; an older answer than the newest applied is
+//    dropped.
 //  - Lifecycle processing ignores the kill switch (I6): withdrawing access must never be switchable off.
 //  - Provider errors are a closed set of codes; no provider text reaches a caller.
+//
+// Since owner decision D1 (2026-10-15) the entitlement is a DigitalEntitlementRecord, separate from the gym Membership row. A
+// gym Membership never blocks, replaces or is replaced by a purchase here.
 //
 // This file performs no network call itself. See ./adapter, ./google-adapter and ./fake-adapter.
 
@@ -30,41 +32,29 @@ import {
   completeIapNotification,
   createRevenueEvent,
   findAllGooglePlayPurchases,
+  findDigitalEntitlementsByUserId,
   findGooglePlayPurchaseByToken,
   findMembershipBillingOptions,
-  findMembershipPackages,
   findRevenueEventByProviderRef,
-  findSubscriptionByUserId,
   findUserById,
   recordGooglePlayAcknowledgement,
-  saveSubscription,
+  type DigitalEntitlementStatus,
   type GooglePlayPurchaseRecord,
   type GooglePlaySubscriptionStatus,
   type MembershipBillingOptionRecord,
-  type SubscriptionRecord,
 } from "@/lib/db";
-import { parkAbandonedCheckout } from "@/lib/checkout-recovery";
-import type { MemberTier } from "@/lib/member-access";
+import { describeDigitalPlan, liveStoreEntitlement, type DigitalPlanSummary } from "@/lib/digital-entitlement";
+import type { MemberAccess } from "@/lib/member-access";
 import { isDeletedOwner } from "@/lib/member-deletion-guard";
-import { resolveMemberTier } from "@/lib/membership-entitlement";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { googlePlayAccountBindingMatches, googlePlayObfuscatedAccountId } from "@/lib/providers/google-play";
-import { APP_SUBSCRIPTION_PACKAGE_SLUG } from "@/lib/tier-grant";
 
 import { getPlayAdapter, type PlayAdapter, type ProviderSubscriptionSnapshot } from "./adapter";
 import { iapDisabledReason, iapEnvironment } from "./config";
-import {
-  ENTITLEMENT_CONFLICT_MEMBER_MESSAGE,
-  evaluateEntitlementConflict,
-  evaluateProviderTransition,
-  isCurrentPlayToken,
-  liveEntitlement,
-  packageScopeResolver,
-  type EntitlementConflictCode,
-} from "./entitlement-conflict";
-import { recordProviderConflict } from "./provider-guard";
+import { applyStoreEntitlement, checkStoreConflict, type StoreApplyOutcome } from "./entitlement-apply";
+import { STORE_CONFLICT_MEMBER_MESSAGE } from "./messages";
 import "./google-adapter";
 
-const ENTITLING_STATUSES: ReadonlySet<string> = new Set(["active", "past_due", "paused"]);
 const MAX_TOKEN_LENGTH = 4096;
 
 // Notification retry cap. After this many deliveries without a successful provider answer we stop asking
@@ -97,9 +87,8 @@ const MESSAGES = {
   bindingRequired: "This purchase could not be verified for your account.",
   providerUnavailable: "Google Play couldn't be reached. Try again shortly.",
   providerRejected: "This purchase could not be verified.",
-  productUnknown: "This purchase doesn't match a known App Subscription product.",
+  productUnknown: "This purchase doesn't match a known digital plan product.",
   pending: "Your purchase is still being processed by Google Play. Try again shortly.",
-  notSetUp: "App Subscriptions aren't set up yet.",
 } as const;
 
 function findBillingOption(productId: string | null, basePlanId: string | null): MembershipBillingOptionRecord | undefined {
@@ -115,16 +104,24 @@ function findBillingOption(productId: string | null, basePlanId: string | null):
 
 const isoFromMillis = (ms: number | null) => (ms ? new Date(ms).toISOString() : null);
 
-// ── Applying one provider snapshot to a purchase and, if allowed, to the subscription row ─────────
+// Statuses for which Google expects the purchase to be acknowledged (the member has, or had, access to it).
+const ACK_STATUSES: ReadonlySet<DigitalEntitlementStatus> = new Set(["active", "canceled", "in_grace_period"]);
+const isEntitling = (status: DigitalEntitlementStatus): boolean => ACK_STATUSES.has(status);
+
+function digitalStatusOfPlayStatus(status: GooglePlaySubscriptionStatus): DigitalEntitlementStatus {
+  // 1:1 with Google's states. "canceled" keeps access to the paid expiry, which isDigitalEntitlementLive enforces from the
+  // expiry time, not from this label.
+  return status;
+}
+
+// ── Applying one provider snapshot to a purchase and, if allowed, to the member's entitlement ─────
 
 type EntitlementOutcome =
-  | { kind: "applied"; status: string }
+  | { kind: "applied"; status: DigitalEntitlementStatus }
   | { kind: "pending" }
   | { kind: "stale" }
-  | { kind: "membership_conflict" }
-  /** A live subscription billed through Stripe or Revolut. Never replaced by a Play purchase or notification. */
-  | { kind: "provider_conflict" }
-  | { kind: "package_missing" }
+  | { kind: "other_store_active" }
+  | { kind: "already_subscribed" }
   | { kind: "unknown_token" }
   | { kind: "stale_snapshot" };
 
@@ -140,7 +137,7 @@ interface SyncInput {
   billingOption?: MembershipBillingOptionRecord;
 }
 
-// Synchronous: no await. Writes the purchase snapshot, the subscription row and the audit events together.
+// Synchronous: no await. Writes the purchase snapshot, the entitlement row and the audit events together.
 function syncPurchase(input: SyncInput): { outcome: EntitlementOutcome; purchase?: GooglePlayPurchaseRecord } {
   const { adapter, token, snapshot, fetchedAt, actor } = input;
   const current = findGooglePlayPurchaseByToken(token);
@@ -172,159 +169,60 @@ function syncPurchase(input: SyncInput): { outcome: EntitlementOutcome; purchase
 
   const purchase = applied.purchase;
   // The member's account was permanently deleted after the entitlement ended. The purchase record is kept (anonymised) so the
-  // token stays owned and the snapshot above is recorded, but there is no account left to entitle: never create a subscription
-  // row for a user that does not exist.
+  // token stays owned and the snapshot above is recorded, but there is no account left to entitle: never create an
+  // entitlement for a user that does not exist.
   if (isDeletedOwner(purchase.userId) || !findUserById(purchase.userId)) {
     appendIapEvent({ type: "notification_stale", userId: null, purchaseToken: token, actor, detail: { reason: "owner_deleted" } });
     return { outcome: { kind: "stale" }, purchase };
   }
-  // A voided purchase stays void: no later snapshot may re-entitle it.
-  const effectiveStatus = purchase.revokedAt ? "canceled" : mapped.appStatus;
-  if (effectiveStatus === null) return { outcome: { kind: "pending" }, purchase };
+  // A not-yet-confident provider state (pending, unspecified) never grants.
+  if (mapped.appStatus === null && !purchase.revokedAt) return { outcome: { kind: "pending" }, purchase };
 
   const option = input.billingOption ?? findBillingOption(purchase.productId, purchase.basePlanId);
-  const outcome = applyEntitlement({ userId: purchase.userId, token, purchase, status: effectiveStatus, option, actor });
+  const outcome = applyEntitlement({ token, purchase, option, actor });
   return { outcome, purchase };
 }
 
 function applyEntitlement(args: {
-  userId: string;
   token: string;
   purchase: GooglePlayPurchaseRecord;
-  status: string;
   option: MembershipBillingOptionRecord | undefined;
   actor: "user" | "provider" | "system";
 }): EntitlementOutcome {
-  const { userId, token, purchase, status, option, actor } = args;
-  const existing = findSubscriptionByUserId(userId);
-  const entitling = ENTITLING_STATUSES.has(status);
+  const { token, purchase, option, actor } = args;
+  // A voided purchase stays void: no later snapshot may re-entitle it.
+  const status: DigitalEntitlementStatus = purchase.revokedAt ? "revoked" : digitalStatusOfPlayStatus(purchase.status);
 
-  const isCurrent = isCurrentPlayToken(existing, token);
-  const isSuccessor = !!existing && existing.provider === "google_play" && !!purchase.linkedPurchaseToken && purchase.linkedPurchaseToken === existing.providerSubscriptionId;
-  const live = liveEntitlement(existing, packageScopeResolver);
-
-  if (!isCurrent && !isSuccessor) {
-    // A live Stripe or Revolut subscription is never replaced by a Play purchase or a Play notification. Audited as a
-    // cross-provider refusal; the row is left exactly as it is.
-    const providerConflict = evaluateProviderTransition(existing, "google_play");
-    if (existing && providerConflict) {
-      recordProviderConflict({
-        userId,
-        incoming: "google_play",
-        existingProvider: existing.provider,
-        conflict: providerConflict,
-        source: actor === "user" ? "google_play_claim" : "google_play_notification",
-        reference: token,
-      });
-      return { kind: "provider_conflict" };
-    }
-
-    // A purchase that is not the one the row is billed through may only take the row over when the row grants
-    // nothing and this purchase does. It must never overwrite a live entitlement, and a non-entitling snapshot
-    // never replaces a row that belongs to something else (history is preserved, D2).
-    // The one exception: the member themselves, through a fresh verified claim, may replace a MANUAL App
-    // Subscription (a comp or invite grant) with their own Play-billed one. One row, so no overlap. A provider
-    // notification for an older token never does.
-    const manualTakeover = actor === "user" && entitling && live?.scope === "app_subscription" && live.provider !== "google_play";
-    if (live && !manualTakeover) {
-      const conflict = live.scope === "membership";
-      appendIapEvent({
-        type: conflict ? "claim_rejected_conflict" : "notification_stale",
-        userId,
-        purchaseToken: token,
-        actor,
-        detail: { reason: conflict ? "membership_active" : "stale_token", status },
-      });
-      return conflict ? { kind: "membership_conflict" } : { kind: "stale" };
-    }
-    if (!entitling) {
-      appendIapEvent({ type: "notification_stale", userId, purchaseToken: token, actor, detail: { reason: "not_current_token", status } });
-      return { kind: "stale" };
-    }
-  }
-
-  const appPackage = findMembershipPackages().find((p) => p.slug === APP_SUBSCRIPTION_PACKAGE_SLUG);
-  if (!appPackage) return { kind: "package_missing" };
-
-  const nowIso = new Date().toISOString();
-  const pendingStripeCheckout = !!existing && existing.provider === "stripe" && existing.status === "pending" && !!existing.providerSetupOrderId;
-  const keepParked = !!existing && existing.provider === "google_play";
-  const displacedStripeCheckout = !!existing && existing.provider === "stripe" && existing.status === "inactive" && !!existing.providerSetupOrderId;
-  const fresh = status === "active" && (existing?.status !== "active" || existing?.packageId !== appPackage.id || !isCurrent);
-  const row: SubscriptionRecord = {
-    userId,
-    packageId: appPackage.id,
-    billingOptionId: option?.id ?? existing?.billingOptionId ?? null,
-    status: status as SubscriptionRecord["status"],
-    pausedUntil: null,
-    statusBeforePause: null,
-    provider: "google_play",
-    providerCustomerId: existing?.providerCustomerId ?? null,
-    providerSubscriptionId: token,
-    // A Play-billed row has no Stripe setup order. If it replaces a PENDING Stripe checkout (nothing live, so nothing is
-    // being overwritten), that checkout intent moves to the pending-switch fields instead of being lost or left where a
-    // later Stripe completion could match it unguarded. The Stripe webhook then promotes it only if no Play entitlement is
-    // live at that moment (see app/api/stripe/webhook/route.ts).
-    providerSetupOrderId: null,
-    // Later Play updates for the same row (renewal, expiry) keep that parked intent.
-    // A Stripe checkout that is no longer pending (the cleanup job marked it inactive) but still has its setup-order reference is
-    // PARKED rather than dropped, so a late payment can still be reconciled (lib/checkout-recovery.ts).
-    abandonedCheckouts: displacedStripeCheckout
-      ? parkAbandonedCheckout(existing?.abandonedCheckouts, {
-          sessionId: existing.providerSetupOrderId as string,
-          packageId: existing.packageId ?? null,
-          billingOptionId: existing.billingOptionId ?? null,
-          startedAt: existing.updatedAt,
-          clearedAt: nowIso,
-          reason: "replaced_by_play",
-        })
-      : existing?.abandonedCheckouts,
-    // Later Play updates for the same row (renewal, expiry) keep that parked intent.
-    pendingPackageId: pendingStripeCheckout ? existing.packageId ?? null : keepParked ? existing.pendingPackageId ?? null : null,
-    pendingBillingOptionId: pendingStripeCheckout ? existing.billingOptionId ?? null : keepParked ? existing.pendingBillingOptionId ?? null : null,
-    pendingSetupOrderId: pendingStripeCheckout ? existing.providerSetupOrderId ?? null : keepParked ? existing.pendingSetupOrderId ?? null : null,
-    pendingStartedAt: pendingStripeCheckout ? existing.updatedAt : keepParked ? existing.pendingStartedAt ?? null : null,
+  const result: StoreApplyOutcome = applyStoreEntitlement({
+    userId: purchase.userId,
+    source: "google_play",
+    storeRef: token,
+    supersedesRef: purchase.linkedPurchaseToken,
+    status,
+    productId: purchase.productId,
+    billingOptionId: option?.id ?? null,
+    environment: null,
     currentPeriodEnd: isoFromMillis(purchase.expiryTimeMillis),
-    lastWebhookEventAt: existing?.lastWebhookEventAt ?? null,
-    sessionsUsedThisPeriod: fresh ? 0 : existing?.sessionsUsedThisPeriod ?? 0,
-    extraSessionGrants: fresh ? [] : existing?.extraSessionGrants ?? [],
-    periodLapsedNotifiedAt: fresh ? null : existing?.periodLapsedNotifiedAt ?? null,
-    // Immutable provenance: an existing row keeps its ownerGym exactly; a fresh one is platform scope.
-    ownerGym: existing ? existing.ownerGym ?? { scope: "unresolved" } : { scope: "platform" },
-    createdAt: existing?.createdAt ?? nowIso,
-    updatedAt: nowIso,
-  };
-  saveSubscription(row);
-
-  const wasEntitled = isCurrent && !!live;
-  if (entitling && !wasEntitled) {
-    appendIapEvent({ type: "entitlement_granted", userId, purchaseToken: token, actor, detail: { status } });
-  } else if (entitling && existing?.status !== status) {
-    appendIapEvent({ type: "entitlement_updated", userId, purchaseToken: token, actor, detail: { from: existing?.status ?? null, to: status } });
-  } else if (!entitling && wasEntitled) {
-    appendIapEvent({
-      type: purchase.revokedAt ? "entitlement_revoked" : "entitlement_expired",
-      userId,
-      purchaseToken: token,
-      actor,
-      detail: { from: existing?.status ?? null, to: status },
-    });
-  }
+    autoRenewing: purchase.autoRenewing,
+    revokedAt: purchase.revokedAt ?? null,
+    actor,
+  });
+  if (result.kind !== "applied") return result;
 
   // Revenue is recorded once per Google order id, at the configured placeholder price. The amount basis is an
   // open owner and accounting decision (D8); this records technical facts only.
   if (purchase.orderId && status === "active" && option && !findRevenueEventByProviderRef("google_play", purchase.orderId)) {
     createRevenueEvent({
       id: randomUUID(),
-      userId,
-      packageId: appPackage.id,
+      userId: purchase.userId,
+      packageId: option.packageId,
       billingOptionId: option.id,
       amountCents: option.amountCents,
       currency: option.currency,
       provider: "google_play",
       providerRef: purchase.orderId,
       source: "membership_renewal",
-      receivedAt: nowIso,
+      receivedAt: new Date().toISOString(),
       ownerGym: { scope: "platform" },
     });
   }
@@ -337,19 +235,11 @@ function applyEntitlement(args: {
 async function acknowledgeIfNeeded(adapter: PlayAdapter, token: string): Promise<boolean> {
   const purchase = findGooglePlayPurchaseByToken(token);
   if (!purchase || purchase.acknowledged || purchase.revokedAt) return !!purchase?.acknowledged;
-  if (!ENTITLING_STATUSES.has(appStatusOfPlayStatus(purchase.status))) return false;
+  if (!isEntitling(digitalStatusOfPlayStatus(purchase.status))) return false;
 
   const result = await adapter.acknowledge(token);
   recordGooglePlayAcknowledgement(token, result.ok ? { ok: true } : { ok: false, code: result.code });
   return result.ok;
-}
-
-function appStatusOfPlayStatus(status: GooglePlaySubscriptionStatus): string {
-  // Mirrors mapGooglePlaySubscriptionState for the statuses that keep access.
-  if (status === "active" || status === "canceled") return "active";
-  if (status === "in_grace_period") return "past_due";
-  if (status === "paused") return "paused";
-  return "canceled";
 }
 
 // ── Purchase context: the account binding the client must set before purchase ───────────────────
@@ -362,16 +252,13 @@ export function getPurchaseContext(userId: string, adapter: PlayAdapter = getPla
   if (iapDisabledReason()) return fail(503, "iap_disabled", MESSAGES.disabled);
   if (!adapter.isConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
 
-  // No purchase intent for a member who cannot take one: an active Membership (D1) or a live Play subscription.
-  const existing = findSubscriptionByUserId(userId);
-  const conflict = evaluateEntitlementConflict(existing, { kind: "play_claim" }, packageScopeResolver);
-  const live = liveEntitlement(existing, packageScopeResolver);
-  const providerConflict = evaluateProviderTransition(existing, "google_play");
-  const code: EntitlementConflictCode | null =
-    conflict?.code ?? providerConflict?.code ?? (live?.scope === "app_subscription" && live.provider === "google_play" ? "play_billing_active" : null);
-  if (code) {
+  // No purchase intent for a member who already holds a live paid store subscription: a second one would bill twice. A gym
+  // Membership or a complimentary grant does not prevent a purchase (they are separate products).
+  const live = liveStoreEntitlement(userId);
+  if (live) {
+    const code = live.source === "google_play" ? "subscription_already_active" : "other_store_active";
     appendIapEvent({ type: "claim_rejected_conflict", userId, actor: "user", detail: { code, source: "purchase_context" } });
-    return fail(409, code, ENTITLEMENT_CONFLICT_MEMBER_MESSAGE[code]);
+    return fail(409, code, STORE_CONFLICT_MEMBER_MESSAGE[code]);
   }
 
   const obfuscatedAccountId = googlePlayObfuscatedAccountId(userId);
@@ -381,9 +268,15 @@ export function getPurchaseContext(userId: string, adapter: PlayAdapter = getPla
 
 // ── Claim: POST /api/mobile/billing/google-play/verify ───────────────────────────────────────────
 
-export type VerifyResult =
-  | { ok: true; httpStatus: 200; message: string; data: { tier: MemberTier; status: string; acknowledged: boolean } }
-  | ServiceFailure;
+export interface VerifyData {
+  /** The member's access after the claim. Display convenience: the server decides from its records on every request. */
+  access: MemberAccess;
+  plan: DigitalPlanSummary | null;
+  status: string;
+  acknowledged: boolean;
+}
+
+export type VerifyResult = { ok: true; httpStatus: 200; message: string; data: VerifyData } | ServiceFailure;
 
 export async function verifyAndClaimPurchase(
   userId: string,
@@ -440,33 +333,15 @@ export async function verifyAndClaimPurchase(
     }
   }
 
-  const entitlingNow = mapped.appStatus !== null && ENTITLING_STATUSES.has(mapped.appStatus);
-  const subscription = findSubscriptionByUserId(userId);
+  const entitlingNow = mapped.appStatus !== null && isEntitling(digitalStatusOfPlayStatus(mapped.playStatus as GooglePlaySubscriptionStatus));
 
-  // No overlap and no silent replacement (D1, D2), decided BEFORE a purchase row exists so a refused claim leaves
-  // no pending intent and the token stays unbound and unacknowledged (I5).
-  const membershipConflict = evaluateEntitlementConflict(subscription, { kind: "play_claim" }, packageScopeResolver);
-  const live = liveEntitlement(subscription, packageScopeResolver);
-  const otherPlayLive =
-    live?.scope === "app_subscription" &&
-    live.provider === "google_play" &&
-    subscription?.providerSubscriptionId !== token &&
-    subscription?.providerSubscriptionId !== snapshot.linkedPurchaseToken;
-  // A live subscription billed by Stripe or Revolut is decided here too, WITHOUT resolving its package: a row whose package
-  // was since deleted reads as "grants nothing" to liveEntitlement, but the member is still being billed, so the claim must
-  // be refused before a purchase row exists (a refused claim binds nothing and is not acknowledged). membership_active
-  // keeps priority for a Membership-scope row.
-  const claimProviderConflict = evaluateProviderTransition(subscription, "google_play");
-  const conflictCode: EntitlementConflictCode | null =
-    membershipConflict?.code ?? claimProviderConflict?.code ?? (otherPlayLive ? "play_billing_active" : null);
-  // An already-owned purchase that grants nothing right now may still be refreshed for history (see refreshOnly below).
-  if (conflictCode && (entitlingNow || !existing)) {
-    // A live Stripe or Revolut subscription is also audited as a cross-provider refusal.
-    if (subscription && claimProviderConflict) {
-      recordProviderConflict({ userId, incoming: "google_play", existingProvider: subscription.provider, conflict: claimProviderConflict, source: "google_play_claim", reference: token });
-    }
+  // One paid store subscription per account (D1/D2), decided BEFORE a purchase row exists so a refused claim leaves no
+  // pending intent and the token stays unbound and unacknowledged (I5). A gym Membership is not a conflict.
+  const conflictCode = checkStoreConflict({ userId, source: "google_play", storeRef: token, supersedesRef: snapshot.linkedPurchaseToken, entitling: entitlingNow });
+  // An already-owned purchase that grants nothing right now may still be refreshed for history.
+  if (conflictCode) {
     appendIapEvent({ type: "claim_rejected_conflict", userId, purchaseToken: token, actor: "user", detail: { code: conflictCode, source: "verify" } });
-    return fail(409, conflictCode, ENTITLEMENT_CONFLICT_MEMBER_MESSAGE[conflictCode]);
+    return fail(409, conflictCode === "already_subscribed" ? "subscription_already_active" : conflictCode, STORE_CONFLICT_MEMBER_MESSAGE[conflictCode === "already_subscribed" ? "subscription_already_active" : conflictCode]);
   }
 
   const claimed = claimGooglePlayPurchase(
@@ -489,35 +364,27 @@ export async function verifyAndClaimPurchase(
   );
   if (claimed.status === "owned_by_other") return fail(409, "owned_by_other", MESSAGES.ownedByOther);
 
-  // An owned, non-entitling purchase refreshed while a conflicting row is live: record history, change nothing else.
-  const refreshOnly = !!conflictCode && !entitlingNow;
-  const synced = refreshOnly
-    ? { outcome: { kind: "stale" } as EntitlementOutcome }
-    : syncPurchase({ adapter, token, snapshot, fetchedAt, actor: "user", billingOption: option });
-  if (refreshOnly) {
-    applyGooglePlayPurchaseSnapshot(
-      token,
-      { status: mapped.playStatus as GooglePlaySubscriptionStatus, expiryTimeMillis: snapshot.expiryTimeMillis, autoRenewing: snapshot.autoRenewing, acknowledged: snapshot.acknowledged || (existing?.acknowledged ?? false) },
-      fetchedAt
-    );
-  }
+  const synced = syncPurchase({ adapter, token, snapshot, fetchedAt, actor: "user", billingOption: option });
   // ── End of synchronous section. ──
 
   const outcome = synced.outcome;
   if (outcome.kind === "pending") return fail(409, "purchase_pending", MESSAGES.pending);
-  if (outcome.kind === "package_missing") return fail(500, "not_set_up", MESSAGES.notSetUp);
-  if (outcome.kind === "membership_conflict") return fail(409, "membership_active", ENTITLEMENT_CONFLICT_MEMBER_MESSAGE.membership_active);
-  if (outcome.kind === "provider_conflict") return fail(409, "other_provider_active", ENTITLEMENT_CONFLICT_MEMBER_MESSAGE.other_provider_active);
+  if (outcome.kind === "other_store_active") return fail(409, "other_store_active", STORE_CONFLICT_MEMBER_MESSAGE.other_store_active);
+  if (outcome.kind === "already_subscribed") return fail(409, "subscription_already_active", STORE_CONFLICT_MEMBER_MESSAGE.subscription_already_active);
 
   // Acknowledge only a purchase that was actually entitled, after the entitlement is written (D5, I5).
   let acknowledged = !!findGooglePlayPurchaseByToken(token)?.acknowledged;
-  if (outcome.kind === "applied" && ENTITLING_STATUSES.has(outcome.status) && !acknowledged) {
+  if (outcome.kind === "applied" && isEntitling(outcome.status) && !acknowledged) {
     acknowledged = await acknowledgeIfNeeded(adapter, token);
   }
 
-  const tier = resolveMemberTier(findSubscriptionByUserId(userId));
-  const status = outcome.kind === "applied" ? outcome.status : mapped.appStatus ?? "unknown";
-  return { ok: true, httpStatus: 200, message: "Purchase verified.", data: { tier, status, acknowledged } };
+  const status = outcome.kind === "applied" ? outcome.status : mapped.playStatus;
+  return {
+    ok: true,
+    httpStatus: 200,
+    message: "Purchase verified.",
+    data: { access: resolveMemberAccessForUser(userId), plan: describeDigitalPlan(findDigitalEntitlementsByUserId(userId)), status, acknowledged },
+  };
 }
 
 // ── Notifications (RTDN) ─────────────────────────────────────────────────────────────────────────
@@ -588,12 +455,12 @@ export async function processGooglePlayNotification(input: NotificationInput, ad
   const synced = syncPurchase({ adapter, token, snapshot: fetched.snapshot, fetchedAt, actor: "provider", voided: voidedMatches });
   const outcome = synced.outcome;
 
-  if (outcome.kind === "applied" && ENTITLING_STATUSES.has(outcome.status)) await acknowledgeIfNeeded(adapter, token);
+  if (outcome.kind === "applied" && isEntitling(outcome.status)) await acknowledgeIfNeeded(adapter, token);
 
-  const tier = resolveMemberTier(findSubscriptionByUserId(purchase.userId));
-  if (outcome.kind === "applied") return finish("applied", "Purchase state applied.", { tier, status: outcome.status });
-  if (outcome.kind === "pending") return finish("pending", "Purchase state recorded; not confident enough to update tier yet.");
-  return finish(outcome.kind, "Purchase state recorded; the subscription row was not changed.");
+  const access = resolveMemberAccessForUser(purchase.userId);
+  if (outcome.kind === "applied") return finish("applied", "Purchase state applied.", { digital: access.digital, status: outcome.status });
+  if (outcome.kind === "pending") return finish("pending", "Purchase state recorded; not confident enough to update access yet.");
+  return finish(outcome.kind, "Purchase state recorded; the entitlement was not changed.");
 }
 
 // ── Background work ──────────────────────────────────────────────────────────────────────────────
@@ -654,7 +521,7 @@ export async function retryGooglePlayAcknowledgements(
   const due = findAllGooglePlayPurchases()
     .filter((p) => !isDeletedOwner(p.userId))
     .filter((p) => !p.acknowledged && !p.revokedAt && p.acknowledgementState !== "not_required")
-    .filter((p) => ENTITLING_STATUSES.has(appStatusOfPlayStatus(p.status)))
+    .filter((p) => isEntitling(digitalStatusOfPlayStatus(p.status)))
     .filter((p) => (p.acknowledgementAttempts ?? 0) < MAX_ACK_ATTEMPTS)
     .filter((p) => nowMs - new Date(p.createdAt).getTime() < ACK_WINDOW_MS)
     .filter((p) => !p.acknowledgementLastAttemptAt || nowMs - new Date(p.acknowledgementLastAttemptAt).getTime() >= ACK_RETRY_MIN_INTERVAL_MS)

@@ -6,7 +6,7 @@ import { requireAiConsent } from "@/lib/ai-consent";
 import { findUserById } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { hasAccess } from "@/lib/member-access";
-import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, configured: false, message: "Not signed in." }, { status: 401 });
   }
 
-  if (!hasAccess(resolveMemberTierForUser(user.id), "trackerImport")) {
+  if (!hasAccess(resolveMemberAccessForUser(user.id), "trackerImport")) {
     return NextResponse.json(
       { success: false, configured: true, message: "Tracker import needs App Subscription or above." },
       { status: 403 }

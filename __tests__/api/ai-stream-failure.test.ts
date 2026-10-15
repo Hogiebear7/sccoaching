@@ -89,6 +89,8 @@ async function member(email: string) {
   expect(res.status).toBeLessThan(300);
   const user = fx.db.findUserByEmail(email)!;
   fx.setSubscription(user.id, { packageId: fx.ids.membershipPackage, provider: "none", status: "active" });
+  // Digital access is separate from a gym Membership (owner decision D1): the AI routes need the digital flag.
+  (await import("@/lib/digital-entitlement")).grantStaffDigitalEntitlement({ userId: user.id, grantedByUserId: null });
   const profile = fx.db.findProfileByUserId(user.id)!;
   fx.db.saveProfile({ ...profile, aiDataConsent: { grantedAt: "2026-10-01T00:00:00.000Z", version: 1 } });
   return fx.cookie(user.id);

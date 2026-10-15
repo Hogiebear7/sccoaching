@@ -1,6 +1,6 @@
 # Runtime tenant context: adoption status (2026-10-07)
 
-**Status:** partially adopted. **This is not a full migration.** Seven routes derive their tenant through
+**Status:** partially adopted. **This is not a full migration.** Ten routes derive their tenant through
 `lib/tenant-request.ts` at runtime. The other 221 routes still rely on the existing `sameGym` family of checks, which are
 tested route by route but are not funnelled through one boundary.
 
@@ -23,13 +23,16 @@ route's one 404 never confirms that a guessed id exists elsewhere.
   while the routes are still protected by `sameGym`.
 - A platform operator gets no cross-gym reach through the helper. Platform-only actions stay exact-role capabilities.
 
-## Routes converted (7)
+## Routes converted (10)
 
 <!-- converted:start -->
 | Route | Scope | What the helper does there |
 |---|---|---|
 | `mobile/billing/google-play/purchase-context` | self | derives the account for the binding |
 | `mobile/billing/google-play/verify` | self | derives the account for the claim; a client user id is never read |
+| `mobile/billing/app-store/purchase-context` | self | derives the account for the App Store account token (added 2026-10-16) |
+| `mobile/billing/app-store/verify` | self | derives the account for the claim; a client user id is never read (added 2026-10-16) |
+| `mobile/billing/catalog` | self | session required; returns store product identifiers only, no price (added 2026-10-16) |
 | `staff/members/[userId]/tier` | tenant-staff | session, then `loadTenantUser` for the target |
 | `staff/members/bulk-tier` | tenant-staff | session, then `loadTenantUser` for every target |
 | `staff/members/[userId]/subscription` | tenant-staff | session, then `loadTenantUser` for the target |

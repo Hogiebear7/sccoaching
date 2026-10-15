@@ -1,14 +1,17 @@
 import {
+  findDigitalEntitlementsByUserId,
   findMembershipBillingOptionById,
   findMembershipPackageById,
   findSubscriptionByUserId,
   type BillingInterval,
+  type DigitalEntitlementRecord,
   type MembershipBillingOptionRecord,
   type MembershipPackageRecord,
   type MembershipPlanRecord,
   type SubscriptionRecord,
 } from "./db";
-import type { MemberTier } from "./member-access";
+import { liveDigitalEntitlements } from "./digital-entitlement";
+import type { MemberAccess } from "./member-access";
 
 // Single resolver for "what is this subscription entitled to?".
 //
@@ -68,43 +71,44 @@ export function resolveSubscriptionEntitlement(
   return planShapeForPackage(pkg, option);
 }
 
-// Renewal and the notification that records it are separate events, so the clock is allowed a small
-// margin before an "active" Google Play row is treated as ended. This is a tolerance for event
-// ordering, not a grace period: a lapsed row never regains access by waiting.
-export const GOOGLE_PLAY_EXPIRY_TOLERANCE_MS = 10 * 60 * 1000;
-
-function isGooglePlayPeriodOver(subscription: Pick<SubscriptionRecord, "provider" | "status" | "currentPeriodEnd">): boolean {
-  if (subscription.provider !== "google_play" || subscription.status !== "active" || !subscription.currentPeriodEnd) return false;
-  return new Date(subscription.currentPeriodEnd).getTime() + GOOGLE_PLAY_EXPIRY_TOLERANCE_MS < Date.now();
-}
-
-// Resolves a subscription straight to one of the three member-facing access
-// tiers (see lib/member-access.ts for what each tier unlocks). Reuses the
-// deliveryChannel/accessType classification already on the catalog package —
-// added specifically so Tier 2 app-only subscriptions could be told apart
-// from Tier 1 in-person/hybrid memberships — rather than a separate stored
-// field on the user, so tier can never drift out of sync with the real
-// subscription state. No active subscription (or a subscription whose
-// status isn't "active"/"past_due" — a lapsed/cancelled member reads the
-// same as never having subscribed) is Free.
-export function resolveMemberTier(subscription: SubscriptionRecord | undefined | null): MemberTier {
-  if (!subscription?.packageId) return "free";
-  if (subscription.status !== "active" && subscription.status !== "past_due") return "free";
-
-  // A Google Play row stays "active" until a notification or reconciliation moves it. If its paid
-  // period has ended and nothing has, access must still end at the paid expiry rather than depend
-  // on a lost notification. (Other providers have their own lapse handling, see
-  // lib/jobs/drop-lapsed-manual-memberships.ts; this does not change them.)
-  if (isGooglePlayPeriodOver(subscription)) return "free";
-
+// The two independent access facts for one member (see lib/member-access.ts for what each unlocks).
+//
+//   gymMembership: a catalog package that is NOT the app-only package, with status active or past_due. Derived from the
+//     subscription row, never a stored flag, so it cannot drift out of sync with the real subscription state.
+//   digital:       any live DigitalEntitlementRecord (lib/digital-entitlement.ts): a verified store subscription inside its
+//     paid period, or a complimentary staff grant. A gym Membership contributes NOTHING to this (owner decision D1).
+//
+// Legacy rows: before the digital entitlement store existed, a complimentary App Subscription was a SubscriptionRecord on the
+// app-only package with provider "none". Those rows keep granting digital access (they are the staff comps the owner already
+// gave), read through legacyManualDigitalGrant below, until they are converted. A legacy row billed through Google Play is NOT
+// honoured: in-app purchases were never switched on in any deployment, so no such row can be a real, paid subscription.
+function legacyManualDigitalGrant(subscription: SubscriptionRecord | undefined | null, nowMs: number): boolean {
+  if (!subscription?.packageId || subscription.provider !== "none") return false;
+  if (subscription.status !== "active" && subscription.status !== "past_due") return false;
   const pkg = findMembershipPackageById(subscription.packageId);
-  if (!pkg) return "free";
-
-  return pkg.deliveryChannel === "app_only" ? "app_subscription" : "membership";
+  if (pkg?.deliveryChannel !== "app_only") return false;
+  return !subscription.currentPeriodEnd || new Date(subscription.currentPeriodEnd).getTime() > nowMs;
 }
 
-// Convenience wrapper — the shape every /api/mobile/* route actually wants
-// (they have a userId, not a SubscriptionRecord already in hand).
-export function resolveMemberTierForUser(userId: string): MemberTier {
-  return resolveMemberTier(findSubscriptionByUserId(userId));
+function hasGymMembershipRow(subscription: SubscriptionRecord | undefined | null): boolean {
+  if (!subscription?.packageId) return false;
+  if (subscription.status !== "active" && subscription.status !== "past_due") return false;
+  const pkg = findMembershipPackageById(subscription.packageId);
+  return !!pkg && pkg.deliveryChannel !== "app_only";
+}
+
+export function computeMemberAccess(
+  subscription: SubscriptionRecord | undefined | null,
+  entitlements: readonly DigitalEntitlementRecord[],
+  nowMs: number = Date.now()
+): MemberAccess {
+  return {
+    gymMembership: hasGymMembershipRow(subscription),
+    digital: liveDigitalEntitlements(entitlements, nowMs).length > 0 || legacyManualDigitalGrant(subscription, nowMs),
+  };
+}
+
+// The shape every /api/mobile/* route and gated web route actually wants (they have a userId, not records in hand).
+export function resolveMemberAccessForUser(userId: string, nowMs: number = Date.now()): MemberAccess {
+  return computeMemberAccess(findSubscriptionByUserId(userId), findDigitalEntitlementsByUserId(userId), nowMs);
 }

@@ -8,6 +8,7 @@ const { mockFindSubscriptionByUserId, mockFindMembershipPackageById } = vi.hoist
 vi.mock("@/lib/db", () => ({
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
   findMembershipPackageById: mockFindMembershipPackageById,
+  findDigitalEntitlementsByUserId: () => [],
 }));
 
 describe("staffCanViewMemberData", () => {
@@ -22,7 +23,7 @@ describe("staffCanViewMemberData", () => {
     expect(staffCanViewMemberData("user-1")).toBe(false);
   });
 
-  it("is false for an app_subscription (app_only) package", async () => {
+  it("is false for a member whose only product is the digital plan (an app_only package row)", async () => {
     mockFindSubscriptionByUserId.mockReturnValue({ packageId: "pkg-1", status: "active" });
     mockFindMembershipPackageById.mockReturnValue({ id: "pkg-1", deliveryChannel: "app_only" });
     const { staffCanViewMemberData } = await import("@/lib/member-tier-wall");

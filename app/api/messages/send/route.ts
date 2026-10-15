@@ -4,8 +4,8 @@ import type { NextRequest } from "next/server";
 
 import { createMessage, createNotification, findProfileByUserId, findUserById, type MessageRecord, type NotificationRecord } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
-import { isMembershipTier } from "@/lib/member-access";
-import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
+import { hasGymMembership } from "@/lib/member-access";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { sendPush } from "@/lib/push";
 import { isStaffRole } from "@/lib/permissions";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -77,13 +77,12 @@ export async function POST(request: NextRequest) {
   } else {
     resolvedMemberId = sender.id;
 
-    // Messaging a coach is a Membership-tier perk — Free and App Subscription
-    // members never reach a human here (see lib/member-tier-wall.ts for the
-    // matching staff-side read wall). Staff replying into an existing thread
-    // is unaffected; this only gates a member-initiated send.
-    if (!isMembershipTier(resolveMemberTierForUser(sender.id))) {
+    // Messaging a coach is a gym-Membership perk — members without one (including digital-only subscribers) never
+    // reach a human here (see lib/member-tier-wall.ts for the matching staff-side read wall). Staff replying into an
+    // existing thread is unaffected; this only gates a member-initiated send.
+    if (!hasGymMembership(resolveMemberAccessForUser(sender.id))) {
       return NextResponse.json(
-        { success: false, message: "Messaging a coach is available on the Membership tier." },
+        { success: false, message: "Messaging a coach is available with a gym Membership." },
         { status: 403 }
       );
     }

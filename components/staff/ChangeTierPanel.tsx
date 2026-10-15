@@ -2,113 +2,162 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { FormEvent } from "react";
 
-import type { MemberTier } from "@/lib/member-access";
+import type { DigitalPlanSummary } from "@/lib/digital-entitlement";
+import type { MemberAccess } from "@/lib/member-access";
 
-const TIER_LABEL: Record<MemberTier, string> = {
-  free: "Free",
-  app_subscription: "App Subscription",
-  membership: "Membership",
+const SOURCE_LABEL: Record<DigitalPlanSummary["source"], string> = {
+  google_play: "Google Play subscription",
+  app_store: "App Store subscription",
+  staff_grant: "Complimentary (granted by staff)",
 };
 
-const TIER_DESCRIPTION: Record<MemberTier, string> = {
-  free: "Basic manual logging only — no AI features, food search, gym profiles, or notifications.",
-  app_subscription: "Full app access except Schedule/next session.",
-  membership: "Full access, tied to an ongoing real-world membership.",
-};
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" });
+}
 
-// The friendlier counterpart to MembershipStatusPanel's raw package+status
-// override below — this one lets staff think in the three tiers members
-// actually experience (see lib/member-access.ts) rather than picking a
-// catalog package. It calls POST .../tier, which resolves the tier to the
-// right package internally.
-export function ChangeTierPanel({ memberId, currentTier }: { memberId: string; currentTier: MemberTier }) {
+function describePlan(plan: DigitalPlanSummary): string {
+  const end = formatDate(plan.currentPeriodEnd);
+  if (plan.source === "staff_grant") return end ? `Complimentary until ${end}.` : "Complimentary until staff withdraw it.";
+  if (plan.status === "in_grace_period") return `Payment is being retried by the store; access continues${end ? ` (paid to ${end})` : ""}.`;
+  if (plan.autoRenewing) return `Renews ${end ? `on ${end}` : "automatically"}.`;
+  return `Will not renew; access continues${end ? ` until ${end}` : " to the end of the paid period"}.`;
+}
+
+// Staff view of the TWO independent things a member can have (owner decision D1): a paid gym Membership, and digital access
+// (AI chat, workout generation, food search, ...). A gym Membership does not include digital access. A paid store
+// subscription (Google Play / App Store) is shown here but can only be started, changed or cancelled in the store: staff can
+// grant or withdraw a COMPLIMENTARY digital grant, which is labelled as complimentary everywhere it appears.
+export function ChangeTierPanel({
+  memberId,
+  access,
+  digitalPlan,
+}: {
+  memberId: string;
+  access: MemberAccess;
+  digitalPlan: DigitalPlanSummary | null;
+}) {
   const router = useRouter();
-  const [tier, setTier] = useState<MemberTier>(currentTier);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  const legacyComp = access.digital && !digitalPlan;
+  const hasComplimentary = digitalPlan?.source === "staff_grant" || legacyComp;
+  const hasPaidStorePlan = !!digitalPlan && digitalPlan.source !== "staff_grant";
 
+  async function send(action: "membership" | "free" | "app_subscription" | "digital_revoke") {
     setError(null);
     setSuccessMessage(null);
-    setIsSubmitting(true);
-
+    setPending(action);
     try {
       const res = await fetch(`/api/staff/members/${memberId}/tier`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier }),
+        body: JSON.stringify({ tier: action }),
       });
-
       const data = await res.json().catch(() => null);
-
       if (!res.ok) {
-        setError(data?.message ?? "Could not update tier. Please try again.");
+        setError(data?.message ?? "Could not update access. Please try again.");
         return;
       }
-
-      setSuccessMessage(data?.message ?? "Tier updated.");
+      setSuccessMessage(data?.message ?? "Access updated.");
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      setPending(null);
     }
   }
 
   return (
     <div className="panel p-6">
-      <h3 className="text-lg font-semibold">App tier</h3>
+      <h3 className="text-lg font-semibold">Gym membership and digital access</h3>
       <p className="mt-2 text-xs text-muted-foreground">
-        Current: <span className="font-semibold text-foreground">{TIER_LABEL[currentTier]}</span> —{" "}
-        {TIER_DESCRIPTION[currentTier]}
+        These are two separate things. A gym Membership does not include the digital features, and digital access does not include a gym Membership.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3 sm:flex-row">
-        {error ? (
-          <p className="w-full rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive sm:hidden">
-            {error}
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <section aria-labelledby="gym-membership-heading" className="rounded-xl border border-white/[0.08] p-4">
+          <h4 id="gym-membership-heading" className="text-sm font-semibold">
+            Gym membership
+          </h4>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {access.gymMembership ? "Active — classes, passes and coach messaging." : "None."}
           </p>
-        ) : null}
-        {successMessage ? (
-          <p className="w-full rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary sm:hidden">
-            {successMessage}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {!access.gymMembership ? (
+              <button
+                type="button"
+                onClick={() => send("membership")}
+                disabled={pending !== null}
+                className="btn-primary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pending === "membership" ? "Saving…" : "Grant gym Membership"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => send("free")}
+                disabled={pending !== null}
+                className="input-field px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pending === "free" ? "Saving…" : "End gym Membership"}
+              </button>
+            )}
+          </div>
+        </section>
+
+        <section aria-labelledby="digital-access-heading" className="rounded-xl border border-white/[0.08] p-4">
+          <h4 id="digital-access-heading" className="text-sm font-semibold">
+            Digital access
+          </h4>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {digitalPlan
+              ? `${SOURCE_LABEL[digitalPlan.source]}. ${describePlan(digitalPlan)}`
+              : legacyComp
+                ? "Complimentary (granted by staff, earlier record)."
+                : "None."}
           </p>
-        ) : null}
-
-        <select
-          value={tier}
-          onChange={(e) => setTier(e.target.value as MemberTier)}
-          aria-label="App tier"
-          className="w-full flex-1 input-field px-3 py-2"
-        >
-          {(Object.keys(TIER_LABEL) as MemberTier[]).map((value) => (
-            <option key={value} value={value}>
-              {TIER_LABEL[value]}
-            </option>
-          ))}
-        </select>
-
-        <button
-          type="submit"
-          disabled={isSubmitting || tier === currentTier}
-          className="btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSubmitting ? "Saving…" : "Update tier"}
-        </button>
-      </form>
+          {hasPaidStorePlan ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              A paid store subscription can only be cancelled by the member in {digitalPlan?.source === "app_store" ? "the App Store" : "Google Play"}.
+              Staff cannot change or refund it here.
+            </p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {!hasComplimentary ? (
+              <button
+                type="button"
+                onClick={() => send("app_subscription")}
+                disabled={pending !== null}
+                className="btn-primary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pending === "app_subscription" ? "Saving…" : "Grant complimentary digital access"}
+              </button>
+            ) : digitalPlan?.source === "staff_grant" || legacyComp ? (
+              <button
+                type="button"
+                onClick={() => send("digital_revoke")}
+                disabled={pending !== null}
+                className="input-field px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pending === "digital_revoke" ? "Saving…" : "Withdraw complimentary access"}
+              </button>
+            ) : null}
+          </div>
+        </section>
+      </div>
 
       {error ? (
-        <p className="mt-3 hidden rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive sm:block">
+        <p role="alert" className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
         </p>
       ) : null}
       {successMessage ? (
-        <p className="mt-3 hidden rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary sm:block">
+        <p role="status" className="mt-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
           {successMessage}
         </p>
       ) : null}

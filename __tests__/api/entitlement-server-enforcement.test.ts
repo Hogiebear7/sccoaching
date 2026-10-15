@@ -35,6 +35,8 @@ let fx: IapFixture;
 const call = (method: string, url: string, cookie: string, body?: unknown) =>
   new NextRequest(`http://localhost${url}`, { method, headers: { "Content-Type": "application/json", Cookie: cookie }, body: body === undefined ? undefined : JSON.stringify(body) });
 
+// "free": nothing. "app_subscription": digital access only (a complimentary grant stands in for a verified store purchase here).
+// "membership": a gym Membership ONLY, which since owner decision D1 grants none of the digital features.
 async function member(email: string, tier: "free" | "app_subscription" | "membership") {
   const { POST } = await import("@/app/api/auth/signup/route");
   const res = await POST(
@@ -47,7 +49,7 @@ async function member(email: string, tier: "free" | "app_subscription" | "member
   expect(res.status).toBeLessThan(300);
   const user = fx.db.findUserByEmail(email)!;
   if (tier === "membership") fx.setSubscription(user.id, { packageId: fx.ids.membershipPackage, provider: "none", status: "active" });
-  if (tier === "app_subscription") fx.setSubscription(user.id, { packageId: fx.ids.appPackage, provider: "none", status: "active" });
+  if (tier === "app_subscription") (await import("@/lib/digital-entitlement")).grantStaffDigitalEntitlement({ userId: user.id, grantedByUserId: null });
   fx.db.saveProfile({ ...fx.db.findProfileByUserId(user.id)!, aiDataConsent: { grantedAt: "2026-10-01T00:00:00.000Z", version: 1 } }); // consent is ON: it must not matter
   const t = "2026-10-01T00:00:00.000Z";
   fx.db.saveWorkoutSession({ id: `w-${email}`, userId: user.id, date: "2026-10-01", title: "Session", exercises: [], runs: [], createdAt: t, updatedAt: t } as never);
@@ -60,7 +62,7 @@ beforeEach(async () => {
 });
 afterEach(() => fx.cleanup());
 
-// Every feature in lib/member-access.ts's FEATURE_MIN_TIER, with the route that enforces it.
+// Every feature in lib/member-access.ts's FEATURE_REQUIRES, with the route that enforces it.
 const GATED: { feature: string; run: (m: { cookie: string; workoutId: string }) => Promise<Response> }[] = [
   { feature: "aiCoachChat", run: async (m) => (await import("@/app/api/ai/chat/route")).POST(call("POST", "/api/ai/chat", m.cookie, { content: "hi" })) },
   { feature: "aiNutritionCoachChat", run: async (m) => (await import("@/app/api/ai/nutrition-coach/route")).POST(call("POST", "/api/ai/nutrition-coach", m.cookie, { content: "hi" })) },
@@ -74,17 +76,19 @@ const GATED: { feature: string; run: (m: { cookie: string; workoutId: string }) 
   { feature: "nutritionMoreTools (meal suggestions)", run: async (m) => (await import("@/app/api/mobile/nutrition/meal-suggest/route")).POST(call("POST", "/api/mobile/nutrition/meal-suggest", m.cookie, {})) },
 ];
 
-describe("a Free member, even with AI consent granted, is refused by every tier-gated route", () => {
-  for (const g of GATED) {
-    it(`${g.feature}: 403 and nothing reaches the AI provider`, async () => {
-      const free = await member(`free-${g.feature.replace(/\W+/g, "")}@example.test`, "free");
-      const res = await g.run(free);
-      expect(res.status, await res.clone().text()).toBe(403);
-      expect(reached.calls).toEqual([]);
-    });
+describe("a member without digital access, even with AI consent granted, is refused by every gated route", () => {
+  for (const who of ["free", "membership"] as const) {
+    for (const g of GATED) {
+      it(`${who} / ${g.feature}: 403 and nothing reaches the AI provider`, async () => {
+        const m = await member(`${who}-${g.feature.replace(/\W+/g, "")}@example.test`, who);
+        const res = await g.run(m);
+        expect(res.status, await res.clone().text()).toBe(403);
+        expect(reached.calls).toEqual([]);
+      });
+    }
   }
 
-  it("coach messaging is Membership-only on the server: Free and App Subscription are both refused", async () => {
+  it("coach messaging is gym-Membership-only on the server: Free and digital-only are both refused", async () => {
     const { POST } = await import("@/app/api/messages/send/route");
     for (const tier of ["free", "app_subscription"] as const) {
       const m = await member(`msg-${tier}@example.test`, tier);
@@ -94,16 +98,20 @@ describe("a Free member, even with AI consent granted, is refused by every tier-
   });
 });
 
-describe("an entitled member is not blocked by the tier gate", () => {
-  for (const tier of ["app_subscription", "membership"] as const) {
-    it(`${tier}: the chat route passes the tier check (it then reaches the provider stand-in)`, async () => {
-      const m = await member(`ok-${tier}@example.test`, tier);
-      const { POST } = await import("@/app/api/ai/chat/route");
-      const res = await POST(call("POST", "/api/ai/chat", m.cookie, { content: "hi" }));
-      expect(res.status).not.toBe(403);
-      expect(reached.calls).toContain("createCoachChatStream");
-    });
-  }
+describe("an entitled member is not blocked by the gate", () => {
+  it("digital access: the chat route passes the check (it then reaches the provider stand-in)", async () => {
+    const m = await member("ok-digital@example.test", "app_subscription");
+    const { POST } = await import("@/app/api/ai/chat/route");
+    const res = await POST(call("POST", "/api/ai/chat", m.cookie, { content: "hi" }));
+    expect(res.status).not.toBe(403);
+    expect(reached.calls).toContain("createCoachChatStream");
+  });
+
+  it("a gym Membership reaches coach messaging, and a digital plan does not", async () => {
+    const { POST } = await import("@/app/api/messages/send/route");
+    const gym = await member("msg-ok-gym@example.test", "membership");
+    expect((await POST(call("POST", "/api/messages/send", gym.cookie, { body: "hello coach" }))).status).not.toBe(403);
+  });
 });
 
 describe("lib/member-access.ts feature list is fully accounted for", () => {
@@ -111,8 +119,9 @@ describe("lib/member-access.ts feature list is fully accounted for", () => {
     const { readFileSync } = await import("node:fs");
     const path = await import("node:path");
     const src = readFileSync(path.join(process.cwd(), "lib", "member-access.ts"), "utf8");
-    const block = src.slice(src.indexOf("const FEATURE_MIN_TIER"), src.indexOf("export function hasAccess"));
+    const block = src.slice(src.indexOf("const FEATURE_REQUIRES"), src.indexOf("export function hasAccess"));
     const features = [...block.matchAll(/^\s+(\w+):\s*"/gm)].map((m) => m[1]);
+    expect(features.length).toBeGreaterThan(0);
     // unlimitedCustomFoods is a COUNT limit enforced in the create route (tested in the custom-food tests); nutritionMoreTools is enforced for the one cost-bearing tool
     // (meal suggestions). The sports drink calculator, weekly training schedule and shopping list are own-data tools with no provider cost and are hidden, not blocked,
     // for Free: an owner decision, listed in the handover.

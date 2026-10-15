@@ -1,5 +1,5 @@
 import {
-  appendIapEvent,
+  findDigitalEntitlement,
   findMembershipCategories,
   findMembershipPackageById,
   findMembershipPackages,
@@ -11,23 +11,28 @@ import {
   type StoredUser,
   type SubscriptionRecord,
 } from "@/lib/db";
+import { grantStaffDigitalEntitlement, revokeStaffDigitalEntitlement } from "@/lib/digital-entitlement";
 import { ownerGymForCatalogPackage, sameGym } from "@/lib/gym-scope";
-import type { MemberTier } from "@/lib/member-access";
-import { resolveMemberTier } from "@/lib/membership-entitlement";
+import type { MemberAccess } from "@/lib/member-access";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { cancelProviderSubscription } from "@/lib/billing";
-import { evaluateEntitlementConflict, packageScopeResolver, type EntitlementConflictCode } from "@/lib/iap/entitlement-conflict";
 
-// The one catalog package Tier 2 grants are backed by (see
-// scripts/seed-app-subscription-package.mjs) — billingChannel "manual",
-// not visible in any self-serve list.
+// The one catalog package the App-only digital plan's store products are mapped to (see
+// scripts/seed-app-subscription-package.mjs). It carries the price/period catalog for the store products only. Since owner
+// decision D1 (2026-10-15) it is NOT something a gym Membership grants, and no member's SubscriptionRecord points at it.
 export const APP_SUBSCRIPTION_PACKAGE_SLUG = "app-subscription-tier-2";
+
+// What a staff member or an invite can grant. The three names are kept because stored invites and the staff API already use
+// them, but they no longer form a ladder (owner decision D1): "membership" is the paid gym Membership (a SubscriptionRecord),
+// "app_subscription" is a COMPLIMENTARY digital entitlement (a staff_grant DigitalEntitlementRecord, never a paid one), and
+// "free" ends the gym Membership. Granting one never changes the other.
+export type GrantTier = "free" | "app_subscription" | "membership";
 
 // A Membership-tier package belongs to the gym of its category (package ->
 // categoryId -> gymId; gymId null = primary gym, lib/gym-scope.ts). A grant may
 // only ever attach a package owned by the RECEIVING member's own gym — the
 // default pick and an explicitly requested packageId alike — so no gym's
-// package can be assigned to another gym's member. (App Subscription is the
-// platform-wide app-only package and is resolved separately, unchanged.)
+// package can be assigned to another gym's member.
 function packageInMemberGym(pkg: MembershipPackageRecord, member: Pick<StoredUser, "gymId">): boolean {
   const category = findMembershipCategories().find((c) => c.id === pkg.categoryId);
   return !!category && sameGym(member, category);
@@ -39,70 +44,62 @@ function defaultMembershipPackage(member: Pick<StoredUser, "gymId">): Membership
     .sort((a, b) => a.sortOrder - b.sortOrder)[0];
 }
 
+// A SubscriptionRecord on the app-only package with provider "none": how a complimentary App Subscription was recorded before
+// the digital entitlement store existed. lib/membership-entitlement.ts still reads such a row as digital access.
+export function isLegacyDigitalCompRow(subscription: SubscriptionRecord | undefined | null): boolean {
+  if (!subscription?.packageId || subscription.provider !== "none") return false;
+  if (subscription.status !== "active" && subscription.status !== "past_due") return false;
+  return findMembershipPackageById(subscription.packageId)?.deliveryChannel === "app_only";
+}
+
 export interface GrantTierResult {
   ok: boolean;
   message: string;
   warning?: string | null;
-  tier?: MemberTier;
-  /** Set when the grant was refused because it would replace a live entitlement of the other
-      kind or a live Google Play subscription. Stable; see lib/iap/entitlement-conflict.ts. */
-  code?: EntitlementConflictCode;
+  /** The member's access after the grant. */
+  access?: MemberAccess;
 }
 
-// Shared by the staff "change tier" route and invite redemption — both boil
-// down to "grant this member this tier," resolved to a catalog package and
-// saved as a SubscriptionRecord the same way POST .../subscription does its
-// raw packageId+status override.
+// Shared by the staff "grant" routes and invite redemption.
 export async function grantMemberTier(
   userId: string,
-  tier: MemberTier,
+  tier: GrantTier,
   options?: {
     packageId?: string;
-    billingOptionId?: string | null;
-    /** Defaults to "none" (manual/invite grant). Pass "google_play" when this
-        grant is the result of a verified Play Billing purchase. */
-    provider?: SubscriptionRecord["provider"];
-    providerSubscriptionId?: string | null;
-    currentPeriodEnd?: string | null;
-    /** Overrides the tier's normal resolved status — used to grant
-        "past_due" (Play grace period, member keeps access) or "paused"
-        rather than the default "active". */
-    status?: SubscriptionRecord["status"];
+    /** Staff grant: the staff member's user id, for the audit trail. Null for an invite redemption. */
+    grantedByUserId?: string | null;
+    note?: string | null;
   }
 ): Promise<GrantTierResult> {
+  const member = findUserById(userId);
+  if (!member) return { ok: false, message: "Member not found." };
+
+  // Complimentary digital access: a separate row in the digital entitlement store. It never touches the gym Membership
+  // row, never cancels a provider subscription, and is shown to staff as complimentary, not as a paid subscription.
+  if (tier === "app_subscription") {
+    grantStaffDigitalEntitlement({ userId, grantedByUserId: options?.grantedByUserId ?? null, note: options?.note ?? null });
+    return { ok: true, message: "Complimentary digital access granted.", access: resolveMemberAccessForUser(userId) };
+  }
+
   const existingSubscription = findSubscriptionByUserId(userId);
+
+  // A legacy complimentary App Subscription row is the digital access the owner already gave this member. Writing a gym
+  // Membership over that row would silently end it, so it is carried into the digital entitlement store first. Not applied
+  // to a free change: that leaves the row exactly as it is.
+  const legacyDigitalComp = (): boolean => isLegacyDigitalCompRow(existingSubscription);
 
   let resolvedPackageId: string | null;
   let resolvedStatus: SubscriptionRecord["status"];
-  // Only computed when a row might not already exist (app_subscription and
-  // membership branches) — the "free" branch always has an existing row
-  // (guaranteed by its own early return below), so it never needs one.
   let freshOwnerGym: MoneyRecordOwnerGym | undefined;
 
   if (tier === "free") {
-    if (!existingSubscription || existingSubscription.status === "canceled") {
-      return { ok: true, message: "This member is already on the Free tier.", tier: "free" };
+    // Ends the gym Membership. A complimentary digital grant is a separate thing and is left alone (revoke it explicitly).
+    if (!existingSubscription || existingSubscription.status === "canceled" || legacyDigitalComp()) {
+      return { ok: true, message: "This member has no gym Membership to end.", access: resolveMemberAccessForUser(userId) };
     }
     resolvedPackageId = existingSubscription.packageId ?? null;
-    resolvedStatus = options?.status ?? "canceled";
-  } else if (tier === "app_subscription") {
-    const pkg = findMembershipPackages().find((p) => p.slug === APP_SUBSCRIPTION_PACKAGE_SLUG);
-    if (!pkg) {
-      return {
-        ok: false,
-        message: "The App Subscription package hasn't been set up yet. Run `npm run seed:app-subscription-package -- --confirm`.",
-      };
-    }
-    resolvedPackageId = pkg.id;
-    resolvedStatus = options?.status ?? "active";
-    freshOwnerGym = { scope: "platform" };
+    resolvedStatus = "canceled";
   } else {
-    // The receiving member's gym decides which packages are eligible.
-    const member = findUserById(userId);
-    if (!member) {
-      return { ok: false, message: "Member not found." };
-    }
-
     let pkg: MembershipPackageRecord | undefined;
     if (options?.packageId) {
       pkg = findMembershipPackageById(options.packageId);
@@ -118,42 +115,22 @@ export async function grantMemberTier(
     }
     resolvedPackageId = pkg.id;
     resolvedStatus = "active";
-    // pkg is never app_only here (checked above / excluded by
-    // defaultMembershipPackage's own filter), so this always resolves "gym",
-    // never "platform" — consistent with ownerGymForCatalogPackage's own logic.
+    // pkg is never app_only here, so this always resolves "gym", never "platform".
     freshOwnerGym = ownerGymForCatalogPackage(pkg, findMembershipCategories().find((c) => c.id === pkg.categoryId));
-  }
 
-  // No overlap and no silent replacement (owner defaults D1 and D2). A staff, invite or other
-  // manual grant may not replace a live entitlement of the other kind, nor any live Google Play
-  // subscription. Grants that ARE a verified Play purchase (provider "google_play") are applied by
-  // the Play verify and notification paths, which enforce their own rules (lib/iap).
-  if ((options?.provider ?? "none") !== "google_play") {
-    const entitling = tier !== "free" && (resolvedStatus === "active" || resolvedStatus === "past_due");
-    const conflict = evaluateEntitlementConflict(
-      existingSubscription,
-      { kind: "staff_write", scope: tier === "free" ? null : tier === "app_subscription" ? "app_subscription" : "membership", entitling },
-      packageScopeResolver
-    );
-    if (conflict) {
-      appendIapEvent({ type: "staff_write_rejected", userId, actor: "staff", detail: { code: conflict.code, tier, source: "grantMemberTier" } });
-      return { ok: false, message: conflict.message, code: conflict.code };
+    // The Membership grant replaces the legacy digital comp row; keep the comp as a digital grant so access is not lost.
+    if (legacyDigitalComp() && !findDigitalEntitlement(userId, "staff_grant")) {
+      grantStaffDigitalEntitlement({ userId, grantedByUserId: null, note: "Carried over from a legacy complimentary App Subscription." });
     }
   }
 
-  // Walking away from a Google Play row (it has ended, or the conflict rules above would have refused) must not carry
-  // the old Play purchase token, billing option or paid period over to a row that is no longer billed through Play.
-  // An inherited past period end would make a freshly granted Membership look lapsed, and an inherited token is stale.
-  const leavingPlay = existingSubscription?.provider === "google_play" && (options?.provider ?? "none") !== "google_play";
-
   const now = new Date().toISOString();
-  const isEnteringFreshActivePeriod =
-    resolvedStatus === "active" &&
-    (existingSubscription?.status !== "active" || existingSubscription?.packageId !== resolvedPackageId);
+  const replacingLegacyRow = tier === "membership" && !!existingSubscription && legacyDigitalComp();
+  const base = replacingLegacyRow ? undefined : existingSubscription;
+  const isEnteringFreshActivePeriod = resolvedStatus === "active" && (base?.status !== "active" || base?.packageId !== resolvedPackageId);
 
-  // A manual/invite grant (the default, provider: "none") walking away from
-  // a live Stripe subscription needs to cancel it at the provider too, or
-  // Stripe keeps billing with nothing surfacing the mismatch.
+  // A manual/invite grant walking away from a live Stripe subscription needs to cancel it at the provider too, or Stripe
+  // keeps billing with nothing surfacing the mismatch.
   let providerCancelWarning: string | null = null;
 
   if (existingSubscription?.provider === "stripe" && existingSubscription.providerSubscriptionId) {
@@ -163,42 +140,32 @@ export async function grantMemberTier(
     });
 
     if (!result.ok) {
-      providerCancelWarning = `Tier updated, but the live Stripe subscription could not be cancelled automatically (${result.message ?? "unknown error"}). Cancel it manually in the Stripe dashboard.`;
+      providerCancelWarning = `Membership updated, but the live Stripe subscription could not be cancelled automatically (${result.message ?? "unknown error"}). Cancel it manually in the Stripe dashboard.`;
     }
   }
 
   const subscription: SubscriptionRecord = {
     userId,
     packageId: resolvedPackageId,
-    billingOptionId:
-      options?.billingOptionId !== undefined ? options.billingOptionId : leavingPlay ? null : existingSubscription?.billingOptionId ?? null,
+    billingOptionId: base?.billingOptionId ?? null,
     status: resolvedStatus,
     pausedUntil: null,
     statusBeforePause: null,
-    provider: options?.provider ?? "none",
-    providerCustomerId: existingSubscription?.providerCustomerId ?? null,
-    providerSubscriptionId:
-      options?.providerSubscriptionId !== undefined
-        ? options.providerSubscriptionId
-        : leavingPlay
-          ? null
-          : existingSubscription?.providerSubscriptionId ?? null,
-    providerSetupOrderId: existingSubscription?.providerSetupOrderId ?? null,
-    currentPeriodEnd:
-      options?.currentPeriodEnd !== undefined ? options.currentPeriodEnd : leavingPlay ? null : existingSubscription?.currentPeriodEnd ?? null,
-    lastWebhookEventAt: existingSubscription?.lastWebhookEventAt ?? null,
-    sessionsUsedThisPeriod: isEnteringFreshActivePeriod ? 0 : existingSubscription?.sessionsUsedThisPeriod ?? 0,
-    extraSessionGrants: isEnteringFreshActivePeriod ? [] : existingSubscription?.extraSessionGrants ?? [],
-    periodLapsedNotifiedAt: isEnteringFreshActivePeriod ? null : existingSubscription?.periodLapsedNotifiedAt ?? null,
-    // Immutable historical provenance: if a row already exists, its ownerGym
-    // wins EXACTLY as stored — falling back to explicit "unresolved" (never
-    // silently recomputed) for a row that predates this field — even across
-    // a tier CHANGE (e.g. Membership <-> App Subscription; see
-    // SubscriptionRecord.ownerGym's own "known open question" comment in
-    // lib/db.ts). Fresh ownership is only ever stamped the first time this
-    // user gets a subscription row at all.
-    ownerGym: existingSubscription ? existingSubscription.ownerGym ?? { scope: "unresolved" } : freshOwnerGym,
-    createdAt: existingSubscription?.createdAt ?? now,
+    provider: "none",
+    providerCustomerId: base?.providerCustomerId ?? null,
+    providerSubscriptionId: base?.providerSubscriptionId ?? null,
+    providerSetupOrderId: base?.providerSetupOrderId ?? null,
+    currentPeriodEnd: base?.currentPeriodEnd ?? null,
+    lastWebhookEventAt: base?.lastWebhookEventAt ?? null,
+    sessionsUsedThisPeriod: isEnteringFreshActivePeriod ? 0 : base?.sessionsUsedThisPeriod ?? 0,
+    extraSessionGrants: isEnteringFreshActivePeriod ? [] : base?.extraSessionGrants ?? [],
+    periodLapsedNotifiedAt: isEnteringFreshActivePeriod ? null : base?.periodLapsedNotifiedAt ?? null,
+    // Immutable historical provenance: if a row already exists, its ownerGym wins EXACTLY as stored — falling back to
+    // explicit "unresolved" (never silently recomputed) for a row that predates this field. A legacy digital-comp row is
+    // being replaced by a gym Membership, so the Membership's own gym is stamped. Fresh ownership is only ever stamped the
+    // first time this user gets a subscription row at all.
+    ownerGym: base ? base.ownerGym ?? { scope: "unresolved" } : freshOwnerGym,
+    createdAt: base?.createdAt ?? now,
     updatedAt: now,
   };
 
@@ -206,8 +173,25 @@ export async function grantMemberTier(
 
   return {
     ok: true,
-    message: providerCancelWarning ?? "Member tier updated.",
+    message: providerCancelWarning ?? (tier === "free" ? "Gym Membership ended." : "Gym Membership updated."),
     warning: providerCancelWarning,
-    tier: resolveMemberTier(subscription),
+    access: resolveMemberAccessForUser(userId),
+  };
+}
+
+// Withdraws a complimentary digital grant. A paid store subscription is never touched here: it can only be ended in the store.
+export function revokeDigitalGrant(userId: string): GrantTierResult {
+  if (!findUserById(userId)) return { ok: false, message: "Member not found." };
+  let revoked = revokeStaffDigitalEntitlement(userId);
+  // A legacy complimentary row is ended by cancelling it; it is not a gym Membership and carries no provider billing.
+  const legacy = findSubscriptionByUserId(userId);
+  if (legacy && isLegacyDigitalCompRow(legacy)) {
+    saveSubscription({ ...legacy, status: "canceled", updatedAt: new Date().toISOString() });
+    revoked = true;
+  }
+  return {
+    ok: true,
+    message: revoked ? "Complimentary digital access withdrawn." : "This member has no complimentary digital access to withdraw.",
+    access: resolveMemberAccessForUser(userId),
   };
 }

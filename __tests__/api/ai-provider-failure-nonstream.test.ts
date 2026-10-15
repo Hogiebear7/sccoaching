@@ -38,6 +38,8 @@ async function consentingMember() {
   expect(res.status).toBeLessThan(300);
   const user = fx.db.findUserByEmail("pf@example.test")!;
   fx.setSubscription(user.id, { packageId: fx.ids.membershipPackage, provider: "none", status: "active" });
+  // Digital access is separate from a gym Membership (owner decision D1): the AI routes need the digital flag.
+  (await import("@/lib/digital-entitlement")).grantStaffDigitalEntitlement({ userId: user.id, grantedByUserId: null });
   fx.db.saveProfile({ ...fx.db.findProfileByUserId(user.id)!, aiDataConsent: { grantedAt: "2026-10-01T00:00:00.000Z", version: 1 } });
   const t = "2026-10-01T00:00:00.000Z";
   fx.db.saveWorkoutSession({ id: "w-pf", userId: user.id, date: "2026-10-01", title: "Session", exercises: [], runs: [], createdAt: t, updatedAt: t } as never);

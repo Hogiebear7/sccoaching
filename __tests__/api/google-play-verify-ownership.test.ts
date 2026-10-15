@@ -31,10 +31,16 @@ describe("POST /api/mobile/billing/google-play/verify — token ownership", () =
     expect(await res.json()).toEqual({
       success: true,
       message: "Purchase verified.",
-      data: { tier: "app_subscription", status: "active", acknowledged: true },
+      data: {
+        access: { digital: true, gymMembership: false },
+        plan: { source: "google_play", status: "active", currentPeriodEnd: expect.any(String), autoRenewing: true, environment: null },
+        status: "active",
+        acknowledged: true,
+      },
     });
     expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)).toMatchObject({ userId: fx.memberA.id, purchaseToken: TOKEN });
-    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toMatchObject({ provider: "google_play", providerSubscriptionId: TOKEN });
+    expect(fx.db.findDigitalEntitlement(fx.memberA.id, "google_play")).toMatchObject({ status: "active", storeRefHash: fx.db.hashPurchaseToken(TOKEN) });
+    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toBeUndefined(); // the gym Membership row is never written
     expect(revenue()).toEqual([expect.objectContaining({ userId: fx.memberA.id, providerRef: "GPA.1", ownerGym: { scope: "platform" } })]);
   });
 
@@ -129,7 +135,7 @@ describe("POST /api/mobile/billing/google-play/verify — token ownership", () =
     const fresh = await fx.verify(fx.memberB.id, { purchaseToken: "another-token", userId: fx.memberA.id, gymId: "gym-x" });
     expect(fresh.status).toBe(200);
     expect(fx.db.findGooglePlayPurchaseByToken("another-token")?.userId).toBe(fx.memberB.id);
-    expect(fx.db.findSubscriptionByUserId(fx.memberB.id)).toMatchObject({ provider: "google_play", providerSubscriptionId: "another-token" });
+    expect(fx.db.findDigitalEntitlement(fx.memberB.id, "google_play")).toMatchObject({ storeRefHash: fx.db.hashPurchaseToken("another-token") });
   });
 });
 
@@ -172,11 +178,11 @@ describe("POST /api/mobile/billing/google-play/verify — existing behavior unch
     expect(fx.db.findGooglePlayPurchaseByToken("bogus")).toBeUndefined();
   });
 
-  it("still rejects a token that doesn't match a known App Subscription product", async () => {
+  it("still rejects a token that doesn't match a known digital plan product", async () => {
     fx.adapter.setSnapshot(TOKEN, { accountBinding: fx.bindingFor(fx.memberA.id), productId: "some_other_product" });
     const res = await fx.verify(fx.memberA.id, { purchaseToken: TOKEN });
     expect(res.status).toBe(400);
-    expect((await res.json()).message).toBe("This purchase doesn't match a known App Subscription product.");
+    expect((await res.json()).message).toBe("This purchase doesn't match a known digital plan product.");
     expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)).toBeUndefined();
     expect(fx.adapter.ackCalls).toEqual([]);
   });

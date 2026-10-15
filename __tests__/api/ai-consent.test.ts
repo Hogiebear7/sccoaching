@@ -40,6 +40,8 @@ async function signUp(email: string) {
   const user = fx.db.findUserByEmail(email)!;
   // A plan and a completed programme cycle, so the request gets past the tier and not-found checks and the CONSENT gate is what answers.
   fx.setSubscription(user.id, { packageId: fx.ids.membershipPackage, provider: "none", status: "active" });
+  // Digital access is separate from a gym Membership (owner decision D1): the AI routes need the digital flag.
+  (await import("@/lib/digital-entitlement")).grantStaffDigitalEntitlement({ userId: user.id, grantedByUserId: null });
   const t = "2026-10-01T00:00:00.000Z";
   fx.db.saveTrainingProgram({ id: "p1", userId: user.id, name: "Test programme", status: "active", days: [], currentDayIndex: 0, createdByStaffId: "x", createdAt: t, updatedAt: t, completedCycles: 2, totalWeeks: 4 } as never);
   return { user, cookie: fx.cookie(user.id) };

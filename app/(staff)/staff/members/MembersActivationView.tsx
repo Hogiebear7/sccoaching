@@ -7,7 +7,6 @@ import { useMemo, useState } from "react";
 import { InvitePanel } from "@/components/staff/InvitePanel";
 import { describePackageAllowance } from "@/lib/catalog";
 import type { MembershipPackageRecord, SubscriptionStatus } from "@/lib/db";
-import type { MemberTier } from "@/lib/member-access";
 import {
   formatMembershipDate,
   isPeriodLapsed,
@@ -49,10 +48,14 @@ const EXPIRY_LABEL: Record<ExpiryFilter, string> = {
   "no-expiry": "No expiry set",
 };
 
-const BULK_TIER_LABEL: Record<MemberTier, string> = {
-  free: "Free",
-  app_subscription: "App Subscription",
-  membership: "Membership",
+// Gym Membership and COMPLIMENTARY digital access are independent (owner decision D1). A paid store subscription is never
+// created or ended from here: only Google Play or the App Store can do that.
+type BulkAction = "membership" | "free" | "app_subscription" | "digital_revoke";
+const BULK_TIER_LABEL: Record<BulkAction, string> = {
+  membership: "Grant gym Membership",
+  free: "End gym Membership",
+  app_subscription: "Grant complimentary digital access",
+  digital_revoke: "Withdraw complimentary digital access",
 };
 
 function rowDisplayName(row: MemberRow): string {
@@ -103,7 +106,7 @@ export function MembersActivationView({
   const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkTier, setBulkTier] = useState<MemberTier>("membership");
+  const [bulkTier, setBulkTier] = useState<BulkAction>("membership");
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
   const [bulkSummary, setBulkSummary] = useState<string | null>(null);
 
@@ -204,7 +207,7 @@ export function MembersActivationView({
       const failed = results.filter((r) => !r.ok);
       setBulkSummary(
         failed.length === 0
-          ? `Updated ${okCount} member${okCount === 1 ? "" : "s"} to ${BULK_TIER_LABEL[bulkTier]}.`
+          ? `${BULK_TIER_LABEL[bulkTier]}: ${okCount} member${okCount === 1 ? "" : "s"} updated.`
           : `Updated ${okCount} member${okCount === 1 ? "" : "s"} — ${failed.length} failed: ${failed[0].message}${failed.length > 1 ? ` (+${failed.length - 1} more)` : ""}`
       );
       setSelectedIds(new Set());
@@ -377,11 +380,11 @@ export function MembersActivationView({
               <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
               <select
                 value={bulkTier}
-                onChange={(e) => setBulkTier(e.target.value as MemberTier)}
-                aria-label="Tier to grant selected members"
+                onChange={(e) => setBulkTier(e.target.value as BulkAction)}
+                aria-label="Access change for selected members"
                 className="input-field px-2 py-1.5 text-xs"
               >
-                {(Object.keys(BULK_TIER_LABEL) as MemberTier[]).map((value) => (
+                {(Object.keys(BULK_TIER_LABEL) as BulkAction[]).map((value) => (
                   <option key={value} value={value}>
                     {BULK_TIER_LABEL[value]}
                   </option>
@@ -393,7 +396,7 @@ export function MembersActivationView({
                 disabled={isBulkSubmitting}
                 className="btn-primary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isBulkSubmitting ? "Updating…" : `Grant to ${selectedIds.size} selected`}
+                {isBulkSubmitting ? "Updating…" : `Apply to ${selectedIds.size} selected`}
               </button>
             </>
           ) : null}

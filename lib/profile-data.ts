@@ -2,6 +2,7 @@ import {
   findBodyWeightLogsByUserId,
   findBookingsByUserId,
   findClassById,
+  findDigitalEntitlementsByUserId,
   findProfileByUserId,
   findUserById,
   findWorkoutSessionsByUserId,
@@ -9,8 +10,9 @@ import {
 import { hasAiConsentOnProfile } from "@/lib/ai-consent";
 import { resolveCurrentWeightKg } from "./body-weight";
 import { buildMemberStatsData, sumStatsInRange, type MemberStatTotals } from "./member-stats";
-import type { MemberTier } from "./member-access";
-import { resolveMemberTierForUser } from "./membership-entitlement";
+import { describeDigitalPlan, type DigitalPlanSummary } from "./digital-entitlement";
+import type { MemberAccess } from "./member-access";
+import { resolveMemberAccessForUser } from "./membership-entitlement";
 import type { DietaryPreference, Gender, MeasurementUnits, PrimaryGoal } from "./profile-schema";
 
 export interface ProfileData {
@@ -48,10 +50,12 @@ export interface ProfileData {
   // not replicated on mobile; see app/(dashboard)/dashboard/profile/
   // ProfileStatsCard.tsx for the full version.
   allTimeStats: MemberStatTotals;
-  // Drives client-side feature gating — see lib/member-access.ts. Fetched
-  // here (a response every screen already loads) rather than a dedicated
-  // round-trip.
-  memberTier: MemberTier;
+  // Drives client-side feature gating — see lib/member-access.ts. Fetched here (a response every screen already loads)
+  // rather than a dedicated round-trip. Two independent flags: a gym Membership does not include the digital features.
+  memberAccess: MemberAccess;
+  // The member's live digital plan for display (paid-through date, renewing or ending, which store manages it), or null.
+  // Display only: the server decides access from the records, never from this.
+  digitalPlan: DigitalPlanSummary | null;
   // Whether this member has allowed their data to be sent to the AI provider (lib/ai-consent.ts). The apps use it to ask before the first AI request.
   aiConsentGranted: boolean;
 }
@@ -106,7 +110,8 @@ export function getProfileData(userId: string | undefined): ProfileData | null {
     avatarDataUrl: profile.avatarDataUrl ?? null,
     cycleTrackingEligible: profile.cycleTrackingEligible,
     allTimeStats: sumStatsInRange(statsData, null, null),
-    memberTier: resolveMemberTierForUser(user.id),
+    memberAccess: resolveMemberAccessForUser(user.id),
+    digitalPlan: describeDigitalPlan(findDigitalEntitlementsByUserId(user.id)),
     aiConsentGranted: hasAiConsentOnProfile(profile),
   };
 }

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
-import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_TIMING_MINS = 10080; // 7 days
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!hasAccess(resolveMemberTierForUser(user.id), "notifications")) {
+  if (!hasAccess(resolveMemberAccessForUser(user.id), "notifications")) {
     return NextResponse.json(
       { success: false, message: "Class reminders need App Subscription or above." },
       { status: 403 }

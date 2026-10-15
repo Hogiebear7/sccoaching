@@ -26,6 +26,7 @@ vi.mock("@/lib/db", () => ({
   createNotification: mockCreateNotification,
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
   findMembershipPackageById: mockFindMembershipPackageById,
+  findDigitalEntitlementsByUserId: () => [],
 }));
 
 vi.mock("@/lib/push", () => ({ sendPush: vi.fn() }));
@@ -63,7 +64,7 @@ describe("POST /api/messages/send", () => {
     const data = await res.json();
 
     expect(res.status).toBe(403);
-    expect(data.message).toBe("Messaging a coach is available on the Membership tier.");
+    expect(data.message).toBe("Messaging a coach is available with a gym Membership.");
     expect(mockCreateMessage).not.toHaveBeenCalled();
   });
 

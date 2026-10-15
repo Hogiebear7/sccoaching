@@ -46,6 +46,15 @@ function protectedPlayState(userId) {
     if (p.status === "active" || p.status === "in_grace_period" || p.status === "paused") return p.status;
     if (p.status === "canceled" && typeof p.expiryTimeMillis === "number" && p.expiryTimeMillis > NOW_MS) return "canceled_until_expiry";
   }
+  // An App Store subscription that is still paid for: auto-renewing, cancelled-until-expiry, or in a retry state.
+  for (const p of db.appStorePurchases ?? []) {
+    if (p.userId !== userId || p.revokedAt) continue;
+    if (p.status === "in_grace_period" || p.status === "billing_retry") return p.status;
+    if (p.status === "active") {
+      if (p.autoRenewing) return "active";
+      if (typeof p.expiresDateMillis === "number" && p.expiresDateMillis > NOW_MS) return "canceled_until_expiry";
+    }
+  }
   const sub = (db.subscriptions ?? []).find((s) => s.userId === userId);
   if (sub?.provider === "google_play" && ["active", "past_due", "paused"].includes(sub.status)) {
     const lapsed = sub.status === "active" && sub.currentPeriodEnd && new Date(sub.currentPeriodEnd).getTime() < NOW_MS;
@@ -74,6 +83,7 @@ const BY_USER_ID = [
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
   "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
   "recipes", "shoppingListItems",
+  "digitalEntitlements",
 ];
 
 // Compute deletion counts without mutating (for the dry-run report).
@@ -84,6 +94,7 @@ for (const key of BY_USER_ID) {
 }
 // messages are keyed by memberId (the member the thread belongs to).
 report.googlePlayPurchasesAnonymised = (db.googlePlayPurchases ?? []).filter((p) => doomedIds.has(p.userId)).length;
+report.appStorePurchasesAnonymised = (db.appStorePurchases ?? []).filter((p) => doomedIds.has(p.userId)).length;
 report.messages = (db.messages ?? []).filter((m) => doomedIds.has(m.memberId)).length;
 // Custom foods use ownerUserId, not userId — see lib/db.ts's deleteUserAndOwnedRecords.
 report.customFoods = (db.customFoods ?? []).filter((f) => doomedIds.has(f.ownerUserId)).length;
@@ -128,6 +139,10 @@ for (const key of BY_USER_ID) {
 if (Array.isArray(db.googlePlayPurchases)) {
   const at = new Date().toISOString();
   db.googlePlayPurchases = db.googlePlayPurchases.map((p) => (doomedIds.has(p.userId) ? { ...p, userId: deletedOwnerId(p.userId), anonymizedAt: at, updatedAt: at } : p));
+}
+if (Array.isArray(db.appStorePurchases)) {
+  const at = new Date().toISOString();
+  db.appStorePurchases = db.appStorePurchases.map((p) => (doomedIds.has(p.userId) ? { ...p, userId: deletedOwnerId(p.userId), anonymizedAt: at, updatedAt: at } : p));
 }
 db.messages = (db.messages ?? []).filter((m) => !doomedIds.has(m.memberId));
 if (Array.isArray(db.customFoods)) db.customFoods = db.customFoods.filter((f) => !doomedIds.has(f.ownerUserId));

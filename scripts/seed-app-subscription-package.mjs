@@ -36,6 +36,17 @@
 //
 // Env (optional):
 //   GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID   e.g. "app_subscription_tier2"
+//   APP_STORE_PRODUCT_ID_MONTHLY          the App Store Connect product id for the monthly plan
+//   APP_STORE_PRODUCT_ID_SEMIANNUAL       ... for the 6-month plan
+//   APP_STORE_PRODUCT_ID_ANNUAL           ... for the yearly plan
+//
+// The App Store product ids are NEVER defaulted or invented: each is written only when you set it, and must be exactly the
+// product id created in App Store Connect (each billing period is its own product there). The prices below are catalog
+// placeholders for staff-side reporting only. What a member is charged, and what the app shows, is the price the store
+// itself returns; the server never states a price to the app.
+//
+// Since owner decision D1 (2026-10-15) this package is the catalog for the App-only digital plan's STORE products only.
+// A gym Membership does not include it, no member row points at it, and it is never sold on the website (D3).
 
 import { randomUUID } from "crypto";
 import { copyFileSync, existsSync } from "fs";
@@ -49,6 +60,12 @@ const CONFIRM = process.argv.slice(2).includes("--confirm");
 export const APP_SUBSCRIPTION_PACKAGE_SLUG = "app-subscription-tier-2";
 
 const GOOGLE_PLAY_PRODUCT_ID = process.env.GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID ?? "app_subscription_tier2";
+
+const APPLE_PRODUCT_IDS = {
+  monthly: process.env.APP_STORE_PRODUCT_ID_MONTHLY?.trim() || null,
+  semiannual: process.env.APP_STORE_PRODUCT_ID_SEMIANNUAL?.trim() || null,
+  annual: process.env.APP_STORE_PRODUCT_ID_ANNUAL?.trim() || null,
+};
 
 const PLANS = [
   { basePlanId: "monthly", name: "App Subscription — Monthly", intervalUnit: "month", intervalCount: 1, amountCents: 1299, sortOrder: 0 },
@@ -85,7 +102,9 @@ const missingPlans = PLANS.filter((p) => !existingOptionsByBasePlan.has(p.basePl
 const driftedPlans = PLANS.filter((p) => {
   const existing = existingOptionsByBasePlan.get(p.basePlanId);
   if (!existing) return false;
+  const appleId = APPLE_PRODUCT_IDS[p.basePlanId];
   return (
+    (appleId !== null && (existing.appStoreProductId ?? null) !== appleId) ||
     existing.amountCents !== p.amountCents ||
     existing.intervalUnit !== p.intervalUnit ||
     existing.intervalCount !== p.intervalCount ||
@@ -132,7 +151,7 @@ if (needsPackage) {
     categoryId: category.id,
     name: "App Subscription",
     slug: APP_SUBSCRIPTION_PACKAGE_SLUG,
-    shortDescription: "App-only access, purchased in-app via Google Play, or granted by staff/invite.",
+    shortDescription: "App-only digital plan, purchased in the app through Google Play or the App Store.",
     fullDescription: null,
     packageType: "membership",
     sessionAllowanceType: "unlimited",
@@ -170,6 +189,7 @@ if (missingPlans.length > 0) {
     stripePriceId: null,
     googlePlaySubscriptionId: GOOGLE_PLAY_PRODUCT_ID,
     googlePlayBasePlanId: plan.basePlanId,
+    appStoreProductId: APPLE_PRODUCT_IDS[plan.basePlanId],
     createdAt: now,
     updatedAt: now,
   }));
@@ -183,6 +203,7 @@ for (const plan of driftedPlans) {
   option.intervalUnit = plan.intervalUnit;
   option.intervalCount = plan.intervalCount;
   option.amountCents = plan.amountCents;
+  if (APPLE_PRODUCT_IDS[plan.basePlanId] !== null) option.appStoreProductId = APPLE_PRODUCT_IDS[plan.basePlanId];
   option.updatedAt = now;
 }
 

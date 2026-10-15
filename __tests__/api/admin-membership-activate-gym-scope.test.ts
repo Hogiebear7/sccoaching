@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
   findMembershipCategoryById: vi.fn(),
   findSubscriptionByUserId: vi.fn(),
   saveSubscription: vi.fn(),
+  appendIapEvent: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
 
@@ -145,15 +146,16 @@ describe("POST /api/admin/membership/activate — package ownership", () => {
     expect(h.saveSubscription).not.toHaveBeenCalled();
   });
 
-  it("allows a visible app_only package from any gym's admin, when every other check passes", async () => {
+  it("refuses a visible app_only package from every gym's admin: the digital plan is never assigned as a Membership (owner decision D1)", async () => {
     h.findMembershipPackageById.mockReturnValue(
       pkg("pkg-app", "cat-b", { deliveryChannel: "app_only", billingChannel: "google_play", slug: "app-subscription-tier-2" })
     );
 
     const res = await activate("pkg-app");
 
-    expect(res.status).toBe(200);
-    expect(h.saveSubscription).toHaveBeenCalledWith(expect.objectContaining({ packageId: "pkg-app", status: "active" }));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "app_plan_not_assignable" });
+    expect(h.saveSubscription).not.toHaveBeenCalled();
   });
 
   it("still applies the existing visibility rule to app_only packages (the seeded App Subscription is visible: false, so this route cannot reach it)", async () => {
@@ -237,14 +239,6 @@ describe("POST /api/admin/membership/activate — package ownership", () => {
     h.findMembershipPackageById.mockImplementation((id: string) => (id === "pkg-b" ? pkg("pkg-b", "cat-b") : undefined));
     await activate("pkg-b", GYM_B_ADMIN.id, GYM_B_MEMBER.id);
     expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-b" });
-  });
-
-  it("stamps { scope: 'platform' } for the app-only package", async () => {
-    h.findMembershipPackageById.mockReturnValue(
-      pkg("pkg-app", "cat-b", { deliveryChannel: "app_only", billingChannel: "google_play", slug: "app-subscription-tier-2" })
-    );
-    await activate("pkg-app", GYM_A_ADMIN.id, GYM_A_MEMBER.id);
-    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
   });
 
   it("preserves an existing subscription's ownerGym unchanged across a re-activation onto a different package", async () => {
@@ -333,9 +327,9 @@ describe("POST /api/admin/membership/activate — target-member gym", () => {
 
     expectMemberNotFound(res, await res.json());
 
-    // Control: the same app-only package works for a same-gym pair.
-    const ok = await activate("pkg-app", GYM_B_ADMIN.id, GYM_B_MEMBER.id);
-    expect(ok.status).toBe(200);
+    // Control: for a same-gym pair the request reaches the app-only refusal instead of the member gate.
+    const refused = await activate("pkg-app", GYM_B_ADMIN.id, GYM_B_MEMBER.id);
+    expect(refused.status).toBe(409);
   });
 
   it("returns the same 404 for a cross-gym non-member account, without revealing its role", async () => {

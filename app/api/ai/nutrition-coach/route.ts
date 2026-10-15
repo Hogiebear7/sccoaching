@@ -19,7 +19,7 @@ import { createNutritionCoachChatStream, isAiConfigured } from "@/lib/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { AI_UNAVAILABLE_CODE, AI_UNAVAILABLE_MESSAGE, primeAiStream } from "@/lib/ai-stream";
 import { hasAccess } from "@/lib/member-access";
-import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { EXERTION_LABEL, type Exertion } from "@/lib/nutrition";
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
   const consentRequired = requireAiConsent(user.id);
   if (consentRequired) return consentRequired;
 
-  if (!hasAccess(resolveMemberTierForUser(user.id), "aiNutritionCoachChat")) {
+  if (!hasAccess(resolveMemberAccessForUser(user.id), "aiNutritionCoachChat")) {
     return NextResponse.json(
       { success: false, configured: true, message: "AI Nutrition Coach needs App Subscription or above." },
       { status: 403 }

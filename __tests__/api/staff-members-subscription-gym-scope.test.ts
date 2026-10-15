@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   findMembershipCategoryById: vi.fn(),
   findSubscriptionByUserId: vi.fn(),
   saveSubscription: vi.fn(),
+  appendIapEvent: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
 
@@ -144,16 +145,16 @@ describe("POST /api/staff/members/[userId]/subscription — package ownership", 
     expectNoMutation();
   });
 
-  it("allows the global app_only package from any gym's staff, when every other check passes", async () => {
+  it("refuses the global app_only package from every gym's staff: the digital plan is never assigned as a Membership (owner decision D1)", async () => {
     h.findMembershipPackageById.mockReturnValue(
       pkg("pkg-app", "cat-b", { deliveryChannel: "app_only", billingChannel: "google_play", slug: "app-subscription-tier-2" })
     );
 
     const res = await post(GYM_A_MEMBER.id, { status: "active", packageId: "pkg-app" }, GYM_A_STAFF.id);
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(SUCCESS_BODY);
-    expect(h.saveSubscription).toHaveBeenCalledWith(expect.objectContaining({ packageId: "pkg-app" }));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "app_plan_not_assignable" });
+    expect(h.saveSubscription).not.toHaveBeenCalled();
   });
 
   it("does not treat billingChannel, package slug, or a null-gym category as the global exception", async () => {
@@ -246,14 +247,6 @@ describe("POST /api/staff/members/[userId]/subscription — package ownership", 
     h.findMembershipPackageById.mockImplementation((id: string) => (id === "pkg-b" ? pkg("pkg-b", "cat-b") : undefined));
     await post(GYM_B_MEMBER.id, { status: "active", packageId: "pkg-b" }, GYM_B_STAFF.id);
     expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-b" });
-  });
-
-  it("stamps { scope: 'platform' } for the global app-only package", async () => {
-    h.findMembershipPackageById.mockReturnValue(
-      pkg("pkg-app", "cat-b", { deliveryChannel: "app_only", billingChannel: "google_play", slug: "app-subscription-tier-2" })
-    );
-    await post(GYM_A_MEMBER.id, { status: "active", packageId: "pkg-app" }, GYM_A_STAFF.id);
-    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
   });
 
   it("preserves an existing subscription's ownerGym unchanged across a package/status override, even a cross-type one", async () => {

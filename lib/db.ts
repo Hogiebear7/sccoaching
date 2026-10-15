@@ -902,7 +902,7 @@ export interface MembershipPlanRecord {
 // — see lib/providers/google-play.ts. Unlike stripe/revolut, the app never
 // creates a google_play checkout itself; the purchase happens natively in
 // the Play Store UI and this app only verifies + records it afterwards.
-export type BillingProvider = "none" | "stripe" | "revolut" | "google_play";
+export type BillingProvider = "none" | "stripe" | "revolut" | "google_play" | "app_store";
 
 // "pending" = a checkout was created with the provider but payment hasn't
 // been confirmed yet (webhook hasn't fired). Only a provider webhook (or a
@@ -1147,6 +1147,10 @@ export interface MembershipBillingOptionRecord {
       model allows several base plans — e.g. monthly/annual — per product
       id), null if not applicable. */
   googlePlayBasePlanId?: string | null;
+  /** App Store Connect subscription product id this option maps to. Each billing period is its own App Store product, so the
+      mapping is one to one. Null for options not sold through the App Store. Never invented: set from the owner's
+      App Store Connect setup (scripts/seed-app-subscription-package.mjs reads it from the environment). */
+  appStoreProductId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1227,6 +1231,80 @@ export interface GooglePlayPurchaseRecord {
 export type GooglePlayAcknowledgementState = "pending" | "acknowledged" | "failed" | "not_required";
 export type GooglePlayRevocationReason = "refunded" | "voided" | "revoked";
 
+// ── Digital (App-only) entitlements ──
+//
+// What a member may use of the DIGITAL features (AI chat, workout generation, food search, tracker import ...). This is a
+// separate store from SubscriptionRecord on purpose: a gym Membership and the App-only digital plan are different products
+// (owner decision D1, 2026-10-15). One row per (user, source), so a paid store subscription and a complimentary staff grant
+// never overwrite each other. Access is decided by lib/digital-entitlement.ts, never by reading status alone.
+export type DigitalEntitlementSource = "google_play" | "app_store" | "staff_grant";
+export type DigitalEntitlementStatus =
+  | "active"
+  | "canceled" // will not renew; access continues to currentPeriodEnd
+  | "in_grace_period" // store is retrying payment but still grants access
+  | "on_hold" // payment failed, no access (Google account hold / Apple billing retry without grace)
+  | "paused"
+  | "expired"
+  | "revoked"; // refunded or revoked by the store, or a staff grant withdrawn
+
+export interface DigitalEntitlementRecord {
+  /** `${source}:${userId}`. */
+  id: string;
+  userId: string;
+  source: DigitalEntitlementSource;
+  status: DigitalEntitlementStatus;
+  /** The store's product id. Null for a staff grant. */
+  productId: string | null;
+  billingOptionId: string | null;
+  /** sha256 hex of the store's subscription reference (Google purchase token, Apple original transaction id) that this row is
+      currently billed through. The raw value stays in the purchase record. Null for a staff grant. */
+  storeRefHash: string | null;
+  environment: "production" | "sandbox" | null;
+  /** Paid-through time for a store subscription; optional end for a staff grant (null = until withdrawn). */
+  currentPeriodEnd: string | null;
+  autoRenewing: boolean;
+  /** Staff grant only: who granted it and why. A free-text note, never member health or payment data. */
+  grantedByUserId: string | null;
+  note: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// A verified App Store (StoreKit 2) subscription. One row per ORIGINAL transaction id, which Apple keeps constant across
+// every renewal of one subscription, so renewals update this row and a re-subscribe after expiry makes a new one.
+// History is kept. Ownership follows the same first-valid-binding-wins rule as GooglePlayPurchaseRecord, using the
+// appAccountToken the app set at purchase time (a UUID derived from the account by a server secret).
+export type AppStoreSubscriptionStatus = "active" | "in_grace_period" | "billing_retry" | "expired" | "revoked";
+
+export interface AppStorePurchaseRecord {
+  id: string;
+  userId: string;
+  originalTransactionId: string;
+  /** sha256 hex of originalTransactionId, used by audit rows. */
+  originalTransactionIdHash: string;
+  /** The latest transaction id seen, kept for support. */
+  latestTransactionId: string | null;
+  productId: string;
+  environment: "production" | "sandbox";
+  /** The appAccountToken Apple echoed back. An opaque derived UUID, never the account id. */
+  appAccountToken: string | null;
+  status: AppStoreSubscriptionStatus;
+  autoRenewing: boolean;
+  purchaseDateMillis: number | null;
+  expiresDateMillis: number | null;
+  /** Set when Apple refunded or revoked the purchase. A revoked purchase stays revoked. */
+  revokedAt?: string | null;
+  revocationReason?: "refunded" | "revoked" | null;
+  /** The issue time of the newest provider answer applied. An older answer is dropped. */
+  lastSnapshotAt?: string | null;
+  boundAt: string;
+  /** See GooglePlayPurchaseRecord.anonymizedAt. */
+  anonymizedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── App Subscription audit log and notification dedupe ──
 //
 // IapEventRecord is APPEND-ONLY: nothing in lib/db.ts updates or deletes one. Every
@@ -1254,13 +1332,19 @@ export type IapEventType =
   | "provider_conflict_rejected"
   /** A late Stripe checkout completion arrived after the cleanup job (or a Play takeover) had moved its checkout out of the
       pending fields. detail.outcome is "applied" or "conflict_manual_recovery". Never carries the session id or any payload. */
-  | "late_checkout_recovery";
+  | "late_checkout_recovery"
+  /** A store purchase was refused because it was made in an environment this deployment does not accept (for example sandbox). */
+  | "claim_rejected_environment"
+  /** A signed store notification failed signature or chain verification. Never carries the payload. */
+  | "notification_rejected"
+  /** Staff granted or withdrew a complimentary digital entitlement. */
+  | "staff_grant_changed";
 
 export interface IapEventRecord {
   id: string;
   at: string;
   /** The provider whose event or claim this row is about. Not necessarily the provider that holds the entitlement. */
-  provider: "google_play" | "stripe" | "revolut";
+  provider: "google_play" | "app_store" | "stripe" | "revolut" | "staff";
   type: IapEventType;
   /** Opaque account id, or null when the event has no resolvable account. */
   userId: string | null;
@@ -2011,6 +2095,8 @@ interface Database {
   membershipBillingOptions: MembershipBillingOptionRecord[];
   subscriptions: SubscriptionRecord[];
   googlePlayPurchases: GooglePlayPurchaseRecord[];
+  appStorePurchases: AppStorePurchaseRecord[];
+  digitalEntitlements: DigitalEntitlementRecord[];
   iapEvents: IapEventRecord[];
   iapNotifications: IapNotificationRecord[];
   purchases: PurchaseRecord[];
@@ -2151,6 +2237,8 @@ function normalizeDatabase(raw: string | null): Database {
       membershipBillingOptions: [],
       subscriptions: [],
       googlePlayPurchases: [],
+      appStorePurchases: [],
+      digitalEntitlements: [],
       iapEvents: [],
       iapNotifications: [],
       purchases: [],
@@ -2307,6 +2395,7 @@ function normalizeDatabase(raw: string | null): Database {
       currency: o.currency ?? "eur",
       googlePlaySubscriptionId: o.googlePlaySubscriptionId ?? null,
       googlePlayBasePlanId: o.googlePlayBasePlanId ?? null,
+      appStoreProductId: o.appStoreProductId ?? null,
     })),
     subscriptions: (parsed.subscriptions ?? []).map((s) => ({
       ...s,
@@ -2316,6 +2405,8 @@ function normalizeDatabase(raw: string | null): Database {
       periodLapsedNotifiedAt: s.periodLapsedNotifiedAt ?? null,
     })),
     googlePlayPurchases: parsed.googlePlayPurchases ?? [],
+    appStorePurchases: parsed.appStorePurchases ?? [],
+    digitalEntitlements: parsed.digitalEntitlements ?? [],
     iapEvents: parsed.iapEvents ?? [],
     iapNotifications: parsed.iapNotifications ?? [],
     purchases: (parsed.purchases ?? []).map((p) => ({
@@ -2588,7 +2679,9 @@ const MEMBER_OWNED_COLLECTIONS = [
   "recipes", "shoppingListItems", "foodFavorites",
   // Bug reports carry free text and screenshots the member wrote, so they go with the account.
   "bugReports",
-  // googlePlayPurchases is deliberately NOT here: purchase records are anonymised, never deleted (see deleteUserAndOwnedRecords).
+  // Derived access state: removed with the account. The store purchase records below are what keep a token owned.
+  "digitalEntitlements",
+  // googlePlayPurchases and appStorePurchases are deliberately NOT here: purchase records are anonymised, never deleted (see deleteUserAndOwnedRecords).
 ] as const;
 
 // The protected-entitlement test used by hard deletion. Looks at BOTH the member's purchase records and their subscription row,
@@ -2599,6 +2692,15 @@ function findProtectedPlayEntitlementInDb(db: Database, userId: string, nowMs: n
     if (p.status === "active" || p.status === "in_grace_period" || p.status === "paused") return p.status;
     // Cancelled in Google Play but still inside the paid period: access (and Google's billing record) continue to the expiry.
     if (p.status === "canceled" && p.expiryTimeMillis !== null && p.expiryTimeMillis > nowMs) return "canceled_until_expiry";
+  }
+  // An App Store subscription that is still paid for, auto-renewing or cancelled-until-expiry, or in a retry state.
+  for (const p of db.appStorePurchases) {
+    if (p.userId !== userId || p.revokedAt) continue;
+    if (p.status === "in_grace_period" || p.status === "billing_retry") return p.status;
+    if (p.status === "active") {
+      if (p.autoRenewing) return "active";
+      if (p.expiresDateMillis !== null && p.expiresDateMillis > nowMs) return "canceled_until_expiry";
+    }
   }
   const sub = db.subscriptions.find((s) => s.userId === userId);
   if (sub?.provider === "google_play" && (sub.status === "active" || sub.status === "past_due" || sub.status === "paused")) {
@@ -2642,6 +2744,14 @@ export function deleteUserAndOwnedRecords(userId: string): Record<string, number
     return { ...p, userId: owner, anonymizedAt: anonymisedAt, updatedAt: anonymisedAt };
   });
   if (anonymised > 0) summary.googlePlayPurchasesAnonymised = anonymised;
+
+  let appStoreAnonymised = 0;
+  db.appStorePurchases = db.appStorePurchases.map((p) => {
+    if (p.userId !== userId) return p;
+    appStoreAnonymised++;
+    return { ...p, userId: owner, anonymizedAt: anonymisedAt, updatedAt: anonymisedAt };
+  });
+  if (appStoreAnonymised > 0) summary.appStorePurchasesAnonymised = appStoreAnonymised;
 
   const before = db.users.length;
   db.users = db.users.filter((u) => u.id !== userId);
@@ -3766,6 +3876,147 @@ export function recordGooglePlayAcknowledgement(
 // Every purchase row, oldest first. For background jobs, which must filter themselves.
 export function findAllGooglePlayPurchases(): GooglePlayPurchaseRecord[] {
   return [...readDb().googlePlayPurchases].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+
+// ── Digital entitlements ──
+
+export function findDigitalEntitlementsByUserId(userId: string): DigitalEntitlementRecord[] {
+  return readDb().digitalEntitlements.filter((e) => e.userId === userId);
+}
+
+export function findDigitalEntitlement(userId: string, source: DigitalEntitlementSource): DigitalEntitlementRecord | undefined {
+  return readDb().digitalEntitlements.find((e) => e.userId === userId && e.source === source);
+}
+
+export function findAllDigitalEntitlements(): DigitalEntitlementRecord[] {
+  return [...readDb().digitalEntitlements];
+}
+
+export function digitalEntitlementId(source: DigitalEntitlementSource, userId: string): string {
+  return `${source}:${userId}`;
+}
+
+// Upsert by (user, source). Synchronous; callers that decide from a read must do so in the same synchronous section.
+export function saveDigitalEntitlement(row: DigitalEntitlementRecord): DigitalEntitlementRecord {
+  const db = readDb();
+  const index = db.digitalEntitlements.findIndex((e) => e.id === row.id);
+  if (index === -1) db.digitalEntitlements.push(row);
+  else db.digitalEntitlements[index] = row;
+  writeDb(db);
+  return row;
+}
+
+// ── App Store purchases ──
+
+export function findAppStorePurchaseByOriginalTransactionId(originalTransactionId: string): AppStorePurchaseRecord | undefined {
+  return readDb().appStorePurchases.find((p) => p.originalTransactionId === originalTransactionId);
+}
+
+export function findAppStorePurchasesByUserId(userId: string): AppStorePurchaseRecord[] {
+  return readDb()
+    .appStorePurchases.filter((p) => p.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findAllAppStorePurchases(): AppStorePurchaseRecord[] {
+  return [...readDb().appStorePurchases].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export type ClaimAppStorePurchaseInput = Omit<
+  AppStorePurchaseRecord,
+  "id" | "userId" | "createdAt" | "updatedAt" | "originalTransactionIdHash" | "boundAt"
+>;
+
+export type ClaimAppStorePurchaseResult =
+  | { status: "claimed"; purchase: AppStorePurchaseRecord }
+  | { status: "existing"; purchase: AppStorePurchaseRecord }
+  | { status: "owned_by_other" };
+
+// FIRST VALID BINDING WINS, exactly as claimGooglePlayPurchase: check and insert in one synchronous step. An original
+// transaction owned by another account is never reassigned. The caller has verified the account binding BEFORE calling.
+export function claimAppStorePurchase(input: ClaimAppStorePurchaseInput, userId: string): ClaimAppStorePurchaseResult {
+  const db = readDb();
+  const existing = db.appStorePurchases.find((p) => p.originalTransactionId === input.originalTransactionId);
+  const at = new Date().toISOString();
+
+  if (existing) {
+    if (existing.userId === userId) return { status: "existing", purchase: existing };
+    db.iapEvents.push(
+      buildIapEvent({ provider: "app_store", type: "claim_rejected_owner", userId, purchaseToken: input.originalTransactionId, actor: "user", at })
+    );
+    writeDb(db);
+    return { status: "owned_by_other" };
+  }
+
+  const purchase: AppStorePurchaseRecord = {
+    ...input,
+    id: randomUUID(),
+    userId,
+    originalTransactionIdHash: hashPurchaseToken(input.originalTransactionId),
+    boundAt: at,
+    createdAt: at,
+    updatedAt: at,
+  };
+  db.appStorePurchases.push(purchase);
+  db.iapEvents.push(
+    buildIapEvent({ provider: "app_store", type: "purchase_claimed", userId, purchaseToken: input.originalTransactionId, actor: "user", at })
+  );
+  writeDb(db);
+  return { status: "claimed", purchase };
+}
+
+const APP_STORE_SNAPSHOT_KEYS = [
+  "latestTransactionId",
+  "productId",
+  "environment",
+  "status",
+  "autoRenewing",
+  "purchaseDateMillis",
+  "expiresDateMillis",
+  "revokedAt",
+  "revocationReason",
+] as const;
+
+export type AppStoreSnapshotFields = Partial<Pick<AppStorePurchaseRecord, (typeof APP_STORE_SNAPSHOT_KEYS)[number]>>;
+
+export type ApplyAppStoreSnapshotResult =
+  | { status: "applied"; purchase: AppStorePurchaseRecord }
+  | { status: "stale" }
+  | { status: "unknown_purchase" };
+
+// Snapshot ordering, as applyGooglePlayPurchaseSnapshot: an answer issued earlier than the newest applied is stale and changes
+// nothing but an audit event. Only lifecycle keys are writable; ownership (userId, originalTransactionId, appAccountToken,
+// boundAt) is unreachable from here.
+export function applyAppStoreSnapshot(originalTransactionId: string, fields: AppStoreSnapshotFields, snapshotAt: string): ApplyAppStoreSnapshotResult {
+  const db = readDb();
+  const index = db.appStorePurchases.findIndex((p) => p.originalTransactionId === originalTransactionId);
+  if (index === -1) return { status: "unknown_purchase" };
+
+  const current = db.appStorePurchases[index];
+  if (current.lastSnapshotAt && current.lastSnapshotAt > snapshotAt) {
+    db.iapEvents.push(
+      buildIapEvent({
+        provider: "app_store",
+        type: "notification_stale",
+        userId: current.userId,
+        purchaseToken: originalTransactionId,
+        actor: "provider",
+        detail: { snapshotAt, newestApplied: current.lastSnapshotAt },
+      })
+    );
+    writeDb(db);
+    return { status: "stale" };
+  }
+
+  const allowed: Partial<AppStorePurchaseRecord> = {};
+  for (const key of APP_STORE_SNAPSHOT_KEYS) {
+    if (key in fields) (allowed as Record<string, unknown>)[key] = (fields as Record<string, unknown>)[key];
+  }
+  const next: AppStorePurchaseRecord = { ...current, ...allowed, lastSnapshotAt: snapshotAt, updatedAt: new Date().toISOString() };
+  db.appStorePurchases[index] = next;
+  writeDb(db);
+  return { status: "applied", purchase: next };
 }
 
 const IAP_NOTIFICATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
