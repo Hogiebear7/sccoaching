@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { generateExerciseAlternatives, isAiConfigured } from "@/lib/ai";
+import { hasAiConsent } from "@/lib/ai-consent";
 import { findTrainingProgramById, findUserById } from "@/lib/db";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
@@ -73,7 +74,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   let suggestions: { id: string; rationale: string }[] = [];
-  if (isAiConfigured()) {
+  // Without this member's consent the AI part is skipped and the deterministic candidates below are used, exactly as when AI is switched off.
+  if (isAiConfigured() && hasAiConsent(user.id)) {
     try {
       const result = await generateExerciseAlternatives({
         exerciseName: exercise.name,

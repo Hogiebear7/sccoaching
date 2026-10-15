@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { identifyFoodPhoto, isAiConfigured } from "@/lib/ai";
+import { requireAiConsent } from "@/lib/ai-consent";
 import { findAllFoods, findFoodIdentificationOverridesByUserId, findUserById } from "@/lib/db";
 import { applyCatalogMatches } from "@/lib/food-catalog";
 import { applyFoodIdentificationOverrides } from "@/lib/food-identification-override";
@@ -39,6 +40,10 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
+
+  // Nothing is read from the request or sent to the AI provider until this member has allowed it (lib/ai-consent.ts).
+  const consentRequired = requireAiConsent(user.id);
+  if (consentRequired) return consentRequired;
 
   const rate = checkRateLimit(`ai-food-photo-scan:${user.id}`, SCAN_RATE_LIMIT, SCAN_RATE_WINDOW_MS);
   if (!rate.allowed) {

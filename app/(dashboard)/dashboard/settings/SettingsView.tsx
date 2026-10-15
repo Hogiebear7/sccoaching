@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import type { MeasurementUnits, ProfileRecord } from "@/lib/profile-schema";
+import { AiFeaturesPanel } from "@/components/settings/AiFeaturesPanel";
 import { AppearancePanel } from "@/components/settings/AppearancePanel";
 import { DeleteAccountPanel } from "@/components/settings/DeleteAccountPanel";
 import { SupportPanel } from "@/components/settings/SupportPanel";
@@ -485,6 +486,12 @@ export function SettingsView({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* AI features: informed, revocable consent to send data to the AI provider */}
+      <div>
+        <h2 className="label-caps mb-2.5">AI &amp; privacy</h2>
+        <AiFeaturesPanel />
       </div>
 
       {/* Help */}

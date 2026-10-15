@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { generateProgrammeCheckIn, isAiConfigured } from "@/lib/ai";
+import { requireAiConsent } from "@/lib/ai-consent";
 import { findTrainingProgramById, findUserById, findWorkoutSessionsByUserId, saveTrainingProgram } from "@/lib/db";
 import { buildProgrammeCheckInData, formatProgrammeCheckInContext } from "@/lib/programme-checkin";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -45,6 +46,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       { status: 503 }
     );
   }
+
+  // Nothing is read from the request or sent to the AI provider until this member has allowed it (lib/ai-consent.ts).
+  const consentRequired = requireAiConsent(user.id);
+  if (consentRequired) return consentRequired;
 
   try {
     const sessions = findWorkoutSessionsByUserId(user.id);

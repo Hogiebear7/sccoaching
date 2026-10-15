@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { extractTrackerStats, isAiConfigured } from "@/lib/ai";
+import { requireAiConsent } from "@/lib/ai-consent";
 import { findUserById } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { hasAccess } from "@/lib/member-access";
@@ -44,6 +45,10 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
+
+  // Nothing is read from the request or sent to the AI provider until this member has allowed it (lib/ai-consent.ts).
+  const consentRequired = requireAiConsent(user.id);
+  if (consentRequired) return consentRequired;
 
   const rate = checkRateLimit(`ai-tracker-import:${user.id}`, SCAN_RATE_LIMIT, SCAN_RATE_WINDOW_MS);
   if (!rate.allowed) {

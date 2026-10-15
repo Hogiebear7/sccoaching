@@ -202,6 +202,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "notifications/read-all", scope: "self" },
   { route: "nutrition/target", scope: "self" },
   { route: "pregnancy/status", scope: "self" },
+  { route: "profile/ai-consent", scope: "self", note: "The member reads, grants or withdraws their own AI data-sharing consent; the account comes from the session, never the request." },
   { route: "profile/appearance", scope: "self" },
   { route: "profile/body-fat", scope: "self" },
   { route: "profile/body-weight", scope: "self" },

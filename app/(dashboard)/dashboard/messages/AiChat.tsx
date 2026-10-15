@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { FormEvent } from "react";
 
+import { AiConsentCard, AI_CONSENT_REQUIRED_CODE, useAiConsent } from "@/components/ai/AiConsent";
 import type { AiMessageRecord } from "@/lib/db";
 import type { CoachingContextDisplay } from "@/lib/ai-context";
 import {
@@ -136,6 +137,7 @@ export function AiChat({
   const [input, setInput] = useState(initialPrompt ?? "");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const consent = useAiConsent();
   // Stable key per pending send. Retained on failure so a retry replaces the
   // same slot rather than appending a duplicate optimistic message.
   const [pendingKey, setPendingKey] = useState(() => crypto.randomUUID());
@@ -210,7 +212,10 @@ export function AiChat({
         const data = await res.json().catch(() => null);
         setMessages((prev) => prev.filter((m) => m.id !== pendingKey));
         setInput(content);
-        if (res.status === 429) {
+        if (res.status === 403 && data?.code === AI_CONSENT_REQUIRED_CODE) {
+          // Consent was withdrawn (or never given): nothing was sent. Show the choice instead of an error.
+          consent.markOff();
+        } else if (res.status === 429) {
           // Specific rate-limit message; prefer the server copy, fall back
           // to the Retry-After header if the body was unreadable.
           const retryAfter = Number(res.headers.get("retry-after"));
@@ -433,7 +438,10 @@ export function AiChat({
         )}
       </div>
 
-      {/* Composer */}
+      {/* Composer (or the consent choice: nothing is sent until the member allows AI features) */}
+      {consent.state === "off" ? (
+        <AiConsentCard feature="the AI coach" onGrant={consent.grant} />
+      ) : (
       <form onSubmit={handleSend} className="border-t border-white/[0.06] p-4">
         {error ? (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5">
@@ -480,6 +488,7 @@ export function AiChat({
           speak to a qualified professional.
         </p>
       </form>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { generateCoachSummary, isAiConfigured } from "@/lib/ai";
+import { requireAiConsentForMember } from "@/lib/ai-consent";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -65,6 +66,10 @@ export async function POST(request: NextRequest) {
       { status: 404 }
     );
   }
+
+  // The member's data is what would be sent to the AI provider, so the MEMBER's consent is the one that counts.
+  const memberConsent = requireAiConsentForMember(member.id);
+  if (memberConsent) return memberConsent;
 
   const summary = await generateCoachSummary({ memberId: member.id, staffUserId: staffUser.id });
 

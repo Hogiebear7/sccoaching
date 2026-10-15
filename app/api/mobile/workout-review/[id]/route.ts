@@ -6,6 +6,7 @@ import { hasAccess } from "@/lib/member-access";
 import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { generateWorkoutReview } from "@/lib/ai";
+import { hasAiConsent } from "@/lib/ai-consent";
 import { buildWorkoutReviewData } from "@/lib/workout-review";
 import { computeWorkoutScore, WORKOUT_SCORE_ENABLED } from "@/lib/workout-score";
 
@@ -35,7 +36,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const reviewData = buildWorkoutReviewData(user.id, session);
 
   let reviewText = session.reviewText ?? null;
-  if (!reviewText) {
+  // A review already generated and stored is shown. A new one is only requested from the AI provider if this member has allowed it; the comparison below is always returned.
+  const aiConsentRequired = !reviewText && !hasAiConsent(user.id);
+  if (!reviewText && !aiConsentRequired) {
     reviewText = await generateWorkoutReview(reviewData);
     saveWorkoutSession({ ...session, reviewText, reviewGeneratedAt: new Date().toISOString() });
   }
@@ -51,6 +54,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       nutrition: reviewData.nutrition,
       hydration: reviewData.hydration,
       reviewText,
+      aiConsentRequired,
       // Computed fresh every request (cheap, deterministic) — unlike
       // reviewText it's never cached, so flipping WORKOUT_SCORE_ENABLED on
       // later doesn't require regenerating anything for existing sessions.

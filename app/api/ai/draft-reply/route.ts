@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findMessagesByMemberId, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { draftReply, isAiConfigured } from "@/lib/ai";
+import { requireAiConsentForMember } from "@/lib/ai-consent";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -70,6 +71,10 @@ export async function POST(request: NextRequest) {
     (message) => message.senderRole === "member"
   );
   const latestMemberMessage = memberMessages[memberMessages.length - 1]?.body ?? null;
+
+  // The member's data is what would be sent to the AI provider, so the MEMBER's consent is the one that counts.
+  const memberConsent = requireAiConsentForMember(member.id);
+  if (memberConsent) return memberConsent;
 
   const draft = await draftReply({ memberId: member.id, latestMemberMessage, staffUserId: staffUser.id });
 
