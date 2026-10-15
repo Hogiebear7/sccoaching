@@ -32,7 +32,9 @@ recorded anywhere in the repository). At minimum, production needs:
 - `SESSION_SECRET` — signs every session token; rotating it invalidates all
   logged-in sessions.
 - `DATA_DIR` — where `db.json` and related files live; must point outside the
-  deploy-managed release tree so it survives redeploys (see §5).
+  deploy-managed release tree so it survives redeploys (see §5). In production a missing
+  `db.json` is now an error rather than a silent empty datastore; for a brand-new install
+  set `SANDC_ALLOW_NEW_DATASTORE=1` once and then remove it.
 - `CRON_SECRET` — see §6.
 - `APP_URL` — used to build absolute links in emails and redirects; if unset,
   links point at `localhost`.
@@ -64,6 +66,11 @@ README's Deployment section for the full rationale.
 
 This constraint also governs the rate limiter (§4) and the job runner
 (§6): both assume one process.
+
+**Update (2026-10):** `lib/datastore/core.js` now serialises datastore access across processes on one host (a lock held for each synchronous turn, atomic file
+replacement, commit-time fencing, no silent empty datastore). That makes overlapping processes safe for the datastore itself, but it does **not** change the rate limiter or the
+job runner, and it is not a reason to run more processes than necessary. See `docs/datastore-hardening-2026-10.md` for the guarantees, the limits and the deploy and rollback
+steps, and run `node scripts/check-datastore-filesystem.mjs --dir <folder on the DATA_DIR filesystem>` on the host before relying on it.
 
 ## 4. Rate limiting — process-local, not distributed
 

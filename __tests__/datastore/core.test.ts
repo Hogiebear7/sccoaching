@@ -299,3 +299,18 @@ describe("operator scripts use the same protocol", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe("filesystem preflight script", () => {
+  it("passes on a normal local filesystem, works only inside its own scratch folder, and leaves nothing behind", () => {
+    const before = fs.readdirSync(dir);
+    const r = spawnSync(process.execPath, [path.join(process.cwd(), "scripts", "check-datastore-filesystem.mjs"), "--dir", dir], { encoding: "utf8" });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain("All 6 checks passed");
+    expect(fs.readdirSync(dir)).toEqual(before);
+  });
+
+  it("refuses to run without a folder", () => {
+    const r = spawnSync(process.execPath, [path.join(process.cwd(), "scripts", "check-datastore-filesystem.mjs")], { encoding: "utf8" });
+    expect(r.status).toBe(2);
+  });
+});
