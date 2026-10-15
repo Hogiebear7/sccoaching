@@ -10,6 +10,7 @@ only correct with one writer at a time, and the host cannot promise one process 
 - **Changed:** `lib/db.ts` keeps its private `readDb` and `writeDb` (nothing else in `app/` or `lib/` opens `db.json`; there are 292 readers and 141 writers, every one of
   them through these two functions), but they now go through the core. The large read-time normaliser is untouched.
 - **Changed:** the 20 operator scripts that wrote `db.json` directly now read once and write with a compare-and-swap under the same lock.
+- **Added after review:** (1) writers that sit after a slow `await` (Stripe, AI, programme library) now change the row as it is after the await (`updateSubscription`, `updateTrainingProgram`, `saveTrainingProgramIfUnchanged`, `updateWorkoutSession`), and `scripts/audit-await-gaps.cjs --check` (run by the test suite) requires a written disposition for every flagged function; (2) housekeeping runs under a cross-process **lease** (`lib/jobs/lease.ts`) so two processes or two scheduler calls cannot run the jobs at once; (3) the rate limiter keeps its counters in a side file under the same lock when `NODE_ENV=production` (override `SANDC_RATE_LIMIT_SHARED`), so N processes enforce one limit; (4) lock **reclaim is serialised** with an exclusive reclaim token (a stress run of the process-death test had shown overlapping critical sections and LOCK_LOST in 4 of 30 runs before, 0 of 30 after); (5) `scripts/datastore-cutover.mjs` (preflight, fence, adopt, verify) for the first deployment; (6) detection, not prevention, of a writer that rewrites db.json in place (an old build run again against this folder).
 - **Not changed:** the file format, any collection, any route, any record, any permission. No migration. No new dependency.
 
 ## Guarantees, and the test that checks each
@@ -42,20 +43,25 @@ Every save rewrites the whole file through the app's read-time normaliser. On a 
 
 ## Limitations (read these before approving)
 
+See also `docs/datastore-first-deployment.md` for the cutover procedure that replaces "deploy in a quiet period".
+
 1. **Single host, single filesystem.** The lock needs atomic exclusive create and atomic rename on the filesystem holding `DATA_DIR`. True for local disks and normal container volumes; not
    guaranteed on some network filesystems. Run `node scripts/check-datastore-filesystem.mjs --dir <folder on that filesystem>` on the host first (it uses its own scratch folder and never touches `db.json`).
    Lock owners on another host are never taken over (liveness cannot be judged), so a lock left by a different host needs a person.
 2. **No flock in Node.** The lock is a file. If a lock is ever wrongly taken over, the commit-time fence narrows the damage to a microsecond window; it cannot make that window zero.
-3. **Check-then-act across an `await` is not made atomic.** 20 functions have the shape *await, read, await, write* (a heuristic scan, `node scripts/audit-await-gaps.cjs`): AI chat and nutrition coach,
-   the Stripe and billing webhooks, checkout, pause and subscription changes, program edits, a few community and staff routes, and `lib/push.ts`. They already race between two requests in one
-   process. The hardening does not make them worse, and a stale snapshot can no longer silently overwrite the whole file, but a record written from a value read before an `await` can still replace a
-   concurrent change to that same record. Follow-up (not in this PR): re-read inside the writing turn for the billing and subscription routes first.
-4. **The rate limiter and the job runner are still per process** (login limit of 5 per 15 minutes is per process; housekeeping can run twice). Unchanged.
+3. **Check-then-act across an `await` is not made atomic by the lock, and not every instance is fixed.** 20 functions have the shape *await, read, await, write* (a heuristic scan). Each now has a
+   disposition in `scripts/audit-await-gaps.cjs`: the ones that wrote a record read before a slow call (subscription pause/resume/override and the checkout switch, programme check-in, adjustment and swap, workout review,
+   gym status, workout visibility, nutrition submission review) are FIXED to change the row as it is after the await, and tested by making the slow call perform the competing change. The rest only append new records or
+   have only request parsing between their read and write. What remains: a **check-then-act decision** made before an await (for example "is this subscription active?", then a provider call, then an action) can still be
+   wrong if another request changes the state in between; the fixed routes re-check the precondition after the await, but a provider side effect (a Stripe call) that already happened cannot be undone by this code.
+4. **Rate limit and jobs are now shared across processes on ONE host** (counters in `rate-limits.json`, run lease in `job-run-lease`, both beside db.json, same lock). If the shared file cannot be used, the limiter falls back to
+   per-process counters and logs it. Two hosts would still keep separate counters and leases.
 5. **Cost.** Each datastore turn takes and releases a lock and fsyncs on write: about 4.3 ms more per request in a local container (6.5 to 10.9 ms for 242 sequential requests). A long synchronous
    section holds other processes off until it ends; they wait up to 10 s (`SANDC_DATASTORE_LOCK_WAIT_MS`) and then fail that request with `DATASTORE_BUSY`.
 6. **Windows** (development only): rename and delete can transiently fail while another process has the file open; the core retries those. Production is Linux.
-7. **The first deployment overlaps old code.** While the previous (unlocked) build and this one are both running, the old build ignores the lock. Protection is complete only once every running
-   process is the hardened build. Deploy in a quiet period, after a verified backup.
+7. **The first deployment must never let old and new code write the same directory.** The old build ignores every lock; measured with one old and one hardened process writing at once, 38 of 135 acknowledged
+   writes were lost. "Deploy in a quiet period" is not enough. `docs/datastore-first-deployment.md` moves the data to a new directory and fences the old one so a surviving old process fails closed; it is rehearsed
+   with a real old build left running (`checks/run-cutover-drill.ps1`). It needs the host to allow a different DATA_DIR for the new deployment; if it cannot, deployment is blocked.
 8. **Backups are not a fix and are still needed.** This prevents overlapping writes; it does not replace backups (the lost-update and corruption cases it prevents are exactly what a restore would be needed for).
 
 ## New behaviour operators will notice
