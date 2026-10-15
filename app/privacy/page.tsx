@@ -63,6 +63,8 @@ export default function PrivacyPolicyPage() {
               <li><strong className="text-zinc-100">Payment information</strong> — membership and class-pass payments are processed by Stripe or Revolut. We never see or store your full card details; we keep a record of the purchase itself (amount, date, status, and an internal reference) for your account history and our accounts.</li>
               <li><strong className="text-zinc-100">Messages and coach notes</strong> — messages you send to coaching staff through the app, and any private notes your coaches keep about your training. Coach notes aren&rsquo;t shown to you in the app, but are included if you ask us for a copy of your data.</li>
               <li><strong className="text-zinc-100">Push notification data</strong> — if you enable notifications, a device token and basic device information (model, OS version) so we can deliver them.</li>
+              <li><strong className="text-zinc-100">Location (optional)</strong> &mdash; if you use Find a coach and allow it, your device&rsquo;s location is sent with that request so we can list nearby gyms. We use it only to answer that request and do not save it to your account. If you type a place name instead, the text you type is sent to OpenStreetMap&rsquo;s Nominatim search service to find its coordinates.</li>
+              <li><strong className="text-zinc-100">Community activity (optional)</strong> &mdash; if you share workouts, comment, like, or follow other members, that content and your display name are visible to other members according to your Community privacy settings.</li>
               <li><strong className="text-zinc-100">Contact form submissions</strong> — if you enquire through the website, we collect your name, email, phone (if given), and message to reply to you.</li>
               <li><strong className="text-zinc-100">Bug reports</strong> — if you report a problem in the app, your description and any screenshots you attach.</li>
             </ul>
@@ -198,6 +200,7 @@ export default function PrivacyPolicyPage() {
               <li><strong className="text-zinc-100">Hostinger</strong> — hosts our website and app.</li>
               <li><strong className="text-zinc-100">Supabase</strong> — hosts part of our database and file storage, including our exercise library, the exercises you favourite, and website contact-form enquiries.</li>
               <li><strong className="text-zinc-100">Expo&rsquo;s push service and standard web push</strong> — delivering app and browser notifications, if you enable them.</li>
+              <li><strong className="text-zinc-100">OpenStreetMap (Nominatim)</strong> &mdash; a public place-search service used by Find a coach. It receives only the place name you type, with no account details.</li>
               <li><strong className="text-zinc-100">Open Food Facts</strong> — a public, open food database we query by barcode or food name when you search for food to log. We don&rsquo;t send any personal data to it.</li>
             </ul>
             <p className="mt-3">

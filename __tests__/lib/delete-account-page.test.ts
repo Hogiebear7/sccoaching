@@ -59,3 +59,21 @@ describe("self-service deletion rules", () => {
     for (const role of ["coach", "admin", "admin_manager"]) expect(selfDeletionBlock(role, undefined)?.code).toBe("staff_account");
   });
 });
+
+describe("policy pages disclose what the app actually does", () => {
+  const privacy = renderToStaticMarkup(createElement(PrivacyPolicyPage));
+
+  it("privacy policy covers optional location, Community activity and the place-search service", () => {
+    expect(privacy).toContain("Location (optional)");
+    expect(privacy).toContain("Community activity (optional)");
+    expect(privacy).toContain("OpenStreetMap");
+  });
+
+  it("terms set community content rules and say how to raise a concern", async () => {
+    const { default: TermsPage } = await import("@/app/terms/page");
+    const terms = renderToStaticMarkup(createElement(TermsPage));
+    expect(terms).toContain("Community content");
+    expect(terms).toMatch(/report a comment/i);
+    expect(terms).toContain("info@sandccoaching.com");
+  });
+});
