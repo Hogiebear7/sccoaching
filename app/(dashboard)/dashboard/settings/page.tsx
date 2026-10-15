@@ -44,6 +44,7 @@ export default async function SettingsPage() {
         renewsAt: subscription?.currentPeriodEnd ?? null,
       }}
       supportEmail={resolveSupportEmail(user.gymId)}
+      canDeleteAccount={user.role === "member"}
     />
   );
 }

@@ -2549,6 +2549,8 @@ const MEMBER_OWNED_COLLECTIONS = [
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
   "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
   "recipes", "shoppingListItems", "foodFavorites",
+  // Bug reports carry free text and screenshots the member wrote, so they go with the account.
+  "bugReports",
   // googlePlayPurchases is deliberately NOT here: purchase records are anonymised, never deleted (see deleteUserAndOwnedRecords).
 ] as const;
 
