@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import type { MeasurementUnits, ProfileRecord } from "@/lib/profile-schema";
 import { AppearancePanel } from "@/components/settings/AppearancePanel";
+import { DeleteAccountPanel } from "@/components/settings/DeleteAccountPanel";
 import { SupportPanel } from "@/components/settings/SupportPanel";
 // TRIAL-ONLY — see docs/bug-reports.md.
 import { BugReportPanel } from "@/components/settings/BugReportPanel";
@@ -78,12 +79,15 @@ export function SettingsView({
   profile,
   membership,
   supportEmail,
+  canDeleteAccount,
 }: {
   email: string;
   profile: ProfileRecord;
   membership: MembershipInfo;
   /** The verified support address for this member's gym, or null when there is none (the entry is then hidden). */
   supportEmail: string | null;
+  /** True for member accounts: shows Settings -> Account -> Delete account. Staff accounts are removed by a gym administrator. */
+  canDeleteAccount: boolean;
 }) {
   const router = useRouter();
 
@@ -499,6 +503,14 @@ export function SettingsView({
         </div>
         <SupportPanel supportEmail={supportEmail} />
       </div>
+
+      {/* Account deletion (members only; the API refuses anyone else) */}
+      {canDeleteAccount && (
+        <div>
+          <h2 className="label-caps mb-2.5">Account</h2>
+          <DeleteAccountPanel />
+        </div>
+      )}
 
       {/* Appearance */}
       <div>

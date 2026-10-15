@@ -235,7 +235,7 @@ export default function PrivacyPolicyPage() {
               <li><strong className="text-zinc-100">Password-reset links</strong> expire shortly after they&rsquo;re issued and are removed automatically.</li>
               <li><strong className="text-zinc-100">Account, profile, training, nutrition, messages, and coach notes</strong> are kept for as long as your account is active, so your history stays available to you and your coach.</li>
               <li><strong className="text-zinc-100">Payment records</strong> are kept for our accounting and legal obligations.</li>
-              <li><strong className="text-zinc-100">Bug reports and attached screenshots</strong> are kept until removed by our team; we don&rsquo;t currently have a fixed automatic expiry for these.</li>
+              <li><strong className="text-zinc-100">Bug reports and attached screenshots</strong> are kept until removed by our team or until you delete your account; we don&rsquo;t currently have a fixed automatic expiry for these.</li>
             </ul>
             <p className="mt-3">
               If you&rsquo;d like your account and data deleted, or a copy of your data exported, see &ldquo;Account
@@ -284,10 +284,18 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-base font-semibold text-zinc-50">15. Account deletion and data export</h2>
             <p className="mt-3">
-              To request deletion of your account, or a copy of your data, email us (below). We&rsquo;ll verify
-              it&rsquo;s really you before actioning the request. We don&rsquo;t currently have a self-service
-              delete or export button in the app, so every request is handled by a person on our team — timing can
-              vary, so let us know if you need it actioned urgently.
+              <strong className="text-zinc-100">Delete it yourself.</strong> In the app or on the website, go to
+              Settings, then Delete account. You confirm with your password and the word DELETE, and your account and
+              the data tied to it are removed straight away. Step-by-step instructions are on our{" "}
+              <Link href="/delete-account" className="text-gold hover:underline">account deletion page</Link>, which you
+              can open without signing in. If you have an active paid membership, cancel it first (a Google Play
+              subscription can only be cancelled in Google Play).
+            </p>
+            <p className="mt-3">
+              <strong className="text-zinc-100">Or ask us.</strong> To request deletion of your account, or a copy of
+              your data, email us (below). We&rsquo;ll verify it&rsquo;s really you before actioning the request. We
+              don&rsquo;t currently have a self-service export button, so export requests are handled by a person on
+              our team — timing can vary, so let us know if you need it actioned urgently.
             </p>
             <p className="mt-3">
               When you ask us to delete your account, we remove your account and the personal data tied to it,
