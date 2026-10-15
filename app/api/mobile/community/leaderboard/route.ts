@@ -20,6 +20,7 @@ import {
   type LeaderboardMetric,
   type LeaderboardRange,
 } from "@/lib/leaderboard";
+import { hiddenFromViewer } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_ENTRIES = 100;
@@ -50,8 +51,9 @@ export async function GET(request: NextRequest) {
 
   // Defense-in-depth: the eligible pool is scoped to the caller's own gym
   // server-side, not left to whatever the caller's own request implies.
+  const hidden = hiddenFromViewer(me.id);
   const members: LeaderboardMemberInput[] = findCommunityEligibleUsers()
-    .filter((u) => !u.archivedAt && sameGym(me, u))
+    .filter((u) => !u.archivedAt && sameGym(me, u) && !hidden.has(u.id))
     .map((u) => {
       const profile = findProfileByUserId(u.id);
       return {

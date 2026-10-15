@@ -196,6 +196,9 @@ export interface WorkoutSessionRecord {
       a per-post opt-out, distinct from CommunityPrivacyRecord's blanket
       leaderboard toggle. Undefined/false = visible. */
   isPrivate?: boolean;
+  /** Set when staff remove this session from Community after a member report. Unlike isPrivate the owner cannot turn it back on: the
+      visibility route refuses while this is set. The session stays in the owner's own history. */
+  communityRemovedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1518,9 +1521,13 @@ export interface LikeRecord {
 // Member-reported comment, same report→queue→resolve shape as
 // FoodModerationRequest — resolving means staff deleted the comment;
 // dismissing means no action, just closes the report.
+// A report is either about a comment (targetType absent or "comment", commentId set) or about a shared workout post (targetType "workout",
+// workoutSessionId set, commentId ""). Resolving a workout report removes the workout from Community (WorkoutSessionRecord.communityRemovedAt).
 export interface CommentReportRecord {
   id: string;
   commentId: string;
+  targetType?: "comment" | "workout";
+  workoutSessionId?: string | null;
   reporterId: string;
   reason: string;
   status: "open" | "resolved" | "dismissed";
@@ -3805,6 +3812,22 @@ export function unfollowUser(followerId: string, followingId: string): void {
   const db = readDb();
   db.follows = db.follows.filter((f) => !(f.followerId === followerId && f.followingId === followingId));
   writeDb(db);
+}
+
+/** Removes any follow between two members in both directions (used when one blocks the other). */
+export function removeFollowsBetween(a: string, b: string): void {
+  const db = readDb();
+  db.follows = db.follows.filter(
+    (f) => !((f.followerId === a && f.followingId === b) || (f.followerId === b && f.followingId === a))
+  );
+  writeDb(db);
+}
+
+/** Ids of members whose block list contains this user (they blocked this user). */
+export function findUserIdsBlocking(userId: string): string[] {
+  return readDb()
+    .profiles.filter((p) => p.blockedUserIds?.includes(userId))
+    .map((p) => p.userId);
 }
 
 export function isFollowing(followerId: string, followingId: string): boolean {

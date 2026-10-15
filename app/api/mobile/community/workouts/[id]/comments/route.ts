@@ -14,7 +14,12 @@ import {
   type NotificationRecord,
 } from "@/lib/db";
 import { communityDisplayName } from "@/lib/community-display-name";
-import { sameGymAsStaff } from "@/lib/gym-scope";
+import {
+  canViewCommunitySession,
+  CONTENT_REFUSED_MESSAGE,
+  hiddenFromViewer,
+  violatesCommunityRules,
+} from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
 
@@ -36,15 +41,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // Cross-gym and private-session denial both fold into the same not-found
   // response as a genuinely missing session — mirrors the POST handler's
   // condition below exactly.
-  if (
-    !target ||
-    (target.isPrivate && target.userId !== me.id) ||
-    !sameGymAsStaff(me, target.userId)
-  ) {
+  if (!target || !canViewCommunitySession(me, target)) {
     return NextResponse.json({ success: false, message: "Workout not found." }, { status: 404 });
   }
 
-  const comments = findCommentsByWorkoutSessionId(id).map((c) => ({
+  // Comments from anyone the viewer blocked, or who blocked the viewer, are not shown.
+  const hidden = hiddenFromViewer(me.id);
+  const comments = findCommentsByWorkoutSessionId(id)
+    .filter((c) => !hidden.has(c.userId))
+    .map((c) => ({
     id: c.id,
     userId: c.userId,
     authorName: communityDisplayName(
@@ -75,11 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const target = findWorkoutSessionById(id);
-  if (
-    !target ||
-    (target.isPrivate && target.userId !== me.id) ||
-    !sameGymAsStaff(me, target.userId)
-  ) {
+  if (!target || !canViewCommunitySession(me, target)) {
     return NextResponse.json({ success: false, message: "Workout not found." }, { status: 404 });
   }
 
@@ -95,9 +96,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!cleanBody) {
     return NextResponse.json({ success: false, message: "Comment can't be empty." }, { status: 400 });
   }
+  // First line of defence against abuse; reports and staff review handle the rest (lib/community-moderation.ts).
+  if (violatesCommunityRules(cleanBody)) {
+    return NextResponse.json({ success: false, code: "content_refused", message: CONTENT_REFUSED_MESSAGE }, { status: 422 });
+  }
 
+  // A member can't mention someone who blocked them or whom they blocked.
+  const hiddenFromMe = hiddenFromViewer(me.id);
   const cleanMentions = Array.isArray(mentionedUserIds)
-    ? [...new Set(mentionedUserIds.filter((v): v is string => typeof v === "string" && !!findUserById(v)))].slice(
+    ? [
+        ...new Set(
+          mentionedUserIds.filter((v): v is string => typeof v === "string" && !!findUserById(v) && !hiddenFromMe.has(v))
+        ),
+      ].slice(
         0,
         MAX_MENTIONS
       )

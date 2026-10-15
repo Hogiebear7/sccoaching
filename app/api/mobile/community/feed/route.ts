@@ -14,6 +14,7 @@ import {
 import { communityDisplayName } from "@/lib/community-display-name";
 import { sessionPbExerciseName } from "@/lib/community-highlight";
 import { sameGymAsStaff } from "@/lib/gym-scope";
+import { hiddenFromViewer, isSessionOutOfCommunity } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computePersonalBests } from "@/lib/workouts";
 
@@ -45,7 +46,8 @@ export async function GET(request: NextRequest) {
   // not something the client's follow list could ever bypass. See
   // lib/gym-scope.ts for the (null == null == "the primary gym") fallback
   // convention this reuses unchanged.
-  const followingIds = findFollowingIds(me.id).filter((id) => sameGymAsStaff(me, id));
+  const hidden = hiddenFromViewer(me.id);
+  const followingIds = findFollowingIds(me.id).filter((id) => sameGymAsStaff(me, id) && !hidden.has(id));
 
   // Cache each followed member's full session history + all-time bests once
   // — the feed page only needs a handful of sessions, but "is this a PB"
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
 
   const allSessions = [...sessionsByAuthor.values()]
     .flat()
-    .filter((s) => !s.isPrivate)
+    .filter((s) => !isSessionOutOfCommunity(s))
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 
   const page = allSessions.slice(offset, offset + limit);

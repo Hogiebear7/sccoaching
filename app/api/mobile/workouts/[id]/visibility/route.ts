@@ -38,6 +38,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "isPrivate must be a boolean." }, { status: 400 });
   }
 
+  // A workout staff removed from Community after a report stays removed: it can be kept private but not shared again.
+  if (workout.communityRemovedAt && isPrivate === false) {
+    return NextResponse.json(
+      { success: false, message: "A coach removed this workout from Community after a report, so it can't be shared again." },
+      { status: 403 }
+    );
+  }
+
   saveWorkoutSession({ ...workout, isPrivate, updatedAt: new Date().toISOString() });
 
   return NextResponse.json({ success: true, message: "Saved." });

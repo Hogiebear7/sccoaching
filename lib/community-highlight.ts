@@ -61,7 +61,7 @@ export function findRecentWin(members: FollowedMemberActivity[], todayISO: strin
   for (const member of members) {
     const allTimeBests = computePersonalBests(member.allSessions);
     for (const session of member.allSessions) {
-      if (session.isPrivate) continue;
+      if (session.isPrivate || session.communityRemovedAt) continue;
       if (session.date < cutoffISO || session.date > todayISO) continue;
       const exerciseName = sessionPbExerciseName(session, allTimeBests);
       if (!exerciseName) continue;
