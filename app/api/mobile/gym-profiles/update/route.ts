@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "gymProfiles")) {
-    return NextResponse.json({ success: false, message: "Gym profiles need App Subscription or above." }, { status: 403 });
+    return NextResponse.json({ success: false, message: "Gym profiles need the App Subscription." }, { status: 403 });
   }
 
   let body: unknown;

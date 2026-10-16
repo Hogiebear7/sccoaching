@@ -29,6 +29,7 @@ export const googlePlayAdapter: PlayAdapter = {
         state: s.subscriptionState,
         productId: s.productId,
         basePlanId: s.basePlanId,
+        offerId: s.offerId,
         orderId: s.orderId,
         linkedPurchaseToken: s.linkedPurchaseToken,
         startTimeMillis: s.startTimeMillis,

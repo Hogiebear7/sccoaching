@@ -33,7 +33,7 @@ describe("POST /api/mobile/billing/google-play/verify — token ownership", () =
       message: "Purchase verified.",
       data: {
         access: { digital: true, gymMembership: false },
-        plan: { source: "google_play", status: "active", currentPeriodEnd: expect.any(String), autoRenewing: true, environment: null },
+        plan: { source: "google_play", status: "active", currentPeriodEnd: expect.any(String), autoRenewing: true, trial: false, environment: null },
         status: "active",
         acknowledged: true,
       },

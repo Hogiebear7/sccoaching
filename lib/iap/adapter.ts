@@ -36,6 +36,8 @@ export interface ProviderSubscriptionSnapshot {
   state: string;
   productId: string | null;
   basePlanId: string | null;
+  /** The promotional offer (free trial or introductory price) the purchase was made under, or null for a plain base-plan purchase. */
+  offerId?: string | null;
   orderId: string | null;
   linkedPurchaseToken: string | null;
   startTimeMillis: number | null;

@@ -93,7 +93,7 @@ describe("purchase and verified activation", () => {
       message: "Purchase verified.",
       data: {
         access: { digital: true, gymMembership: false },
-        plan: { source: "app_store", status: "active", currentPeriodEnd: expect.any(String), autoRenewing: true, environment: "production" },
+        plan: { source: "app_store", status: "active", currentPeriodEnd: expect.any(String), autoRenewing: true, trial: false, environment: "production" },
         status: "active",
         acknowledged: true,
       },

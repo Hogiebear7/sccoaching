@@ -6,6 +6,7 @@ import { requireAiConsent } from "@/lib/ai-consent";
 import { findUserById } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { hasAccess } from "@/lib/member-access";
+import { aiAllowanceRefusal } from "@/lib/ai-allowance-response";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -34,10 +35,14 @@ export async function POST(request: NextRequest) {
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "trackerImport")) {
     return NextResponse.json(
-      { success: false, configured: true, message: "Tracker import needs App Subscription or above." },
+      { success: false, configured: true, message: "Tracker import needs the App Subscription." },
       { status: 403 }
     );
   }
+
+  // A bounded AI allowance, checked before anything is sent to the provider (lib/ai-allowance.ts).
+  const allowanceRefusal = aiAllowanceRefusal(user.id);
+  if (allowanceRefusal) return allowanceRefusal;
 
   if (!isAiConfigured()) {
     return NextResponse.json(

@@ -39,12 +39,14 @@ import {
   type DigitalEntitlementStatus,
   type MembershipBillingOptionRecord,
 } from "@/lib/db";
+import { aiAllowanceConfigured } from "@/lib/ai-allowance";
 import { describeDigitalPlan, liveStoreEntitlement } from "@/lib/digital-entitlement";
 import { isDeletedOwner } from "@/lib/member-deletion-guard";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import {
   appStoreAccountBindingMatches,
   appStoreAccountToken,
+  isAppleFreeTrial,
   type AppleNotificationPayload,
   type AppleRenewalInfoPayload,
   type AppleTransactionPayload,
@@ -141,6 +143,8 @@ export type AppStoreContextResult = { ok: true; data: { appAccountToken: string;
 export function getAppStorePurchaseContext(userId: string, adapter: AppStoreAdapter = getAppStoreAdapter()): AppStoreContextResult {
   if (appStoreIapDisabledReason()) return fail(503, "iap_disabled", MESSAGES.disabled);
   if (!adapter.isConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
+  // Never start a sale whose AI cost is uncapped: both allowance budgets must be set (lib/ai-allowance.ts).
+  if (!aiAllowanceConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
 
   const live = liveStoreEntitlement(userId);
   if (live) {
@@ -202,6 +206,7 @@ function syncAppStorePurchase(input: SyncInput): { outcome: AppleOutcome; purcha
   const applied = applyAppStoreSnapshot(
     originalTransactionId,
     {
+      freeTrial: isAppleFreeTrial(tx),
       latestTransactionId: tx.transactionId ?? current.latestTransactionId,
       productId: tx.productId ?? current.productId,
       environment: live.environment,
@@ -240,14 +245,15 @@ function syncAppStorePurchase(input: SyncInput): { outcome: AppleOutcome; purcha
     environment: purchase.environment,
     currentPeriodEnd: graceEnd ?? isoFromMillis(purchase.expiresDateMillis),
     autoRenewing: purchase.autoRenewing,
+    trial: purchase.freeTrial === true,
     revokedAt: purchase.revokedAt ?? null,
     actor,
   });
   if (result.kind !== "applied") return { outcome: result, purchase };
 
-  // Revenue is recorded once per Apple transaction, for production purchases only. A sandbox purchase is never revenue.
+  // Revenue is recorded once per Apple transaction, for production purchases only. A sandbox purchase is never revenue, and a free trial charged nothing.
   const ref = tx.transactionId ? `apple:${tx.transactionId}` : null;
-  if (ref && status === "active" && purchase.environment === "production" && option && !findRevenueEventByProviderRef("app_store", ref)) {
+  if (ref && status === "active" && purchase.environment === "production" && !purchase.freeTrial && option && !findRevenueEventByProviderRef("app_store", ref)) {
     createRevenueEvent({
       id: randomUUID(),
       userId: purchase.userId,
@@ -378,6 +384,7 @@ export async function verifyAndClaimAppStoreTransaction(
       environment,
       appAccountToken: (live.transaction.appAccountToken ?? clientTx.appAccountToken ?? null)?.toLowerCase() ?? null,
       status: mapped ? mapped.purchase : "revoked",
+      freeTrial: isAppleFreeTrial(live.transaction),
       autoRenewing,
       purchaseDateMillis: live.transaction.originalPurchaseDate ?? null,
       expiresDateMillis: live.transaction.expiresDate ?? null,

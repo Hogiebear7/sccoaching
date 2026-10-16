@@ -1217,6 +1217,8 @@ export interface GooglePlayPurchaseRecord {
   /** The provider-side time of the newest snapshot applied to this purchase.
       A snapshot older than this is stale and must not overwrite newer state. */
   lastSnapshotAt?: string | null;
+  /** True while the current period is a Google free trial (zero charge). */
+  freeTrial?: boolean;
   /** Set when Google refunded, voided or revoked the purchase. */
   revokedAt?: string | null;
   revocationReason?: GooglePlayRevocationReason | null;
@@ -1263,6 +1265,9 @@ export interface DigitalEntitlementRecord {
   /** Paid-through time for a store subscription; optional end for a staff grant (null = until withdrawn). */
   currentPeriodEnd: string | null;
   autoRenewing: boolean;
+  /** True while the current period is a zero-charge store free trial. A trial grants access like a paid period, is never booked as revenue, and ends
+      with the trial (or converts: the next period arrives with this false). Absent on rows written before trials existed. */
+  trial?: boolean;
   /** Staff grant only: who granted it and why. A free-text note, never member health or payment data. */
   grantedByUserId: string | null;
   note: string | null;
@@ -1293,6 +1298,8 @@ export interface AppStorePurchaseRecord {
   autoRenewing: boolean;
   purchaseDateMillis: number | null;
   expiresDateMillis: number | null;
+  /** True when the latest transaction is an Apple free trial (zero charge). */
+  freeTrial?: boolean;
   /** Set when Apple refunded or revoked the purchase. A revoked purchase stays revoked. */
   revokedAt?: string | null;
   revocationReason?: "refunded" | "revoked" | null;
@@ -3780,6 +3787,7 @@ export type ApplyGooglePlaySnapshotResult =
 // Only the lifecycle fields below can be written here: ownership (userId, purchaseToken,
 // boundAt) is deliberately unreachable from this function.
 const GOOGLE_PLAY_SNAPSHOT_KEYS = [
+  "freeTrial",
   "productId",
   "basePlanId",
   "orderId",
@@ -3967,6 +3975,7 @@ export function claimAppStorePurchase(input: ClaimAppStorePurchaseInput, userId:
 }
 
 const APP_STORE_SNAPSHOT_KEYS = [
+  "freeTrial",
   "latestTransactionId",
   "productId",
   "environment",

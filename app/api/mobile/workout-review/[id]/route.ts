@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, findWorkoutSessionById, updateWorkoutSession } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
+import { aiAllowanceRefusal } from "@/lib/ai-allowance-response";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { generateWorkoutReview } from "@/lib/ai";
@@ -24,8 +25,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "workoutReview")) {
-    return NextResponse.json({ success: false, message: "Workout review needs App Subscription or above." }, { status: 403 });
+    return NextResponse.json({ success: false, message: "Workout review needs the App Subscription." }, { status: 403 });
   }
+
+  // A bounded AI allowance, checked before anything is sent to the provider (lib/ai-allowance.ts).
+  const allowanceRefusal = aiAllowanceRefusal(user.id);
+  if (allowanceRefusal) return allowanceRefusal;
 
   const { id } = await params;
   const session = findWorkoutSessionById(id);

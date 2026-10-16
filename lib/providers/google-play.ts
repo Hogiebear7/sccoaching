@@ -205,6 +205,8 @@ export interface VerifiedGooglePlaySubscription {
   subscriptionState: string;
   productId: string | null;
   basePlanId: string | null;
+  /** The promotional offer this purchase was made under (a free trial or introductory offer), or null for a plain base-plan purchase. */
+  offerId: string | null;
   orderId: string | null;
   linkedPurchaseToken: string | null;
   startTimeMillis: number | null;
@@ -225,7 +227,7 @@ interface SubscriptionsV2Response {
     productId?: string;
     expiryTime?: string;
     autoRenewingPlan?: { autoRenewEnabled?: boolean };
-    offerDetails?: { basePlanId?: string };
+    offerDetails?: { basePlanId?: string; offerId?: string };
   }[];
   startTime?: string;
   subscriptionState?: string;
@@ -265,6 +267,7 @@ export async function verifyGooglePlaySubscriptionPurchase(
       subscriptionState: body.subscriptionState ?? "SUBSCRIPTION_STATE_UNSPECIFIED",
       productId: lineItem?.productId ?? null,
       basePlanId: lineItem?.offerDetails?.basePlanId ?? null,
+      offerId: lineItem?.offerDetails?.offerId ?? null,
       orderId: body.latestOrderId ?? null,
       linkedPurchaseToken: body.linkedPurchaseToken ?? null,
       startTimeMillis: body.startTime ? new Date(body.startTime).getTime() : null,

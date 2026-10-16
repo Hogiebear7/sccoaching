@@ -72,6 +72,8 @@ export interface DigitalPlanSummary {
   /** Paid-through time (store) or optional end of a complimentary grant. */
   currentPeriodEnd: string | null;
   autoRenewing: boolean;
+  /** The current period is a free trial: it ends at currentPeriodEnd and converts to paid unless cancelled. */
+  trial: boolean;
   environment: "production" | "sandbox" | null;
 }
 
@@ -81,7 +83,7 @@ export function describeDigitalPlan(rows: readonly DigitalEntitlementRecord[], n
   const live = liveDigitalEntitlements(rows, nowMs);
   const row = live.find((r) => r.source !== "staff_grant") ?? live[0];
   if (!row) return null;
-  return { source: row.source, status: row.status, currentPeriodEnd: row.currentPeriodEnd, autoRenewing: row.autoRenewing, environment: row.environment };
+  return { source: row.source, status: row.status, currentPeriodEnd: row.currentPeriodEnd, autoRenewing: row.autoRenewing, trial: row.trial === true, environment: row.environment };
 }
 
 export interface StoreEntitlementInput {
@@ -95,6 +97,8 @@ export interface StoreEntitlementInput {
   environment: "production" | "sandbox" | null;
   currentPeriodEnd: string | null;
   autoRenewing: boolean;
+  /** The current period is a zero-charge free trial. */
+  trial: boolean;
   revokedAt: string | null;
 }
 
@@ -114,6 +118,7 @@ export function writeStoreEntitlement(input: StoreEntitlementInput): DigitalEnti
     environment: input.environment,
     currentPeriodEnd: input.currentPeriodEnd,
     autoRenewing: input.autoRenewing,
+    trial: input.trial,
     grantedByUserId: null,
     note: null,
     revokedAt: input.revokedAt,

@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "foodSearch")) {
-    return NextResponse.json({ success: false, message: "Food search needs App Subscription or above." }, { status: 403 });
+    return NextResponse.json({ success: false, message: "Food search needs the App Subscription." }, { status: 403 });
   }
 
   const query = request.nextUrl.searchParams.get("q") ?? "";

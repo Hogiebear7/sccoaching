@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
   if (emailNotificationsEnabled && !hasAccess(resolveMemberAccessForUser(user.id), "notifications")) {
     return NextResponse.json(
-      { error: "Email notifications need App Subscription or above." },
+      { error: "Email notifications need the App Subscription." },
       { status: 403 }
     );
   }

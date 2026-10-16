@@ -8,6 +8,7 @@ import { findProfileByUserId, findUserById } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { hasAccess } from "@/lib/member-access";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { aiAllowanceRefusal } from "@/lib/ai-allowance-response";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -43,8 +44,12 @@ export async function POST(request: NextRequest) {
   // The More Tools section is hidden for the Free tier in the apps; this is the server-side half, so hiding it is not the only thing standing between a Free account and a
   // paid AI feature (the same pattern as programme generation and tracker import).
   if (!hasAccess(resolveMemberAccessForUser(user.id), "nutritionMoreTools")) {
-    return NextResponse.json({ success: false, configured: true, message: "Meal suggestions need App Subscription or above." }, { status: 403 });
+    return NextResponse.json({ success: false, configured: true, message: "Meal suggestions need the App Subscription." }, { status: 403 });
   }
+
+  // A bounded AI allowance, checked before anything is sent to the provider (lib/ai-allowance.ts).
+  const allowanceRefusal = aiAllowanceRefusal(user.id);
+  if (allowanceRefusal) return allowanceRefusal;
 
   if (!isAiConfigured()) {
     return NextResponse.json(

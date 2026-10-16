@@ -128,6 +128,12 @@ export interface AppleTransactionPayload {
   expiresDate?: number;
   appAccountToken?: string;
   inAppOwnershipType?: string;
+  /** 1 introductory offer, 2 promotional offer, 3 offer code. */
+  offerType?: number;
+  /** "FREE_TRIAL", "PAY_AS_YOU_GO" or "PAY_UP_FRONT" on a transaction that used an offer. */
+  offerDiscountType?: string;
+  /** Price charged for this transaction, in milli-units of the currency. 0 for a free trial. */
+  price?: number;
   signedDate?: number;
   environment?: AppleEnvironment | string;
   revocationDate?: number;
@@ -160,6 +166,12 @@ export interface AppleNotificationPayload {
     signedRenewalInfo?: string;
     status?: number;
   };
+}
+
+// A transaction that charged nothing because it is a free trial. Either Apple's explicit discount type, or an offer with a zero price.
+export function isAppleFreeTrial(tx: Pick<AppleTransactionPayload, "offerType" | "offerDiscountType" | "price">): boolean {
+  if (tx.offerDiscountType === "FREE_TRIAL") return true;
+  return tx.offerType === 1 && tx.price === 0;
 }
 
 export function verifyWithConfiguredRoots<T>(jws: unknown): JwsResult<T> {

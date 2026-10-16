@@ -43,6 +43,7 @@ import {
   type GooglePlaySubscriptionStatus,
   type MembershipBillingOptionRecord,
 } from "@/lib/db";
+import { aiAllowanceConfigured } from "@/lib/ai-allowance";
 import { describeDigitalPlan, liveStoreEntitlement, type DigitalPlanSummary } from "@/lib/digital-entitlement";
 import type { MemberAccess } from "@/lib/member-access";
 import { isDeletedOwner } from "@/lib/member-deletion-guard";
@@ -104,6 +105,15 @@ function findBillingOption(productId: string | null, basePlanId: string | null):
 
 const isoFromMillis = (ms: number | null) => (ms ? new Date(ms).toISOString() : null);
 
+// A purchase made under a promotional offer whose current period is trial-length. Google's response does not label a free trial, so this is deliberately
+// conservative: it needs BOTH an offer id and a period of at most 8 days since the subscription began (the longest launch trial is 7 days; the shortest
+// paid period is a month). Once the trial converts, the period since start is longer than that and the purchase is a normal paid one. The cost of being
+// wrong is on the safe side: a paid period mistaken for a trial would only be left out of the revenue report, never booked at a price nobody paid.
+export const GOOGLE_TRIAL_MAX_MS = 8 * 24 * 60 * 60 * 1000;
+export function isGoogleFreeTrial(s: Pick<ProviderSubscriptionSnapshot, "offerId" | "startTimeMillis" | "expiryTimeMillis">): boolean {
+  return !!s.offerId && s.startTimeMillis !== null && s.expiryTimeMillis !== null && s.expiryTimeMillis - s.startTimeMillis <= GOOGLE_TRIAL_MAX_MS;
+}
+
 // Statuses for which Google expects the purchase to be acknowledged (the member has, or had, access to it).
 const ACK_STATUSES: ReadonlySet<DigitalEntitlementStatus> = new Set(["active", "canceled", "in_grace_period"]);
 const isEntitling = (status: DigitalEntitlementStatus): boolean => ACK_STATUSES.has(status);
@@ -159,6 +169,7 @@ function syncPurchase(input: SyncInput): { outcome: EntitlementOutcome; purchase
       autoRenewing: snapshot.autoRenewing,
       startTimeMillis: snapshot.startTimeMillis,
       expiryTimeMillis: snapshot.expiryTimeMillis,
+      freeTrial: isGoogleFreeTrial(snapshot),
       acknowledgementState: current.acknowledged || snapshot.acknowledged ? "acknowledged" : current.acknowledgementState ?? "pending",
       ...(revokedNow && !current.revokedAt ? { revokedAt: nowIso, revocationReason: "voided" as const } : {}),
     },
@@ -204,6 +215,7 @@ function applyEntitlement(args: {
     environment: null,
     currentPeriodEnd: isoFromMillis(purchase.expiryTimeMillis),
     autoRenewing: purchase.autoRenewing,
+    trial: purchase.freeTrial === true,
     revokedAt: purchase.revokedAt ?? null,
     actor,
   });
@@ -211,7 +223,8 @@ function applyEntitlement(args: {
 
   // Revenue is recorded once per Google order id, at the configured placeholder price. The amount basis is an
   // open owner and accounting decision (D8); this records technical facts only.
-  if (purchase.orderId && status === "active" && option && !findRevenueEventByProviderRef("google_play", purchase.orderId)) {
+  // A free-trial period charged nothing, so it is never booked as revenue; the first paid renewal is.
+  if (purchase.orderId && status === "active" && !purchase.freeTrial && option && !findRevenueEventByProviderRef("google_play", purchase.orderId)) {
     createRevenueEvent({
       id: randomUUID(),
       userId: purchase.userId,
@@ -251,6 +264,8 @@ export type PurchaseContextResult =
 export function getPurchaseContext(userId: string, adapter: PlayAdapter = getPlayAdapter()): PurchaseContextResult {
   if (iapDisabledReason()) return fail(503, "iap_disabled", MESSAGES.disabled);
   if (!adapter.isConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
+  // Never start a sale whose AI cost is uncapped: both allowance budgets must be set (lib/ai-allowance.ts).
+  if (!aiAllowanceConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
 
   // No purchase intent for a member who already holds a live paid store subscription: a second one would bill twice. A gym
   // Membership or a complimentary grant does not prevent a purchase (they are separate products).
@@ -356,6 +371,7 @@ export async function verifyAndClaimPurchase(
       autoRenewing: snapshot.autoRenewing,
       startTimeMillis: snapshot.startTimeMillis,
       expiryTimeMillis: snapshot.expiryTimeMillis,
+      freeTrial: isGoogleFreeTrial(snapshot),
       // Stored for audit only: already an opaque one-way hash, never the raw user id.
       obfuscatedExternalAccountId: snapshot.accountBinding,
       acknowledgementState: snapshot.acknowledged ? "acknowledged" : "pending",

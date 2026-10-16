@@ -21,6 +21,7 @@ export function fakeSnapshot(over: Partial<ProviderSubscriptionSnapshot> = {}): 
     state: "SUBSCRIPTION_STATE_ACTIVE",
     productId: "app_subscription",
     basePlanId: "monthly",
+    offerId: null,
     orderId: "GPA.fake-0001",
     linkedPurchaseToken: null,
     startTimeMillis: Date.now() - 86_400_000,

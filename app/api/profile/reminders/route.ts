@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "notifications")) {
     return NextResponse.json(
-      { success: false, message: "Class reminders need App Subscription or above." },
+      { success: false, message: "Class reminders need the App Subscription." },
       { status: 403 }
     );
   }

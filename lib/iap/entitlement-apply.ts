@@ -47,6 +47,7 @@ export interface StoreApplyInput {
   environment: "production" | "sandbox" | null;
   currentPeriodEnd: string | null;
   autoRenewing: boolean;
+  trial: boolean;
   revokedAt: string | null;
   actor: "user" | "provider" | "system";
 }
@@ -107,6 +108,7 @@ export function applyStoreEntitlement(input: StoreApplyInput): StoreApplyOutcome
     environment: input.environment,
     currentPeriodEnd: input.currentPeriodEnd,
     autoRenewing: input.autoRenewing,
+    trial: input.trial,
     revokedAt: input.revokedAt,
   });
 
