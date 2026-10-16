@@ -109,6 +109,7 @@ export const COLLECTION_SCOPE = {
   aiRedirectEvents: platform("Anonymous AI-redirect telemetry, no user or gym."),
   revenueEvents: { kind: "money-provenance", owner: "ownerGym", note: "Platform finance only." },
   aiUsageLogs: user(),
+  aiReservations: user("userId", "Short-lived holds on a member's AI allowance while a provider call is in flight; an abandoned hold expires by itself. Removed with the account."),
   financeLedgerEntries: { kind: "money-provenance", owner: "ownerGym", note: "finance.view is exact-role platform_operator (audit 12.5)." },
   cycleSettings: user(),
   cyclePrivacyPreferences: user(),
@@ -158,6 +159,7 @@ export const MODULE_CACHE_SCOPE: readonly ModuleCacheScope[] = [
 export const STATIC_LOOKUP_CONSTANTS: readonly { file: string; symbol: string }[] = [
   { file: "lib/account-deletion.ts", symbol: "LIVE_PAID_STATUSES" },
   { file: "lib/ai-context.ts", symbol: "DIETARY_LABEL" },
+  { file: "lib/ai-metering.ts", symbol: "MEMBER_FEATURES" },
   { file: "lib/class-covers.ts", symbol: "BUILTIN_COVER_SRCS" },
   { file: "lib/class-covers.ts", symbol: "BUILTIN_DEFAULT_ALTS" },
   { file: "lib/countries.ts", symbol: "COUNTRY_VALUES" },

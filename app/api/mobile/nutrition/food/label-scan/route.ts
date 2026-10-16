@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { identifyFoodPhoto, isAiConfigured } from "@/lib/ai";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { findAllFoods, findFoodIdentificationOverridesByUserId, findUserById } from "@/lib/db";
 import { applyCatalogMatches } from "@/lib/food-catalog";
@@ -45,6 +46,10 @@ export async function POST(request: NextRequest) {
   const consentRequired = requireAiConsent(user.id);
   if (consentRequired) return consentRequired;
 
+  // Each AI call is metered against the member's allowance (lib/ai-allowance.ts); this is the friendly early answer, before any work is done.
+  const allowanceRefusal = aiAllowanceRefusal(user.id);
+  if (allowanceRefusal) return allowanceRefusal;
+
   const rate = checkRateLimit(`ai-food-photo-scan:${user.id}`, SCAN_RATE_LIMIT, SCAN_RATE_WINDOW_MS);
   if (!rate.allowed) {
     return NextResponse.json(
@@ -83,6 +88,8 @@ export async function POST(request: NextRequest) {
     const items = applyFoodIdentificationOverrides(catalogMatched, overrides);
     return NextResponse.json({ success: true, configured: true, items });
   } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
     console.error(`[food-catalog] photo identification failed for user ${user.id}:`, err);
     return NextResponse.json(
       { success: false, configured: true, message: "Couldn't read that photo right now. Please try again." },

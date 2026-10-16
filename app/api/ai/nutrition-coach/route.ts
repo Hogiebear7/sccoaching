@@ -19,7 +19,7 @@ import { createNutritionCoachChatStream, isAiConfigured } from "@/lib/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { AI_UNAVAILABLE_CODE, AI_UNAVAILABLE_MESSAGE, primeAiStream } from "@/lib/ai-stream";
 import { hasAccess } from "@/lib/member-access";
-import { aiAllowanceRefusal } from "@/lib/ai-allowance-response";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -190,6 +190,10 @@ export async function POST(request: NextRequest) {
     primed = await primeAiStream<StreamEvent>(stream);
   } catch (err) {
     primed = { ok: false, error: err };
+  }
+  if (!primed.ok) {
+    const refused = aiFailureResponse(primed.error);
+    if (refused) return refused;
   }
   if (!primed.ok || !stream) {
     console.error("AI nutrition coach could not start:", primed.ok ? "no stream" : primed.error);

@@ -105,13 +105,19 @@ function findBillingOption(productId: string | null, basePlanId: string | null):
 
 const isoFromMillis = (ms: number | null) => (ms ? new Date(ms).toISOString() : null);
 
-// A purchase made under a promotional offer whose current period is trial-length. Google's response does not label a free trial, so this is deliberately
-// conservative: it needs BOTH an offer id and a period of at most 8 days since the subscription began (the longest launch trial is 7 days; the shortest
-// paid period is a month). Once the trial converts, the period since start is longer than that and the purchase is a normal paid one. The cost of being
-// wrong is on the safe side: a paid period mistaken for a trial would only be left out of the revenue report, never booked at a price nobody paid.
+// Is the current period a free trial? Google's subscriptionsv2 resource says so itself: lineItems[].offerPhase is exactly one of freeTrial /
+// introductoryPrice / basePrice / prorationPeriod. That is the AUTHORITY ("store_reported"), and it is the only thing revenue decisions use.
+//
+// Only when Google reports no phase at all is a fallback used ("inferred"): an offer id plus a period of at most 8 days since the subscription began
+// (the longest launch trial is 7 days, the shortest paid period a month). The fallback exists to bound AI cost (an uncertain period gets the smaller trial
+// allowance, never the larger paid one); it is NOT evidence and is never used to decide whether money was received.
 export const GOOGLE_TRIAL_MAX_MS = 8 * 24 * 60 * 60 * 1000;
-export function isGoogleFreeTrial(s: Pick<ProviderSubscriptionSnapshot, "offerId" | "startTimeMillis" | "expiryTimeMillis">): boolean {
-  return !!s.offerId && s.startTimeMillis !== null && s.expiryTimeMillis !== null && s.expiryTimeMillis - s.startTimeMillis <= GOOGLE_TRIAL_MAX_MS;
+export function googleTrialEvidence(
+  s: Pick<ProviderSubscriptionSnapshot, "offerId" | "offerPhase" | "startTimeMillis" | "expiryTimeMillis">
+): { trial: boolean; basis: "store_reported" | "inferred" } {
+  if (s.offerPhase) return { trial: s.offerPhase === "free_trial", basis: "store_reported" };
+  const inferred = !!s.offerId && s.startTimeMillis != null && s.expiryTimeMillis != null && s.expiryTimeMillis - s.startTimeMillis <= GOOGLE_TRIAL_MAX_MS;
+  return { trial: inferred, basis: "inferred" };
 }
 
 // Statuses for which Google expects the purchase to be acknowledged (the member has, or had, access to it).
@@ -169,7 +175,8 @@ function syncPurchase(input: SyncInput): { outcome: EntitlementOutcome; purchase
       autoRenewing: snapshot.autoRenewing,
       startTimeMillis: snapshot.startTimeMillis,
       expiryTimeMillis: snapshot.expiryTimeMillis,
-      freeTrial: isGoogleFreeTrial(snapshot),
+      freeTrial: googleTrialEvidence(snapshot).trial,
+      offerPhase: snapshot.offerPhase ?? null,
       acknowledgementState: current.acknowledged || snapshot.acknowledged ? "acknowledged" : current.acknowledgementState ?? "pending",
       ...(revokedNow && !current.revokedAt ? { revokedAt: nowIso, revocationReason: "voided" as const } : {}),
     },
@@ -221,10 +228,12 @@ function applyEntitlement(args: {
   });
   if (result.kind !== "applied") return result;
 
-  // Revenue is recorded once per Google order id, at the configured placeholder price. The amount basis is an
-  // open owner and accounting decision (D8); this records technical facts only.
-  // A free-trial period charged nothing, so it is never booked as revenue; the first paid renewal is.
-  if (purchase.orderId && status === "active" && !purchase.freeTrial && option && !findRevenueEventByProviderRef("google_play", purchase.orderId)) {
+  // Revenue is recorded once per Google order id, and ALWAYS as UNVERIFIED: this server does not fetch what Google actually charged (the Orders API:
+  // amount, currency, tax), so the row carries the catalog price as a placeholder to reconcile against Google's sales report, and is not counted as income
+  // until then (lib/finance.ts). An entitlement, a renewal date or an active state is not money received.
+  // A period Google itself reports as a free trial charged nothing and is not recorded at all. If Google reported no phase, the row is still recorded, as
+  // unverified, with that reason: a paid period must not silently vanish from reconciliation because a trial was guessed.
+  if (purchase.orderId && status === "active" && purchase.offerPhase !== "free_trial" && option && !findRevenueEventByProviderRef("google_play", purchase.orderId)) {
     createRevenueEvent({
       id: randomUUID(),
       userId: purchase.userId,
@@ -236,6 +245,10 @@ function applyEntitlement(args: {
       providerRef: purchase.orderId,
       source: "membership_renewal",
       receivedAt: new Date().toISOString(),
+      evidence: "unverified",
+      unverifiedReason: purchase.offerPhase
+        ? "Charged amount and currency not fetched from Google (Orders API); the catalog price is a placeholder. Reconcile against Google's sales report."
+        : "Google did not report the offer phase and the charged amount is not fetched; trial status is inferred and the catalog price is a placeholder. Reconcile against Google's sales report.",
       ownerGym: { scope: "platform" },
     });
   }
@@ -264,7 +277,7 @@ export type PurchaseContextResult =
 export function getPurchaseContext(userId: string, adapter: PlayAdapter = getPlayAdapter()): PurchaseContextResult {
   if (iapDisabledReason()) return fail(503, "iap_disabled", MESSAGES.disabled);
   if (!adapter.isConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
-  // Never start a sale whose AI cost is uncapped: both allowance budgets must be set (lib/ai-allowance.ts).
+  // Never start a sale whose AI cost is uncapped: all four allowance budgets must be set (lib/ai-allowance.ts).
   if (!aiAllowanceConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
 
   // No purchase intent for a member who already holds a live paid store subscription: a second one would bill twice. A gym
@@ -371,7 +384,8 @@ export async function verifyAndClaimPurchase(
       autoRenewing: snapshot.autoRenewing,
       startTimeMillis: snapshot.startTimeMillis,
       expiryTimeMillis: snapshot.expiryTimeMillis,
-      freeTrial: isGoogleFreeTrial(snapshot),
+      freeTrial: googleTrialEvidence(snapshot).trial,
+      offerPhase: snapshot.offerPhase ?? null,
       // Stored for audit only: already an opaque one-way hash, never the raw user id.
       obfuscatedExternalAccountId: snapshot.accountBinding,
       acknowledgementState: snapshot.acknowledged ? "acknowledged" : "pending",

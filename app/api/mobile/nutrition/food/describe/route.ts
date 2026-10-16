@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { buildDietaryContextBlock } from "@/lib/ai-context";
 import { interpretFoodDescription, isAiConfigured } from "@/lib/ai";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { findProfileByUserId, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -46,6 +47,10 @@ export async function POST(request: NextRequest) {
   // Nothing is read from the request or sent to the AI provider until this member has allowed it (lib/ai-consent.ts).
   const consentRequired = requireAiConsent(user.id);
   if (consentRequired) return consentRequired;
+
+  // Each AI call is metered against the member's allowance (lib/ai-allowance.ts); this is the friendly early answer, before any work is done.
+  const allowanceRefusal = aiAllowanceRefusal(user.id);
+  if (allowanceRefusal) return allowanceRefusal;
 
   const rate = checkRateLimit(`ai-food-describe:${user.id}`, DESCRIBE_RATE_LIMIT, DESCRIBE_RATE_WINDOW_MS);
   if (!rate.allowed) {
@@ -102,6 +107,8 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ success: true, configured: true, items });
   } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
     console.error(`[food-catalog] text-to-food interpretation failed for user ${user.id}:`, err);
     return NextResponse.json(
       { success: false, configured: true, message: "Couldn't interpret that right now. Please try again." },

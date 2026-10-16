@@ -55,6 +55,22 @@ describe("Apple free trial", () => {
     expect(revenue()).toEqual([["app_store", "apple:tx-plain"]]);
   });
 
+  it("revenue is the amount the SIGNED transaction says was charged, in its own currency, marked store-reported (not the catalog price)", async () => {
+    await fx.claim(fx.memberA.id, O, { tx: { transactionId: "tx-gbp", price: 10990, currency: "GBP" } });
+    const [row] = fx.db.findAllRevenueEvents();
+    expect(row).toMatchObject({ amountCents: 1099, currency: "gbp", evidence: "store_reported" });
+    expect(row.unverifiedReason).toBeUndefined();
+  });
+
+  it("a transaction with no price or currency cannot establish what was received: the row is UNVERIFIED, pending, not income", async () => {
+    await fx.claim(fx.memberA.id, O, { tx: { transactionId: "tx-noprice" } });
+    const [row] = fx.db.findAllRevenueEvents();
+    expect(row).toMatchObject({ evidence: "unverified" });
+    expect(row.unverifiedReason).toMatch(/Reconcile/);
+    const { buildFinanceLedgerLines } = await import("@/lib/finance");
+    expect(buildFinanceLedgerLines().find((l) => l.reference === "apple:tx-noprice")?.status).toBe("pending");
+  });
+
   it("cancelling during the trial keeps access to the trial's end, still no revenue, and then access stops", async () => {
     const trialEnd = Date.now() + 5 * DAY;
     await fx.claim(fx.memberA.id, O, { tx: { ...TRIAL_TX, expiresDate: trialEnd } });
@@ -125,24 +141,51 @@ describe("Google Play free trial", () => {
   });
   afterEach(() => fx.cleanup());
 
-  it("a trial-length period bought under an offer is a trial: access, flagged, and NO revenue", async () => {
+  it("Google says the period is a free trial (offerPhase): trial, access, and NO revenue row at all", async () => {
     const now = Date.now();
-    const res = await fx.claim(fx.memberA.id, T, { offerId: "freetrial7", orderId: "GPA.trial-1", startTimeMillis: now, expiryTimeMillis: now + 7 * DAY });
+    const res = await fx.claim(fx.memberA.id, T, { offerId: "freetrial7", offerPhase: "free_trial", orderId: "GPA.trial-1", startTimeMillis: now, expiryTimeMillis: now + 7 * DAY });
     expect(res.status).toBe(200);
     expect(ent()).toMatchObject({ trial: true, status: "active" });
     expect((await access()).digital).toBe(true);
     expect(fx.db.findAllRevenueEvents()).toEqual([]);
   });
 
-  it("a plain base-plan purchase (no offer) is never a trial and is booked", async () => {
-    await fx.claim(fx.memberA.id, T, { offerId: null, orderId: "GPA.plain-1" });
+  it("Google reports a PAID phase: never a trial, even for an offer with a short period; its revenue is recorded UNVERIFIED (amount received not established)", async () => {
+    const now = Date.now();
+    await fx.claim(fx.memberA.id, T, { offerId: "intro", offerPhase: "introductory_price", orderId: "GPA.intro-1", startTimeMillis: now, expiryTimeMillis: now + 5 * DAY });
     expect(ent()?.trial).toBe(false);
-    expect(fx.db.findAllRevenueEvents().map((e) => e.providerRef)).toEqual(["GPA.plain-1"]);
+    const [row] = fx.db.findAllRevenueEvents();
+    expect(row).toMatchObject({ providerRef: "GPA.intro-1", provider: "google_play", evidence: "unverified" });
+    expect(row.unverifiedReason).toMatch(/Reconcile/);
+  });
+
+  it("a plain base-plan purchase is never a trial; its revenue is recorded as UNVERIFIED, because the charged amount is not fetched from Google", async () => {
+    await fx.claim(fx.memberA.id, T, { offerId: null, offerPhase: "base_price", orderId: "GPA.plain-1" });
+    expect(ent()?.trial).toBe(false);
+    expect(fx.db.findAllRevenueEvents().map((e) => [e.providerRef, e.evidence])).toEqual([["GPA.plain-1", "unverified"]]);
+  });
+
+  it("an unverified Google row is visible in the finance ledger as PENDING with its reason, and is never counted as income", async () => {
+    await fx.claim(fx.memberA.id, T, { offerId: null, offerPhase: "base_price", orderId: "GPA.plain-2" });
+    const { buildFinanceLedgerLines } = await import("@/lib/finance");
+    const line = buildFinanceLedgerLines().find((l) => l.reference === "GPA.plain-2");
+    expect(line).toMatchObject({ status: "pending" });
+    expect(line?.notes).toMatch(/UNVERIFIED, not counted as income/);
+    const { computeTotals } = await import("@/lib/finance-shared");
+    expect(computeTotals(buildFinanceLedgerLines().filter((l) => l.reference === "GPA.plain-2")).moneyInCents).toBe(0);
+  });
+
+  it("with NO phase reported the trial is only INFERRED (to bound AI cost): the period gets the trial allowance, and its revenue is unverified, not dropped", async () => {
+    const now = Date.now();
+    await fx.claim(fx.memberA.id, T, { offerId: "freetrial7", offerPhase: null, orderId: "GPA.infer-1", startTimeMillis: now, expiryTimeMillis: now + 7 * DAY });
+    expect(ent()).toMatchObject({ trial: true });
+    expect(fx.db.findAllRevenueEvents().map((e) => [e.providerRef, e.evidence])).toEqual([["GPA.infer-1", "unverified"]]);
+    expect(fx.db.findAllRevenueEvents()[0].unverifiedReason).toMatch(/did not report the offer phase/);
   });
 
   it("cancelling during the trial keeps access to its end; then it expires; nothing is ever booked", async () => {
     const now = Date.now();
-    await fx.claim(fx.memberA.id, T, { offerId: "freetrial7", orderId: "GPA.trial-2", startTimeMillis: now, expiryTimeMillis: now + 6 * DAY });
+    await fx.claim(fx.memberA.id, T, { offerId: "freetrial7", offerPhase: "free_trial", orderId: "GPA.trial-2", startTimeMillis: now, expiryTimeMillis: now + 6 * DAY });
     fx.adapter.setSnapshot(T, { state: "SUBSCRIPTION_STATE_CANCELED", autoRenewing: false });
     await fx.rtdn(fx.subscriptionEvent(T, 3));
     expect(ent()).toMatchObject({ status: "canceled", trial: true });
@@ -156,24 +199,29 @@ describe("Google Play free trial", () => {
 
   it("conversion: the first paid period is no longer a trial and its order is booked once", async () => {
     const start = Date.now() - 7 * DAY;
-    await fx.claim(fx.memberA.id, T, { offerId: "freetrial7", orderId: "GPA.trial-3", startTimeMillis: start, expiryTimeMillis: Date.now() + 1000 });
+    await fx.claim(fx.memberA.id, T, { offerId: "freetrial7", offerPhase: "free_trial", orderId: "GPA.trial-3", startTimeMillis: start, expiryTimeMillis: Date.now() + 1000 });
     expect(ent()?.trial).toBe(true);
 
-    fx.adapter.setSnapshot(T, { state: "SUBSCRIPTION_STATE_ACTIVE", orderId: "GPA.paid-3", expiryTimeMillis: Date.now() + 30 * DAY });
+    fx.adapter.setSnapshot(T, { state: "SUBSCRIPTION_STATE_ACTIVE", offerPhase: "base_price", orderId: "GPA.paid-3", expiryTimeMillis: Date.now() + 30 * DAY });
     await fx.rtdn(fx.subscriptionEvent(T, 2));
     await fx.rtdn(fx.subscriptionEvent(T, 2));
     expect(ent()).toMatchObject({ trial: false, status: "active" });
     expect(fx.db.findAllRevenueEvents().map((e) => e.providerRef)).toEqual(["GPA.paid-3"]);
   });
 
-  it("isGoogleFreeTrial needs BOTH an offer and a trial-length period", async () => {
-    const { isGoogleFreeTrial, GOOGLE_TRIAL_MAX_MS } = await import("@/lib/iap/service");
+  it("googleTrialEvidence: the reported phase is the authority; the length guess applies only when no phase is reported, and says so", async () => {
+    const { googleTrialEvidence, GOOGLE_TRIAL_MAX_MS } = await import("@/lib/iap/service");
     const t0 = 1_000_000_000_000;
-    expect(isGoogleFreeTrial({ offerId: "o", startTimeMillis: t0, expiryTimeMillis: t0 + 7 * DAY })).toBe(true);
-    expect(isGoogleFreeTrial({ offerId: "o", startTimeMillis: t0, expiryTimeMillis: t0 + GOOGLE_TRIAL_MAX_MS })).toBe(true);
-    expect(isGoogleFreeTrial({ offerId: "o", startTimeMillis: t0, expiryTimeMillis: t0 + GOOGLE_TRIAL_MAX_MS + 1 })).toBe(false);
-    expect(isGoogleFreeTrial({ offerId: "o", startTimeMillis: t0, expiryTimeMillis: t0 + 30 * DAY })).toBe(false);
-    expect(isGoogleFreeTrial({ offerId: null, startTimeMillis: t0, expiryTimeMillis: t0 + 7 * DAY })).toBe(false);
-    expect(isGoogleFreeTrial({ offerId: "o", startTimeMillis: null, expiryTimeMillis: t0 + 7 * DAY })).toBe(false);
+    const span = (ms: number, extra: object = {}) => ({ offerId: "o", offerPhase: null, startTimeMillis: t0, expiryTimeMillis: t0 + ms, ...extra });
+    // Reported: the length of the period is irrelevant.
+    expect(googleTrialEvidence(span(30 * DAY, { offerPhase: "free_trial" }))).toEqual({ trial: true, basis: "store_reported" });
+    expect(googleTrialEvidence(span(3 * DAY, { offerPhase: "introductory_price" }))).toEqual({ trial: false, basis: "store_reported" });
+    expect(googleTrialEvidence(span(3 * DAY, { offerPhase: "base_price" }))).toEqual({ trial: false, basis: "store_reported" });
+    // Not reported: inferred, deliberately conservative, and labelled as inferred.
+    expect(googleTrialEvidence(span(7 * DAY))).toEqual({ trial: true, basis: "inferred" });
+    expect(googleTrialEvidence(span(GOOGLE_TRIAL_MAX_MS))).toEqual({ trial: true, basis: "inferred" });
+    expect(googleTrialEvidence(span(GOOGLE_TRIAL_MAX_MS + 1))).toEqual({ trial: false, basis: "inferred" });
+    expect(googleTrialEvidence(span(7 * DAY, { offerId: null }))).toEqual({ trial: false, basis: "inferred" });
+    expect(googleTrialEvidence(span(7 * DAY, { startTimeMillis: null }))).toEqual({ trial: false, basis: "inferred" });
   });
 });

@@ -24,7 +24,7 @@ const PRICING_USD_PER_MTOK: Record<string, { input: number; output: number }> = 
 };
 const DEFAULT_PRICING = PRICING_USD_PER_MTOK["claude-opus-4-8"];
 
-function priceFor(model: string): { input: number; output: number } {
+export function priceFor(model: string): { input: number; output: number } {
   return PRICING_USD_PER_MTOK[model] ?? DEFAULT_PRICING;
 }
 
@@ -33,8 +33,26 @@ function priceFor(model: string): { input: number; output: number } {
 // so ignoring these would materially misprice most calls: a cold cache
 // costs 1.25x normal input, a warm one only 0.1x.
 // https://platform.claude.com/docs/en/build-with-claude/prompt-caching
-const CACHE_WRITE_MULTIPLIER = 1.25;
-const CACHE_READ_MULTIPLIER = 0.1;
+export const CACHE_WRITE_MULTIPLIER = 1.25;
+export const CACHE_READ_MULTIPLIER = 0.1;
+
+// The cost of a call from the token counts the provider reported. The one place this arithmetic lives (logging and the allowance both use it).
+export function costUsdFor(input: {
+  model: string;
+  inputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
+}): number {
+  const pricing = priceFor(input.model);
+  return (
+    (input.inputTokens * pricing.input +
+      input.cacheWriteTokens * pricing.input * CACHE_WRITE_MULTIPLIER +
+      input.cacheReadTokens * pricing.input * CACHE_READ_MULTIPLIER +
+      input.outputTokens * pricing.output) /
+    1_000_000
+  );
+}
 
 // Called right after every real client.messages.create() response in
 // lib/ai.ts, with the token counts the API actually reported — never an
@@ -51,13 +69,7 @@ export function recordAiUsage(input: {
   outputTokens: number;
 }): void {
   try {
-    const pricing = priceFor(input.model);
-    const costUsd =
-      (input.inputTokens * pricing.input +
-        input.cacheWriteTokens * pricing.input * CACHE_WRITE_MULTIPLIER +
-        input.cacheReadTokens * pricing.input * CACHE_READ_MULTIPLIER +
-        input.outputTokens * pricing.output) /
-      1_000_000;
+    const costUsd = costUsdFor(input);
 
     const log: AiUsageLogRecord = {
       id: randomUUID(),

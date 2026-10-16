@@ -143,7 +143,7 @@ export type AppStoreContextResult = { ok: true; data: { appAccountToken: string;
 export function getAppStorePurchaseContext(userId: string, adapter: AppStoreAdapter = getAppStoreAdapter()): AppStoreContextResult {
   if (appStoreIapDisabledReason()) return fail(503, "iap_disabled", MESSAGES.disabled);
   if (!adapter.isConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
-  // Never start a sale whose AI cost is uncapped: both allowance budgets must be set (lib/ai-allowance.ts).
+  // Never start a sale whose AI cost is uncapped: all four allowance budgets must be set (lib/ai-allowance.ts).
   if (!aiAllowanceConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
 
   const live = liveStoreEntitlement(userId);
@@ -254,17 +254,22 @@ function syncAppStorePurchase(input: SyncInput): { outcome: AppleOutcome; purcha
   // Revenue is recorded once per Apple transaction, for production purchases only. A sandbox purchase is never revenue, and a free trial charged nothing.
   const ref = tx.transactionId ? `apple:${tx.transactionId}` : null;
   if (ref && status === "active" && purchase.environment === "production" && !purchase.freeTrial && option && !findRevenueEventByProviderRef("app_store", ref)) {
+    // The signed transaction states what was charged (milli-units of its currency): that, not the catalog price, is the amount. It is the customer's
+    // GROSS price (before tax and Apple's commission), so it is store-reported but still not net proceeds. With no usable price the row is unverified.
+    const charged = typeof tx.price === "number" && tx.price > 0 && typeof tx.currency === "string" && /^[A-Za-z]{3}$/.test(tx.currency);
     createRevenueEvent({
       id: randomUUID(),
       userId: purchase.userId,
       packageId: option.packageId,
       billingOptionId: option.id,
-      amountCents: option.amountCents,
-      currency: option.currency,
+      amountCents: charged ? Math.round((tx.price as number) / 10) : option.amountCents,
+      currency: charged ? (tx.currency as string).toLowerCase() : option.currency,
       provider: "app_store",
       providerRef: ref,
       source: "membership_renewal",
       receivedAt: nowIso,
+      evidence: charged ? "store_reported" : "unverified",
+      ...(charged ? {} : { unverifiedReason: "The signed transaction carried no price or currency; the catalog price is a placeholder. Reconcile against App Store Connect sales." }),
       ownerGym: { scope: "platform" },
     });
   }

@@ -207,6 +207,8 @@ export interface VerifiedGooglePlaySubscription {
   basePlanId: string | null;
   /** The promotional offer this purchase was made under (a free trial or introductory offer), or null for a plain base-plan purchase. */
   offerId: string | null;
+  /** The current offer phase as Google reports it, or null when the response does not carry one. */
+  offerPhase: "free_trial" | "introductory_price" | "base_price" | "proration" | null;
   orderId: string | null;
   linkedPurchaseToken: string | null;
   startTimeMillis: number | null;
@@ -220,6 +222,14 @@ export interface VerifiedGooglePlaySubscription {
   obfuscatedExternalAccountId: string | null;
 }
 
+// Google's offerPhase is a union: exactly one of freeTrial / introductoryPrice / basePrice / prorationPeriod is present. Anything else is "not reported".
+function offerPhaseOf(phase: { freeTrial?: unknown; introductoryPrice?: unknown; basePrice?: unknown; prorationPeriod?: unknown } | undefined): VerifiedGooglePlaySubscription["offerPhase"] {
+  if (!phase || typeof phase !== "object") return null;
+  const present = (["freeTrial", "introductoryPrice", "basePrice", "prorationPeriod"] as const).filter((k) => phase[k] !== undefined && phase[k] !== null);
+  if (present.length !== 1) return null;
+  return { freeTrial: "free_trial", introductoryPrice: "introductory_price", basePrice: "base_price", prorationPeriod: "proration" }[present[0]] as VerifiedGooglePlaySubscription["offerPhase"];
+}
+
 interface SubscriptionsV2Response {
   kind?: string;
   regionCode?: string;
@@ -228,6 +238,7 @@ interface SubscriptionsV2Response {
     expiryTime?: string;
     autoRenewingPlan?: { autoRenewEnabled?: boolean };
     offerDetails?: { basePlanId?: string; offerId?: string };
+    offerPhase?: { freeTrial?: unknown; introductoryPrice?: unknown; basePrice?: unknown; prorationPeriod?: unknown };
   }[];
   startTime?: string;
   subscriptionState?: string;
@@ -268,6 +279,7 @@ export async function verifyGooglePlaySubscriptionPurchase(
       productId: lineItem?.productId ?? null,
       basePlanId: lineItem?.offerDetails?.basePlanId ?? null,
       offerId: lineItem?.offerDetails?.offerId ?? null,
+      offerPhase: offerPhaseOf(lineItem?.offerPhase),
       orderId: body.latestOrderId ?? null,
       linkedPurchaseToken: body.linkedPurchaseToken ?? null,
       startTimeMillis: body.startTime ? new Date(body.startTime).getTime() : null,

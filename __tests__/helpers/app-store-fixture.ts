@@ -158,7 +158,7 @@ export interface AppStoreFixture extends IapFixture {
   signedTransaction: (userId: string | null, originalTransactionId: string, over?: Partial<AppleTransactionPayload>, chain?: ChainName) => string;
 }
 
-const ENV_KEYS = ["APP_STORE_IAP_ENABLED", "APP_STORE_IAP_ENVIRONMENT", "APP_STORE_ACCEPT_SANDBOX", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_TRIAL_USD"] as const;
+const ENV_KEYS = ["APP_STORE_IAP_ENABLED", "APP_STORE_IAP_ENVIRONMENT", "APP_STORE_ACCEPT_SANDBOX", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD"] as const;
 
 export async function createAppStoreFixture(options: { enabled?: boolean; acceptSandbox?: boolean } = {}): Promise<AppStoreFixture> {
   const base = await createFixture();
@@ -174,6 +174,8 @@ export async function createAppStoreFixture(options: { enabled?: boolean; accept
   // A purchase can only start when the AI allowance budgets are set; these are TEST values, not a proposal.
   process.env.AI_ALLOWANCE_PAID_USD = "1";
   process.env.AI_ALLOWANCE_TRIAL_USD = "0.25";
+  process.env.AI_ALLOWANCE_FREE_USD = "0.1";
+  process.env.AI_ALLOWANCE_COMPLIMENTARY_USD = "0.5";
   if (options.acceptSandbox) process.env.APP_STORE_ACCEPT_SANDBOX = "true";
   else delete process.env.APP_STORE_ACCEPT_SANDBOX;
 

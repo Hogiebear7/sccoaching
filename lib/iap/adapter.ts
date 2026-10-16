@@ -38,6 +38,8 @@ export interface ProviderSubscriptionSnapshot {
   basePlanId: string | null;
   /** The promotional offer (free trial or introductory price) the purchase was made under, or null for a plain base-plan purchase. */
   offerId?: string | null;
+  /** The current offer phase as the provider reported it, or null/absent when it did not say. */
+  offerPhase?: "free_trial" | "introductory_price" | "base_price" | "proration" | null;
   orderId: string | null;
   linkedPurchaseToken: string | null;
   startTimeMillis: number | null;

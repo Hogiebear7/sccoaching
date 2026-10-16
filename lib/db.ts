@@ -1217,8 +1217,10 @@ export interface GooglePlayPurchaseRecord {
   /** The provider-side time of the newest snapshot applied to this purchase.
       A snapshot older than this is stale and must not overwrite newer state. */
   lastSnapshotAt?: string | null;
-  /** True while the current period is a Google free trial (zero charge). */
+  /** True while the current period is a Google free trial (zero charge). From offerPhase when Google reported it; otherwise INFERRED (see googleTrialEvidence). */
   freeTrial?: boolean;
+  /** The current offer phase as Google reported it (SubscriptionPurchaseLineItem.offerPhase), or null when Google did not say. The authority for "was this period a trial". */
+  offerPhase?: GoogleOfferPhase | null;
   /** Set when Google refunded, voided or revoked the purchase. */
   revokedAt?: string | null;
   revocationReason?: GooglePlayRevocationReason | null;
@@ -1719,6 +1721,13 @@ export interface AiRedirectEventRecord {
 // capped or dropped.
 export type RevenueSource = "membership_renewal";
 
+export type GoogleOfferPhase = "free_trial" | "introductory_price" | "base_price" | "proration";
+
+// What backs a revenue row. "store_reported": the amount and currency come from a signed store transaction that charged them. "unverified": a
+// subscription state or an order exists, but the amount actually received (after the member's local price, tax and any intro price) is not established,
+// so the row is a placeholder to RECONCILE against the store's sales report. An unverified row is never counted as income (lib/finance.ts).
+export type RevenueEvidence = "store_reported" | "unverified";
+
 export interface RevenueEventRecord {
   id: string;
   userId: string;
@@ -1733,6 +1742,10 @@ export interface RevenueEventRecord {
   providerRef: string;
   source: RevenueSource;
   receivedAt: string;
+  /** Absent on rows written before this existed and on Stripe/Revolut rows, which are charges the provider itself reported. */
+  evidence?: RevenueEvidence;
+  /** Why a row is unverified, for the person reconciling it. */
+  unverifiedReason?: string;
   /** Immutable historical provenance — see MoneyRecordOwnerGym (lib/gym-scope.ts's
       builders / lib/db.ts's own comment on SubscriptionRecord.ownerGym).
       Stamped EXACTLY ONCE, at the moment this row is created, then never
@@ -1775,6 +1788,23 @@ export type AiFeature =
   | "programme_checkin"
   | "exercise_alternatives";
 
+// Which allowance a call counts against (lib/ai-allowance.ts). Tagged on the usage row when the call is made, so trial use can never count toward the
+// paid allowance, a trial's total can never be replenished, and complimentary use is never mistaken for paid.
+export type AiAllowanceKind = "free" | "trial" | "paid" | "complimentary";
+
+// A cost held for a call that has been started but not yet settled. See reserveAiBudget.
+export interface AiReservationRecord {
+  id: string;
+  userId: string;
+  feature: AiFeature;
+  kind: AiAllowanceKind;
+  /** The conservative MAXIMUM this one call could cost, from its bounded input and output sizes. */
+  reservedUsd: number;
+  createdAt: string;
+  /** An abandoned reservation (the process died mid-call) stops holding budget at this time. */
+  expiresAt: string;
+}
+
 export interface AiUsageLogRecord {
   id: string;
   /** Who this usage is attributed to — a member's own AI feature use is
@@ -1805,6 +1835,10 @@ export interface AiUsageLogRecord {
       ground-truth figure. Converted to EUR only at display time, so a
       later FX-rate change never rewrites already-logged history. */
   costUsd: number;
+  /** Which allowance this call counted against. Absent on rows written before allowances existed. */
+  allowanceKind?: AiAllowanceKind;
+  /** True when costUsd is a conservative ESTIMATE (the call's outcome was unknown: a timeout or an abort), not the provider's reported usage. */
+  estimated?: boolean;
   createdAt: string;
 }
 
@@ -2119,6 +2153,7 @@ interface Database {
   aiRedirectEvents: AiRedirectEventRecord[];
   revenueEvents: RevenueEventRecord[];
   aiUsageLogs: AiUsageLogRecord[];
+  aiReservations: AiReservationRecord[];
   financeLedgerEntries: FinanceLedgerEntryRecord[];
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
@@ -2261,6 +2296,7 @@ function normalizeDatabase(raw: string | null): Database {
       aiRedirectEvents: [],
       revenueEvents: [],
       aiUsageLogs: [],
+      aiReservations: [],
       financeLedgerEntries: [],
       cycleSettings: [],
       cyclePrivacyPreferences: [],
@@ -2446,6 +2482,7 @@ function normalizeDatabase(raw: string | null): Database {
     aiRedirectEvents: parsed.aiRedirectEvents ?? [],
     revenueEvents: parsed.revenueEvents ?? [],
     aiUsageLogs: parsed.aiUsageLogs ?? [],
+    aiReservations: parsed.aiReservations ?? [],
     financeLedgerEntries: parsed.financeLedgerEntries ?? [],
     cycleSettings: parsed.cycleSettings ?? [],
     cyclePrivacyPreferences: parsed.cyclePrivacyPreferences ?? [],
@@ -2688,6 +2725,7 @@ const MEMBER_OWNED_COLLECTIONS = [
   "bugReports",
   // Derived access state: removed with the account. The store purchase records below are what keep a token owned.
   "digitalEntitlements",
+  "aiReservations",
   // googlePlayPurchases and appStorePurchases are deliberately NOT here: purchase records are anonymised, never deleted (see deleteUserAndOwnedRecords).
 ] as const;
 
@@ -3788,6 +3826,7 @@ export type ApplyGooglePlaySnapshotResult =
 // boundAt) is deliberately unreachable from this function.
 const GOOGLE_PLAY_SNAPSHOT_KEYS = [
   "freeTrial",
+  "offerPhase",
   "productId",
   "basePlanId",
   "orderId",
@@ -4765,6 +4804,78 @@ export function createAiUsageLog(log: AiUsageLogRecord): void {
   const db = readDb();
   db.aiUsageLogs.push(log);
   writeDb(db);
+}
+
+// What a member has spent against one allowance. A trial's total is for the whole trial (windowMs null): nothing replenishes it. The others are a rolling window.
+// A row with no tag (written before allowances existed) counts toward every allowance except the trial's.
+export function aiSpendUsd(logs: readonly AiUsageLogRecord[], userId: string, kind: AiAllowanceKind, windowMs: number | null, nowMs: number): number {
+  const since = windowMs === null ? -Infinity : nowMs - windowMs;
+  let total = 0;
+  for (const l of logs) {
+    if (l.userId !== userId) continue;
+    if (l.allowanceKind !== kind && !(l.allowanceKind === undefined && kind !== "trial")) continue;
+    if (new Date(l.createdAt).getTime() < since) continue;
+    total += l.costUsd;
+  }
+  return total;
+}
+
+export type ReserveAiBudgetResult = { ok: true; id: string } | { ok: false; spentUsd: number; heldUsd: number };
+
+// ATOMIC, across processes: the check of what is spent and held and the insertion of the new hold are ONE datastore turn (one read, one write, no await between,
+// the lock held for that turn only). Two requests, in one process or many, can never both be granted the same remaining budget. No network call happens
+// inside it: the provider is called AFTER this returns and BEFORE settleAiReservation, with nothing held.
+export function reserveAiBudget(input: {
+  userId: string;
+  feature: AiFeature;
+  kind: AiAllowanceKind;
+  reserveUsd: number;
+  budgetUsd: number;
+  windowMs: number | null;
+  ttlMs: number;
+  nowMs?: number;
+}): ReserveAiBudgetResult {
+  const now = input.nowMs ?? Date.now();
+  const db = readDb();
+  const live = db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() > now);
+  const spentUsd = aiSpendUsd(db.aiUsageLogs, input.userId, input.kind, input.windowMs, now);
+  const heldUsd = live.filter((r) => r.userId === input.userId && r.kind === input.kind).reduce((s, r) => s + r.reservedUsd, 0);
+
+  if (spentUsd + heldUsd + input.reserveUsd > input.budgetUsd + 1e-9) {
+    if (live.length !== db.aiReservations.length) {
+      db.aiReservations = live;
+      writeDb(db);
+    }
+    return { ok: false, spentUsd, heldUsd };
+  }
+
+  const id = randomUUID();
+  live.push({
+    id,
+    userId: input.userId,
+    feature: input.feature,
+    kind: input.kind,
+    reservedUsd: input.reserveUsd,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + input.ttlMs).toISOString(),
+  });
+  db.aiReservations = live;
+  writeDb(db);
+  return { ok: true, id };
+}
+
+// Ends a hold and, in the SAME write, records what the call really cost (or an estimate when its outcome is unknown). Passing no log releases the hold with
+// nothing recorded (the provider answered with an error, so nothing was billed). Safe to call twice.
+export function settleAiReservation(reservationId: string | null, log: AiUsageLogRecord | null): void {
+  const db = readDb();
+  if (log) db.aiUsageLogs.push(log);
+  if (reservationId) db.aiReservations = db.aiReservations.filter((r) => r.id !== reservationId);
+  if (log || reservationId) writeDb(db);
+}
+
+// The holds currently recorded (live and not yet pruned). For tests and diagnostics.
+export function listAiReservations(): AiReservationRecord[] {
+  return readDb().aiReservations;
 }
 
 export function findAiUsageLogsByUserId(userId: string): AiUsageLogRecord[] {

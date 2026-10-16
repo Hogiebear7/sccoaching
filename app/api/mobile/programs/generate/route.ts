@@ -18,7 +18,7 @@ import {
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
 import { hasAccess } from "@/lib/member-access";
-import { aiAllowanceRefusal } from "@/lib/ai-allowance-response";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import {
@@ -397,6 +397,8 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
     console.error(`[programs/generate] generation failed for user ${user.id}:`, err);
     return NextResponse.json(
       { success: false, configured: true, message: "Couldn't generate a programme right now. Please try again." },

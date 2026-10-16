@@ -134,6 +134,8 @@ export interface AppleTransactionPayload {
   offerDiscountType?: string;
   /** Price charged for this transaction, in milli-units of the currency. 0 for a free trial. */
   price?: number;
+  /** ISO 4217 code of the currency price is in. */
+  currency?: string;
   signedDate?: number;
   environment?: AppleEnvironment | string;
   revocationDate?: number;

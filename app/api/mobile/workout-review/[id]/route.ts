@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, findWorkoutSessionById, updateWorkoutSession } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
-import { aiAllowanceRefusal } from "@/lib/ai-allowance-response";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { generateWorkoutReview } from "@/lib/ai";
@@ -28,10 +28,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ success: false, message: "Workout review needs the App Subscription." }, { status: 403 });
   }
 
-  // A bounded AI allowance, checked before anything is sent to the provider (lib/ai-allowance.ts).
-  const allowanceRefusal = aiAllowanceRefusal(user.id);
-  if (allowanceRefusal) return allowanceRefusal;
-
   const { id } = await params;
   const session = findWorkoutSessionById(id);
 
@@ -45,9 +41,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // A review already generated and stored is shown. A new one is only requested from the AI provider if this member has allowed it; the comparison below is always returned.
   const aiConsentRequired = !reviewText && !hasAiConsent(user.id);
   if (!reviewText && !aiConsentRequired) {
+    // A bounded AI allowance, checked before anything is sent to the provider (lib/ai-allowance.ts). A review that is already stored is never blocked by it.
+    const allowanceRefusal = aiAllowanceRefusal(user.id);
+    if (allowanceRefusal) return allowanceRefusal;
     try {
       reviewText = await generateWorkoutReview(reviewData);
     } catch (err) {
+      const refused = aiFailureResponse(err);
+      if (refused) return refused;
       console.error("Workout review failed:", err);
       return NextResponse.json({ success: false, code: AI_UNAVAILABLE_CODE, message: AI_UNAVAILABLE_MESSAGE }, { status: 502 });
     }

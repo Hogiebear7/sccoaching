@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { generateProgrammeCheckIn, isAiConfigured } from "@/lib/ai";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { findTrainingProgramById, findUserById, findWorkoutSessionsByUserId, updateTrainingProgram } from "@/lib/db";
 import { buildProgrammeCheckInData, formatProgrammeCheckInContext } from "@/lib/programme-checkin";
@@ -51,6 +52,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const consentRequired = requireAiConsent(user.id);
   if (consentRequired) return consentRequired;
 
+  // Each AI call is metered against the member's allowance (lib/ai-allowance.ts); this is the friendly early answer, before any work is done.
+  const allowanceRefusal = aiAllowanceRefusal(user.id);
+  if (allowanceRefusal) return allowanceRefusal;
+
   try {
     const sessions = findWorkoutSessionsByUserId(user.id);
     const checkInData = buildProgrammeCheckInData(program, sessions, cycleIndex);
@@ -92,6 +97,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ success: true, configured: true, data: stored });
   } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
     console.error(`[programs/checkin] generation failed for user ${user.id}, program ${id}, cycle ${cycleIndex}:`, err);
     return NextResponse.json(
       { success: false, configured: true, message: "Couldn't generate your check-in right now. Please try again." },

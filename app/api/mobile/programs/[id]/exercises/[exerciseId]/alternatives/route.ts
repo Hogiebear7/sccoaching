@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { generateExerciseAlternatives, isAiConfigured } from "@/lib/ai";
+import { aiAllowanceRefusal } from "@/lib/ai-allowance-response";
 import { hasAiConsent } from "@/lib/ai-consent";
 import { findTrainingProgramById, findUserById } from "@/lib/db";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
@@ -74,8 +75,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   let suggestions: { id: string; rationale: string }[] = [];
-  // Without this member's consent the AI part is skipped and the deterministic candidates below are used, exactly as when AI is switched off.
-  if (isAiConfigured() && hasAiConsent(user.id)) {
+  // Without this member's consent, or once their AI allowance is used up, the AI part is skipped and the deterministic candidates below are used, exactly as when
+  // AI is switched off: a member out of allowance still gets alternatives, just not the AI's reasons. A race past this check is refused inside the AI call
+  // (lib/ai-metering.ts) and lands in the catch below, with the same fallback.
+  if (isAiConfigured() && hasAiConsent(user.id) && !aiAllowanceRefusal(user.id)) {
     try {
       const result = await generateExerciseAlternatives({
         exerciseName: exercise.name,

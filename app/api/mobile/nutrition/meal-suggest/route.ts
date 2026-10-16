@@ -8,7 +8,7 @@ import { findProfileByUserId, findUserById } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { hasAccess } from "@/lib/member-access";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import { aiAllowanceRefusal } from "@/lib/ai-allowance-response";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -114,6 +114,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, configured: true, suggestions });
   } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
     console.error("Meal suggestion generation failed:", err);
     return NextResponse.json(
       { success: false, configured: true, message: "Couldn't generate suggestions right now. Please try again." },
