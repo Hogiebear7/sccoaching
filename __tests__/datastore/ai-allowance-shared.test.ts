@@ -13,9 +13,9 @@ beforeEach(() => {
 });
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-function worker(args: string[]): Promise<{ code: number | null; granted: number; out: string }> {
+function worker(args: string[], env: Record<string, string> = {}): Promise<{ code: number | null; granted: number; out: string }> {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, ["--import", "tsx", CHILD, ...args], { cwd: ROOT, env: { ...process.env, DATA_DIR: dir }, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, ["--import", "tsx", CHILD, ...args], { cwd: ROOT, env: { ...process.env, DATA_DIR: dir, ...env }, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));
@@ -28,6 +28,18 @@ describe("atomic AI budget reservation across processes", () => {
     const results = await Promise.all(Array.from({ length: 6 }, () => worker(["member-1", "1", "0.1", "10", "none"])));
     expect(results.map((r) => r.code)).toEqual(Array(6).fill(0));
     expect(results.reduce((a, r) => a + r.granted, 0)).toBe(10);
+  }, 90_000);
+
+  it("the staff features share ONE pool across processes and users: 6 processes, 6 different staff users, budget 0.50 -> exactly 5 holds of 0.10 in total", async () => {
+    const results = await Promise.all(Array.from({ length: 6 }, (_v, i) => worker([`staff-${i}`, "0.5", "0.1", "10", "none"], { POOL: "1" })));
+    expect(results.map((r) => r.code)).toEqual(Array(6).fill(0));
+    expect(results.reduce((a, r) => a + r.granted, 0)).toBe(5);
+  }, 90_000);
+
+  it("the app-wide ceiling spans members: 6 processes, 6 members each with a 9.00 budget, ceiling 0.70 -> exactly 7 holds of 0.10 in total", async () => {
+    const results = await Promise.all(Array.from({ length: 6 }, (_v, i) => worker([`member-${i}`, "9", "0.1", "10", "none"], { CEILING: "0.7" })));
+    expect(results.map((r) => r.code)).toEqual(Array(6).fill(0));
+    expect(results.reduce((a, r) => a + r.granted, 0)).toBe(7);
   }, 90_000);
 
   it("holds are per member: another member's holds do not use this member's budget", async () => {

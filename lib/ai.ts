@@ -25,6 +25,7 @@ import {
   findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
+import { configuredAiModel } from "@/lib/ai-model";
 import { meteredCreate, meteredStream } from "@/lib/ai-metering";
 import { formatWorkoutReviewContext, type WorkoutReviewData } from "@/lib/workout-review";
 import type { SplitMode } from "@/lib/programme-exercise-picker";
@@ -36,8 +37,8 @@ export function isAiConfigured(): boolean {
 export const AI_NOT_CONFIGURED_MESSAGE =
   "AI assistant is not configured yet. An Anthropic API key is required to enable this.";
 
-// Env-overridable so the model can be bumped without a code change.
-const COACH_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-4-8";
+// Env-overridable so the model can be bumped without a code change (lib/ai-model.ts). It must be a model lib/ai-usage.ts has a price for.
+const COACH_MODEL = configuredAiModel();
 
 // The most a member chat reply may produce, thinking included. It is also what the allowance reserves for a chat call (lib/ai-metering.ts), so it is a
 // cost bound as much as a length bound: the replies are short by prompt, and 4,000 leaves room for adaptive thinking.

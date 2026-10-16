@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { generateCoachSummary, isAiConfigured } from "@/lib/ai";
+import { aiFailureResponse } from "@/lib/ai-allowance-response";
 import { AI_UNAVAILABLE_CODE, AI_UNAVAILABLE_MESSAGE } from "@/lib/ai-stream";
 import { requireAiConsentForMember } from "@/lib/ai-consent";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -76,6 +77,8 @@ export async function POST(request: NextRequest) {
   try {
     summary = await generateCoachSummary({ memberId: member.id, staffUserId: staffUser.id });
   } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
     console.error("Coach summary failed:", err);
     return NextResponse.json({ success: false, code: AI_UNAVAILABLE_CODE, message: AI_UNAVAILABLE_MESSAGE }, { status: 502 });
   }

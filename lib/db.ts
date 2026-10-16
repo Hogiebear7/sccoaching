@@ -1790,12 +1790,13 @@ export type AiFeature =
 
 // Which allowance a call counts against (lib/ai-allowance.ts). Tagged on the usage row when the call is made, so trial use can never count toward the
 // paid allowance, a trial's total can never be replenished, and complimentary use is never mistaken for paid.
-export type AiAllowanceKind = "free" | "trial" | "paid" | "complimentary";
+// "staff" is not a member group: it is the one shared pool for the staff-run AI features (coach summary, reply draft, exercise content), across all staff.
+export type AiAllowanceKind = "free" | "trial" | "paid" | "complimentary" | "staff";
 
 // A cost held for a call that has been started but not yet settled. See reserveAiBudget.
 export interface AiReservationRecord {
   id: string;
-  userId: string;
+  userId: string | null;
   feature: AiFeature;
   kind: AiAllowanceKind;
   /** The conservative MAXIMUM this one call could cost, from its bounded input and output sizes. */
@@ -1837,8 +1838,12 @@ export interface AiUsageLogRecord {
   costUsd: number;
   /** Which allowance this call counted against. Absent on rows written before allowances existed. */
   allowanceKind?: AiAllowanceKind;
-  /** True when costUsd is a conservative ESTIMATE (the call's outcome was unknown: a timeout or an abort), not the provider's reported usage. */
+  /** True when costUsd is a conservative ESTIMATE (the call's outcome was unknown: a timeout, an abort, an abandoned reservation, or a billing component this
+      app does not recognise), not the provider's exact reported usage. */
   estimated?: boolean;
+  /** Set on the charge recorded for a reservation that expired unsettled (its process died, or it overran). Counted at the reserved MAXIMUM, because the provider
+      may still have completed; a late settle for the same reservation replaces it with the real usage (settleAiReservation). */
+  abandonedReservationId?: string;
   createdAt: string;
 }
 
@@ -4820,33 +4825,91 @@ export function aiSpendUsd(logs: readonly AiUsageLogRecord[], userId: string, ki
   return total;
 }
 
-export type ReserveAiBudgetResult = { ok: true; id: string } | { ok: false; spentUsd: number; heldUsd: number };
+// The shared pool for one kind (the staff features): every user's use of that kind counts together.
+export function aiPoolSpendUsd(logs: readonly AiUsageLogRecord[], kind: AiAllowanceKind, windowMs: number | null, nowMs: number): number {
+  const since = windowMs === null ? -Infinity : nowMs - windowMs;
+  let total = 0;
+  for (const l of logs) {
+    if (l.allowanceKind !== kind) continue;
+    if (new Date(l.createdAt).getTime() < since) continue;
+    total += l.costUsd;
+  }
+  return total;
+}
+
+export type ReserveAiBudgetResult = { ok: true; id: string } | { ok: false; limit: "budget" | "ceiling"; spentUsd: number; heldUsd: number };
+
+// A reservation that expired without being settled. The provider may still have completed that call, so it is charged at its reserved MAXIMUM (never released
+// as if nothing happened), flagged as an estimate, and corrected by a late settle if one arrives.
+function abandonedCharge(r: AiReservationRecord): AiUsageLogRecord {
+  return {
+    id: `abandoned:${r.id}`,
+    userId: r.userId,
+    feature: r.feature,
+    model: "unknown (abandoned reservation)",
+    inputTokens: 0,
+    cacheWriteTokens: 0,
+    cacheReadTokens: 0,
+    outputTokens: 0,
+    costUsd: r.reservedUsd,
+    allowanceKind: r.kind,
+    estimated: true,
+    abandonedReservationId: r.id,
+    createdAt: r.createdAt,
+  };
+}
 
 // ATOMIC, across processes: the check of what is spent and held and the insertion of the new hold are ONE datastore turn (one read, one write, no await between,
 // the lock held for that turn only). Two requests, in one process or many, can never both be granted the same remaining budget. No network call happens
 // inside it: the provider is called AFTER this returns and BEFORE settleAiReservation, with nothing held.
 export function reserveAiBudget(input: {
-  userId: string;
+  userId: string | null;
   feature: AiFeature;
   kind: AiAllowanceKind;
   reserveUsd: number;
   budgetUsd: number;
   windowMs: number | null;
+  /** True for a shared pool (the staff features): every user's use of this kind counts together against the one budget. */
+  pool?: boolean;
+  /** An app-wide ceiling on ALL AI spending (every user, every kind) over ceilingWindowMs. Null/absent: none. */
+  ceilingUsd?: number | null;
+  ceilingWindowMs?: number;
   ttlMs: number;
   nowMs?: number;
 }): ReserveAiBudgetResult {
   const now = input.nowMs ?? Date.now();
   const db = readDb();
-  const live = db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() > now);
-  const spentUsd = aiSpendUsd(db.aiUsageLogs, input.userId, input.kind, input.windowMs, now);
-  const heldUsd = live.filter((r) => r.userId === input.userId && r.kind === input.kind).reduce((s, r) => s + r.reservedUsd, 0);
+  // Holds past their time limit are not released: each becomes a charge at its reserved maximum (see abandonedCharge), so a slow or lost call can never
+  // free budget the provider may still bill.
+  const live: AiReservationRecord[] = [];
+  let changed = false;
+  for (const r of db.aiReservations) {
+    if (new Date(r.expiresAt).getTime() > now) live.push(r);
+    else {
+      db.aiUsageLogs.push(abandonedCharge(r));
+      changed = true;
+    }
+  }
+  db.aiReservations = live;
+
+  const spentUsd = input.pool
+    ? aiPoolSpendUsd(db.aiUsageLogs, input.kind, input.windowMs, now)
+    : aiSpendUsd(db.aiUsageLogs, input.userId ?? "", input.kind, input.windowMs, now);
+  const heldUsd = live.filter((r) => r.kind === input.kind && (input.pool || r.userId === input.userId)).reduce((s, r) => s + r.reservedUsd, 0);
 
   if (spentUsd + heldUsd + input.reserveUsd > input.budgetUsd + 1e-9) {
-    if (live.length !== db.aiReservations.length) {
-      db.aiReservations = live;
-      writeDb(db);
+    if (changed) writeDb(db);
+    return { ok: false, limit: "budget", spentUsd, heldUsd };
+  }
+
+  if (input.ceilingUsd !== undefined && input.ceilingUsd !== null) {
+    const since = now - (input.ceilingWindowMs ?? 30 * 24 * 60 * 60 * 1000);
+    const allSpent = db.aiUsageLogs.filter((l) => new Date(l.createdAt).getTime() >= since).reduce((s, l) => s + l.costUsd, 0);
+    const allHeld = live.reduce((s, r) => s + r.reservedUsd, 0);
+    if (allSpent + allHeld + input.reserveUsd > input.ceilingUsd + 1e-9) {
+      if (changed) writeDb(db);
+      return { ok: false, limit: "ceiling", spentUsd: allSpent, heldUsd: allHeld };
     }
-    return { ok: false, spentUsd, heldUsd };
   }
 
   const id = randomUUID();
@@ -4866,11 +4929,26 @@ export function reserveAiBudget(input: {
 
 // Ends a hold and, in the SAME write, records what the call really cost (or an estimate when its outcome is unknown). Passing no log releases the hold with
 // nothing recorded (the provider answered with an error, so nothing was billed). Safe to call twice.
+// LATE settle: if the hold already expired it was charged at its reserved maximum (abandonedCharge); the real usage then REPLACES that charge (a call that
+// finishes late is corrected to what it really cost; one the provider rejected is removed). Safe to call twice.
 export function settleAiReservation(reservationId: string | null, log: AiUsageLogRecord | null): void {
   const db = readDb();
-  if (log) db.aiUsageLogs.push(log);
-  if (reservationId) db.aiReservations = db.aiReservations.filter((r) => r.id !== reservationId);
-  if (log || reservationId) writeDb(db);
+  let hadHold = false;
+  if (reservationId) {
+    const before = db.aiReservations.length;
+    db.aiReservations = db.aiReservations.filter((r) => r.id !== reservationId);
+    hadHold = db.aiReservations.length !== before;
+  }
+  const abandoned = reservationId && !hadHold ? db.aiUsageLogs.findIndex((l) => l.abandonedReservationId === reservationId) : -1;
+  if (abandoned >= 0) {
+    if (log) db.aiUsageLogs[abandoned] = log;
+    else db.aiUsageLogs.splice(abandoned, 1);
+  } else if (log) {
+    db.aiUsageLogs.push(log);
+  } else if (!hadHold) {
+    return;
+  }
+  writeDb(db);
 }
 
 // The holds currently recorded (live and not yet pruned). For tests and diagnostics.

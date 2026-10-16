@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, type ExerciseSection } from "@/lib/db";
 import { AI_NOT_CONFIGURED_MESSAGE, generateExerciseContent, isAiConfigured } from "@/lib/ai";
+import { aiFailureResponse } from "@/lib/ai-allowance-response";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -81,7 +82,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, ...draft }, { status: 200 });
-  } catch {
+  } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
     return NextResponse.json(
       { success: false, message: "The AI drafting service is unavailable right now." },
       { status: 502 }

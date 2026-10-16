@@ -32,13 +32,14 @@ vi.mock("@/lib/ai", async (importOriginal) => {
     identifyFoodPhoto: spy("identifyFoodPhoto"),
     extractReceiptItems: spy("extractReceiptItems"),
     generateExerciseAlternatives: spy("generateExerciseAlternatives"),
+    generateProgrammeCheckIn: spy("generateProgrammeCheckIn"),
   };
 });
 
 const DAY = 86_400_000;
 let fx: IapFixture;
 const saved: Record<string, string | undefined> = {};
-const KEYS = ["AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD"] as const;
+const KEYS = ["AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD", "ANTHROPIC_MODEL"] as const;
 type Kind = "free" | "trial" | "paid" | "complimentary";
 const ENV_FOR: Record<Kind, (typeof KEYS)[number]> = { free: KEYS[0], trial: KEYS[1], paid: KEYS[2], complimentary: KEYS[3] };
 
@@ -49,6 +50,8 @@ function budgets(over: Partial<Record<Kind, string | undefined>> = {}) {
     if (v[k] === undefined) delete process.env[ENV_FOR[k]];
     else process.env[ENV_FOR[k]] = v[k];
   }
+  process.env.AI_STAFF_USD = "5";
+  process.env.AI_APP_CEILING_USD = "50";
 }
 
 function log(userId: string, costUsd: number, ageMs = 0, allowanceKind?: Kind) {
@@ -92,7 +95,7 @@ afterEach(() => {
 });
 
 describe("configuration", () => {
-  it("is configured only when ALL FOUR budgets are valid numbers, and 0 is valid (it means none)", async () => {
+  it("is configured only when ALL SIX budgets (four groups, the staff pool and the app-wide ceiling) are valid numbers and the model is priced; 0 is valid (it means none)", async () => {
     const { aiAllowanceConfigured, aiAllowanceBudgets } = await import("@/lib/ai-allowance");
     expect(aiAllowanceConfigured()).toBe(true);
     for (const kind of ["free", "trial", "paid", "complimentary"] as const) {
@@ -103,12 +106,25 @@ describe("configuration", () => {
     }
     budgets({ free: "0", complimentary: "0" });
     expect(aiAllowanceConfigured()).toBe(true);
+    for (const k of ["AI_STAFF_USD", "AI_APP_CEILING_USD"] as const) {
+      budgets();
+      delete process.env[k];
+      expect(aiAllowanceConfigured()).toBe(false);
+    }
+    budgets();
+    process.env.ANTHROPIC_MODEL = "claude-made-up-9";
+    expect(aiAllowanceConfigured()).toBe(false); // an unpriced model is never sold against
+    process.env.ANTHROPIC_MODEL = "claude-sonnet-5-5";
+    expect(aiAllowanceConfigured()).toBe(true);
+    delete process.env.ANTHROPIC_MODEL;
     budgets({ free: "0.2", trial: "0.5", paid: "2.5", complimentary: "0.75" });
     expect(aiAllowanceBudgets()).toEqual({ free: 0.2, trial: 0.5, paid: 2.5, complimentary: 0.75 });
   });
 
   it("with no budget set nothing is enforced (the behaviour before this existed), and says so", async () => {
     budgets({ free: undefined, trial: undefined, paid: undefined, complimentary: undefined });
+    delete process.env.AI_STAFF_USD;
+    delete process.env.AI_APP_CEILING_USD;
     await grant(fx.memberA.id);
     log(fx.memberA.id, 999);
     expect(await check(fx.memberA.id)).toMatchObject({ ok: true, enforced: false });
@@ -323,8 +339,78 @@ describe("a plan is never sold with undefined AI cost", () => {
     process.env.AI_ALLOWANCE_FREE_USD = "0.1";
     expect((await apple.context(apple.memberA.id)).status).toBe(503); // complimentary budget still unset
     process.env.AI_ALLOWANCE_COMPLIMENTARY_USD = "0";
+    expect((await apple.context(apple.memberA.id)).status).toBe(503); // staff pool and app-wide ceiling still unset
+    process.env.AI_STAFF_USD = "5";
+    process.env.AI_APP_CEILING_USD = "50";
     expect((await apple.context(apple.memberA.id)).status).toBe(200);
     apple.cleanup();
     fx = await createFixture(); // so afterEach has something to clean
+  });
+});
+
+describe("running out of AI allowance leaves everything that is not AI working", () => {
+  const call = (method: string, url: string, userId: string, body?: unknown) =>
+    new NextRequest(`http://localhost${url}`, { method, headers: { "Content-Type": "application/json", Cookie: fx.cookie(userId) }, body: body === undefined ? undefined : JSON.stringify(body) });
+
+  async function consenting(userId: string) {
+    fx.db.saveProfile({ ...(fx.db.findProfileByUserId(userId) ?? ({ userId } as never)), aiDataConsent: { grantedAt: "2026-10-01T00:00:00.000Z", version: 1 } } as never);
+  }
+
+  it("a paid member who has used the whole allowance: AI is refused (429), but the subscription is active and every non-AI digital feature still works", async () => {
+    const { resolveMemberAccessForUser } = await import("@/lib/membership-entitlement");
+    const { hasAccess } = await import("@/lib/member-access");
+    const { describeDigitalPlan } = await import("@/lib/digital-entitlement");
+    const user = fx.db.createUserWithRole("spent@example.test", "x", "member", null);
+    await consenting(user.id);
+    await grant(user.id);
+
+    // Used up completely.
+    log(user.id, 5, 0, "paid");
+    expect((await check(user.id)).ok).toBe(false);
+    const chat = await (await import("@/app/api/ai/chat/route")).POST(call("POST", "/api/ai/chat", user.id, { content: "hi" }));
+    expect(chat.status).toBe(429);
+    expect(reached.calls).toEqual([]);
+
+    // Subscription status is untouched by the allowance.
+    const access = resolveMemberAccessForUser(user.id);
+    expect(access.digital).toBe(true);
+    for (const feature of ["foodSearch", "unlimitedCustomFoods", "nutritionMoreTools", "gymProfiles", "notifications", "workoutGenerate", "trackerImport", "workoutReview", "aiCoachChat", "aiNutritionCoachChat"] as const) {
+      expect(hasAccess(access, feature)).toBe(true);
+    }
+    expect(describeDigitalPlan(fx.db.findDigitalEntitlementsByUserId(user.id))).toMatchObject({ source: "app_store", status: "active" });
+
+    // Real non-AI routes that need the plan still answer normally.
+    const profiles = await (await import("@/app/api/mobile/gym-profiles/route")).GET(call("GET", "/api/mobile/gym-profiles", user.id));
+    expect(profiles.status).toBe(200);
+    const search = await (await import("@/app/api/mobile/nutrition/food/search/route")).GET(call("GET", "/api/mobile/nutrition/food/search?q=egg", user.id));
+    expect(search.status).toBe(200);
+    expect(reached.calls).toEqual([]);
+  });
+
+  it("the allowance refusal never changes the plan: after it, the member's entitlement row is byte-for-byte what it was", async () => {
+    const user = fx.db.createUserWithRole("spent2@example.test", "x", "member", null);
+    await grant(user.id);
+    const before = JSON.stringify(fx.db.findDigitalEntitlementsByUserId(user.id));
+    log(user.id, 5, 0, "paid");
+    await check(user.id);
+    expect(JSON.stringify(fx.db.findDigitalEntitlementsByUserId(user.id))).toBe(before);
+  });
+
+  it("a free member with a $0 free budget gets a friendly upgrade message (403 ai_upgrade_required), not a spending error, and the rest of the app works", async () => {
+    budgets({ free: "0" });
+    const user = fx.db.createUserWithRole("freebie@example.test", "x", "member", null);
+    await consenting(user.id);
+    const res = await (await import("@/app/api/mobile/nutrition/receipt-scan/route")).POST(call("POST", "/api/mobile/nutrition/receipt-scan", user.id, { imageBase64: "data:image/jpeg;base64,AAAA" }));
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body).toMatchObject({ success: false, code: "ai_upgrade_required" });
+    expect(body.message).toMatch(/part of the App Subscription/);
+    expect(body.message).toMatch(/Everything else in the app/);
+    expect(body.message).not.toMatch(/allowance|limit|error/i);
+    expect(reached.calls).toEqual([]);
+
+    // Exercise alternatives silently falls back to the non-AI alternatives instead of failing.
+    const { aiAllowanceRefusal } = await import("@/lib/ai-allowance-response");
+    expect(aiAllowanceRefusal(user.id)?.status).toBe(403);
   });
 });

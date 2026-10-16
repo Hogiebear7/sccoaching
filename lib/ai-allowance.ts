@@ -19,27 +19,40 @@
 // ACROSS PROCESSES: nothing is kept in memory. The pre-check here sums the logged costs from the shared datastore, and the hard guarantee is the atomic
 // reservation in lib/ai-metering.ts (one datastore turn per reservation, no lock held during a provider call).
 //
+// TWO SHARED CEILINGS sit above the per-member groups, because per-member allowances alone do not cap total spending:
+//   staff   the staff-run features (coach summary, reply draft, exercise content) share ONE budget across all staff, rolling 30 days
+//   ceiling an app-wide ceiling on ALL AI spending (members and staff together), rolling 30 days; a reservation that would cross it is refused
+//
 // THE NUMBERS ARE NOT IN THE CODE. They are the owner's, in the environment (USD):
-//   AI_ALLOWANCE_FREE_USD  AI_ALLOWANCE_TRIAL_USD  AI_ALLOWANCE_PAID_USD  AI_ALLOWANCE_COMPLIMENTARY_USD
-// A value of 0 is valid and means "none" for that group. Unset means NOT SET. If NONE are set, nothing is enforced (the behaviour before this existed:
-// development). If any is set, enforcement is ON and a group whose budget is unset is refused (fail closed, code "ai_allowance_unavailable"). A store
-// purchase cannot be started until all four are set (aiAllowanceConfigured), so a plan is never sold with uncapped or undefined AI cost.
+//   AI_ALLOWANCE_FREE_USD  AI_ALLOWANCE_TRIAL_USD  AI_ALLOWANCE_PAID_USD  AI_ALLOWANCE_COMPLIMENTARY_USD  AI_STAFF_USD  AI_APP_CEILING_USD
+// A value of 0 is valid and means "none". Unset means NOT SET. If NONE are set, nothing is enforced (the behaviour before this existed: development). If any
+// is set, enforcement is ON and anything whose budget is unset is refused (fail closed, code "ai_allowance_unavailable"). The model must also have a known
+// price. A store purchase cannot be started until all six are set and the model is priced (aiAllowanceConfigured).
 
+import { configuredAiModel } from "@/lib/ai-model";
+import { ratesForKnownModel } from "@/lib/ai-usage";
 import { aiSpendUsd, findAiUsageLogsByUserId, findDigitalEntitlementsByUserId, type AiAllowanceKind } from "@/lib/db";
 import { liveDigitalEntitlements } from "@/lib/digital-entitlement";
+
+/** The four groups a MEMBER can be in ("staff" is the shared pool for staff-run features, not a member group). */
+export type MemberAllowanceKind = Exclude<AiAllowanceKind, "staff">;
 
 export const AI_ALLOWANCE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 export const AI_ALLOWANCE_CODE = "ai_allowance_reached";
 export const AI_ALLOWANCE_UNAVAILABLE_CODE = "ai_allowance_unavailable";
+/** A member in the free group whose budget is 0: the feature is part of the subscription. A friendly upgrade message, not an error about spending. */
+export const AI_UPGRADE_CODE = "ai_upgrade_required";
 
-const ENV: Record<AiAllowanceKind, string> = {
+const ENV: Record<MemberAllowanceKind, string> = {
   free: "AI_ALLOWANCE_FREE_USD",
   trial: "AI_ALLOWANCE_TRIAL_USD",
   paid: "AI_ALLOWANCE_PAID_USD",
   complimentary: "AI_ALLOWANCE_COMPLIMENTARY_USD",
 };
 
-export const ALLOWANCE_KINDS = Object.keys(ENV) as AiAllowanceKind[];
+export const ALLOWANCE_KINDS = Object.keys(ENV) as MemberAllowanceKind[];
+const ENV_STAFF = "AI_STAFF_USD";
+const ENV_CEILING = "AI_APP_CEILING_USD";
 
 function parseBudget(raw: string | undefined): number | null {
   if (raw === undefined || raw.trim() === "") return null;
@@ -47,25 +60,37 @@ function parseBudget(raw: string | undefined): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
-export function aiAllowanceBudgets(): Record<AiAllowanceKind, number | null> {
+export function aiAllowanceBudgets(): Record<MemberAllowanceKind, number | null> {
   return { free: parseBudget(process.env[ENV.free]), trial: parseBudget(process.env[ENV.trial]), paid: parseBudget(process.env[ENV.paid]), complimentary: parseBudget(process.env[ENV.complimentary]) };
+}
+
+/** The shared pool for the staff-run features, and the app-wide ceiling on everything. */
+export function aiPoolBudgets(): { staff: number | null; ceiling: number | null } {
+  return { staff: parseBudget(process.env[ENV_STAFF]), ceiling: parseBudget(process.env[ENV_CEILING]) };
 }
 
 /** At least one budget is set, so enforcement is on. With none set nothing is enforced (development). */
 export function aiAllowanceEnforced(): boolean {
-  return ALLOWANCE_KINDS.some((k) => aiAllowanceBudgets()[k] !== null);
+  const p = aiPoolBudgets();
+  return ALLOWANCE_KINDS.some((k) => aiAllowanceBudgets()[k] !== null) || p.staff !== null || p.ceiling !== null;
 }
 
-/** All four budgets are set, so a plan can be sold with a defined AI cost. */
+/** The configured model has a known price. An unpriced model is never reserved against (it would be a guess). */
+export function aiModelPriced(): boolean {
+  return ratesForKnownModel(configuredAiModel()) !== null;
+}
+
+/** All six budgets are set and the model is priced, so a plan can be sold with a defined AI cost. */
 export function aiAllowanceConfigured(): boolean {
   const b = aiAllowanceBudgets();
-  return ALLOWANCE_KINDS.every((k) => b[k] !== null);
+  const p = aiPoolBudgets();
+  return ALLOWANCE_KINDS.every((k) => b[k] !== null) && p.staff !== null && p.ceiling !== null && aiModelPriced();
 }
 
 /** A trial's total is for the whole trial; every other allowance is a rolling window. */
 export const windowMsFor = (kind: AiAllowanceKind): number | null => (kind === "trial" ? null : AI_ALLOWANCE_WINDOW_MS);
 
-export function allowanceKindFor(userId: string, nowMs: number): AiAllowanceKind {
+export function allowanceKindFor(userId: string, nowMs: number): MemberAllowanceKind {
   const live = liveDigitalEntitlements(findDigitalEntitlementsByUserId(userId), nowMs);
   if (live.some((e) => e.source !== "staff_grant" && e.trial !== true)) return "paid";
   if (live.some((e) => e.source !== "staff_grant" && e.trial === true)) return "trial";
@@ -76,6 +101,9 @@ export function allowanceKindFor(userId: string, nowMs: number): AiAllowanceKind
 export const ALLOWANCE_COVERS =
   "AI features: coach and nutrition-coach chat, programme generation and check-ins, meal ideas, food photo and description scans, receipt and tracker scans, exercise alternatives and workout reviews";
 
+export const UPGRADE_MESSAGE =
+  "This AI feature is part of the App Subscription. Everything else in the app, including logging food and workouts, still works.";
+
 export function allowanceMessage(kind: AiAllowanceKind, resetsAt: string | null, format: (iso: string) => string = (iso) => iso.slice(0, 10)): string {
   const tail = "Your subscription and everything else in the app are unaffected; only the AI features pause.";
   switch (kind) {
@@ -83,6 +111,8 @@ export function allowanceMessage(kind: AiAllowanceKind, resetsAt: string | null,
       return `You've used the AI allowance included with your free trial. It doesn't renew during the trial, and your paid AI allowance starts when the trial becomes a paid plan. ${tail}`;
     case "paid":
       return `You've used your AI allowance. It is measured over a rolling 30 days: AI use older than 30 days stops counting${resetsAt ? `, so more is available from ${format(resetsAt)}` : ""}. ${tail}`;
+    case "staff":
+      return "The team's shared AI allowance for this period is used up. Nothing else in the app is affected.";
     case "complimentary":
       return `You've used the AI allowance that comes with your complimentary access. It is measured over a rolling 30 days${resetsAt ? `, so more is available from ${format(resetsAt)}` : ""}. ${tail}`;
     default:
@@ -108,9 +138,10 @@ export function resetsAtFor(userId: string, kind: AiAllowanceKind, budgetUsd: nu
 }
 
 export type AllowanceResult =
-  | { ok: true; enforced: boolean; kind: AiAllowanceKind; remainingUsd: number | null }
-  | { ok: false; reason: "reached"; kind: AiAllowanceKind; resetsAt: string | null; message: string }
-  | { ok: false; reason: "unavailable"; kind: AiAllowanceKind; message: string };
+  | { ok: true; enforced: boolean; kind: MemberAllowanceKind; remainingUsd: number | null }
+  | { ok: false; reason: "reached"; kind: MemberAllowanceKind; resetsAt: string | null; message: string }
+  | { ok: false; reason: "upgrade"; kind: "free"; message: string }
+  | { ok: false; reason: "unavailable"; kind: MemberAllowanceKind; message: string };
 
 // The cheap pre-check each route makes so a member over their allowance gets a clear answer before any work. It is NOT the guarantee: the atomic reservation is.
 export function checkAiAllowance(userId: string, nowMs: number = Date.now()): AllowanceResult {
@@ -118,6 +149,7 @@ export function checkAiAllowance(userId: string, nowMs: number = Date.now()): Al
   if (!aiAllowanceEnforced()) return { ok: true, enforced: false, kind, remainingUsd: null };
   const budget = aiAllowanceBudgets()[kind];
   if (budget === null) return { ok: false, reason: "unavailable", kind, message: ALLOWANCE_UNAVAILABLE_MESSAGE };
+  if (kind === "free" && budget === 0) return { ok: false, reason: "upgrade", kind, message: UPGRADE_MESSAGE };
 
   const spent = aiSpendUsd(findAiUsageLogsByUserId(userId), userId, kind, windowMsFor(kind), nowMs);
   if (spent < budget) return { ok: true, enforced: true, kind, remainingUsd: budget - spent };

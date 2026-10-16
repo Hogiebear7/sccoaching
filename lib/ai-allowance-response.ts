@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { AI_ALLOWANCE_CODE, AI_ALLOWANCE_UNAVAILABLE_CODE, checkAiAllowance } from "@/lib/ai-allowance";
+import { AI_ALLOWANCE_CODE, AI_ALLOWANCE_UNAVAILABLE_CODE, AI_UPGRADE_CODE, checkAiAllowance } from "@/lib/ai-allowance";
 import { AiAllowanceError, AiRequestTooLargeError } from "@/lib/ai-metering";
 
 // The one line each member-facing AI route adds: null to carry on, or the response to return. The provider is never called when this refuses. It is the
@@ -8,6 +8,10 @@ import { AiAllowanceError, AiRequestTooLargeError } from "@/lib/ai-metering";
 export function aiAllowanceRefusal(userId: string): NextResponse | null {
   const result = checkAiAllowance(userId);
   if (result.ok) return null;
+  // A free member's feature that is part of the subscription: a plain "403 needs the subscription", the same shape as every other plan gate.
+  if (result.reason === "upgrade") {
+    return NextResponse.json({ success: false, code: AI_UPGRADE_CODE, message: result.message }, { status: 403 });
+  }
   if (result.reason === "unavailable") {
     return NextResponse.json({ success: false, code: AI_ALLOWANCE_UNAVAILABLE_CODE, message: result.message }, { status: 503 });
   }
@@ -18,6 +22,9 @@ export function aiAllowanceRefusal(userId: string): NextResponse | null {
 // race past the pre-check one of them is refused there. This turns that refusal (or an oversized request) into the same response instead of a generic failure.
 export function aiFailureResponse(error: unknown): NextResponse | null {
   if (error instanceof AiAllowanceError) {
+    if (error.code === AI_UPGRADE_CODE) {
+      return NextResponse.json({ success: false, code: error.code, message: error.message }, { status: 403 });
+    }
     if (error.code === AI_ALLOWANCE_UNAVAILABLE_CODE) {
       return NextResponse.json({ success: false, code: error.code, message: error.message }, { status: 503 });
     }
