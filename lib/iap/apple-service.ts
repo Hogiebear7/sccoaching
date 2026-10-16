@@ -355,6 +355,11 @@ export async function verifyAndClaimAppStoreTransaction(
 
   const autoRenewing = live.renewal?.autoRenewStatus === 1;
   const mapped = mapAppleStatus(live.status, autoRenewing);
+  // A state this server does not recognise is not confident enough to record: nothing is bound, so the member can simply try again
+  // (and reconciliation can never skip a purchase that was stored with a guessed status).
+  if (!mapped && typeof live.transaction.revocationDate !== "number") {
+    return fail(409, "purchase_pending", MESSAGES.pending);
+  }
   const entitlingNow = !!mapped && ENTITLING.has(mapped.digital) && live.status !== 5 && typeof live.transaction.revocationDate !== "number";
 
   // One paid store subscription per account, decided BEFORE a purchase row exists so a refused claim binds nothing.
@@ -372,7 +377,7 @@ export async function verifyAndClaimAppStoreTransaction(
       productId: live.transaction.productId ?? clientTx.productId ?? "",
       environment,
       appAccountToken: (live.transaction.appAccountToken ?? clientTx.appAccountToken ?? null)?.toLowerCase() ?? null,
-      status: mapped ? mapped.purchase : "expired",
+      status: mapped ? mapped.purchase : "revoked",
       autoRenewing,
       purchaseDateMillis: live.transaction.originalPurchaseDate ?? null,
       expiresDateMillis: live.transaction.expiresDate ?? null,

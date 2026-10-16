@@ -156,6 +156,23 @@ describe("purchase and verified activation", () => {
     expect(purchase("never-seen")).toBeUndefined();
   });
 
+  it("a state Apple reports that this server does not recognise binds nothing and can simply be tried again", async () => {
+    const res = await fx.claim(fx.memberA.id, O1, { status: 99 });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("purchase_pending");
+    expect(purchase()).toBeUndefined();
+    expect(ent()).toBeUndefined();
+    fx.adapter.setLive(O1, { status: 1 });
+    expect((await fx.verify(fx.memberA.id, { signedTransaction: fx.signedTransaction(fx.memberA.id, O1) })).status).toBe(200);
+  });
+
+  it("a subscription Apple already revoked is recorded as revoked and grants no access", async () => {
+    const res = await fx.claim(fx.memberA.id, O1, { status: 5, tx: { revocationDate: Date.now() - 1000, revocationReason: 1 } });
+    expect(res.status).toBe(200);
+    expect(purchase()?.status).toBe("revoked");
+    expect(await digital()).toBe(false);
+  });
+
   it("an expired subscription is recorded but grants no access", async () => {
     const res = await fx.claim(fx.memberA.id, O1, { status: 2, tx: { expiresDate: Date.now() - DAY } });
     expect(res.status).toBe(200);
