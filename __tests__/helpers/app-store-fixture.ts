@@ -25,12 +25,12 @@ const der = (pemName: string) => new X509Certificate(read(pemName)).raw.toString
 
 export type ChainName = "good" | "rogue" | "nomarker";
 const CHAINS: Record<ChainName, { x5c: string[]; key: string }> = {
-  good: { x5c: [der("good-leaf.pem"), der("good-int.pem"), der("good-root.pem")], key: read("good-leaf.key") },
-  rogue: { x5c: [der("rogue-leaf.pem"), der("rogue-int.pem"), der("rogue-root.pem")], key: read("rogue-leaf.key") },
-  nomarker: { x5c: [der("nomarker-leaf.pem"), der("nomarker-int.pem"), der("nomarker-root.pem")], key: read("nomarker-leaf.key") },
+  good: { x5c: [der("good-leaf.crt"), der("good-int.crt"), der("good-root.crt")], key: read("good-leaf.key") },
+  rogue: { x5c: [der("rogue-leaf.crt"), der("rogue-int.crt"), der("rogue-root.crt")], key: read("rogue-leaf.key") },
+  nomarker: { x5c: [der("nomarker-leaf.crt"), der("nomarker-int.crt"), der("nomarker-root.crt")], key: read("nomarker-leaf.key") },
 };
-export const GOOD_ROOT_PEM = read("good-root.pem");
-export const NOMARKER_ROOT_PEM = read("nomarker-root.pem");
+export const GOOD_ROOT_PEM = read("good-root.crt");
+export const NOMARKER_ROOT_PEM = read("nomarker-root.crt");
 
 const b64url = (input: Buffer | string) => Buffer.from(input).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 

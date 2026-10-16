@@ -14,13 +14,13 @@ make_chain() {
 
   openssl ecparam -name secp384r1 -genkey -noout -out "$prefix-root.key"
   openssl req -x509 -new -key "$prefix-root.key" -sha384 -days 36500 -subj "/CN=Test Root $prefix (NOT APPLE)" \
-    -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" -out "$prefix-root.pem"
+    -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" -out "$prefix-root.crt"
 
   openssl ecparam -name secp384r1 -genkey -noout -out "$prefix-int.key"
   openssl req -new -key "$prefix-int.key" -subj "/CN=Test Intermediate $prefix (NOT APPLE)" -out "$prefix-int.csr"
   printf "basicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\n1.2.840.113635.100.6.2.1=ASN1:NULL\n" > "$prefix-int.ext"
-  openssl x509 -req -in "$prefix-int.csr" -CA "$prefix-root.pem" -CAkey "$prefix-root.key" -CAcreateserial -sha384 -days 36500 \
-    -extfile "$prefix-int.ext" -out "$prefix-int.pem"
+  openssl x509 -req -in "$prefix-int.csr" -CA "$prefix-root.crt" -CAkey "$prefix-root.key" -CAcreateserial -sha384 -days 36500 \
+    -extfile "$prefix-int.ext" -out "$prefix-int.crt"
 
   openssl ecparam -name prime256v1 -genkey -noout -out "$prefix-leaf.ec.key"
   openssl pkcs8 -topk8 -nocrypt -in "$prefix-leaf.ec.key" -out "$prefix-leaf.key"
@@ -30,8 +30,8 @@ make_chain() {
   else
     printf "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\n" > "$prefix-leaf.ext"
   fi
-  openssl x509 -req -in "$prefix-leaf.csr" -CA "$prefix-int.pem" -CAkey "$prefix-int.key" -CAcreateserial -sha256 -days 36500 \
-    -extfile "$prefix-leaf.ext" -out "$prefix-leaf.pem"
+  openssl x509 -req -in "$prefix-leaf.csr" -CA "$prefix-int.crt" -CAkey "$prefix-int.key" -CAcreateserial -sha256 -days 36500 \
+    -extfile "$prefix-leaf.ext" -out "$prefix-leaf.crt"
 
   rm -f "$prefix-int.csr" "$prefix-int.ext" "$prefix-leaf.csr" "$prefix-leaf.ext" "$prefix-leaf.ec.key" "$prefix-root.srl" "$prefix-int.srl"
 }
