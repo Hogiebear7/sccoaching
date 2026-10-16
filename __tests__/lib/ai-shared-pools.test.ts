@@ -77,13 +77,24 @@ afterEach(() => {
 });
 
 describe("one shared trial pool across accounts", () => {
-  it("trials on DIFFERENT accounts draw on the same pool: once it is full, a new account's trial AI is refused with a plain 'unavailable on free trials' message", async () => {
-    budgets({ AI_TRIAL_POOL_USD: String(RESERVE + DEAR_COST / 2) }); // room for one call, then one more reservation cannot fit
+  it("a trial the store has CONFIRMED is honoured even when the pool is full (the pool decides whether a NEW trial may start, not whether a live one is served), up to the member's own trial allowance", async () => {
+    budgets({ AI_TRIAL_POOL_USD: String(RESERVE + DEAR_COST / 2), AI_ALLOWANCE_TRIAL_USD: String(DEAR_COST + RESERVE + 0.001) });
     const a = fx.memberA.id, b = fx.memberB.id;
     await grant(a, true);
     await grant(b, true);
     expect((await call(a, "coach_chat")).ran).toBe(true);
-    const refused = await call(b, "coach_chat");
+    expect((await call(b, "coach_chat")).ran).toBe(true); // pool is over, yet the confirmed trial is served
+    // ...but each is still bounded by its own trial allowance.
+    expect((await call(a, "coach_chat")).ran).toBe(true);
+    const refused = await call(a, "coach_chat");
+    expect(refused.ran).toBe(false);
+    expect(refused.error).toMatchObject({ code: "ai_allowance_reached" });
+  });
+
+  it("free-tier members on a full pool are refused with a plain 'unavailable on free trials' message", async () => {
+    budgets({ AI_TRIAL_POOL_USD: String(RESERVE + DEAR_COST / 2) });
+    expect((await call(fx.memberA.id, "food_photo_scan")).ran).toBe(true);
+    const refused = await call(fx.memberB.id, "food_photo_scan");
     expect(refused.ran).toBe(false);
     expect(refused.error).toMatchObject({ code: "ai_allowance_unavailable" });
     expect(refused.error?.message).toMatch(/aren't available on free trials right now/);

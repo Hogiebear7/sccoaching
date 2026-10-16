@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
 const CHILD = path.join(ROOT, "__tests__", "datastore", "children", "allowance-worker.mts");
+const SLOT_CHILD = path.join(ROOT, "__tests__", "datastore", "children", "trial-slot-worker.mts");
 let dir: string;
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(tmpdir(), "datastore-allowance-"));
@@ -22,6 +23,24 @@ function worker(args: string[], env: Record<string, string> = {}): Promise<{ cod
     child.on("close", (code) => resolve({ code, granted: Number(/granted=(\d+)/.exec(out)?.[1] ?? NaN), out }));
   });
 }
+
+function slotWorker(args: string[]): Promise<{ code: number | null; granted: number }> {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, ["--import", "tsx", SLOT_CHILD, ...args], { cwd: ROOT, env: { ...process.env, DATA_DIR: dir }, stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (out += d));
+    child.on("close", (code) => resolve({ code, granted: Number(/granted=(\d+)/.exec(out)?.[1] ?? NaN) }));
+  });
+}
+
+describe("trial capacity claims across processes", () => {
+  it("8 processes, 8 different members asking at once for places of 0.25 in a trial pool of 0.75 -> exactly 3 granted", async () => {
+    const results = await Promise.all(Array.from({ length: 8 }, (_v, i) => slotWorker([`member-${i}`, "0.25", "0.75"])));
+    expect(results.map((r) => r.code)).toEqual(Array(8).fill(0));
+    expect(results.reduce((a, r) => a + r.granted, 0)).toBe(3);
+  }, 90_000);
+});
 
 describe("atomic AI budget reservation across processes", () => {
   it("6 processes asking 10 times each for holds of 0.10 against a budget of 1.00: exactly 10 are granted in total, never 6 x 10", async () => {

@@ -43,7 +43,7 @@ import {
   type GooglePlaySubscriptionStatus,
   type MembershipBillingOptionRecord,
 } from "@/lib/db";
-import { aiAllowanceConfigured } from "@/lib/ai-allowance";
+import { aiAllowanceConfigured, reserveTrialStart, TRIALS_UNAVAILABLE_MESSAGE } from "@/lib/ai-allowance";
 import { describeDigitalPlan, liveStoreEntitlement, type DigitalPlanSummary } from "@/lib/digital-entitlement";
 import type { MemberAccess } from "@/lib/member-access";
 import { isDeletedOwner } from "@/lib/member-deletion-guard";
@@ -274,7 +274,7 @@ export type PurchaseContextResult =
   | { ok: true; data: { obfuscatedAccountId: string; environment: string } }
   | ServiceFailure;
 
-export function getPurchaseContext(userId: string, adapter: PlayAdapter = getPlayAdapter()): PurchaseContextResult {
+export function getPurchaseContext(userId: string, adapter: PlayAdapter = getPlayAdapter(), options: { trial?: boolean } = {}): PurchaseContextResult {
   if (iapDisabledReason()) return fail(503, "iap_disabled", MESSAGES.disabled);
   if (!adapter.isConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
   // Never start a sale whose AI cost is uncapped: all four allowance budgets must be set (lib/ai-allowance.ts).
@@ -291,6 +291,9 @@ export function getPurchaseContext(userId: string, adapter: PlayAdapter = getPla
 
   const obfuscatedAccountId = googlePlayObfuscatedAccountId(userId);
   if (!obfuscatedAccountId) return fail(503, "binding_unavailable", MESSAGES.notConfigured);
+  // The app is about to start a FREE TRIAL: claim its AI capacity now, atomically, before the store sheet opens. Nothing is substituted when there is none: the app
+  // is told, and does not start a trial (a paid purchase is a separate, explicit choice the member makes with the full price in front of them).
+  if (options.trial && !reserveTrialStart(userId).ok) return fail(409, "trial_unavailable", TRIALS_UNAVAILABLE_MESSAGE);
   return { ok: true, data: { obfuscatedAccountId, environment: iapEnvironment() ?? "unset" } };
 }
 

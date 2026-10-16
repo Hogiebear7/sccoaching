@@ -1806,6 +1806,16 @@ export interface AiReservationRecord {
   expiresAt: string;
 }
 
+// A claim on trial capacity, taken BEFORE our purchase flow starts (purchase-context with the trial intent) and held for a short time. It counts as one full trial
+// allowance against the trial pool and the ceiling until the member's trial entitlement exists (then the entitlement carries the claim) or the slot expires
+// (an abandoned checkout). See reserveTrialSlot.
+export interface AiTrialSlotRecord {
+  id: string;
+  userId: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface AiUsageLogRecord {
   id: string;
   /** Who this usage is attributed to — a member's own AI feature use is
@@ -2159,6 +2169,7 @@ interface Database {
   revenueEvents: RevenueEventRecord[];
   aiUsageLogs: AiUsageLogRecord[];
   aiReservations: AiReservationRecord[];
+  aiTrialSlots: AiTrialSlotRecord[];
   financeLedgerEntries: FinanceLedgerEntryRecord[];
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
@@ -2302,6 +2313,7 @@ function normalizeDatabase(raw: string | null): Database {
       revenueEvents: [],
       aiUsageLogs: [],
       aiReservations: [],
+      aiTrialSlots: [],
       financeLedgerEntries: [],
       cycleSettings: [],
       cyclePrivacyPreferences: [],
@@ -2488,6 +2500,7 @@ function normalizeDatabase(raw: string | null): Database {
     revenueEvents: parsed.revenueEvents ?? [],
     aiUsageLogs: parsed.aiUsageLogs ?? [],
     aiReservations: parsed.aiReservations ?? [],
+    aiTrialSlots: parsed.aiTrialSlots ?? [],
     financeLedgerEntries: parsed.financeLedgerEntries ?? [],
     cycleSettings: parsed.cycleSettings ?? [],
     cyclePrivacyPreferences: parsed.cyclePrivacyPreferences ?? [],
@@ -2731,6 +2744,7 @@ const MEMBER_OWNED_COLLECTIONS = [
   // Derived access state: removed with the account. The store purchase records below are what keep a token owned.
   "digitalEntitlements",
   "aiReservations",
+  "aiTrialSlots",
   // googlePlayPurchases and appStorePurchases are deliberately NOT here: purchase records are anonymised, never deleted (see deleteUserAndOwnedRecords).
 ] as const;
 
@@ -4856,6 +4870,78 @@ function aiClassTotalsUsd(
   const spentUsd = logs.filter((l) => inKinds(l.allowanceKind) && new Date(l.createdAt).getTime() >= since).reduce((s, l) => s + l.costUsd, 0);
   const heldUsd = holds.filter((r) => inKinds(r.kind)).reduce((s, r) => s + r.reservedUsd, 0);
   return { spentUsd, heldUsd };
+}
+
+export interface TrialHeadroomConfig {
+  /** One trial's whole AI allowance (AI_ALLOWANCE_TRIAL_USD). */
+  perTrialUsd: number;
+  trialPoolUsd: number;
+  paidPoolUsd: number;
+  ceilingUsd: number;
+  /** Whether a digital entitlement is live right now (lib/digital-entitlement.ts isDigitalEntitlementLive): passed in so this module does not import it. */
+  isLiveEntitlement: (e: DigitalEntitlementRecord, nowMs: number) => boolean;
+}
+
+export type TrialHeadroom = { ok: true } | { ok: false; reason: "pool_full" | "ceiling_reached" };
+
+// Whether ONE MORE full trial allowance fits, counting everything already owed: what each live trial is still entitled to, and every live slot of someone who does
+// not yet hold a trial. Pure over a datastore snapshot, so reserveTrialSlot can run it inside its one atomic turn.
+function trialHeadroomIn(
+  db: Pick<Database, "aiUsageLogs" | "aiReservations" | "aiTrialSlots" | "digitalEntitlements">,
+  cfg: TrialHeadroomConfig,
+  nowMs: number,
+  forUserId: string | null
+): TrialHeadroom {
+  const live = db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() > nowMs);
+  const expired = db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() <= nowMs).map(abandonedCharge);
+  const logs = [...db.aiUsageLogs, ...expired];
+
+  const trialUsers = new Set<string>();
+  let committed = 0;
+  for (const e of db.digitalEntitlements) {
+    if (e.trial !== true || e.source === "staff_grant" || !cfg.isLiveEntitlement(e, nowMs) || trialUsers.has(e.userId)) continue;
+    trialUsers.add(e.userId);
+    committed += Math.max(0, cfg.perTrialUsd - aiSpendUsd(logs, e.userId, "trial", null, nowMs));
+  }
+  const slotUsers = new Set<string>();
+  for (const s of db.aiTrialSlots) {
+    if (new Date(s.expiresAt).getTime() <= nowMs || s.userId === forUserId || trialUsers.has(s.userId) || slotUsers.has(s.userId)) continue;
+    slotUsers.add(s.userId);
+    committed += cfg.perTrialUsd;
+  }
+
+  const trialClass = aiClassTotalsUsd(logs, live, ["trial", "free"], nowMs);
+  if (cfg.trialPoolUsd - trialClass.spentUsd - trialClass.heldUsd - committed + 1e-9 < cfg.perTrialUsd) return { ok: false, reason: "pool_full" };
+  const all = aiClassTotalsUsd(logs, live, null, nowMs);
+  const paid = aiClassTotalsUsd(logs, live, ["paid"], nowMs);
+  const paidRemainder = Math.max(0, cfg.paidPoolUsd - paid.spentUsd - paid.heldUsd);
+  if (cfg.ceilingUsd - all.spentUsd - all.heldUsd - paidRemainder - committed + 1e-9 < cfg.perTrialUsd) return { ok: false, reason: "ceiling_reached" };
+  return { ok: true };
+}
+
+/** Advisory: could one more trial be honoured right now? (The catalog uses this; reserveTrialSlot is the guarantee.) */
+export function aiTrialHeadroom(cfg: TrialHeadroomConfig, nowMs: number = Date.now()): TrialHeadroom {
+  return trialHeadroomIn(readDb(), cfg, nowMs, null);
+}
+
+export type ReserveTrialSlotResult = { ok: true; slotId: string; expiresAt: string } | { ok: false; reason: "pool_full" | "ceiling_reached" };
+
+// ATOMIC, across processes, and the datastore lock is held only for this one synchronous turn (no store or network call happens inside it; the member's store
+// sheet opens AFTERWARDS). Two simultaneous starts cannot both be granted the last place. Idempotent per member: asking again while a live slot exists returns
+// it. An abandoned checkout needs no cleanup: the slot simply expires.
+export function reserveTrialSlot(input: TrialHeadroomConfig & { userId: string; ttlMs: number; nowMs?: number }): ReserveTrialSlotResult {
+  const now = input.nowMs ?? Date.now();
+  const db = readDb();
+  const mine = db.aiTrialSlots.find((s) => s.userId === input.userId && new Date(s.expiresAt).getTime() > now);
+  if (mine) return { ok: true, slotId: mine.id, expiresAt: mine.expiresAt };
+
+  const headroom = trialHeadroomIn(db, input, now, input.userId);
+  if (!headroom.ok) return headroom;
+
+  const slot: AiTrialSlotRecord = { id: randomUUID(), userId: input.userId, createdAt: new Date(now).toISOString(), expiresAt: new Date(now + input.ttlMs).toISOString() };
+  db.aiTrialSlots = [...db.aiTrialSlots.filter((s) => new Date(s.expiresAt).getTime() > now && s.userId !== input.userId), slot];
+  writeDb(db);
+  return { ok: true, slotId: slot.id, expiresAt: slot.expiresAt };
 }
 
 // Advisory view of the shared capacity (NOT a reservation): what each class has used over the rolling 30 days, holds included. Used to say whether a new trial

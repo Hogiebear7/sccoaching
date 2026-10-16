@@ -109,6 +109,7 @@ export const COLLECTION_SCOPE = {
   aiRedirectEvents: platform("Anonymous AI-redirect telemetry, no user or gym."),
   revenueEvents: { kind: "money-provenance", owner: "ownerGym", note: "Platform finance only." },
   aiUsageLogs: user(),
+  aiTrialSlots: user("userId", "A short-lived claim on trial capacity taken before a member's store checkout starts; an abandoned checkout's claim expires by itself. Removed with the account."),
   aiReservations: user("userId", "Short-lived holds on a member's AI allowance while a provider call is in flight; an abandoned hold expires by itself. Removed with the account."),
   financeLedgerEntries: { kind: "money-provenance", owner: "ownerGym", note: "finance.view is exact-role platform_operator (audit 12.5)." },
   cycleSettings: user(),

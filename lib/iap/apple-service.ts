@@ -39,7 +39,7 @@ import {
   type DigitalEntitlementStatus,
   type MembershipBillingOptionRecord,
 } from "@/lib/db";
-import { aiAllowanceConfigured } from "@/lib/ai-allowance";
+import { aiAllowanceConfigured, reserveTrialStart, TRIALS_UNAVAILABLE_MESSAGE } from "@/lib/ai-allowance";
 import { describeDigitalPlan, liveStoreEntitlement } from "@/lib/digital-entitlement";
 import { isDeletedOwner } from "@/lib/member-deletion-guard";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
@@ -140,7 +140,7 @@ export function getDigitalPlanCatalog(): DigitalPlanCatalogEntry[] {
 
 export type AppStoreContextResult = { ok: true; data: { appAccountToken: string; environment: string } } | ServiceFailure;
 
-export function getAppStorePurchaseContext(userId: string, adapter: AppStoreAdapter = getAppStoreAdapter()): AppStoreContextResult {
+export function getAppStorePurchaseContext(userId: string, adapter: AppStoreAdapter = getAppStoreAdapter(), options: { trial?: boolean } = {}): AppStoreContextResult {
   if (appStoreIapDisabledReason()) return fail(503, "iap_disabled", MESSAGES.disabled);
   if (!adapter.isConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
   // Never start a sale whose AI cost is uncapped: all four allowance budgets must be set (lib/ai-allowance.ts).
@@ -155,6 +155,8 @@ export function getAppStorePurchaseContext(userId: string, adapter: AppStoreAdap
 
   const token = appStoreAccountToken(userId);
   if (!token) return fail(503, "binding_unavailable", MESSAGES.notConfigured);
+  // The app is about to start a FREE TRIAL: claim its AI capacity now, atomically, before the store sheet opens (see lib/iap/service.ts getPurchaseContext).
+  if (options.trial && !reserveTrialStart(userId).ok) return fail(409, "trial_unavailable", TRIALS_UNAVAILABLE_MESSAGE);
   return { ok: true, data: { appAccountToken: token, environment: appStoreIapEnvironment() ?? "unset" } };
 }
 

@@ -40,8 +40,8 @@
 
 import { configuredAiModel } from "@/lib/ai-model";
 import { ratesForKnownModel } from "@/lib/ai-usage";
-import { aiCapacitySnapshot, aiSpendUsd, findAiUsageLogsByUserId, findAllAiUsageLogs, findAllDigitalEntitlements, findDigitalEntitlementsByUserId, type AiAllowanceKind } from "@/lib/db";
-import { liveDigitalEntitlements } from "@/lib/digital-entitlement";
+import { aiSpendUsd, aiTrialHeadroom, findAiUsageLogsByUserId, findDigitalEntitlementsByUserId, reserveTrialSlot, type AiAllowanceKind, type TrialHeadroomConfig } from "@/lib/db";
+import { isDigitalEntitlementLive, liveDigitalEntitlements } from "@/lib/digital-entitlement";
 
 /** The four groups a MEMBER can be in ("staff" is the shared pool for staff-run features, not a member group). */
 export type MemberAllowanceKind = Exclude<AiAllowanceKind, "staff">;
@@ -130,6 +130,38 @@ export function aiAllowanceConfigured(): boolean {
 
 export type TrialCapacity = { available: true } | { available: false; reason: "not_configured" | "pool_full" | "ceiling_reached" };
 
+/** How long a claim on trial capacity is held for a member who has not finished the store checkout. Long enough for a slow sheet, short enough that abandoned ones free up. */
+export const TRIAL_SLOT_TTL_MS = 30 * 60 * 1000;
+export const TRIALS_UNAVAILABLE_MESSAGE = "Free trials are temporarily unavailable. Please try again later.";
+
+function trialHeadroomConfig(): TrialHeadroomConfig | null {
+  if (!aiAllowanceConfigured()) return null;
+  const pools = aiPoolBudgets();
+  return {
+    perTrialUsd: aiAllowanceBudgets().trial as number,
+    trialPoolUsd: pools.trial as number,
+    paidPoolUsd: pools.paid as number,
+    ceilingUsd: pools.ceiling as number,
+    isLiveEntitlement: (e, nowMs) => isDigitalEntitlementLive(e, nowMs),
+  };
+}
+
+/**
+ * Claims one trial's worth of capacity BEFORE our purchase flow starts (called from purchase-context when the app says it is starting a trial). Atomic across
+ * processes and holding no lock during the store's sheet: see reserveTrialSlot. Refused means the app must not start a trial purchase. In development, with nothing
+ * configured, there is no AI limit to protect and the claim is simply granted.
+ *
+ * LIMIT, stated plainly: this controls OUR flow only. The stores decide eligibility and can start a trial outside it (the App Store or Play Store page, an offer code, a
+ * promotional link, a restore on another device). Such a confirmed trial is never rejected; it is honoured (see the trial branch of beginAiCall in lib/ai-metering.ts).
+ */
+export function reserveTrialStart(userId: string, nowMs: number = Date.now()): { ok: true } | { ok: false; reason: "not_configured" | "pool_full" | "ceiling_reached" } {
+  if (!aiAllowanceEnforced()) return { ok: true };
+  const cfg = trialHeadroomConfig();
+  if (!cfg) return { ok: false, reason: "not_configured" };
+  const slot = reserveTrialSlot({ ...cfg, userId, ttlMs: TRIAL_SLOT_TTL_MS, nowMs });
+  return slot.ok ? { ok: true } : { ok: false, reason: slot.reason };
+}
+
 /**
  * Whether a NEW free trial could be honoured with its intended AI allowance right now. The store, not this server, starts a trial, so this cannot stop one; it
  * decides whether the app may REPRESENT the trial (and its AI) as available. Capacity counts what the trial pool and the ceiling still hold after the AI each
@@ -138,20 +170,10 @@ export type TrialCapacity = { available: true } | { available: false; reason: "n
  */
 export function trialCapacity(nowMs: number = Date.now()): TrialCapacity {
   if (!aiAllowanceEnforced()) return { available: true };
-  if (!aiAllowanceConfigured()) return { available: false, reason: "not_configured" };
-  const perTrial = aiAllowanceBudgets().trial as number;
-  const pools = aiPoolBudgets();
-  const snap = aiCapacitySnapshot(nowMs);
-  const logs = findAllAiUsageLogs();
-  const liveTrials = liveDigitalEntitlements(findAllDigitalEntitlements(), nowMs).filter((e) => e.trial === true && e.source !== "staff_grant");
-  const committed = liveTrials.reduce((s, e) => s + Math.max(0, perTrial - aiSpendUsd(logs, e.userId, "trial", null, nowMs)), 0);
-
-  const poolFree = (pools.trial as number) - snap.trialClass.spentUsd - snap.trialClass.heldUsd - committed;
-  if (poolFree + 1e-9 < perTrial) return { available: false, reason: "pool_full" };
-  const paidRemainder = Math.max(0, (pools.paid as number) - snap.paid.spentUsd - snap.paid.heldUsd);
-  const ceilingFree = (pools.ceiling as number) - snap.all.spentUsd - snap.all.heldUsd - paidRemainder - committed;
-  if (ceilingFree + 1e-9 < perTrial) return { available: false, reason: "ceiling_reached" };
-  return { available: true };
+  const cfg = trialHeadroomConfig();
+  if (!cfg) return { available: false, reason: "not_configured" };
+  const headroom = aiTrialHeadroom(cfg, nowMs);
+  return headroom.ok ? { available: true } : { available: false, reason: headroom.reason };
 }
 
 /** A trial's total is for the whole trial; every other allowance is a rolling window. */

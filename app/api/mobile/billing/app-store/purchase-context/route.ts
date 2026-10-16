@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
   const tenant = resolveTenantRequest(request);
   if (!tenant.ok) return tenant.response;
 
-  const result = getAppStorePurchaseContext(tenant.ctx.userId);
+  // ?trial=1: the app is starting a free trial, so its AI capacity is claimed first (lib/ai-allowance.ts reserveTrialStart).
+  const result = getAppStorePurchaseContext(tenant.ctx.userId, undefined, { trial: request.nextUrl.searchParams.get("trial") === "1" });
   if (!result.ok) {
     return NextResponse.json({ success: false, code: result.code, message: result.message }, { status: result.httpStatus });
   }
