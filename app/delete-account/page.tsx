@@ -35,7 +35,7 @@ export default function DeleteAccountPage() {
             </ol>
             <p className="mt-3">
               If you have an active paid membership, cancel it first. A membership paid through the website can be cancelled from Settings, then Manage
-              membership, or by asking your gym. A subscription bought through Google Play can only be cancelled in Google Play. We can&rsquo;t delete an
+              membership, or by asking your gym. The App Subscription, bought through Google Play or the App Store, can only be cancelled in that store, and deleting your account does not cancel it. We can&rsquo;t delete an
               account while a paid subscription is still running, because it would keep billing with no account to manage it.
             </p>
           </section>

@@ -16,7 +16,7 @@ export const ACTIVE_SUBSCRIPTION_CODE = "active_subscription" as const;
 
 // Stable, non-sensitive. No token, order id, date or provider text.
 export const ACTIVE_SUBSCRIPTION_MESSAGE =
-  "This member has an active Google Play subscription. It can only be cancelled in Google Play, and deleting the account now would leave a paid subscription untracked. Try again once it has ended.";
+  "This member has an active App Subscription bought through Google Play or the App Store. It can only be cancelled in the store, and deleting the account now would leave a paid subscription untracked. Try again once it has ended.";
 
 export class MemberDeletionRefused extends Error {
   readonly code = ACTIVE_SUBSCRIPTION_CODE;

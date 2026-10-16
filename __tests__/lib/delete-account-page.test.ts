@@ -24,7 +24,7 @@ describe("public account deletion page", () => {
 
   it("warns that a running paid subscription must be cancelled first, and that Google Play subscriptions are cancelled in Google Play", () => {
     expect(html).toMatch(/cancel it first/i);
-    expect(html).toMatch(/only be cancelled in Google Play/i);
+    expect(html).toMatch(/only be cancelled in that store/i);
   });
 
   it("makes no claim about backup retention, which is not yet confirmed", () => {

@@ -56,7 +56,7 @@ describe("a protected Google Play entitlement refuses hard deletion", () => {
 
     expect(res.status).toBe(409);
     const body = await res.json();
-    expect(body).toEqual({ success: false, code: "active_subscription", message: expect.stringMatching(/active Google Play subscription/) });
+    expect(body).toEqual({ success: false, code: "active_subscription", message: expect.stringMatching(/active App Subscription bought through Google Play or the App Store/) });
     // Sanitized: no token, no order id, no hash, no member id, no provider text.
     expect(JSON.stringify(body)).not.toMatch(new RegExp(`${TOKEN}|GPA\\.|${fx.memberA.id}`));
     // Nothing changed: the account, the purchase record (token binding), the subscription row.

@@ -138,7 +138,7 @@ describe("a live paid subscription blocks deletion until it ends (nothing is can
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.code).toBe("active_subscription");
-    expect(body.message).toMatch(/^You have an active Google Play subscription/);
+    expect(body.message).toMatch(/^You have an active App Subscription bought through Google Play or the App Store/);
     expect(JSON.stringify(body)).not.toMatch(/token|order|member has/i);
     expect(exists(fx.memberA.id)).toBe(true);
   });
