@@ -42,6 +42,32 @@ describe("atomic AI budget reservation across processes", () => {
     expect(results.reduce((a, r) => a + r.granted, 0)).toBe(7);
   }, 90_000);
 
+  it("one TRIAL pool across processes and accounts: 6 processes, 6 trial accounts each allowed 9.00, trial pool 0.40 -> exactly 4 holds of 0.10", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 6 }, (_v, i) => worker([`trial-${i}`, "9", "0.1", "10", "none"], { KIND: "trial", CLASS_KINDS: "trial,free", CLASS_POOL: "0.4" }))
+    );
+    expect(results.map((r) => r.code)).toEqual(Array(6).fill(0));
+    expect(results.reduce((a, r) => a + r.granted, 0)).toBe(4);
+  }, 90_000);
+
+  it("trial and staff racing paid across processes: with ceiling 1.00 and a paid pool of 0.70, trial plus staff get exactly 3 holds (ceiling minus the paid pool) and paid still gets exactly its 7", async () => {
+    const env = { CEILING: "1.0", PROTECT_PAID: "0.7" };
+    const trial = Array.from({ length: 3 }, (_v, i) => worker([`trial-${i}`, "9", "0.1", "10", "none"], { ...env, KIND: "trial", CLASS_KINDS: "trial,free", CLASS_POOL: "9" }));
+    const staff = Array.from({ length: 3 }, (_v, i) => worker([`staff-${i}`, "9", "0.1", "10", "none"], { ...env, POOL: "1" }));
+    const paid = Array.from({ length: 3 }, (_v, i) => worker([`paid-${i}`, "9", "0.1", "10", "none"], { CEILING: "1.0", KIND: "paid", CLASS_KINDS: "paid", CLASS_POOL: "0.7" }));
+    const [t, s, p] = await Promise.all([Promise.all(trial), Promise.all(staff), Promise.all(paid)]);
+    const sum = (rs: { granted: number }[]) => rs.reduce((a, r) => a + r.granted, 0);
+    expect(sum(t) + sum(s)).toBe(3);
+    expect(sum(p)).toBe(7);
+  }, 120_000);
+
+  it("complimentary has its own pool across processes: 4 processes, pool 0.30 -> exactly 3 holds", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 4 }, (_v, i) => worker([`comp-${i}`, "9", "0.1", "10", "none"], { KIND: "complimentary", CLASS_KINDS: "complimentary", CLASS_POOL: "0.3" }))
+    );
+    expect(results.reduce((a, r) => a + r.granted, 0)).toBe(3);
+  }, 90_000);
+
   it("holds are per member: another member's holds do not use this member's budget", async () => {
     const [a, b] = await Promise.all([worker(["member-a", "0.3", "0.1", "10", "none"]), worker(["member-b", "0.3", "0.1", "10", "none"])]);
     expect([a.granted, b.granted]).toEqual([3, 3]);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { trialCapacity } from "@/lib/ai-allowance";
 import { getDigitalPlanCatalog } from "@/lib/iap/apple-service";
 import { resolveTenantRequest } from "@/lib/tenant-request";
 
@@ -10,5 +11,8 @@ import { resolveTenantRequest } from "@/lib/tenant-request";
 export async function GET(request: NextRequest) {
   const tenant = resolveTenantRequest(request);
   if (!tenant.ok) return tenant.response;
-  return NextResponse.json({ success: true, data: { plans: getDigitalPlanCatalog() } }, { status: 200 });
+  // Whether a new free trial could be honoured with its AI allowance right now (lib/ai-allowance.ts trialCapacity). The store starts a trial, not this server, so
+  // this only decides whether the app may REPRESENT the trial as available. An app that does not read it must not promise a trial.
+  const trialAvailable = trialCapacity().available;
+  return NextResponse.json({ success: true, data: { plans: getDigitalPlanCatalog().map((plan) => ({ ...plan, trialAvailable })) } }, { status: 200 });
 }

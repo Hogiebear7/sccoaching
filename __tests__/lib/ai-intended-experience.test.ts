@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFixture, type IapFixture } from "../helpers/iap-fixture";
 
 const DAY = 86_400_000;
-const KEYS = ["AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD", "ANTHROPIC_MODEL"] as const;
+const KEYS = ["AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD", "AI_TRIAL_POOL_USD", "AI_PAID_POOL_USD", "AI_COMPLIMENTARY_POOL_USD", "ANTHROPIC_MODEL"] as const;
 const saved: Record<string, string | undefined> = {};
 let fx: IapFixture;
 
@@ -34,6 +34,9 @@ function setBudgets(v: { trial?: string; paid: string }) {
   process.env.AI_ALLOWANCE_PAID_USD = v.paid;
   process.env.AI_ALLOWANCE_COMPLIMENTARY_USD = v.paid;
   process.env.AI_STAFF_USD = "100";
+  process.env.AI_TRIAL_POOL_USD = "1000";
+  process.env.AI_PAID_POOL_USD = "1000";
+  process.env.AI_COMPLIMENTARY_POOL_USD = "1000";
   process.env.AI_APP_CEILING_USD = "10000";
   process.env.ANTHROPIC_MODEL = MODEL;
 }

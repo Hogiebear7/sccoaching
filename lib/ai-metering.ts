@@ -26,6 +26,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 
 import {
   ALLOWANCE_UNAVAILABLE_MESSAGE,
+  TRIAL_AI_UNAVAILABLE_MESSAGE,
+  memberClassPool,
   AI_ALLOWANCE_CODE,
   AI_ALLOWANCE_UNAVAILABLE_CODE,
   AI_UPGRADE_CODE,
@@ -184,7 +186,10 @@ export function beginAiCall(input: BeginInput, nowMs: number = Date.now()): AiCa
     }
     const pools = aiPoolBudgets();
     const budget = memberCall ? aiAllowanceBudgets()[kind as Exclude<AiAllowanceKind, "staff">] : pools.staff;
-    if (budget === null || pools.ceiling === null) throw new AiAllowanceError(AI_ALLOWANCE_UNAVAILABLE_CODE, kind, ALLOWANCE_UNAVAILABLE_MESSAGE);
+    const classPool = memberCall ? memberClassPool(kind as Exclude<AiAllowanceKind, "staff">) : null;
+    if (budget === null || pools.ceiling === null || pools.paid === null || (classPool && classPool.usd === null)) {
+      throw new AiAllowanceError(AI_ALLOWANCE_UNAVAILABLE_CODE, kind, ALLOWANCE_UNAVAILABLE_MESSAGE);
+    }
     if (kind === "free" && budget === 0) throw new AiAllowanceError(AI_UPGRADE_CODE, kind, UPGRADE_MESSAGE);
 
     const result = reserveAiBudget({
@@ -195,15 +200,19 @@ export function beginAiCall(input: BeginInput, nowMs: number = Date.now()): AiCa
       budgetUsd: budget,
       windowMs: windowMsFor(kind) ?? (kind === "staff" ? AI_ALLOWANCE_WINDOW_MS : null),
       pool: !memberCall,
+      classPool: classPool && classPool.usd !== null ? { kinds: classPool.kinds, usd: classPool.usd } : null,
+      // Everything that is not a paid subscriber leaves the paid pool's unused remainder untouched inside the ceiling.
+      protectPaidPoolUsd: pools.paid,
       ceilingUsd: pools.ceiling,
       ceilingWindowMs: AI_ALLOWANCE_WINDOW_MS,
       ttlMs: HOLD_TTL_MS,
       nowMs,
     });
     if (!result.ok) {
-      if (result.limit === "ceiling") {
-        // The app-wide ceiling is the owner's, not the member's: members see "unavailable", never a number.
-        throw new AiAllowanceError(AI_ALLOWANCE_UNAVAILABLE_CODE, kind, ALLOWANCE_UNAVAILABLE_MESSAGE);
+      if (result.limit === "ceiling" || result.limit === "pool") {
+        // A shared pool or the emergency ceiling is the owner's, not the member's: members see "unavailable", never a number. A trial or free member is told
+        // plainly that AI is unavailable on trials, not that they used something up.
+        throw new AiAllowanceError(AI_ALLOWANCE_UNAVAILABLE_CODE, kind, kind === "trial" || kind === "free" ? TRIAL_AI_UNAVAILABLE_MESSAGE : ALLOWANCE_UNAVAILABLE_MESSAGE);
       }
       const resetsAt = memberCall && userId ? resetsAtFor(userId, kind, budget, reserveUsd, nowMs) : null;
       throw new AiAllowanceError(AI_ALLOWANCE_CODE, kind, allowanceMessage(kind, resetsAt), resetsAt);

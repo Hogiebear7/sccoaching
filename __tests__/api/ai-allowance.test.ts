@@ -39,7 +39,7 @@ vi.mock("@/lib/ai", async (importOriginal) => {
 const DAY = 86_400_000;
 let fx: IapFixture;
 const saved: Record<string, string | undefined> = {};
-const KEYS = ["AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD", "ANTHROPIC_MODEL"] as const;
+const KEYS = ["AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD", "AI_TRIAL_POOL_USD", "AI_PAID_POOL_USD", "AI_COMPLIMENTARY_POOL_USD", "ANTHROPIC_MODEL"] as const;
 type Kind = "free" | "trial" | "paid" | "complimentary";
 const ENV_FOR: Record<Kind, (typeof KEYS)[number]> = { free: KEYS[0], trial: KEYS[1], paid: KEYS[2], complimentary: KEYS[3] };
 
@@ -51,6 +51,9 @@ function budgets(over: Partial<Record<Kind, string | undefined>> = {}) {
     else process.env[ENV_FOR[k]] = v[k];
   }
   process.env.AI_STAFF_USD = "5";
+  process.env.AI_TRIAL_POOL_USD = "5";
+  process.env.AI_PAID_POOL_USD = "20";
+  process.env.AI_COMPLIMENTARY_POOL_USD = "5";
   process.env.AI_APP_CEILING_USD = "50";
 }
 
@@ -106,7 +109,7 @@ describe("configuration", () => {
     }
     budgets({ free: "0", complimentary: "0" });
     expect(aiAllowanceConfigured()).toBe(true);
-    for (const k of ["AI_STAFF_USD", "AI_APP_CEILING_USD"] as const) {
+    for (const k of ["AI_STAFF_USD", "AI_APP_CEILING_USD", "AI_TRIAL_POOL_USD", "AI_PAID_POOL_USD", "AI_COMPLIMENTARY_POOL_USD"] as const) {
       budgets();
       delete process.env[k];
       expect(aiAllowanceConfigured()).toBe(false);
@@ -125,6 +128,9 @@ describe("configuration", () => {
     budgets({ free: undefined, trial: undefined, paid: undefined, complimentary: undefined });
     delete process.env.AI_STAFF_USD;
     delete process.env.AI_APP_CEILING_USD;
+    delete process.env.AI_TRIAL_POOL_USD;
+    delete process.env.AI_PAID_POOL_USD;
+    delete process.env.AI_COMPLIMENTARY_POOL_USD;
     await grant(fx.memberA.id);
     log(fx.memberA.id, 999);
     expect(await check(fx.memberA.id)).toMatchObject({ ok: true, enforced: false });
@@ -341,6 +347,9 @@ describe("a plan is never sold with undefined AI cost", () => {
     process.env.AI_ALLOWANCE_COMPLIMENTARY_USD = "0";
     expect((await apple.context(apple.memberA.id)).status).toBe(503); // staff pool and app-wide ceiling still unset
     process.env.AI_STAFF_USD = "5";
+    process.env.AI_TRIAL_POOL_USD = "5";
+    process.env.AI_PAID_POOL_USD = "20";
+    process.env.AI_COMPLIMENTARY_POOL_USD = "5";
     process.env.AI_APP_CEILING_USD = "50";
     expect((await apple.context(apple.memberA.id)).status).toBe(200);
     apple.cleanup();

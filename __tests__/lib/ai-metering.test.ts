@@ -7,17 +7,20 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFixture, type IapFixture } from "../helpers/iap-fixture";
 
 const DAY = 86_400_000;
-const KEYS = ["AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD", "ANTHROPIC_MODEL"] as const;
+const KEYS = ["AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD", "AI_TRIAL_POOL_USD", "AI_PAID_POOL_USD", "AI_COMPLIMENTARY_POOL_USD", "ANTHROPIC_MODEL"] as const;
 const saved: Record<string, string | undefined> = {};
 let fx: IapFixture;
 
 // TEST values only. The staff pool and the app-wide ceiling default to amounts that never bind unless a test sets them.
-function budgets(v: { free: string; trial: string; paid: string; complimentary: string; staff?: string; ceiling?: string }) {
+function budgets(v: { free: string; trial: string; paid: string; complimentary: string; staff?: string; ceiling?: string; trialPool?: string; paidPool?: string; compPool?: string }) {
   process.env.AI_ALLOWANCE_FREE_USD = v.free;
   process.env.AI_ALLOWANCE_TRIAL_USD = v.trial;
   process.env.AI_ALLOWANCE_PAID_USD = v.paid;
   process.env.AI_ALLOWANCE_COMPLIMENTARY_USD = v.complimentary;
   process.env.AI_STAFF_USD = v.staff ?? "100";
+  process.env.AI_TRIAL_POOL_USD = v.trialPool ?? "500";
+  process.env.AI_PAID_POOL_USD = v.paidPool ?? "500";
+  process.env.AI_COMPLIMENTARY_POOL_USD = v.compPool ?? "500";
   process.env.AI_APP_CEILING_USD = v.ceiling ?? "1000";
 }
 
@@ -479,18 +482,19 @@ describe("staff-run features: one shared cumulative pool, and an app-wide ceilin
     expect(reached).toBe(2);
   });
 
-  it("an app-wide ceiling caps ALL AI spending (members and staff together): once held plus spent reaches it, nothing more is started, and members only see 'unavailable'", async () => {
+  it("the app-wide EMERGENCY ceiling stops ALL AI once held plus spent reaches it, paid subscribers included, and members only see 'unavailable'", async () => {
     const { meteredCreate } = await import("@/lib/ai-metering");
     budgets({ free: "9", trial: "9", paid: "9", complimentary: "9", staff: "9", ceiling: String(RESERVE * 3 + 0.0005) });
     await grant(fx.memberA.id);
+    await grant(fx.memberB.id);
     const dear = { input: 1000, output: 1000 };
     await call(fx.memberA.id, "coach_chat", dear);
     await call(fx.memberB.id, "coach_chat", dear);
-    await call(fx.adminA.id, "staff_member_summary", dear);
+    await call(fx.memberA.id, "coach_chat", dear);
     let reached = 0;
     const client = { messages: { create: async () => (reached++, message()) } };
-    for (const [userId, feature] of [[fx.memberA.id, "coach_chat"], [fx.adminA.id, "staff_draft_reply"]] as const) {
-      const err = await meteredCreate(client as never, { userId, feature }, params() as never).catch((e) => e);
+    for (const userId of [fx.memberA.id, fx.memberB.id]) {
+      const err = await meteredCreate(client as never, { userId, feature: "coach_chat" }, params() as never).catch((e) => e);
       expect(err).toMatchObject({ name: "AiAllowanceError", code: "ai_allowance_unavailable" });
       expect(String(err.message)).not.toMatch(/\$|[0-9]\.[0-9]/); // never reveals an amount
     }
@@ -500,9 +504,11 @@ describe("staff-run features: one shared cumulative pool, and an app-wide ceilin
   it("the ceiling counts live holds too, so concurrent calls cannot overshoot it", async () => {
     const { meteredCreate } = await import("@/lib/ai-metering");
     budgets({ free: "9", trial: "9", paid: "9", complimentary: "9", staff: "9", ceiling: String(RESERVE * 3 + 0.0005) });
+    await grant(fx.memberA.id);
+    await grant(fx.memberB.id);
     let reached = 0;
     const client = { messages: { create: async () => ((reached++), await new Promise((r) => setTimeout(r, 20)), message()) } };
-    const results = await Promise.allSettled(Array.from({ length: 8 }, (_v, i) => meteredCreate(client as never, { userId: [fx.memberA.id, fx.memberB.id, fx.adminA.id, null][i % 4], feature: i % 4 >= 2 ? "staff_member_summary" : "coach_chat" }, params() as never)));
+    const results = await Promise.allSettled(Array.from({ length: 8 }, (_v, i) => meteredCreate(client as never, { userId: [fx.memberA.id, fx.memberB.id][i % 2], feature: "coach_chat" }, params() as never)));
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(3);
     expect(reached).toBe(3);
   });

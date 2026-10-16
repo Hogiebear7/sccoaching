@@ -4837,7 +4837,44 @@ export function aiPoolSpendUsd(logs: readonly AiUsageLogRecord[], kind: AiAllowa
   return total;
 }
 
-export type ReserveAiBudgetResult = { ok: true; id: string } | { ok: false; limit: "budget" | "ceiling"; spentUsd: number; heldUsd: number };
+// "budget": the member's own cap (or the staff pool); "pool": this kind's shared class pool; "ceiling": the app-wide emergency ceiling, counting the paid
+// pool's unused remainder when the caller is not a paid subscriber.
+export type ReserveAiBudgetResult = { ok: true; id: string } | { ok: false; limit: "budget" | "pool" | "ceiling"; spentUsd: number; heldUsd: number };
+
+const AI_POOL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Spent (rolling window) plus currently held, for a set of kinds, across ALL users. The one measure the class pools, the paid reserve and the ceiling share.
+function aiClassTotalsUsd(
+  logs: readonly AiUsageLogRecord[],
+  holds: readonly AiReservationRecord[],
+  kinds: readonly AiAllowanceKind[] | null,
+  nowMs: number,
+  windowMs: number = AI_POOL_WINDOW_MS
+): { spentUsd: number; heldUsd: number } {
+  const since = nowMs - windowMs;
+  const inKinds = (k: AiAllowanceKind | undefined) => kinds === null || (k !== undefined && kinds.includes(k));
+  const spentUsd = logs.filter((l) => inKinds(l.allowanceKind) && new Date(l.createdAt).getTime() >= since).reduce((s, l) => s + l.costUsd, 0);
+  const heldUsd = holds.filter((r) => inKinds(r.kind)).reduce((s, r) => s + r.reservedUsd, 0);
+  return { spentUsd, heldUsd };
+}
+
+// Advisory view of the shared capacity (NOT a reservation): what each class has used over the rolling 30 days, holds included. Used to say whether a new trial
+// could be honoured, and in diagnostics.
+export function aiCapacitySnapshot(nowMs: number = Date.now()): {
+  trialClass: { spentUsd: number; heldUsd: number };
+  paid: { spentUsd: number; heldUsd: number };
+  all: { spentUsd: number; heldUsd: number };
+} {
+  const db = readDb();
+  const live = db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() > nowMs);
+  // Expired holds count as spent at their reserved maximum, exactly as reserveAiBudget will charge them.
+  const logs = [...db.aiUsageLogs, ...db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() <= nowMs).map(abandonedCharge)];
+  return {
+    trialClass: aiClassTotalsUsd(logs, live, ["trial", "free"], nowMs),
+    paid: aiClassTotalsUsd(logs, live, ["paid"], nowMs),
+    all: aiClassTotalsUsd(logs, live, null, nowMs),
+  };
+}
 
 // A reservation that expired without being settled. The provider may still have completed that call, so it is charged at its reserved MAXIMUM (never released
 // as if nothing happened), flagged as an estimate, and corrected by a late settle if one arrives.
@@ -4871,7 +4908,12 @@ export function reserveAiBudget(input: {
   windowMs: number | null;
   /** True for a shared pool (the staff features): every user's use of this kind counts together against the one budget. */
   pool?: boolean;
-  /** An app-wide ceiling on ALL AI spending (every user, every kind) over ceilingWindowMs. Null/absent: none. */
+  /** A shared pool for a CLASS of kinds (all users together, rolling 30 days): e.g. trial+free, paid, complimentary. Null/absent: none. */
+  classPool?: { kinds: readonly AiAllowanceKind[]; usd: number } | null;
+  /** The paid subscribers' pool. When set and this call is not a paid call, the pool's UNUSED remainder is kept out of reach: it is counted against the ceiling,
+      so trials, staff, complimentary and free use can never consume capacity allocated to paid subscribers. Null/absent: no reserve. */
+  protectPaidPoolUsd?: number | null;
+  /** An app-wide EMERGENCY ceiling on ALL AI spending (every user, every kind) over ceilingWindowMs. Null/absent: none. Reaching it stops AI for everyone. */
   ceilingUsd?: number | null;
   ceilingWindowMs?: number;
   ttlMs: number;
@@ -4902,13 +4944,24 @@ export function reserveAiBudget(input: {
     return { ok: false, limit: "budget", spentUsd, heldUsd };
   }
 
-  if (input.ceilingUsd !== undefined && input.ceilingUsd !== null) {
-    const since = now - (input.ceilingWindowMs ?? 30 * 24 * 60 * 60 * 1000);
-    const allSpent = db.aiUsageLogs.filter((l) => new Date(l.createdAt).getTime() >= since).reduce((s, l) => s + l.costUsd, 0);
-    const allHeld = live.reduce((s, r) => s + r.reservedUsd, 0);
-    if (allSpent + allHeld + input.reserveUsd > input.ceilingUsd + 1e-9) {
+  if (input.classPool) {
+    const c = aiClassTotalsUsd(db.aiUsageLogs, live, input.classPool.kinds, now);
+    if (c.spentUsd + c.heldUsd + input.reserveUsd > input.classPool.usd + 1e-9) {
       if (changed) writeDb(db);
-      return { ok: false, limit: "ceiling", spentUsd: allSpent, heldUsd: allHeld };
+      return { ok: false, limit: "pool", spentUsd: c.spentUsd, heldUsd: c.heldUsd };
+    }
+  }
+
+  if (input.ceilingUsd !== undefined && input.ceilingUsd !== null) {
+    const all = aiClassTotalsUsd(db.aiUsageLogs, live, null, now, input.ceilingWindowMs ?? AI_POOL_WINDOW_MS);
+    let paidReserve = 0;
+    if (input.protectPaidPoolUsd !== undefined && input.protectPaidPoolUsd !== null && input.kind !== "paid") {
+      const paid = aiClassTotalsUsd(db.aiUsageLogs, live, ["paid"], now);
+      paidReserve = Math.max(0, input.protectPaidPoolUsd - paid.spentUsd - paid.heldUsd);
+    }
+    if (all.spentUsd + all.heldUsd + paidReserve + input.reserveUsd > input.ceilingUsd + 1e-9) {
+      if (changed) writeDb(db);
+      return { ok: false, limit: "ceiling", spentUsd: all.spentUsd, heldUsd: all.heldUsd };
     }
   }
 

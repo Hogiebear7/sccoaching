@@ -158,7 +158,7 @@ export interface AppStoreFixture extends IapFixture {
   signedTransaction: (userId: string | null, originalTransactionId: string, over?: Partial<AppleTransactionPayload>, chain?: ChainName) => string;
 }
 
-const ENV_KEYS = ["APP_STORE_IAP_ENABLED", "APP_STORE_IAP_ENVIRONMENT", "APP_STORE_ACCEPT_SANDBOX", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD"] as const;
+const ENV_KEYS = ["APP_STORE_IAP_ENABLED", "APP_STORE_IAP_ENVIRONMENT", "APP_STORE_ACCEPT_SANDBOX", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD", "AI_TRIAL_POOL_USD", "AI_PAID_POOL_USD", "AI_COMPLIMENTARY_POOL_USD"] as const;
 
 export async function createAppStoreFixture(options: { enabled?: boolean; acceptSandbox?: boolean } = {}): Promise<AppStoreFixture> {
   const base = await createFixture();
@@ -177,6 +177,9 @@ export async function createAppStoreFixture(options: { enabled?: boolean; accept
   process.env.AI_ALLOWANCE_FREE_USD = "0.1";
   process.env.AI_ALLOWANCE_COMPLIMENTARY_USD = "0.5";
   process.env.AI_STAFF_USD = "5";
+  process.env.AI_TRIAL_POOL_USD = "5";
+  process.env.AI_PAID_POOL_USD = "20";
+  process.env.AI_COMPLIMENTARY_POOL_USD = "5";
   process.env.AI_APP_CEILING_USD = "50";
   if (options.acceptSandbox) process.env.APP_STORE_ACCEPT_SANDBOX = "true";
   else delete process.env.APP_STORE_ACCEPT_SANDBOX;
