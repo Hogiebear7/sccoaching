@@ -172,7 +172,9 @@ const cyclePrivacyPreferences = [
 const GENERAL_CATEGORIES = ["general", "strength", "cardio"];
 
 const gymCategory = {
-  id: randomUUID(),
+  // Fixed, not random: the membership page derives this card's colour from
+  // the category id, and the visual suite seeds a fresh datastore every run.
+  id: "cat_gym_memberships",
   name: "Gym Memberships",
   slug: "gym-memberships",
   description: "Recurring memberships for classes and gym-floor access.",
