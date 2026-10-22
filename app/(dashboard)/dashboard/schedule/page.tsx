@@ -46,6 +46,9 @@ export default async function DashboardSchedulePage() {
   const noActiveMembership =
     user.role === "member" && membershipIsRequired() && !hasActiveMembership(user.id);
 
+  // Server component: rendered once per request, so reading the clock here is
+  // intentional (bookings are resolved against "now" for this response).
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
 
   const resolvedBookings = resolveBookingsForUser(user.id, now);
@@ -70,7 +73,6 @@ export default async function DashboardSchedulePage() {
     .map(({ classRecord, coach }) => {
       const bookedCount = findBookingsByClassId(classRecord.id).length;
       const isBookedByMe = myBookedClassIds.has(classRecord.id);
-      const isFull = bookedCount >= classRecord.capacity;
 
       const waitlist = findWaitlistEntriesByClassId(classRecord.id); // active only
       const myEntry = waitlist.find((entry) => entry.userId === user.id);

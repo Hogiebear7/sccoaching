@@ -141,6 +141,9 @@ export default async function DashboardPage() {
     return d.toISOString().slice(0, 10);
   })()).length;
 
+  // Server component: rendered once per request, so reading the clock here is
+  // intentional (bookings are resolved against "now" for this response).
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
 
   const nextBooking = user

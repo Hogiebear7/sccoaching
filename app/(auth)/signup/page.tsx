@@ -21,6 +21,7 @@ import {
 } from "@/lib/profile-options";
 import { BRAND_NAME } from "@/lib/content";
 import { PALETTE_OPTIONS, THEME_OPTIONS } from "@/lib/palettes";
+import { useHydrated } from "@/lib/use-hydrated";
 import { DietaryRequirementsFields } from "@/components/profile/DietaryRequirementsFields";
 
 type FormErrors = Partial<Record<keyof SignupFormValues, string>>;
@@ -65,22 +66,29 @@ export default function SignupPage() {
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const mounted = useHydrated();
+  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "taken">(() =>
+    EMAIL_RE.test(DEFAULT_SIGNUP_VALUES.email.trim()) ? "checking" : "idle",
+  );
 
-  useEffect(() => { setMounted(true); }, []);
+  // Reset the availability status as soon as the email changes (during
+  // render, React's "adjust state when a value changes" pattern) — "checking"
+  // for a well-formed address, "idle" otherwise. The effect below then only
+  // updates it from the async result.
+  const trimmedEmail = values.email.trim();
+  const [statusForEmail, setStatusForEmail] = useState(trimmedEmail);
+  if (statusForEmail !== trimmedEmail) {
+    setStatusForEmail(trimmedEmail);
+    setEmailStatus(EMAIL_RE.test(trimmedEmail) ? "checking" : "idle");
+  }
 
   // Debounced live availability check — lets someone know their email is
   // already registered before they fill out the whole form, instead of
   // finding out only when the final submit fails.
   useEffect(() => {
     const email = values.email.trim();
-    if (!EMAIL_RE.test(email)) {
-      setEmailStatus("idle");
-      return;
-    }
+    if (!EMAIL_RE.test(email)) return;
 
-    setEmailStatus("checking");
     const controller = new AbortController();
     const timer = setTimeout(() => {
       fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`, {
@@ -128,11 +136,11 @@ export default function SignupPage() {
   const isCycleStep = cycleEligible && step === 3;
   const isReviewStep = cycleEligible ? step === 4 : step === 3;
 
-  useEffect(() => {
-    if (step > totalSteps - 1) {
-      setStep(totalSteps - 1);
-    }
-  }, [step, totalSteps]);
+  // Clamp the step during render when the cycle-tracking step disappears
+  // (React's "adjust state when a value changes" pattern, not an effect).
+  if (step > totalSteps - 1) {
+    setStep(totalSteps - 1);
+  }
 
   const reviewData = useMemo(
     () => ({

@@ -346,7 +346,7 @@ function TimelineSummary({ label, unit, timeline }: { label: string; unit: strin
           Needs about {Math.abs(timeline.clampedWeeklyRate).toFixed(2)}{unit}/week{" "}
           {timeline.direction === "lose" ? "off" : "on"} to hit your date.
           {timeline.isAggressive ? (
-            <span className="text-[var(--warning)]"> That's faster than a safe pace — the plan is capped at a safer rate, so your date may slip.</span>
+            <span className="text-[var(--warning)]"> That&apos;s faster than a safe pace — the plan is capped at a safer rate, so your date may slip.</span>
           ) : null}
         </p>
       ) : null}
@@ -358,7 +358,7 @@ function TimelineSummary({ label, unit, timeline }: { label: string; unit: strin
       ) : null}
       {timeline.projectedDateAtCurrentTrend ? (
         <p className="mt-1 text-xs text-muted-foreground">
-          At your current logged trend, you're on track for around {formatShortDate(timeline.projectedDateAtCurrentTrend)}.
+          At your current logged trend, you&apos;re on track for around {formatShortDate(timeline.projectedDateAtCurrentTrend)}.
         </p>
       ) : (
         <p className="mt-1 text-xs text-muted-foreground">
@@ -407,8 +407,10 @@ function GoalTimelineCard() {
   }
 
   useEffect(() => {
+    // Load-on-mount fetch: every setState in fetchTimeline runs after the
+    // awaited request resolves, not synchronously in this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchTimeline();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function parsedGoals(): { weightVal: number | null; bodyFatVal: number | null } | null {
@@ -1297,7 +1299,7 @@ export function ProfileForm({
         <div className="border-b border-white/[0.06] p-5 sm:p-6">
           <p className="label-caps">Body fat %</p>
           <p className="mt-1.5 text-xs text-muted-foreground">
-            Optional. Weight alone can't tell muscle gain from fat loss — logging body fat %
+            Optional. Weight alone can&apos;t tell muscle gain from fat loss — logging body fat %
             (from calipers, a smart scale, or a DEXA/InBody scan) lets your plan track body
             composition directly instead of just the number on the scale.
           </p>

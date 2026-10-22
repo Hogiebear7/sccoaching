@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 
 import { BRAND_NAME, BRAND_TAGLINE, VALUE_PROPS } from "@/lib/content";
+import { useHydrated } from "@/lib/use-hydrated";
 
 type LoginErrors = {
   email?: string;
@@ -20,9 +21,7 @@ export default function LoginPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useHydrated();
 
   function validate() {
     const nextErrors: LoginErrors = {};
