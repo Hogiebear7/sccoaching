@@ -12,6 +12,13 @@ const TRAVEL_MS = 800;
 // once per browser tab session, not on every internal navigation — this
 // lives in the root layout, which stays mounted across route changes, so a
 // sessionStorage flag is what keeps it from replaying on every link click.
+//
+// Skipped on the marketing site (/): the hero already shows the logo large,
+// and holding a new visitor behind a ~3s overlay costs the first impression.
+// Landing there still sets the flag, so moving on to /login in the same tab
+// doesn't suddenly play it either.
+const SKIP_PATHS = new Set(["/"]);
+
 export function SplashIntro() {
   const [phase, setPhase] = useState<"hidden" | "center" | "traveling" | "done">("hidden");
 
@@ -22,6 +29,11 @@ export function SplashIntro() {
       return;
     }
     sessionStorage.setItem(SESSION_KEY, "1");
+
+    if (SKIP_PATHS.has(window.location.pathname)) {
+      setPhase("done");
+      return;
+    }
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
