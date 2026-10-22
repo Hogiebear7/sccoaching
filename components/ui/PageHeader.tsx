@@ -1,6 +1,6 @@
-// The one page-header pattern (v6 "liquid glass athletic"): frosted eyebrow
-// capsule, liquid-metal display title, muted subtitle. Every main tab
-// (member + staff) renders through this.
+// Shared page-header pattern: eyebrow capsule, Teko headline title (matching
+// the other member page titles), muted subtitle. Used by member Messages and
+// the staff exercise library.
 export function PageHeader({
   eyebrow,
   title,
@@ -22,7 +22,7 @@ export function PageHeader({
             {eyebrow}
           </p>
         )}
-        <h1 className={`title-athletic text-[30px] leading-[1.05] ${eyebrow ? "mt-3" : ""}`}>
+        <h1 className={`text-headline text-[40px] sm:text-[48px] ${eyebrow ? "mt-3" : ""}`}>
           {title}
         </h1>
         {subtitle && (
