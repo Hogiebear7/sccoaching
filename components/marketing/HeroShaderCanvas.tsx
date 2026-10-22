@@ -20,23 +20,29 @@ const NAVY_STOPS = [
 //
 // Chalk dust / gym haze: the navy base under a slow, pale drifting cloud with
 // a sparse field of fine chalk specks floating upward.
-export default function HeroShaderCanvas() {
+//
+// Rendered at half size and scaled up 2x: the library has no resolution prop,
+// and a soft haze looks the same at a quarter of the pixels. Telemetry is off
+// so visitors' browsers make no request to shaders.com.
+export default function HeroShaderCanvas({ onReady }: { onReady?: () => void }) {
   return (
-    <Shader className="h-full w-full">
-      <MeshGradient stops={NAVY_STOPS} colorSpace="oklab" count={5} speed={0.3} drift={0.4} swirl={0.15} />
-      <FractalNoise colorA="#000000" colorB="#c3cddb" octaves={5} contrast={0.6} speed={0.06} opacity={0.07} blendMode="screen" />
-      <FloatingParticles
-        count={120}
-        speed={0.04}
-        angle={90}
-        angleVariance={40}
-        particleSize={0.6}
-        softness={0.5}
-        twinkle={0.3}
-        particleColor="#dfe4ec"
-        opacity={0.25}
-        blendMode="screen"
-      />
-    </Shader>
+    <div className="absolute left-0 top-0 h-1/2 w-1/2 origin-top-left scale-200">
+      <Shader className="h-full w-full" disableTelemetry onReady={onReady}>
+        <MeshGradient stops={NAVY_STOPS} colorSpace="oklab" count={5} speed={0.3} drift={0.4} swirl={0.15} />
+        <FractalNoise colorA="#000000" colorB="#c3cddb" octaves={3} contrast={0.6} speed={0.06} opacity={0.07} blendMode="screen" />
+        <FloatingParticles
+          count={120}
+          speed={0.04}
+          angle={90}
+          angleVariance={40}
+          particleSize={0.6}
+          softness={0.5}
+          twinkle={0.3}
+          particleColor="#dfe4ec"
+          opacity={0.25}
+          blendMode="screen"
+        />
+      </Shader>
+    </div>
   );
 }
