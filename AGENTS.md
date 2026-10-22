@@ -233,6 +233,9 @@ decisions already established in project structure.
 When external research informs a plan, summarize only the relevant conclusion.
 
 Coding preferences for this repo
+Design system
+Read DESIGN.md (repo root) before any UI work. It is the source of truth for colours, type, components and motion on both the website and the member app (including sc-coaching-mobile); update it in the same change if a design decision changes.
+
 Architecture
 Respect existing Next.js App Router structure.
 
