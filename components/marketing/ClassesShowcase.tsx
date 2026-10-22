@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FocusEvent } from "react";
 
+import { HeadlineText } from "@/components/ui/HeadlineText";
 import { MARKETING_CLASSES as CLASSES } from "@/lib/marketing-classes";
 
 // Curated services panel — replaces the old literal weekly timetable.
@@ -40,7 +41,7 @@ export function ClassesShowcase({ imageUrl, imageAlt }: { imageUrl: string; imag
             fast so the photo reads clearly; the description panel carries
             its own frosted scrim (below), so this layer doesn't need to
             carry contrast for it. */}
-        <div className="absolute inset-0 bg-[var(--surface-1)]/55 lg:bg-gradient-to-r lg:from-[var(--surface-1)]/80 lg:via-[var(--surface-1)]/45 lg:to-[var(--surface-1)]/10" />
+        <div className="absolute inset-0 bg-[var(--surface-1)]/75 lg:bg-gradient-to-r lg:from-[var(--surface-1)]/80 lg:via-[var(--surface-1)]/45 lg:to-[var(--surface-1)]/10" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/10" />
       </div>
 
@@ -71,10 +72,10 @@ export function ClassesShowcase({ imageUrl, imageAlt }: { imageUrl: string; imag
                   />
                   <span
                     className={`text-headline text-[34px] transition-colors duration-200 sm:text-[44px] ${
-                      isActive ? "text-zinc-50" : "text-zinc-500 group-hover:text-zinc-300"
+                      isActive ? "text-zinc-50" : "text-zinc-400 group-hover:text-zinc-300 lg:text-zinc-500"
                     }`}
                   >
-                    {cls.name}
+                    <HeadlineText text={cls.name} />
                   </span>
                 </button>
 

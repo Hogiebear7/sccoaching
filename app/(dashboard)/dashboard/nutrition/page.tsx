@@ -44,7 +44,7 @@ export default async function NutritionPage() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-display text-[28px]">Nutrition</h1>
+          <h1 className="text-headline text-[40px]">Nutrition</h1>
         </div>
         <div className="panel p-5">
           <p className="text-sm text-muted-foreground">

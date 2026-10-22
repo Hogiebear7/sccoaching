@@ -69,18 +69,18 @@ export default async function Root() {
       <nav className="anim-fade relative mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-          <img src="/brand/website-logo-v2.png" alt="S&amp;C Performance Coaching" className="h-[120px] w-auto" />
+          <img src="/brand/website-logo-v2.png" alt="S&amp;C Performance Coaching" className="h-20 w-auto sm:h-[120px]" />
         </Link>
         <div className="flex items-center gap-2.5">
           <Link
             href={AUTH_ROUTES.login}
-            className="rounded-[3px] px-4 py-2 text-sm font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-white"
+            className="whitespace-nowrap rounded-[3px] px-4 py-2 text-sm font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-white"
           >
             Sign in
           </Link>
           <Link
             href={AUTH_ROUTES.signup}
-            className="rounded-[3px] bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
+            className="whitespace-nowrap rounded-[3px] bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
           >
             Create account
           </Link>

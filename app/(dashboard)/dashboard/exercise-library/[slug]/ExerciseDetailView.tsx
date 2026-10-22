@@ -66,7 +66,7 @@ export function ExerciseDetailView({
 
         <div className="space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <h1 className="text-editorial text-[30px] capitalize leading-[1.05] text-zinc-50">{exercise.name}</h1>
+            <h1 className="text-headline text-[40px] text-zinc-50">{exercise.name}</h1>
             <button
               onClick={toggleFavorite}
               disabled={favoritePending}

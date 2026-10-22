@@ -46,7 +46,7 @@ export function BookingCard({
             className={`absolute inset-0 ${cancellable ? "" : "grayscale-[0.7] brightness-95"}`}
           />
           <div className="relative flex h-full flex-col justify-between p-2.5">
-            <span className={`text-condensed leading-none text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)] tabular-nums ${hero ? "text-[26px]" : "text-[22px]"}`}>
+            <span className={`text-headline leading-none text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)] tabular-nums ${hero ? "text-[32px]" : "text-[28px]"}`}>
               {booking.startTime}
             </span>
             <span className="text-[10px] font-medium uppercase tracking-wide text-white/75">

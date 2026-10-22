@@ -27,7 +27,7 @@ export default function PrivacyPolicyPage() {
         </Link>
 
         <p className="text-mono mt-8 text-[11px] uppercase tracking-[0.24em] text-gold">Legal</p>
-        <h1 className="text-editorial mt-2 text-[32px] leading-[1.05] text-zinc-50 sm:text-[36px]">Privacy Policy</h1>
+        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">Privacy Policy</h1>
         <p className="mt-2 text-sm text-zinc-500">Last updated: {new Date().toLocaleDateString("en-IE", { year: "numeric", month: "long" })}</p>
 
         <div className="mt-10 space-y-8 text-sm leading-relaxed text-zinc-300">

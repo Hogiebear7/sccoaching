@@ -111,7 +111,7 @@ export function WorkoutsView({
           a standalone header block. */}
       <div>
         <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Training</p>
-        <h1 className="text-editorial mt-2 text-[32px] leading-[1.05] text-zinc-50 sm:text-[36px]">
+        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
           Where today&rsquo;s session starts.
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
@@ -162,7 +162,7 @@ export function WorkoutsView({
             <div className="flex items-baseline justify-between">
               <div>
                 <p className="label-caps text-[9px]">Streak</p>
-                <p className="text-editorial mt-2 text-[32px] leading-none text-gold">{streakWeeks}</p>
+                <p className="text-headline mt-2 text-[44px] leading-none text-gold">{streakWeeks}</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {streakWeeks === 1 ? "week trained" : "weeks trained"} in a row
                 </p>

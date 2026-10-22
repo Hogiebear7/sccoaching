@@ -21,7 +21,7 @@ export default async function DashboardRecoveryPage() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-display text-[28px]">Recovery</h1>
+          <h1 className="text-headline text-[40px]">Recovery</h1>
         </div>
         <div className="surface-card p-5">
           <p className="text-sm text-muted-foreground">

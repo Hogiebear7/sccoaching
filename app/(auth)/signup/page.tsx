@@ -339,7 +339,7 @@ export default function SignupPage() {
               {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
               <img src="/brand/website-logo-v2.png" alt={BRAND_NAME} className="h-7 w-auto" />
             </Link>
-            <h1 className="text-editorial mt-3 text-[30px]">Create your account</h1>
+            <h1 className="text-headline mt-3 text-[40px]">Create your account</h1>
             <p className="mt-2 text-sm text-zinc-400">
               Set up your profile, goals, and optional cycle tracking preferences.
             </p>

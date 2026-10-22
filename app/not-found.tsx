@@ -11,7 +11,7 @@ export default function NotFound() {
       className="flex min-h-screen flex-col items-center justify-center px-6 py-16 text-center text-zinc-100"
     >
       <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">404</p>
-      <h1 className="text-editorial mt-3 text-[32px] leading-[1.05] text-zinc-50 sm:text-[36px]">
+      <h1 className="text-headline mt-3 text-[40px] text-zinc-50 sm:text-[48px]">
         Page not found.
       </h1>
       <p className="mt-3 max-w-sm text-sm leading-relaxed text-zinc-400">

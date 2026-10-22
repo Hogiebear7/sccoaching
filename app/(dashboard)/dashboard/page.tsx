@@ -230,7 +230,7 @@ export default async function DashboardPage() {
         </div>
         <div className="relative">
           <p className="chip label-caps w-fit border-primary/25 bg-primary/[0.08] !text-gold">{today}</p>
-          <h1 className="mt-3 text-editorial text-[32px] italic leading-[1.05] text-zinc-50">Hi {firstName}</h1>
+          <h1 className="mt-3 text-headline text-[48px] text-zinc-50">Hi {firstName}</h1>
           <p className="mt-2 text-sm text-zinc-400">Ready when you are.</p>
         </div>
       </div>

@@ -155,7 +155,7 @@ export function NotificationsView({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Account</p>
-          <h1 className="text-editorial mt-2 text-[28px] leading-[1.05] text-zinc-50 sm:text-[32px]">
+          <h1 className="text-headline mt-2 text-[36px] text-zinc-50 sm:text-[44px]">
             What needs your attention first.
           </h1>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{subtitle}</p>

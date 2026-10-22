@@ -16,6 +16,7 @@ import type {
   MembershipPackageRecord,
 } from "@/lib/db";
 import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
+import { HeadlineText } from "@/components/ui/HeadlineText";
 
 // Recurring/one-off is a genuine categorical distinction, not an ordinal
 // one — and this palette only has two hues (gold, --data) available once
@@ -152,8 +153,8 @@ export function CatalogBrowser({
               >
                 <div className="relative">
                   <ClassImageSlot seed={cat.id} imageUrl={cat.imageUrl} alt={cat.imageAlt} className="h-28 w-full" />
-                  <h3 className="text-condensed absolute inset-x-4 bottom-2.5 text-lg uppercase leading-none text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]">
-                    {cat.name}
+                  <h3 className="text-headline absolute inset-x-4 bottom-2 text-[24px] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]">
+                    <HeadlineText text={cat.name} />
                   </h3>
                 </div>
                 <div className="flex flex-1 flex-col p-5">

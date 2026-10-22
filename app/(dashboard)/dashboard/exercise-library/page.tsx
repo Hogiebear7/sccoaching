@@ -15,7 +15,7 @@ export default async function DashboardExerciseLibraryPage() {
   if (!user) {
     return (
       <div className="space-y-8">
-        <h1 className="text-display text-[28px]">Exercise Library</h1>
+        <h1 className="text-headline text-[40px]">Exercise Library</h1>
         <div className="surface-card p-5">
           <p className="text-sm text-muted-foreground">
             We couldn&apos;t load your account. Try logging out and back in.

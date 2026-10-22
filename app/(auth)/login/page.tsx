@@ -78,7 +78,7 @@ export default function LoginPage() {
         </div>
         <div className="relative max-w-md">
           <p className="anim-rise text-xs font-semibold uppercase tracking-[0.24em] text-gold" style={{ animationDelay: "160ms" }}>{BRAND_NAME}</p>
-          <h2 className="anim-rise mt-4 text-editorial text-[40px] leading-[1.05] text-zinc-50" style={{ animationDelay: "240ms" }}>{BRAND_TAGLINE}</h2>
+          <h2 className="anim-rise mt-4 text-headline text-[56px] text-zinc-50" style={{ animationDelay: "240ms" }}>{BRAND_TAGLINE}</h2>
           <ul className="mt-8 space-y-3">
             {VALUE_PROPS.map((item, i) => (
               <li
@@ -109,7 +109,7 @@ export default function LoginPage() {
         </div>
         <div className="anim-rise mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
           <p className="label-caps">Welcome back</p>
-          <h1 className="text-editorial mt-2 text-[32px]">Sign in</h1>
+          <h1 className="text-headline mt-2 text-[40px]">Sign in</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Access your training, schedule, messages, and profile.
           </p>

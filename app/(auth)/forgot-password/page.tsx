@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">
             {BRAND_NAME}
           </p>
-          <h1 className="text-editorial mt-3 text-[30px]">Forgot password</h1>
+          <h1 className="text-headline mt-3 text-[40px]">Forgot password</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Enter your account email and we&apos;ll send you a reset link.
           </p>

@@ -9,6 +9,7 @@ import type { ClassCategoryRecord, ClassRecord } from "@/lib/db";
 import type { ResolvedBooking } from "@/lib/bookings";
 import { classCategoryLabel } from "@/lib/scheduling-status";
 import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
+import { HeadlineText } from "@/components/ui/HeadlineText";
 import { WorkoutTypeIcon, workoutTypeFromLabel } from "@/components/graphics/WorkoutTypeIcon";
 import { BookingCard } from "../bookings/BookingCard";
 import { ScheduleCalendar } from "./ScheduleCalendar";
@@ -240,7 +241,7 @@ export function ScheduleView({
               className="absolute inset-0"
             />
             <div className="relative flex h-full flex-col justify-between p-2.5">
-              <span className="text-condensed text-[22px] leading-none text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)] tabular-nums">
+              <span className="text-headline text-[28px] leading-none text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)] tabular-nums">
                 {classRecord.startTime}
               </span>
               <span className="text-[10px] font-medium uppercase tracking-wide text-white/75">
@@ -256,8 +257,8 @@ export function ScheduleView({
                 <WorkoutTypeIcon type={workoutTypeFromLabel(categoryText)} className="h-2.5 w-2.5" />
                 {categoryText}
               </span>
-              <h4 className="text-condensed mt-1.5 truncate text-lg uppercase leading-tight text-foreground">
-                {classRecord.title}
+              <h4 className="text-headline mt-1.5 truncate text-[24px] leading-tight text-foreground">
+                <HeadlineText text={classRecord.title} />
               </h4>
               <p className="mt-1 truncate text-xs text-muted-foreground">
                 Coach · {classRecord.coachEmail}
@@ -367,7 +368,7 @@ export function ScheduleView({
     <section className="anim-rise space-y-8">
       <div>
         <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Club</p>
-        <h1 className="text-editorial mt-2 text-[32px] leading-[1.05] text-zinc-50 sm:text-[36px]">
+        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
           Claim your spot, then show up.
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">

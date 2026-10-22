@@ -545,7 +545,7 @@ export function NutritionView({
       {/* Bespoke editorial header — same voice/pattern as Workouts variant C */}
       <div>
         <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Fuelling</p>
-        <h1 className="text-editorial mt-2 text-[32px] leading-[1.05] text-zinc-50 sm:text-[36px]">
+        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
           Fuel built around your training, not a guess.
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">

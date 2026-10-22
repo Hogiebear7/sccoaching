@@ -15,7 +15,7 @@ export default async function VerifyEmailChangePage({
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">
             {BRAND_NAME}
           </p>
-          <h1 className="text-editorial mt-3 text-[30px]">Confirm email change</h1>
+          <h1 className="text-headline mt-3 text-[40px]">Confirm email change</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Confirming this link updates the email address on your account.
           </p>

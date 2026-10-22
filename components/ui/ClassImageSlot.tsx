@@ -5,6 +5,8 @@
 // imagery can drop in later with no layout change — text stays legible via the
 // overlay gradient either way. Decorative by default (aria-hidden).
 
+import { HeadlineText } from "./HeadlineText";
+
 // Deterministic hue within the navy/steel-blue range so different classes
 // look distinct but cohesive; the gold accent streak stays constant (one
 // accent color per brand, not seed-varied).
@@ -96,9 +98,9 @@ export function ClassImageSlot({
       {label ? (
         <span
           aria-hidden
-          className="text-condensed absolute right-3 top-2 max-w-[70%] truncate text-right text-2xl uppercase leading-none text-white/[0.14]"
+          className="text-headline absolute right-3 top-2 max-w-[70%] truncate text-right text-[30px] leading-none text-white/[0.14]"
         >
-          {label}
+          <HeadlineText text={label} />
         </span>
       ) : null}
       {/* Bottom fade so overlaid card content reads cleanly */}

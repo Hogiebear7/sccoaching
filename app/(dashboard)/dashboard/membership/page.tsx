@@ -35,7 +35,7 @@ export default async function DashboardMembershipPage({
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-display text-[28px]">Membership</h1>
+          <h1 className="text-headline text-[40px]">Membership</h1>
         </div>
         <div className="surface-card p-5">
           <p className="text-sm text-muted-foreground">

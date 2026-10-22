@@ -374,7 +374,7 @@ export function SettingsView({
     <section className="anim-rise space-y-10">
       <div>
         <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Account</p>
-        <h1 className="text-editorial mt-2 text-[32px] leading-[1.05] text-zinc-50 sm:text-[36px]">
+        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
           Set it up your way.
         </h1>
       </div>

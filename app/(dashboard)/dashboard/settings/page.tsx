@@ -17,7 +17,7 @@ export default async function SettingsPage() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-display text-[28px]">Settings</h1>
+          <h1 className="text-headline text-[40px]">Settings</h1>
         </div>
         <div className="surface-card p-5">
           <p className="text-sm text-muted-foreground">

@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { FocusEvent } from "react";
 
 import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
+import { HeadlineText } from "@/components/ui/HeadlineText";
 import { MARKETING_CLASSES } from "@/lib/marketing-classes";
 
 interface PricingInfo {
@@ -94,7 +95,7 @@ export function ClassPricingShowcase({ href }: { href: string }) {
                 </span>
               ) : null}
               <h3 className="text-headline absolute inset-x-4 bottom-2 text-[30px] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]">
-                {cls.name}
+                <HeadlineText text={cls.name} />
               </h3>
             </div>
 
