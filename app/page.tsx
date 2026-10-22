@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { findUserById } from "@/lib/db";
-import { AUTH_ROUTES, BRAND_NAME, BRAND_TAGLINE, CONTACT_INFO, LANDING_DESCRIPTION, VALUE_PROPS } from "@/lib/content";
+import { AUTH_ROUTES, BRAND_NAME, CONTACT_INFO, HERO_HEADLINE, LANDING_DESCRIPTION, VALUE_PROPS } from "@/lib/content";
 import { verifySession } from "@/lib/session";
 import { AppFeatureGrid } from "@/components/marketing/AppFeatureGrid";
 import { AppShowcase } from "@/components/marketing/AppShowcase";
@@ -37,14 +37,6 @@ const DIFFERENTIATORS = [
   },
 ] as const;
 
-// Split the tagline on its em-dash so the second half can take the gold accent,
-// echoing the reference two-tone headline without changing the copy.
-function splitTagline(tagline: string): [string, string | null] {
-  const idx = tagline.indexOf("—");
-  if (idx === -1) return [tagline, null];
-  return [tagline.slice(0, idx).trim(), tagline.slice(idx + 1).trim()];
-}
-
 export default async function Root() {
   const cookieStore = await cookies();
   const userId = verifySession(cookieStore.get("session")?.value)?.userId ?? null;
@@ -53,9 +45,6 @@ export default async function Root() {
   if (user) {
     redirect("/dashboard");
   }
-
-
-  const [taglineLead, taglineAccent] = splitTagline(BRAND_TAGLINE);
 
   return (
     <main
@@ -104,24 +93,12 @@ export default async function Root() {
           Ledger signature motif, in place of a stock athlete photo. */}
       <section className="relative mx-auto grid max-w-6xl items-start gap-14 px-6 pb-24 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:pt-20">
         <div>
-          <p
-            className="anim-rise flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold"
-            style={{ animationDelay: "60ms" }}
-          >
-            <span className="h-px w-8 bg-primary/70" />
-            {BRAND_NAME}
-          </p>
           <h1
-            className="anim-rise mt-6 text-headline text-[56px] text-zinc-50 sm:text-[80px]"
+            className="anim-rise text-headline text-[64px] text-zinc-50 sm:text-[96px]"
             style={{ animationDelay: "150ms" }}
           >
-            {taglineLead}
-            {taglineAccent ? (
-              <>
-                {" "}
-                <em className="not-italic text-gold">{taglineAccent}</em>
-              </>
-            ) : null}
+            {HERO_HEADLINE.lead}{" "}
+            <em className="not-italic text-gold">{HERO_HEADLINE.accent}</em>
           </h1>
           <p
             className="anim-rise mt-6 max-w-md text-lg leading-relaxed text-zinc-300"
@@ -234,11 +211,7 @@ export default async function Root() {
       <section className="relative border-t border-white/[0.06]">
         <div className="mx-auto max-w-6xl px-6 py-20">
           <ScrollReveal className="max-w-lg">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
-              <span className="h-px w-8 bg-primary/70" />
-              Membership
-            </p>
-            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">Choose how you train</h2>
+            <h2 className="text-headline text-[44px] text-zinc-50 sm:text-[56px]">Choose how you train</h2>
             <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-zinc-300">
               Every plan includes coach messaging, class booking, and full workout tracking.
             </p>
@@ -258,11 +231,7 @@ export default async function Root() {
       <section className="relative border-t border-white/[0.06]">
         <div className="mx-auto max-w-6xl px-6 py-20">
           <ScrollReveal className="max-w-lg">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
-              <span className="h-px w-8 bg-primary/70" />
-              The App
-            </p>
-            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">Coaching that fits in your pocket.</h2>
+            <h2 className="text-headline text-[44px] text-zinc-50 sm:text-[56px]">Coaching that fits in your pocket.</h2>
             <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-zinc-300">
               Not near the gym, or want to train on your own days? Get the same coaching approach, built into an app.
             </p>
@@ -303,11 +272,7 @@ export default async function Root() {
       <section className="relative border-t border-white/[0.06]">
         <div className="mx-auto max-w-3xl px-6 py-20">
           <ScrollReveal className="max-w-lg">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
-              <span className="h-px w-8 bg-primary/70" />
-              FAQ
-            </p>
-            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">Common questions.</h2>
+            <h2 className="text-headline text-[44px] text-zinc-50 sm:text-[56px]">Common questions.</h2>
           </ScrollReveal>
 
           <ScrollReveal delayMs={80} className="mt-10">

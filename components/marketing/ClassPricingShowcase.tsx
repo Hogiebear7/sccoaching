@@ -80,9 +80,10 @@ export function ClassPricingShowcase({ href }: { href: string }) {
             }`}
           >
             <div className="relative">
+              {/* No `label`: the class name is already the h3 below, and
+                  ClassImageSlot would draw it again as a faded watermark. */}
               <ClassImageSlot
                 seed={cls.name}
-                label={cls.name}
                 imageUrl={IMAGES[i].imageUrl}
                 alt={IMAGES[i].alt}
                 className="h-32 w-full"
