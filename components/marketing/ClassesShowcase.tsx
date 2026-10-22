@@ -70,7 +70,7 @@ export function ClassesShowcase({ imageUrl, imageAlt }: { imageUrl: string; imag
                     }`}
                   />
                   <span
-                    className={`text-editorial text-[24px] leading-tight transition-colors duration-200 sm:text-[28px] ${
+                    className={`text-headline text-[34px] transition-colors duration-200 sm:text-[44px] ${
                       isActive ? "text-zinc-50" : "text-zinc-500 group-hover:text-zinc-300"
                     }`}
                   >
@@ -81,7 +81,7 @@ export function ClassesShowcase({ imageUrl, imageAlt }: { imageUrl: string; imag
                 {/* Touch/narrow-screen accordion — the lg panel takes over above that breakpoint */}
                 <div
                   id={`class-desc-${i}`}
-                  className={`grid overflow-hidden pl-[2.75rem] text-sm leading-relaxed text-zinc-300 transition-[grid-template-rows,opacity] duration-300 ease-out lg:hidden ${
+                  className={`grid overflow-hidden pl-[2.75rem] text-base leading-relaxed text-zinc-300 transition-[grid-template-rows,opacity] duration-300 ease-out lg:hidden ${
                     isActive ? "[grid-template-rows:1fr] opacity-100" : "[grid-template-rows:0fr] opacity-0"
                   }`}
                 >

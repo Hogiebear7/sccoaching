@@ -88,11 +88,11 @@ export function ClassPricingShowcase({ href }: { href: string }) {
                 className="h-32 w-full"
               />
               {featured ? (
-                <span className="absolute left-4 top-3 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary-foreground">
+                <span className="absolute left-4 top-3 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-primary-foreground">
                   Most popular
                 </span>
               ) : null}
-              <h3 className="text-condensed absolute inset-x-4 bottom-2.5 text-xl uppercase leading-none text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]">
+              <h3 className="text-headline absolute inset-x-4 bottom-2 text-[30px] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]">
                 {cls.name}
               </h3>
             </div>
@@ -104,7 +104,7 @@ export function ClassPricingShowcase({ href }: { href: string }) {
                   pages' other expandable cards. */}
               <div
                 id={`pricing-desc-${i}`}
-                className={`grid overflow-hidden text-sm leading-relaxed text-zinc-400 transition-[grid-template-rows,opacity,margin] duration-200 ${
+                className={`grid overflow-hidden text-base leading-relaxed text-zinc-300 transition-[grid-template-rows,opacity,margin] duration-200 ${
                   isOpen ? "mb-2 [grid-template-rows:1fr] opacity-100" : "[grid-template-rows:0fr] opacity-0"
                 }`}
               >
@@ -137,7 +137,7 @@ export function ClassPricingShowcase({ href }: { href: string }) {
 
               <p className="mt-4 flex items-baseline gap-1.5">
                 <span className="text-xs uppercase tracking-wide text-zinc-500">from</span>
-                <span className="text-condensed text-[30px] leading-none text-zinc-50 tabular-nums">
+                <span className="text-headline text-[44px] text-zinc-50 tabular-nums">
                   {pricing.priceLabel}
                 </span>
                 <span className="text-sm text-zinc-500">{pricing.cadence}</span>

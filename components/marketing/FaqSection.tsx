@@ -91,10 +91,12 @@ const APP_FAQS: FaqItem[] = [
 interface AccordionProps {
   items: FaqItem[];
   idPrefix: string;
+  /** Index of the item open on load; null starts the group fully closed. */
+  defaultOpen?: number | null;
 }
 
-function Accordion({ items, idPrefix }: AccordionProps) {
-  const [open, setOpen] = useState<number | null>(0);
+function Accordion({ items, idPrefix, defaultOpen = 0 }: AccordionProps) {
+  const [open, setOpen] = useState<number | null>(defaultOpen);
 
   return (
     <div className="divide-y divide-white/[0.08] border-t border-white/[0.08]">
@@ -125,7 +127,7 @@ function Accordion({ items, idPrefix }: AccordionProps) {
             </button>
             <div
               id={`${idPrefix}-answer-${i}`}
-              className={`grid overflow-hidden text-sm leading-relaxed text-zinc-400 transition-[grid-template-rows,opacity,margin] duration-200 ${
+              className={`grid overflow-hidden text-base leading-relaxed text-zinc-300 transition-[grid-template-rows,opacity,margin] duration-200 ${
                 isOpen ? "mb-5 [grid-template-rows:1fr] opacity-100" : "[grid-template-rows:0fr] opacity-0"
               }`}
             >
@@ -138,10 +140,23 @@ function Accordion({ items, idPrefix }: AccordionProps) {
   );
 }
 
+// One FAQ for the whole page: gym questions first, then the app's. Only the
+// first gym question starts open.
 export function FaqSection() {
-  return <Accordion items={FAQS} idPrefix="faq" />;
-}
-
-export function AppFaqSection() {
-  return <Accordion items={APP_FAQS} idPrefix="app-faq" />;
+  return (
+    <div className="space-y-12">
+      <div>
+        <h3 className="text-headline text-[28px] text-gold">Training with us</h3>
+        <div className="mt-4">
+          <Accordion items={FAQS} idPrefix="faq" />
+        </div>
+      </div>
+      <div>
+        <h3 className="text-headline text-[28px] text-gold">The app</h3>
+        <div className="mt-4">
+          <Accordion items={APP_FAQS} idPrefix="app-faq" defaultOpen={null} />
+        </div>
+      </div>
+    </div>
+  );
 }

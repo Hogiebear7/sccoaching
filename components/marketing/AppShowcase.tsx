@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 // Real in-app screenshots, one per bottom-tab screen — member-provided,
 // status bar already cropped off. Order matches the app's own tab bar
@@ -100,8 +100,8 @@ function ScreenLightbox({ screen, onClose }: { screen: AppScreen; onClose: () =>
         </div>
         <div className="mt-5 flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-zinc-50">{screen.label}</p>
-            <p className="mt-1 text-sm leading-relaxed text-zinc-400">{screen.description}</p>
+            <p className="text-base font-semibold text-zinc-50">{screen.label}</p>
+            <p className="mt-1 text-base leading-relaxed text-zinc-300">{screen.description}</p>
           </div>
           <button
             type="button"
@@ -140,65 +140,6 @@ function AppScreensGrid() {
   );
 }
 
-// Benefit copy for the app-only (Tier 2) subscription. Deliberately avoids
-// naming the underlying tech (no "AI") — each line describes the outcome a
-// member gets, matching the rest of the site's voice. Pricing is not shown
-// here yet: no Tier 2 billing option exists in the catalog (see
-// lib/db.ts DeliveryChannel/BillingChannel/AccessType), and this is
-// placeholder marketing copy pending the client's confirmation, same as
-// DIFFERENTIATORS in app/page.tsx.
-const APP_BENEFITS = [
-  {
-    title: "A workout built for what you've got",
-    body: "Tell it your equipment, your goals, and how long you have — get a full session ready to go, no scrolling through generic plans.",
-  },
-  {
-    title: "A coach on call",
-    body: "Ask a question, get a straight answer — day or night, without waiting on a reply.",
-  },
-  {
-    title: "Log meals in seconds",
-    body: "Snap a photo of your plate and it's logged — no searching food databases, no guessing portions.",
-  },
-  {
-    title: "Targets that keep up with you",
-    body: "Your calorie and macro targets adjust as your training load and progress change, not a fixed number you outgrow.",
-  },
-  {
-    title: "Know what to do next",
-    body: "Every session ends with a clear read on how it went and what to focus on next time.",
-  },
-  {
-    title: "Everything in one place",
-    body: "Training, nutrition, recovery, and progress — tracked and connected, not spread across five different apps.",
-  },
-] as const;
-
-function BenefitIcon({ index }: { index: number }) {
-  // One hand-drawn glyph per benefit, matching the site's existing inline-svg
-  // convention (stroke 2, round caps/joins) rather than pulling in an icon
-  // library.
-  const paths = [
-    // dumbbell
-    "M4 9v6M20 9v6M7 7v10M17 7v10M9 12h6",
-    // chat bubble
-    "M4 5h16v11H8l-4 4V5Z",
-    // camera
-    "M4 8h3l1.5-2h7L17 8h3v11H4V8Z M12 13.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z",
-    // target/adapt (refresh arrows)
-    "M4 12a8 8 0 0 1 13.66-5.66M20 12a8 8 0 0 1-13.66 5.66 M17 4v4h-4 M7 20v-4h4",
-    // clipboard check
-    "M9 5H7a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2 M8 4h8v3H8V4Z M9 13l2 2 4-4",
-    // layers
-    "M12 4 3 9l9 5 9-5-9-5Z M3 14l9 5 9-5 M3 9l9 5 9-5",
-  ];
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-5 w-5 text-gold">
-      <path d={paths[index]} />
-    </svg>
-  );
-}
-
 // Store badges are placeholders only — no real listing exists yet (the app
 // hasn't shipped a production build to either store). Deliberately not
 // styled as the official Apple/Google trademarked badge artwork; swap the
@@ -221,35 +162,24 @@ function StoreBadge({ store }: { store: "apple" | "google" }) {
         </svg>
       )}
       <span className="text-left leading-tight">
-        <span className="block text-[10px] uppercase tracking-[0.08em] text-zinc-500">Coming soon on</span>
+        <span className="block text-xs uppercase tracking-[0.08em] text-zinc-500">Coming soon on</span>
         <span className="block text-sm font-semibold text-zinc-200">{label}</span>
       </span>
     </span>
   );
 }
 
-export function AppShowcase() {
+// `children` renders between the screenshots and the launch line (the page
+// puts the expandable full feature list there).
+export function AppShowcase({ children }: { children?: ReactNode }) {
   return (
     <div>
       <AppScreensGrid />
 
-      <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {APP_BENEFITS.map((item) => (
-          <div
-            key={item.title}
-            className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 transition-colors duration-200 hover:border-primary/30"
-          >
-            <span className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/40 bg-primary/10">
-              <BenefitIcon index={APP_BENEFITS.indexOf(item)} />
-            </span>
-            <h3 className="mt-4 text-[15px] font-semibold text-zinc-50">{item.title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-400">{item.body}</p>
-          </div>
-        ))}
-      </div>
+      {children}
 
       <div className="mt-10 flex flex-col items-start gap-4 border-t border-white/[0.08] pt-8 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-zinc-400">
+        <p className="text-base text-zinc-300">
           App-only membership — no gym visit required. <span className="text-zinc-300">Launching soon.</span>
         </p>
         <div className="flex flex-wrap gap-3">

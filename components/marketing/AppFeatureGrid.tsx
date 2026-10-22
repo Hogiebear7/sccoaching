@@ -127,7 +127,7 @@ export function AppFeatureGrid() {
     <div className="space-y-12">
       {CATEGORIES.map((category) => (
         <div key={category.label}>
-          <p className="text-mono flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-gold">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
             <span className="h-px w-6 bg-primary/70" />
             {category.label}
           </p>
@@ -138,8 +138,8 @@ export function AppFeatureGrid() {
                   <FeatureIcon path={item.icon} />
                 </span>
                 <div>
-                  <h4 className="text-sm font-semibold text-zinc-50">{item.title}</h4>
-                  <p className="mt-1 text-[13px] leading-relaxed text-zinc-400">{item.body}</p>
+                  <h4 className="text-base font-semibold text-zinc-50">{item.title}</h4>
+                  <p className="mt-1 text-base leading-relaxed text-zinc-300">{item.body}</p>
                 </div>
               </div>
             ))}

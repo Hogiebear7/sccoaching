@@ -569,6 +569,16 @@ html {
   line-height: 1.03;
 }
 
+/* Athletic condensed headline face (Teko) for the marketing site's headings.
+   Uppercase only — Teko's lowercase reads oddly at display sizes. */
+@utility text-headline {
+  font-family: var(--font-teko), var(--font-oswald), system-ui, sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.9;
+}
+
 /* Technical/data face — testing numbers, labels, the Ledger motif. Matches
    the static index.html blueprint's IBM Plex Mono exactly. */
 @utility text-mono {

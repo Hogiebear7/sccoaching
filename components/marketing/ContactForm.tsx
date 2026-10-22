@@ -43,8 +43,8 @@ export function ContactForm() {
   if (status === "sent") {
     return (
       <div className="border border-white/[0.08] bg-[var(--surface-1)] p-6 text-center">
-        <p className="text-editorial text-[20px] italic text-zinc-50">Message sent.</p>
-        <p className="text-mono mt-2 text-[13px] text-zinc-400">
+        <p className="text-headline text-[32px] text-zinc-50">Message sent.</p>
+        <p className="mt-2 text-base text-zinc-300">
           We'll get back to you shortly.
         </p>
       </div>
@@ -69,48 +69,48 @@ export function ContactForm() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className="text-mono mb-2 block text-[11px] uppercase tracking-[0.08em] text-zinc-400">Name</span>
+          <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Name</span>
           <input
             type="text"
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full border border-white/[0.12] bg-transparent px-3 py-2.5 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
+            className="w-full border border-white/[0.12] bg-transparent px-3 py-2.5 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
             placeholder="Your name"
           />
         </label>
 
         <label className="block">
-          <span className="text-mono mb-2 block text-[11px] uppercase tracking-[0.08em] text-zinc-400">Phone (optional)</span>
+          <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Phone (optional)</span>
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full border border-white/[0.12] bg-transparent px-3 py-2.5 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
+            className="w-full border border-white/[0.12] bg-transparent px-3 py-2.5 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
             placeholder="087 123 4567"
           />
         </label>
       </div>
 
       <label className="mt-4 block">
-        <span className="text-mono mb-2 block text-[11px] uppercase tracking-[0.08em] text-zinc-400">Email</span>
+        <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Email</span>
         <input
           type="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full border border-white/[0.12] bg-transparent px-3 py-2.5 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
+          className="w-full border border-white/[0.12] bg-transparent px-3 py-2.5 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
           placeholder="you@example.com"
         />
       </label>
 
       <label className="mt-4 block">
-        <span className="text-mono mb-2 block text-[11px] uppercase tracking-[0.08em] text-zinc-400">Message</span>
+        <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Message</span>
         <textarea
           required
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className="min-h-[110px] w-full resize-y border border-white/[0.12] bg-transparent px-3 py-2.5 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
+          className="min-h-[110px] w-full resize-y border border-white/[0.12] bg-transparent px-3 py-2.5 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
           placeholder="Tell us what you're training for."
         />
       </label>
@@ -129,7 +129,7 @@ export function ContactForm() {
         {status === "submitting" ? "Sending…" : "Send message"}
       </button>
 
-      <p className="mt-3 text-center text-[11px] text-zinc-600">
+      <p className="mt-3 text-center text-xs text-zinc-500">
         We only use these details to reply to you. See our{" "}
         <Link href="/privacy" className="text-zinc-400 underline hover:text-gold">Privacy Policy</Link>.
       </p>

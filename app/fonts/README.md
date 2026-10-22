@@ -44,6 +44,11 @@ per weight.
 | Oswald | `Oswald-Variable.woff2` | 500, 600, 700 (normal) | `--font-oswald` |
 | Fraunces | `Fraunces-Variable-Normal.woff2`, `Fraunces-Variable-Italic.woff2` | 600, 900 (normal + italic) | `--font-fraunces` |
 | IBM Plex Mono | `IBMPlexMono-Regular.woff2`, `-Medium.woff2`, `-SemiBold.woff2` | 400, 500, 600 (normal) | `--font-plex-mono` |
+| Teko | `Teko-Variable.woff2` | 300–700 variable (normal) | `--font-teko` |
+
+Teko was added later (2026-10-22) by the same method: the `latin` subset file
+from `fonts.googleapis.com/css2?family=Teko:wght@300..700`, with `OFL.txt` from
+`github.com/google/fonts` at `ofl/teko/OFL.txt`.
 
 Every file above is referenced from `app/layout.tsx`. Nothing in this
 directory is unused.

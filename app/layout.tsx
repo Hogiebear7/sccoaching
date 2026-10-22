@@ -69,6 +69,14 @@ const ibmPlexMono = localFont({
     { path: "./fonts/ibm-plex-mono/IBMPlexMono-SemiBold.woff2", weight: "600", style: "normal" },
   ],
 });
+// Athletic condensed headline face for the marketing site (opt-in via the
+// .text-headline utility). One variable binary, latin subset, 300–700.
+const teko = localFont({
+  variable: "--font-teko",
+  src: "./fonts/teko/Teko-Variable.woff2",
+  weight: "300 700",
+  style: "normal",
+});
 
 export const metadata: Metadata = {
   title: "S&C Performance Coaching",
@@ -82,7 +90,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${oswald.variable} ${fraunces.variable} ${ibmPlexMono.variable} h-full`}>
+    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${oswald.variable} ${fraunces.variable} ${ibmPlexMono.variable} ${teko.variable} h-full`}>
       <body data-design="v6-liquid-glass" className="min-h-full text-zinc-50 antialiased">
         <ChunkErrorRecovery />
         <SplashIntro />

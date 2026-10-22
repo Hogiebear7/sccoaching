@@ -10,7 +10,8 @@ import { AppShowcase } from "@/components/marketing/AppShowcase";
 import { ClassesShowcase } from "@/components/marketing/ClassesShowcase";
 import { ClassPricingShowcase } from "@/components/marketing/ClassPricingShowcase";
 import { ContactForm } from "@/components/marketing/ContactForm";
-import { AppFaqSection, FaqSection } from "@/components/marketing/FaqSection";
+import { FaqSection } from "@/components/marketing/FaqSection";
+import { HeroShader } from "@/components/marketing/HeroShader";
 import { MemberPreviewStack } from "@/components/marketing/MemberPreviewStack";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
@@ -62,6 +63,9 @@ export default async function Root() {
       data-theme="navy"
       className="relative min-h-screen overflow-hidden text-zinc-100"
     >
+      {/* Ambient — slow navy haze with drifting chalk specks, under the hairline grid */}
+      <HeroShader className="pointer-events-none absolute inset-x-0 top-0 h-[620px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]" />
+
       {/* Ambient — restrained hairline grid, no aurora/skew streaks */}
       <div
         aria-hidden
@@ -101,14 +105,14 @@ export default async function Root() {
       <section className="relative mx-auto grid max-w-6xl items-start gap-14 px-6 pb-24 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:pt-20">
         <div>
           <p
-            className="anim-rise text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold"
+            className="anim-rise flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold"
             style={{ animationDelay: "60ms" }}
           >
             <span className="h-px w-8 bg-primary/70" />
             {BRAND_NAME}
           </p>
           <h1
-            className="anim-rise mt-6 text-editorial text-[46px] leading-[1.04] text-zinc-50 sm:text-[62px]"
+            className="anim-rise mt-6 text-headline text-[56px] text-zinc-50 sm:text-[80px]"
             style={{ animationDelay: "150ms" }}
           >
             {taglineLead}
@@ -120,7 +124,7 @@ export default async function Root() {
             ) : null}
           </h1>
           <p
-            className="anim-rise mt-6 max-w-md text-base leading-relaxed text-zinc-400"
+            className="anim-rise mt-6 max-w-md text-lg leading-relaxed text-zinc-300"
             style={{ animationDelay: "260ms" }}
           >
             {LANDING_DESCRIPTION}
@@ -150,7 +154,7 @@ export default async function Root() {
             style={{ animationDelay: "460ms" }}
           >
             {VALUE_PROPS.map((item) => (
-              <li key={item} className="flex items-start gap-3 text-sm text-zinc-300">
+              <li key={item} className="flex items-start gap-3 text-base text-zinc-300">
                 <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-3 w-3 text-primary">
                     <path d="M20 6 9 17l-5-5" />
@@ -167,7 +171,7 @@ export default async function Root() {
           style={{ animationDelay: "420ms" }}
         >
           <MemberPreviewStack />
-          <p className="mt-4 text-[12px] italic text-zinc-500">
+          <p className="mt-4 text-xs italic text-zinc-500">
             Representative data — your numbers, tracked from week one.
           </p>
         </div>
@@ -180,95 +184,15 @@ export default async function Root() {
       <section className="relative border-t border-white/[0.06]">
         <div className="mx-auto max-w-6xl px-6 py-20">
           <ScrollReveal className="max-w-lg">
-            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
               <span className="h-px w-8 bg-primary/70" />
               The Training Floor
             </p>
-            <h2 className="mt-4 text-editorial text-[32px] text-zinc-50">Classes we offer.</h2>
+            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">Classes we offer.</h2>
           </ScrollReveal>
 
           <ScrollReveal delayMs={80} className="mt-10">
             <ClassesShowcase imageUrl="/marketing/training-floor.jpg" imageAlt="Inside the S&C training floor" />
-          </ScrollReveal>
-        </div>
-      </section>
-
-      {/* Membership — one card per class from "Classes we offer" above,
-          priced to match. Fixed marketing content, not catalog-driven (see
-          the Classes we offer section for the same reasoning): the real
-          catalog only prices Semi-Private tiers today, and these three
-          cards are meant to mirror the class showcase one-to-one. */}
-      <section className="relative border-t border-white/[0.06]">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <ScrollReveal className="max-w-lg">
-            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
-              <span className="h-px w-8 bg-primary/70" />
-              Membership
-            </p>
-            <h2 className="text-condensed mt-4 text-4xl uppercase text-zinc-50">Choose how you train</h2>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Every plan includes coach messaging, class booking, and full workout tracking.
-            </p>
-          </ScrollReveal>
-
-          <ScrollReveal delayMs={80} className="mt-10">
-            <ClassPricingShowcase href={AUTH_ROUTES.signup} />
-          </ScrollReveal>
-        </div>
-      </section>
-
-      {/* App-only membership (Tier 2) — the app-based alternative to the
-          in-person memberships above. Benefit copy only, no "AI" language;
-          see AppShowcase.tsx for why pricing/store links are placeholders. */}
-      <section className="relative border-t border-white/[0.06]">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <ScrollReveal className="max-w-lg">
-            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
-              <span className="h-px w-8 bg-primary/70" />
-              The App
-            </p>
-            <h2 className="mt-4 text-editorial text-[32px] text-zinc-50">Coaching that fits in your pocket.</h2>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Not near the gym, or want to train on your own days? Get the same coaching approach, built into an app.
-            </p>
-          </ScrollReveal>
-
-          <ScrollReveal delayMs={80} className="mt-10">
-            <AppShowcase />
-          </ScrollReveal>
-
-          <ScrollReveal delayMs={80} className="mx-auto mt-16 max-w-2xl">
-            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
-              <span className="h-px w-8 bg-primary/70" />
-              App FAQ
-            </p>
-            <h3 className="mt-4 text-editorial text-[26px] text-zinc-50">Questions about the app.</h3>
-            <div className="mt-8">
-              <AppFaqSection />
-            </div>
-          </ScrollReveal>
-        </div>
-      </section>
-
-      {/* Everything in the app — a full, compact index of the app's real
-          features (distinct from AppShowcase's screenshots + curated top-6
-          benefits above), so a visitor can see the whole feature set at a
-          glance rather than just the highlight reel. */}
-      <section className="relative border-t border-white/[0.06] bg-[var(--surface-1)]">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <ScrollReveal className="max-w-lg">
-            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
-              <span className="h-px w-8 bg-primary/70" />
-              Everything In The App
-            </p>
-            <h2 className="mt-4 text-editorial text-[32px] text-zinc-50">One app, the whole program.</h2>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Every tool below is live in the app today — training, nutrition, recovery, and planning, all connected.
-            </p>
-          </ScrollReveal>
-
-          <ScrollReveal delayMs={80} className="mt-10">
-            <AppFeatureGrid />
           </ScrollReveal>
         </div>
       </section>
@@ -278,11 +202,11 @@ export default async function Root() {
       <section className="relative border-t border-white/[0.06] bg-[var(--surface-1)]">
         <div className="mx-auto grid max-w-6xl gap-10 px-6 py-20 lg:grid-cols-[0.8fr_1.2fr]">
           <ScrollReveal>
-            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
               <span className="h-px w-8 bg-primary/70" />
               The Standard
             </p>
-            <h2 className="mt-4 text-editorial text-[34px] leading-[1.1] text-zinc-50">
+            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">
               This is a coaching floor, not a workout class.
             </h2>
           </ScrollReveal>
@@ -294,11 +218,83 @@ export default async function Root() {
                 delayMs={i * 90}
                 className={`pb-6 ${i !== DIFFERENTIATORS.length - 1 ? "border-b border-white/[0.08]" : ""}`}
               >
-                <h3 className="text-editorial text-[19px] text-gold">{item.title}</h3>
-                <p className="mt-2 max-w-[52ch] text-sm leading-relaxed text-zinc-400">{item.body}</p>
+                <h3 className="text-headline text-[32px] text-gold">{item.title}</h3>
+                <p className="mt-2 max-w-[52ch] text-base leading-relaxed text-zinc-300">{item.body}</p>
               </ScrollReveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Membership — one card per class from "Classes we offer" above,
+          priced to match. Fixed marketing content, not catalog-driven (see
+          the Classes we offer section for the same reasoning): the real
+          catalog only prices Semi-Private tiers today, and these three
+          cards are meant to mirror the class showcase one-to-one. */}
+      <section className="relative border-t border-white/[0.06]">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <ScrollReveal className="max-w-lg">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              Membership
+            </p>
+            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">Choose how you train</h2>
+            <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-zinc-300">
+              Every plan includes coach messaging, class booking, and full workout tracking.
+            </p>
+          </ScrollReveal>
+
+          <ScrollReveal delayMs={80} className="mt-10">
+            <ClassPricingShowcase href={AUTH_ROUTES.signup} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* App-only membership (Tier 2) — the app-based alternative to the
+          in-person memberships above: real screenshots, then the full feature
+          index behind a native <details> disclosure (works without JS), then
+          the launch line. See AppShowcase.tsx for why store links are
+          placeholders. App questions live in the merged FAQ below. */}
+      <section className="relative border-t border-white/[0.06]">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <ScrollReveal className="max-w-lg">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
+              <span className="h-px w-8 bg-primary/70" />
+              The App
+            </p>
+            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">Coaching that fits in your pocket.</h2>
+            <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-zinc-300">
+              Not near the gym, or want to train on your own days? Get the same coaching approach, built into an app.
+            </p>
+          </ScrollReveal>
+
+          <ScrollReveal delayMs={80} className="mt-10">
+            <AppShowcase>
+              <details className="group mt-12 border-t border-white/[0.08] pt-8">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
+                  <span className="text-headline text-[32px] text-zinc-50">See everything in the app</span>
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                    className="h-5 w-5 shrink-0 text-gold transition-transform duration-200 group-open:rotate-180"
+                  >
+                    <path d="M4 6l4 4 4-4" />
+                  </svg>
+                </summary>
+                <p className="mt-3 max-w-[60ch] text-base leading-relaxed text-zinc-300">
+                  Every tool below is live in the app today — training, nutrition, recovery, and planning, all connected.
+                </p>
+                <div className="mt-10">
+                  <AppFeatureGrid />
+                </div>
+              </details>
+            </AppShowcase>
+          </ScrollReveal>
         </div>
       </section>
 
@@ -307,11 +303,11 @@ export default async function Root() {
       <section className="relative border-t border-white/[0.06]">
         <div className="mx-auto max-w-3xl px-6 py-20">
           <ScrollReveal className="max-w-lg">
-            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
               <span className="h-px w-8 bg-primary/70" />
               FAQ
             </p>
-            <h2 className="mt-4 text-editorial text-[32px] text-zinc-50">Common questions.</h2>
+            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">Common questions.</h2>
           </ScrollReveal>
 
           <ScrollReveal delayMs={80} className="mt-10">
@@ -327,14 +323,14 @@ export default async function Root() {
       <section id="contact" className="relative scroll-mt-20 border-t border-white/[0.06]">
         <div className="mx-auto grid max-w-5xl gap-12 px-6 py-24 lg:grid-cols-2 lg:items-start">
           <ScrollReveal>
-            <p className="text-mono flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-gold">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
               <span className="h-px w-8 bg-primary/70" />
               Get Started
             </p>
-            <h2 className="mt-4 text-editorial text-[38px] italic leading-[1.06] text-zinc-50">
+            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">
               Begin your training with us.
             </h2>
-            <p className="mt-4 max-w-md text-base leading-relaxed text-zinc-400">
+            <p className="mt-4 max-w-md text-lg leading-relaxed text-zinc-300">
               Book your first session and walk out with a baseline, a plan, and a coach who already knows your goals.
             </p>
 
@@ -355,16 +351,16 @@ export default async function Root() {
 
             <dl className="mt-10 grid gap-4 border-t border-white/[0.08] pt-6">
               <div className="flex items-baseline gap-3">
-                <dt className="text-mono w-16 flex-shrink-0 text-[10px] uppercase tracking-[0.08em] text-zinc-500">Location</dt>
-                <dd className="text-sm text-zinc-200">{CONTACT_INFO.location}</dd>
+                <dt className="w-16 flex-shrink-0 text-xs font-semibold uppercase tracking-[0.08em] text-zinc-500">Location</dt>
+                <dd className="text-base text-zinc-200">{CONTACT_INFO.location}</dd>
               </div>
               <div className="flex items-baseline gap-3">
-                <dt className="text-mono w-16 flex-shrink-0 text-[10px] uppercase tracking-[0.08em] text-zinc-500">Email</dt>
-                <dd className="break-all text-sm text-zinc-200">{CONTACT_INFO.email}</dd>
+                <dt className="w-16 flex-shrink-0 text-xs font-semibold uppercase tracking-[0.08em] text-zinc-500">Email</dt>
+                <dd className="break-all text-base text-zinc-200">{CONTACT_INFO.email}</dd>
               </div>
               <div className="flex items-baseline gap-3">
-                <dt className="text-mono w-16 flex-shrink-0 text-[10px] uppercase tracking-[0.08em] text-zinc-500">Phone</dt>
-                <dd className="text-sm text-zinc-200">{CONTACT_INFO.phone}</dd>
+                <dt className="w-16 flex-shrink-0 text-xs font-semibold uppercase tracking-[0.08em] text-zinc-500">Phone</dt>
+                <dd className="text-base text-zinc-200">{CONTACT_INFO.phone}</dd>
               </div>
             </dl>
           </ScrollReveal>
@@ -380,14 +376,14 @@ export default async function Root() {
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-6 py-10 sm:flex-row sm:items-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
           <img src="/brand/website-logo-v2.png" alt="S&amp;C Performance Coaching" className="h-8 w-auto" />
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-zinc-500">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400">
             <Link href={AUTH_ROUTES.login} className="transition-colors duration-150 hover:text-gold">Sign in</Link>
             <Link href={AUTH_ROUTES.signup} className="transition-colors duration-150 hover:text-gold">Create account</Link>
             <Link href={AUTH_ROUTES.forgotPassword} className="transition-colors duration-150 hover:text-gold">Forgot password</Link>
             <Link href="/privacy" className="transition-colors duration-150 hover:text-gold">Privacy</Link>
             <Link href="/terms" className="transition-colors duration-150 hover:text-gold">Terms</Link>
           </div>
-          <p className="text-mono text-xs text-zinc-600">© 2026 {BRAND_NAME}</p>
+          <p className="text-xs text-zinc-500">© 2026 {BRAND_NAME}</p>
         </div>
       </footer>
     </main>
