@@ -374,12 +374,19 @@ select:required:invalid {
 }
 
 ::selection {
-  background: oklch(0.62 0.19 260 / 0.35);
+  background: oklch(0.7279 0.0989 82.1 / 0.35);
 }
 
+/* Keyboard focus follows the active accent (gold on the website and auth
+   screens). Light surfaces (the ivory band) switch to navy, since gold on
+   ivory falls below 3:1. */
 :focus-visible {
-  outline: 2px solid oklch(0.62 0.19 260 / 0.6);
+  outline: 2px solid var(--primary, oklch(0.7279 0.0989 82.1));
   outline-offset: 2px;
+}
+
+[data-surface="light"] :focus-visible {
+  outline-color: #0a1526;
 }
 
 html {

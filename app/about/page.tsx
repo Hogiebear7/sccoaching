@@ -10,6 +10,7 @@ import { ABOUT_PAGE, PRIMARY_CTA } from "@/lib/site-content";
 
 export const metadata: Metadata = {
   title: `About — ${BRAND_NAME}`,
+  alternates: { canonical: "/about" },
   description:
     "Who S&C Performance Coaching is for, how we coach, and why a coached small-group floor in Navan is different from a typical gym.",
 };
@@ -46,7 +47,7 @@ export default function AboutPage() {
       </section>
 
       {/* Philosophy — the light editorial band. */}
-      <section className="relative bg-[#f2eee6] text-[#0a1526]">
+      <section data-surface="light" className="relative bg-[#f2eee6] text-[#0a1526]">
         <div className={`${SECTION} grid gap-14 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20`}>
           <div className="lg:sticky lg:top-28 lg:self-start">
             <SectionLabel tone="ivory">Our approach</SectionLabel>

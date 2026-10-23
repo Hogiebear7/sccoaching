@@ -75,8 +75,8 @@ export const HOME_CONTACT = {
   intro:
     "Tell us what you're training for. We'll book your baseline session and you'll leave with a plan and a coach who already knows your goals.",
   steps: [
-    { title: "Send an enquiry", body: "A few lines about your goals and when you can train." },
-    { title: "Baseline session", body: "Bring training clothes, trainers and water. We assess where you're starting from." },
+    { title: "Send an enquiry", body: "A few lines about your goals. We reply within one working day." },
+    { title: "Baseline session", body: "We assess where you're starting from. Bring training clothes, trainers, a towel and water." },
     { title: "Your plan begins", body: "Your first block is written and waiting in the app." },
   ],
   primaryCta: "Email to book",

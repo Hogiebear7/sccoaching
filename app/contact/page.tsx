@@ -9,6 +9,7 @@ import { CONTACT_PAGE, START_STEPS } from "@/lib/site-content";
 
 export const metadata: Metadata = {
   title: `Contact and booking — ${BRAND_NAME}`,
+  alternates: { canonical: "/contact" },
   description: "Enquire about classes or book your first session at S&C Performance Coaching in Navan, Co. Meath.",
 };
 

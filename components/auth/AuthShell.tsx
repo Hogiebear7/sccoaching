@@ -15,6 +15,7 @@ export function AuthShell({
   intro,
   children,
   footer,
+  wide,
 }: {
   label: string;
   title: string;
@@ -22,11 +23,13 @@ export function AuthShell({
   children: ReactNode;
   /** Secondary routes under the form (create account, back to sign in). */
   footer?: ReactNode;
+  /** Wider form column for multi-step forms (signup). */
+  wide?: boolean;
 }) {
   return (
     <main data-theme="navy" data-palette="gold" className="relative min-h-screen text-zinc-100 lg:grid lg:grid-cols-[1fr_minmax(520px,0.9fr)]">
       {/* Photo panel — wide screens only. */}
-      <aside className="relative hidden overflow-hidden border-r border-white/[0.06] lg:block">
+      <aside className="relative hidden overflow-hidden border-r border-white/[0.06] lg:sticky lg:top-0 lg:block lg:h-screen">
         {/* eslint-disable-next-line @next/next/no-img-element -- static marketing photo with fixed dimensions */}
         <img
           src={HOME_HERO.image.src}
@@ -70,7 +73,7 @@ export function AuthShell({
         </header>
 
         <div className="relative flex flex-1 items-center px-6 pb-16 pt-6 lg:px-12">
-          <div className="anim-rise mx-auto w-full max-w-[400px]">
+          <div className={`anim-rise mx-auto w-full ${wide ? "max-w-[560px]" : "max-w-[400px]"}`}>
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
               <span className="h-px w-8 bg-primary/70" />
               {label}
@@ -85,7 +88,7 @@ export function AuthShell({
         </div>
 
         <div className="relative px-6 pb-3 lg:px-12">
-          <p className="mx-auto w-full max-w-[400px] text-xs text-zinc-500">
+          <p className={`mx-auto w-full text-xs text-zinc-500 ${wide ? "max-w-[560px]" : "max-w-[400px]"}`}>
             <Link href="/privacy" className="inline-flex min-h-11 items-center transition-colors duration-150 hover:text-gold">Privacy</Link>
             <span aria-hidden className="mx-2">·</span>
             <Link href="/terms" className="inline-flex min-h-11 items-center transition-colors duration-150 hover:text-gold">Terms</Link>

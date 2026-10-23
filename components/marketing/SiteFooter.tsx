@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AUTH_ROUTES, BRAND_NAME, CONTACT_INFO } from "@/lib/content";
 import { SITE_NAV } from "@/lib/site-content";
 
-const LINK = "transition-colors duration-150 hover:text-gold";
+const LINK = "inline-flex min-h-11 items-center transition-colors duration-150 hover:text-gold";
 const HEADING = "text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500";
 
 // Shared footer for every public page: brand and location, the site's pages,
@@ -22,7 +22,7 @@ export function SiteFooter() {
 
         <nav aria-label="Footer">
           <p className={HEADING}>Site</p>
-          <ul className="mt-4 grid gap-3 text-sm text-zinc-300">
+          <ul className="mt-2 grid text-sm text-zinc-300">
             <li><Link href="/" className={LINK}>Home</Link></li>
             {SITE_NAV.map((item) => (
               <li key={item.href}>
@@ -34,16 +34,16 @@ export function SiteFooter() {
 
         <div>
           <p className={HEADING}>Contact</p>
-          <ul className="mt-4 grid gap-3 text-sm text-zinc-300">
+          <ul className="mt-2 grid text-sm text-zinc-300">
             <li><a href={`mailto:${CONTACT_INFO.email}`} className={`${LINK} break-all`}>{CONTACT_INFO.email}</a></li>
             <li><a href={`tel:${CONTACT_INFO.phoneHref}`} className={LINK}>{CONTACT_INFO.phone}</a></li>
-            <li className="text-zinc-400">{CONTACT_INFO.location}</li>
+            <li className="flex min-h-11 items-center text-zinc-400">{CONTACT_INFO.location}</li>
           </ul>
         </div>
 
         <div>
           <p className={HEADING}>Members</p>
-          <ul className="mt-4 grid gap-3 text-sm text-zinc-300">
+          <ul className="mt-2 grid text-sm text-zinc-300">
             <li><Link href={AUTH_ROUTES.login} className={LINK}>Member login</Link></li>
             <li><Link href={AUTH_ROUTES.signup} className={LINK}>Create account</Link></li>
             <li><Link href="/privacy" className={LINK}>Privacy</Link></li>

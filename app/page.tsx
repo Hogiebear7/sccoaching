@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -22,6 +23,11 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 // lib/marketing-classes.ts so it can later be edited from the back end/CMS.
 // Section rhythm: navy hero → proof strip → classes → ivory "approach" band →
 // progress → app → FAQ → contact. See DESIGN.md for the system.
+
+export const metadata: Metadata = {
+  title: "S&C Performance Coaching — Small-group strength coaching in Navan",
+  alternates: { canonical: "/" },
+};
 
 const LABEL = "flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold";
 const MORE_LINK = "group inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gold transition-colors duration-150 hover:text-[var(--primary-hover)]";
@@ -125,7 +131,7 @@ export default async function Root() {
       </section>
 
       {/* Approach — the one light editorial band on the page. */}
-      <section id="approach" className="relative scroll-mt-20 bg-[#f2eee6] text-[#0a1526]">
+      <section id="approach" data-surface="light" className="relative scroll-mt-20 bg-[#f2eee6] text-[#0a1526]">
         <div className={`${SECTION} grid gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20`}>
           <div className="lg:sticky lg:top-28 lg:self-start">
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#8a6a2f]">
@@ -209,7 +215,7 @@ export default async function Root() {
           <ScrollReveal className="mt-12">
             <AppShowcase>
               <details className="group mt-12 border-t border-white/[0.08] pt-8">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
                   <span className="text-headline text-[32px] text-zinc-50">See everything in the app</span>
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-5 w-5 shrink-0 text-gold transition-transform duration-200 group-open:rotate-180">
                     <path d="M4 6l4 4 4-4" />

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { ChangeEvent, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -19,9 +19,19 @@ import {
   GENDER_OPTIONS,
   PRIMARY_GOAL_OPTIONS,
 } from "@/lib/profile-options";
-import { BRAND_NAME } from "@/lib/content";
 import { PALETTE_OPTIONS, THEME_OPTIONS } from "@/lib/palettes";
 import { useHydrated } from "@/lib/use-hydrated";
+import { AuthShell } from "@/components/auth/AuthShell";
+import {
+  AuthField,
+  BUTTON_SECONDARY,
+  CheckboxField,
+  fieldA11y,
+  FormMessage,
+  inputClass,
+  PasswordToggle,
+  SubmitButton,
+} from "@/components/auth/fields";
 import { DietaryRequirementsFields } from "@/components/profile/DietaryRequirementsFields";
 
 type FormErrors = Partial<Record<keyof SignupFormValues, string>>;
@@ -115,13 +125,13 @@ export default function SignupPage() {
 
   const stepTitles = useMemo(() => {
     const baseSteps = [
-      "Account Setup",
-      "Basic Profile",
-      "Goals and Context",
+      "Account setup",
+      "Basic profile",
+      "Goals and context",
     ];
 
     if (cycleEligible) {
-      baseSteps.push("Cycle Tracking");
+      baseSteps.push("Female health options");
     }
 
     baseSteps.push("Review");
@@ -293,7 +303,28 @@ export default function SignupPage() {
     }
 
     setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    const valid = Object.keys(nextErrors).length === 0;
+    // Move focus to the first field that needs attention once it renders.
+    if (!valid) {
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+    }
+    return valid;
+  }
+
+  // Each new step announces itself: focus moves to its heading (not on the
+  // first render, so the page doesn't jump on load).
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const shownStep = useRef(step);
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    stepHeadingRef.current?.focus();
+  }, [step]);
+
+  function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (step < totalSteps - 1) goNext();
+    else void handleSubmit();
   }
 
   function goNext() {
@@ -338,982 +369,640 @@ export default function SignupPage() {
     }
   }
 
+
+  const emailTaken = emailStatus === "taken";
+
   return (
-    <main data-theme={values.theme} data-palette={values.palette} className="relative min-h-screen px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.7279_0.0989_82.1/0.08),transparent)]">
-      <div className="mx-auto w-full max-w-5xl">
-        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-            <Link href="/" className="inline-block transition-opacity hover:opacity-80">
-              {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-              <img src="/brand/website-logo-v2.png" alt={BRAND_NAME} className="h-7 w-auto" />
-            </Link>
-            <h1 className="text-headline mt-3 text-[40px]">Create your account</h1>
-            <p className="mt-2 text-sm text-zinc-400">
-              Set up your profile, goals, and optional cycle tracking preferences.
+    <AuthShell
+      wide
+      label="Create account"
+      title="Join S&C."
+      intro="Set up your profile so your coach can plan around you. It takes a few minutes, and you can change anything later."
+      footer={
+        <p className="text-sm text-zinc-400">
+          Already a member?{" "}
+          <Link href="/login" className="inline-flex min-h-11 items-center font-semibold text-gold transition-colors duration-150 hover:text-[var(--primary-hover)]">
+            Sign in
+          </Link>
+        </p>
+      }
+    >
+      <form onSubmit={handleFormSubmit} noValidate className="grid gap-8">
+        {/* Progress: one segment per step. */}
+        <div>
+          <div className="flex items-baseline justify-between gap-4 text-sm">
+            <p className="font-semibold text-zinc-200">
+              Step {step + 1} of {totalSteps}
             </p>
+            {step < totalSteps - 1 ? <p className="text-zinc-400">Next: {stepTitles[step + 1]}</p> : null}
+          </div>
+          <ol aria-label="Signup progress" className="mt-3 flex gap-1.5">
+            {stepTitles.map((title, index) => (
+              <li key={title} aria-current={index === step ? "step" : undefined} className="flex-1">
+                <span
+                  aria-hidden
+                  className={`block h-1 rounded-full transition-colors duration-300 ${index <= step ? "bg-primary" : "bg-white/[0.12]"}`}
+                />
+                <span className="sr-only">
+                  {title}
+                  {index < step ? " (done)" : index === step ? " (current)" : ""}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
 
-            <div className="mt-6 space-y-3">
-              {stepTitles.map((title, index) => {
-                const active = index === step;
-                const complete = index < step;
+        {/* key={step} remounts this block on every step change, so the
+            anim-rise entrance replays and the wizard visibly advances. */}
+        <section key={step} aria-labelledby="signup-step-title" className="anim-rise grid gap-6">
+          <h2 id="signup-step-title" ref={stepHeadingRef} tabIndex={-1} className="text-headline text-[34px] text-zinc-50 outline-none!">
+            {stepTitles[step]}
+          </h2>
 
-                return (
-                  <div
-                    key={title}
-                    aria-current={active ? "step" : undefined}
-                    className={`rounded-[10px] border px-4 py-3 transition ${
-                      active
-                        ? "border-primary bg-primary/10"
-                        : complete
-                        ? "border-zinc-700 bg-zinc-900"
-                        : "border-zinc-800 bg-zinc-950"
-                    }`}
+          {isAccountStep && (
+            <>
+              <AuthField label="Email" id="signup-email" error={emailTaken ? undefined : errors.email}>
+                <input
+                  id="signup-email"
+                  name="email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={values.email}
+                  onChange={(e) => handleTextChange("email", e)}
+                  aria-invalid={errors.email || emailTaken ? true : undefined}
+                  aria-describedby={emailTaken ? "signup-email-taken" : errors.email ? "signup-email-error" : undefined}
+                  className={inputClass(Boolean(errors.email) || emailTaken)}
+                  placeholder="you@example.com"
+                />
+              </AuthField>
+
+              {emailTaken ? (
+                <div id="signup-email-taken">
+                  <FormMessage tone="warning">
+                    <p>This email already has an account.</p>
+                    <p className="mt-1 flex flex-wrap gap-x-5">
+                      <Link href="/login" className="inline-flex min-h-11 items-center font-semibold text-amber-50 underline underline-offset-2">
+                        Sign in instead
+                      </Link>
+                      <Link href="/forgot-password" className="inline-flex min-h-11 items-center font-semibold text-amber-50 underline underline-offset-2">
+                        Reset your password
+                      </Link>
+                    </p>
+                    <p className="text-amber-100/80">Or use a different email to create a new account.</p>
+                  </FormMessage>
+                </div>
+              ) : null}
+
+              <AuthField label="Password" id="signup-password" hint={PASSWORD_REQUIREMENTS_HINT} error={errors.password}>
+                <div className="relative">
+                  <input
+                    id="signup-password"
+                    name="new-password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={values.password}
+                    onChange={(e) => handleTextChange("password", e)}
+                    {...fieldA11y("signup-password", errors.password, true)}
+                    className={`${inputClass(Boolean(errors.password))} pr-14`}
+                  />
+                  <PasswordToggle
+                    controls="signup-password"
+                    shown={showPassword}
+                    onToggle={() => setShowPassword((prev) => !prev)}
+                    disabled={!mounted}
+                  />
+                </div>
+              </AuthField>
+
+              <AuthField label="Confirm password" id="signup-confirm-password" error={errors.confirmPassword}>
+                <div className="relative">
+                  <input
+                    id="signup-confirm-password"
+                    name="confirm-password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={values.confirmPassword}
+                    onChange={(e) => handleTextChange("confirmPassword", e)}
+                    {...fieldA11y("signup-confirm-password", errors.confirmPassword)}
+                    className={`${inputClass(Boolean(errors.confirmPassword))} pr-14`}
+                  />
+                  <PasswordToggle
+                    controls="signup-confirm-password"
+                    shown={showConfirmPassword}
+                    onToggle={() => setShowConfirmPassword((prev) => !prev)}
+                    disabled={!mounted}
+                    label="Show confirmed password"
+                  />
+                </div>
+              </AuthField>
+            </>
+          )}
+
+          {isBasicProfileStep && (
+            <>
+              <AuthField label="Full name" id="signup-full-name" error={errors.fullName}>
+                <input
+                  id="signup-full-name"
+                  name="name"
+                  type="text"
+                  autoComplete="name"
+                  value={values.fullName}
+                  onChange={(e) => handleTextChange("fullName", e)}
+                  {...fieldA11y("signup-full-name", errors.fullName)}
+                  className={inputClass(Boolean(errors.fullName))}
+                />
+              </AuthField>
+
+              <AuthField label="Phone" id="signup-phone" error={errors.phone}>
+                <input
+                  id="signup-phone"
+                  name="tel"
+                  type="tel"
+                  autoComplete="tel"
+                  value={values.phone}
+                  onChange={(e) => handleTextChange("phone", e)}
+                  {...fieldA11y("signup-phone", errors.phone)}
+                  className={inputClass(Boolean(errors.phone))}
+                  placeholder="+353 83 123 4567"
+                />
+              </AuthField>
+
+              <div className="grid gap-6 sm:grid-cols-2">
+                <AuthField label="Date of birth" id="signup-dob" error={errors.dateOfBirth}>
+                  <input
+                    id="signup-dob"
+                    name="bday"
+                    type="date"
+                    autoComplete="bday"
+                    required
+                    aria-required="true"
+                    value={values.dateOfBirth}
+                    onChange={(e) => handleTextChange("dateOfBirth", e)}
+                    max={new Date().toISOString().slice(0, 10)}
+                    {...fieldA11y("signup-dob", errors.dateOfBirth)}
+                    className={inputClass(Boolean(errors.dateOfBirth))}
+                  />
+                </AuthField>
+
+                <AuthField label="Gender" id="signup-gender" error={errors.gender}>
+                  <select
+                    id="signup-gender"
+                    required
+                    aria-required="true"
+                    value={values.gender}
+                    onChange={(e) => handleTextChange("gender", e)}
+                    {...fieldA11y("signup-gender", errors.gender)}
+                    className={inputClass(Boolean(errors.gender))}
                   >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
-                          active
-                            ? "bg-primary text-primary-foreground"
-                            : complete
-                            ? "bg-zinc-200 text-black"
-                            : "bg-zinc-800 text-zinc-300"
-                        }`}
-                      >
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-zinc-100">{title}</p>
-                        <p className="text-xs text-zinc-500">
-                          Step {index + 1} of {totalSteps}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 border-t border-zinc-800 pt-4">
-              <Link
-                href="/login"
-                className="text-sm text-zinc-400 transition hover:text-zinc-200"
-              >
-                Already have an account?
-              </Link>
-            </div>
-          </aside>
-
-          <section className="panel-raised anim-rise p-6">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.2em] text-zinc-500">
-                    Step {step + 1}
-                  </p>
-                  <h2 className="mt-1 text-2xl font-semibold">
-                    {stepTitles[step]}
-                  </h2>
-                </div>
-                <div className="text-sm text-zinc-500">
-                  {step + 1} / {totalSteps}
-                </div>
+                    <option value="">Select gender</option>
+                    {GENDER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </AuthField>
               </div>
 
-              <div className="h-2 overflow-hidden rounded-[3px] bg-zinc-800">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
-                  style={{ width: `${((step + 1) / totalSteps) * 100}%` }}
+              <div className="border-t border-white/[0.08] pt-6">
+                <h3 className="text-headline text-[24px] text-zinc-50">In case of emergency</h3>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-400">
+                  Who should we contact if something happens to you during a session?
+                </p>
+              </div>
+
+              <div className="grid gap-6 sm:grid-cols-2">
+                <AuthField label="Emergency contact name" id="signup-ice-name" error={errors.emergencyContactName}>
+                  <input
+                    id="signup-ice-name"
+                    type="text"
+                    value={values.emergencyContactName}
+                    onChange={(e) => handleTextChange("emergencyContactName", e)}
+                    {...fieldA11y("signup-ice-name", errors.emergencyContactName)}
+                    className={inputClass(Boolean(errors.emergencyContactName))}
+                  />
+                </AuthField>
+
+                <AuthField label="Emergency contact phone" id="signup-ice-phone" error={errors.emergencyContactPhone}>
+                  <input
+                    id="signup-ice-phone"
+                    type="tel"
+                    value={values.emergencyContactPhone}
+                    onChange={(e) => handleTextChange("emergencyContactPhone", e)}
+                    {...fieldA11y("signup-ice-phone", errors.emergencyContactPhone)}
+                    className={inputClass(Boolean(errors.emergencyContactPhone))}
+                    placeholder="+353 83 123 4567"
+                  />
+                </AuthField>
+              </div>
+
+              <div className="grid gap-6 sm:grid-cols-2">
+                <AuthField label="Second contact name" id="signup-ice2-name" optional error={errors.emergencyContact2Name}>
+                  <input
+                    id="signup-ice2-name"
+                    type="text"
+                    value={values.emergencyContact2Name}
+                    onChange={(e) => handleTextChange("emergencyContact2Name", e)}
+                    {...fieldA11y("signup-ice2-name", errors.emergencyContact2Name)}
+                    className={inputClass(Boolean(errors.emergencyContact2Name))}
+                  />
+                </AuthField>
+
+                {values.emergencyContact2Name.trim() ? (
+                  <AuthField label="Second contact phone" id="signup-ice2-phone" error={errors.emergencyContact2Phone}>
+                    <input
+                      id="signup-ice2-phone"
+                      type="tel"
+                      value={values.emergencyContact2Phone}
+                      onChange={(e) => handleTextChange("emergencyContact2Phone", e)}
+                      {...fieldA11y("signup-ice2-phone", errors.emergencyContact2Phone)}
+                      className={inputClass(Boolean(errors.emergencyContact2Phone))}
+                      placeholder="+353 83 123 4567"
+                    />
+                  </AuthField>
+                ) : null}
+              </div>
+            </>
+          )}
+
+          {isGoalsStep && (
+            <>
+              <AuthField label="Primary goal" id="signup-primary-goal" error={errors.primaryGoal}>
+                <select
+                  id="signup-primary-goal"
+                  required
+                  aria-required="true"
+                  value={values.primaryGoal}
+                  onChange={(e) => handleTextChange("primaryGoal", e)}
+                  {...fieldA11y("signup-primary-goal", errors.primaryGoal)}
+                  className={inputClass(Boolean(errors.primaryGoal))}
+                >
+                  <option value="">Select a goal</option>
+                  {PRIMARY_GOAL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </AuthField>
+
+              {sportVisible && (
+                <AuthField label="Sport played" id="signup-sport-played" error={errors.sportPlayed}>
+                  <input
+                    id="signup-sport-played"
+                    type="text"
+                    value={values.sportPlayed}
+                    onChange={(e) => handleTextChange("sportPlayed", e)}
+                    {...fieldA11y("signup-sport-played", errors.sportPlayed)}
+                    className={inputClass(Boolean(errors.sportPlayed))}
+                    placeholder="e.g. Cricket, Football, Tennis"
+                  />
+                </AuthField>
+              )}
+
+              <div className="grid gap-6 sm:grid-cols-2">
+                <AuthField label="Current weight (kg)" id="signup-weight" optional error={errors.currentWeightKg}>
+                  <input
+                    id="signup-weight"
+                    type="number"
+                    inputMode="decimal"
+                    value={values.currentWeightKg}
+                    onChange={(e) => handleTextChange("currentWeightKg", e)}
+                    {...fieldA11y("signup-weight", errors.currentWeightKg)}
+                    className={inputClass(Boolean(errors.currentWeightKg))}
+                    placeholder="e.g. 72"
+                  />
+                </AuthField>
+
+                <AuthField label="Height (cm)" id="signup-height" optional error={errors.heightCm}>
+                  <input
+                    id="signup-height"
+                    type="number"
+                    inputMode="decimal"
+                    value={values.heightCm}
+                    onChange={(e) => handleTextChange("heightCm", e)}
+                    {...fieldA11y("signup-height", errors.heightCm)}
+                    className={inputClass(Boolean(errors.heightCm))}
+                    placeholder="e.g. 178"
+                  />
+                </AuthField>
+              </div>
+
+              <AuthField label="Additional information" id="signup-additional-info" optional error={errors.additionalInfo}>
+                <textarea
+                  id="signup-additional-info"
+                  value={values.additionalInfo}
+                  onChange={(e) => handleTextChange("additionalInfo", e)}
+                  {...fieldA11y("signup-additional-info", errors.additionalInfo)}
+                  className={inputClass(Boolean(errors.additionalInfo), true)}
+                  placeholder={ADDITIONAL_INFO_PLACEHOLDER}
+                />
+              </AuthField>
+
+              <div className="rounded-[3px] border border-white/[0.1] bg-[var(--surface-1)] p-5">
+                <h3 className="text-headline text-[24px] text-zinc-50">Dietary requirements</h3>
+                <p className="mb-4 mt-1 text-sm leading-relaxed text-zinc-400">
+                  Optional. Powers your nutrition suggestions, and you can change these any time.
+                </p>
+                <DietaryRequirementsFields
+                  idPrefix="signup-diet"
+                  values={{
+                    dietaryPreference: values.dietaryPreference,
+                    allergies: values.allergies,
+                    intolerancesOrMedical: values.intolerancesOrMedical,
+                    dietaryNotes: values.dietaryNotes,
+                  }}
+                  onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
                 />
               </div>
 
-              {/* key={step} remounts this block on every step change, so the
-                  anim-rise entrance replays — the wizard visibly advances
-                  instead of silently swapping content. */}
-              <div key={step} className="anim-rise space-y-6">
-              {isAccountStep && (
-                <fieldset className="space-y-4">
-                  <legend className="mb-2 text-lg font-semibold text-zinc-50">
-                    Account details
-                  </legend>
+              <ChoiceGroup
+                label="App theme"
+                description="The background tint of your app. You can change it any time in Settings."
+                options={THEME_OPTIONS}
+                value={values.theme}
+                onChange={(id) => setValues((prev) => ({ ...prev, theme: id }))}
+              />
 
-                  <FormField
-                    label="Email"
-                    id="signup-email"
-                    error={emailStatus === "taken" ? undefined : errors.email}
-                  >
-                    <input
-                      id="signup-email"
-                      type="email"
-                      value={values.email}
-                      onChange={(e) => handleTextChange("email", e)}
-                      className={inputClass(errors.email || (emailStatus === "taken" ? "taken" : undefined))}
-                      placeholder="you@example.com"
-                    />
-                  </FormField>
+              <ChoiceGroup
+                label="Accent colour"
+                description="The colour of buttons and highlights in your app. You can change it any time in Settings."
+                options={PALETTE_OPTIONS}
+                value={values.palette}
+                onChange={(id) => setValues((prev) => ({ ...prev, palette: id }))}
+              />
+            </>
+          )}
 
-                  {emailStatus === "taken" ? (
-                    <div
-                      role="alert"
-                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
-                    >
-                      <p>This email already has an account.</p>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                        <Link href="/login" className="font-medium underline underline-offset-2 hover:text-amber-100">
-                          Log in instead
-                        </Link>
-                        <Link
-                          href="/forgot-password"
-                          className="font-medium underline underline-offset-2 hover:text-amber-100"
-                        >
-                          Reset your password
-                        </Link>
-                      </div>
-                      <p className="mt-2 text-amber-200/70">
-                        Or use a different email to continue creating a new account.
-                      </p>
-                    </div>
-                  ) : null}
+          {isCycleStep && (
+            <>
+              <p className="text-base leading-relaxed text-zinc-300">
+                Both options are independent: enable either, both or neither. Everything here is private to you unless you
+                choose to share it.
+              </p>
 
-                  <FormField
-                    label="Password"
-                    id="signup-password"
-                    hint={PASSWORD_REQUIREMENTS_HINT}
-                    error={errors.password}
-                    trailing={
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        disabled={!mounted}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs font-medium text-zinc-200 transition hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {showPassword ? "Hide" : "Show"}
-                      </button>
-                    }
-                  >
-                    <input
-                      id="signup-password"
-                      type={showPassword ? "text" : "password"}
-                      value={values.password}
-                      onChange={(e) => handleTextChange("password", e)}
-                      className={`${inputClass(errors.password)} pr-16`}
-                      placeholder="Create a password"
-                    />
-                  </FormField>
+              <CheckboxField
+                boxed
+                checked={values.cycleTrackingEnabled}
+                onChange={(checked) => handleCheckboxChange("cycleTrackingEnabled", checked)}
+                label="Enable cycle tracking"
+                description={CYCLE_TRACKING_BENEFIT_COPY}
+              />
 
-                  <FormField
-                    label="Confirm password"
-                    id="signup-confirm-password"
-                    error={errors.confirmPassword}
-                    trailing={
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword((prev) => !prev)}
-                        disabled={!mounted}
-                        aria-label={
-                          showConfirmPassword
-                            ? "Hide confirm password"
-                            : "Show confirm password"
-                        }
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs font-medium text-zinc-200 transition hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {showConfirmPassword ? "Hide" : "Show"}
-                      </button>
-                    }
-                  >
-                    <input
-                      id="signup-confirm-password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={values.confirmPassword}
-                      onChange={(e) => handleTextChange("confirmPassword", e)}
-                      className={`${inputClass(errors.confirmPassword)} pr-16`}
-                      placeholder="Re-enter your password"
-                    />
-                  </FormField>
-                </fieldset>
-              )}
+              <CheckboxField
+                boxed
+                checked={values.menopauseSupportEnabled}
+                onChange={(checked) => handleCheckboxChange("menopauseSupportEnabled", checked)}
+                label="Receive menopause support information"
+                description="Educational content on strength training, nutrition and recovery relevant to perimenopause and post-menopause. Visible only to you."
+              />
 
-              {isBasicProfileStep && (
-                <fieldset className="space-y-4">
-                  <legend className="mb-2 text-lg font-semibold text-zinc-50">
-                    Basic profile
-                  </legend>
-
-                  <FormField label="Full name" id="signup-full-name" error={errors.fullName}>
-                    <input
-                      id="signup-full-name"
-                      type="text"
-                      value={values.fullName}
-                      onChange={(e) => handleTextChange("fullName", e)}
-                      className={inputClass(errors.fullName)}
-                      placeholder="Your full name"
-                    />
-                  </FormField>
-
-                  <FormField label="Phone" id="signup-phone" error={errors.phone}>
-                    <input
-                      id="signup-phone"
-                      type="tel"
-                      value={values.phone}
-                      onChange={(e) => handleTextChange("phone", e)}
-                      className={inputClass(errors.phone)}
-                      placeholder="+353 83 123 4567"
-                    />
-                  </FormField>
-
-                  <FormField
-                    label="Date of birth"
-                    id="signup-dob"
-                    error={errors.dateOfBirth}
-                  >
-                    <input
-                      id="signup-dob"
-                      type="date"
-                      required
-                      aria-required="true"
-                      value={values.dateOfBirth}
-                      onChange={(e) => handleTextChange("dateOfBirth", e)}
-                      max={new Date().toISOString().slice(0, 10)}
-                      className={inputClass(errors.dateOfBirth)}
-                    />
-                  </FormField>
-
-                  <FormField label="Gender" id="signup-gender" error={errors.gender}>
-                    <select
-                      id="signup-gender"
-                      required
-                      aria-required="true"
-                      value={values.gender}
-                      onChange={(e) => handleTextChange("gender", e)}
-                      className={inputClass(errors.gender)}
-                    >
-                      <option value="">Select gender</option>
-                      {GENDER_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
-
-                  <div className="pt-2">
-                    <p className="text-sm font-semibold text-zinc-50">In case of emergency</p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      Who should we contact if something happens to you during a session?
-                    </p>
-                  </div>
-
-                  <FormField
-                    label="Emergency contact name"
-                    id="signup-ice-name"
-                    error={errors.emergencyContactName}
-                  >
-                    <input
-                      id="signup-ice-name"
-                      type="text"
-                      value={values.emergencyContactName}
-                      onChange={(e) => handleTextChange("emergencyContactName", e)}
-                      className={inputClass(errors.emergencyContactName)}
-                      placeholder="e.g. Jane Smith"
-                    />
-                  </FormField>
-
-                  <FormField
-                    label="Emergency contact phone"
-                    id="signup-ice-phone"
-                    error={errors.emergencyContactPhone}
-                  >
-                    <input
-                      id="signup-ice-phone"
-                      type="tel"
-                      value={values.emergencyContactPhone}
-                      onChange={(e) => handleTextChange("emergencyContactPhone", e)}
-                      className={inputClass(errors.emergencyContactPhone)}
-                      placeholder="+353 83 123 4567"
-                    />
-                  </FormField>
-
-                  <FormField
-                    label="Second emergency contact name — optional"
-                    id="signup-ice2-name"
-                    error={errors.emergencyContact2Name}
-                  >
-                    <input
-                      id="signup-ice2-name"
-                      type="text"
-                      value={values.emergencyContact2Name}
-                      onChange={(e) => handleTextChange("emergencyContact2Name", e)}
-                      className={inputClass(errors.emergencyContact2Name)}
-                      placeholder="e.g. John Smith"
-                    />
-                  </FormField>
-
-                  {values.emergencyContact2Name.trim() ? (
-                    <FormField
-                      label="Second emergency contact phone"
-                      id="signup-ice2-phone"
-                      error={errors.emergencyContact2Phone}
-                    >
+              {cycleFieldsVisible && (
+                <>
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <AuthField label="Last period start date" id="signup-last-period" error={errors.lastPeriodStartDate}>
                       <input
-                        id="signup-ice2-phone"
-                        type="tel"
-                        value={values.emergencyContact2Phone}
-                        onChange={(e) => handleTextChange("emergencyContact2Phone", e)}
-                        className={inputClass(errors.emergencyContact2Phone)}
-                        placeholder="+353 83 123 4567"
-                      />
-                    </FormField>
-                  ) : null}
-                </fieldset>
-              )}
-
-              {isGoalsStep && (
-                <fieldset className="space-y-4">
-                  <legend className="mb-2 text-lg font-semibold text-zinc-50">
-                    Goals and context
-                  </legend>
-
-                  <FormField label="Primary goal" id="signup-primary-goal" error={errors.primaryGoal}>
-                    <select
-                      id="signup-primary-goal"
-                      required
-                      aria-required="true"
-                      value={values.primaryGoal}
-                      onChange={(e) => handleTextChange("primaryGoal", e)}
-                      className={inputClass(errors.primaryGoal)}
-                    >
-                      <option value="">Select a goal</option>
-                      {PRIMARY_GOAL_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
-
-                  {sportVisible && (
-                    <FormField label="Sport played" id="signup-sport-played" error={errors.sportPlayed}>
-                      <input
-                        id="signup-sport-played"
-                        type="text"
-                        value={values.sportPlayed}
-                        onChange={(e) => handleTextChange("sportPlayed", e)}
-                        className={inputClass(errors.sportPlayed)}
-                        placeholder="e.g. Cricket, Football, Tennis"
-                      />
-                    </FormField>
-                  )}
-
-                  <FormField
-                    label={
-                      <>
-                        Current weight (kg){" "}
-                        <span className="text-xs font-normal text-zinc-500">
-                          optional
-                        </span>
-                      </>
-                    }
-                    id="signup-weight"
-                    error={errors.currentWeightKg}
-                  >
-                    <input
-                      id="signup-weight"
-                      type="number"
-                      inputMode="decimal"
-                      value={values.currentWeightKg}
-                      onChange={(e) => handleTextChange("currentWeightKg", e)}
-                      className={inputClass(errors.currentWeightKg)}
-                      placeholder="e.g. 72"
-                    />
-                  </FormField>
-
-                  <FormField
-                    label={
-                      <>
-                        Height (cm){" "}
-                        <span className="text-xs font-normal text-zinc-500">
-                          optional
-                        </span>
-                      </>
-                    }
-                    id="signup-height"
-                    error={errors.heightCm}
-                  >
-                    <input
-                      id="signup-height"
-                      type="number"
-                      inputMode="decimal"
-                      value={values.heightCm}
-                      onChange={(e) => handleTextChange("heightCm", e)}
-                      className={inputClass(errors.heightCm)}
-                      placeholder="e.g. 178"
-                    />
-                  </FormField>
-
-                  <FormField
-                    label="Additional information"
-                    id="signup-additional-info"
-                    error={errors.additionalInfo}
-                  >
-                    <textarea
-                      id="signup-additional-info"
-                      value={values.additionalInfo}
-                      onChange={(e) => handleTextChange("additionalInfo", e)}
-                      className={`${inputClass(errors.additionalInfo)} min-h-[120px] resize-y`}
-                      placeholder={ADDITIONAL_INFO_PLACEHOLDER}
-                    />
-                  </FormField>
-
-                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
-                    <p className="text-sm font-semibold text-zinc-100">Dietary requirements</p>
-                    <p className="mb-3 mt-1 text-xs text-zinc-500">
-                      Optional — powers your nutrition suggestions. You can change these any time.
-                    </p>
-                    <DietaryRequirementsFields
-                      idPrefix="signup-diet"
-                      values={{
-                        dietaryPreference: values.dietaryPreference,
-                        allergies: values.allergies,
-                        intolerancesOrMedical: values.intolerancesOrMedical,
-                        dietaryNotes: values.dietaryNotes,
-                      }}
-                      onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
-                    />
-                  </div>
-
-                  <div>
-                    <p className="mb-1 text-sm font-medium text-zinc-200">App theme</p>
-                    <p className="mb-3 text-xs text-zinc-500">
-                      The overall background tint of your app. You can change it any time in
-                      Settings.
-                    </p>
-                    <div
-                      role="radiogroup"
-                      aria-label="App theme"
-                      className="flex flex-wrap gap-2"
-                    >
-                      {THEME_OPTIONS.map((option) => {
-                        const selected = values.theme === option.id;
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            role="radio"
-                            aria-checked={selected}
-                            onClick={() =>
-                              setValues((prev) => ({ ...prev, theme: option.id }))
-                            }
-                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                              selected
-                                ? "border-white/40 bg-white/[0.08] text-zinc-50"
-                                : "border-white/[0.12] text-zinc-400 hover:border-white/30 hover:text-zinc-200"
-                            }`}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="h-3.5 w-3.5 rounded-full ring-1 ring-white/25"
-                              style={{ backgroundColor: option.swatch }}
-                            />
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-1 text-sm font-medium text-zinc-200">Accent colour</p>
-                    <p className="mb-3 text-xs text-zinc-500">
-                      Sets the colour of buttons and highlights in your app. You can change it
-                      any time in Settings.
-                    </p>
-                    <div
-                      role="radiogroup"
-                      aria-label="Accent colour palette"
-                      className="flex flex-wrap gap-2"
-                    >
-                      {PALETTE_OPTIONS.map((option) => {
-                        const selected = values.palette === option.id;
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            role="radio"
-                            aria-checked={selected}
-                            onClick={() =>
-                              setValues((prev) => ({ ...prev, palette: option.id }))
-                            }
-                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                              selected
-                                ? "border-white/40 bg-white/[0.08] text-zinc-50"
-                                : "border-white/[0.12] text-zinc-400 hover:border-white/30 hover:text-zinc-200"
-                            }`}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="h-3.5 w-3.5 rounded-full ring-1 ring-white/25"
-                              style={{ backgroundColor: option.swatch }}
-                            />
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </fieldset>
-              )}
-
-              {isCycleStep && (
-                <fieldset className="space-y-4">
-                  <legend className="mb-2 text-lg font-semibold text-zinc-50">
-                    Female health options
-                  </legend>
-
-                  <p className="text-sm text-zinc-400">
-                    Both options below are independent — you can enable either, both, or neither.
-                    You might want cycle tracking now, menopause support for relevant context,
-                    or both, depending on where you are in your training journey.
-                    All information is private to you unless you choose to share it.
-                  </p>
-
-                  <label className="flex items-start gap-3 rounded-[10px] border border-zinc-800 bg-zinc-950 p-4">
-                    <input
-                      type="checkbox"
-                      checked={values.cycleTrackingEnabled}
-                      onChange={(e) =>
-                        handleCheckboxChange(
-                          "cycleTrackingEnabled",
-                          e.target.checked
-                        )
-                      }
-                      className="mt-1 h-4 w-4 accent-primary"
-                    />
-                    <span>
-                      <span className="block text-sm font-medium text-zinc-100">
-                        Enable cycle tracking
-                      </span>
-                      <span className="mt-1 block text-sm text-zinc-400">
-                        {CYCLE_TRACKING_BENEFIT_COPY}
-                      </span>
-                    </span>
-                  </label>
-
-                  <label className="flex items-start gap-3 rounded-[10px] border border-zinc-800 bg-zinc-950 p-4">
-                    <input
-                      type="checkbox"
-                      checked={values.menopauseSupportEnabled}
-                      onChange={(e) =>
-                        handleCheckboxChange("menopauseSupportEnabled", e.target.checked)
-                      }
-                      className="mt-1 h-4 w-4 accent-primary"
-                    />
-                    <span>
-                      <span className="block text-sm font-medium text-zinc-100">
-                        Receive menopause support information
-                      </span>
-                      <span className="mt-1 block text-sm text-zinc-400">
-                        Educational content on strength training, nutrition, and recovery
-                        relevant to perimenopause and post-menopause. Visible only to you.
-                      </span>
-                    </span>
-                  </label>
-
-                  {cycleFieldsVisible && (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <FormField
-                        label="Last period start date"
                         id="signup-last-period"
-                        error={errors.lastPeriodStartDate}
-                      >
-                        <input
-                          id="signup-last-period"
-                          type="date"
-                          value={values.lastPeriodStartDate}
-                          onChange={(e) =>
-                            handleTextChange("lastPeriodStartDate", e)
-                          }
-                          className={inputClass(errors.lastPeriodStartDate)}
-                        />
-                      </FormField>
+                        type="date"
+                        value={values.lastPeriodStartDate}
+                        onChange={(e) => handleTextChange("lastPeriodStartDate", e)}
+                        {...fieldA11y("signup-last-period", errors.lastPeriodStartDate)}
+                        className={inputClass(Boolean(errors.lastPeriodStartDate))}
+                      />
+                    </AuthField>
 
-                      <FormField
-                        label="Average cycle length (days)"
+                    <AuthField label="Average cycle length (days)" id="signup-avg-cycle-length" error={errors.averageCycleLengthDays}>
+                      <input
                         id="signup-avg-cycle-length"
-                        error={errors.averageCycleLengthDays}
-                      >
-                        <input
-                          id="signup-avg-cycle-length"
-                          type="number"
-                          value={values.averageCycleLengthDays}
-                          onChange={(e) =>
-                            handleTextChange("averageCycleLengthDays", e)
-                          }
-                          className={inputClass(
-                            errors.averageCycleLengthDays
-                          )}
-                          placeholder="e.g. 28"
-                        />
-                      </FormField>
+                        type="number"
+                        inputMode="numeric"
+                        value={values.averageCycleLengthDays}
+                        onChange={(e) => handleTextChange("averageCycleLengthDays", e)}
+                        {...fieldA11y("signup-avg-cycle-length", errors.averageCycleLengthDays)}
+                        className={inputClass(Boolean(errors.averageCycleLengthDays))}
+                        placeholder="e.g. 28"
+                      />
+                    </AuthField>
 
-                      <FormField
-                        label="Period length (days)"
+                    <AuthField label="Period length (days)" id="signup-period-length" error={errors.periodLengthDays}>
+                      <input
                         id="signup-period-length"
-                        error={errors.periodLengthDays}
+                        type="number"
+                        inputMode="numeric"
+                        value={values.periodLengthDays}
+                        onChange={(e) => handleTextChange("periodLengthDays", e)}
+                        {...fieldA11y("signup-period-length", errors.periodLengthDays)}
+                        className={inputClass(Boolean(errors.periodLengthDays))}
+                        placeholder="e.g. 5"
+                      />
+                    </AuthField>
+
+                    <AuthField label="Regularity" id="signup-regularity" error={errors.regularity}>
+                      <select
+                        id="signup-regularity"
+                        value={values.regularity}
+                        onChange={(e) => handleTextChange("regularity", e)}
+                        {...fieldA11y("signup-regularity", errors.regularity)}
+                        className={inputClass(Boolean(errors.regularity))}
                       >
-                        <input
-                          id="signup-period-length"
-                          type="number"
-                          value={values.periodLengthDays}
-                          onChange={(e) =>
-                            handleTextChange("periodLengthDays", e)
-                          }
-                          className={inputClass(errors.periodLengthDays)}
-                          placeholder="e.g. 5"
-                        />
-                      </FormField>
-
-                      <FormField label="Regularity" id="signup-regularity" error={errors.regularity}>
-                        <select
-                          id="signup-regularity"
-                          value={values.regularity}
-                          onChange={(e) => handleTextChange("regularity", e)}
-                          className={inputClass(errors.regularity)}
-                        >
-                          <option value="">Select regularity</option>
-                          {CYCLE_REGULARITY_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </FormField>
-
-                      <div className="md:col-span-2">
-                        <FormField
-                          label="Private notes"
-                          id="signup-private-notes"
-                          error={errors.privateNotes}
-                        >
-                          <textarea
-                            id="signup-private-notes"
-                            value={values.privateNotes}
-                            onChange={(e) =>
-                              handleTextChange("privateNotes", e)
-                            }
-                            className={`${inputClass(
-                              errors.privateNotes
-                            )} min-h-[110px] resize-y`}
-                            placeholder="Symptoms, preferences, or other private notes"
-                          />
-                        </FormField>
-                      </div>
-
-                      <div className="md:col-span-2 rounded-[10px] border border-zinc-800 bg-zinc-950 p-4">
-                        <p className="mb-3 text-sm font-medium text-zinc-100">
-                          Coach sharing preferences
-                        </p>
-                        <div className="space-y-3">
-                          <CheckboxRow
-                            label="Share current phase with coach"
-                            checked={values.shareCurrentPhaseWithCoach}
-                            onChange={(checked) =>
-                              handleCheckboxChange(
-                                "shareCurrentPhaseWithCoach",
-                                checked
-                              )
-                            }
-                          />
-                          <CheckboxRow
-                            label="Share exact dates with coach"
-                            checked={values.shareExactDatesWithCoach}
-                            onChange={(checked) =>
-                              handleCheckboxChange(
-                                "shareExactDatesWithCoach",
-                                checked
-                              )
-                            }
-                          />
-                          <CheckboxRow
-                            label="Share notes with coach"
-                            checked={values.shareNotesWithCoach}
-                            onChange={(checked) =>
-                              handleCheckboxChange(
-                                "shareNotesWithCoach",
-                                checked
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </fieldset>
-              )}
-
-              {isReviewStep && (
-                <section className="space-y-5">
-                  <div>
-                    <h3 className="text-lg font-semibold text-zinc-50">Review</h3>
-                    <p className="mt-1 text-sm text-zinc-400">
-                      Check the data before creating the account.
-                    </p>
+                        <option value="">Select regularity</option>
+                        {CYCLE_REGULARITY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </AuthField>
                   </div>
 
-                  {formError ? (
-                    <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                      {formError}
-                    </p>
-                  ) : null}
+                  <AuthField label="Private notes" id="signup-private-notes" optional error={errors.privateNotes}>
+                    <textarea
+                      id="signup-private-notes"
+                      value={values.privateNotes}
+                      onChange={(e) => handleTextChange("privateNotes", e)}
+                      {...fieldA11y("signup-private-notes", errors.privateNotes)}
+                      className={inputClass(Boolean(errors.privateNotes), true)}
+                      placeholder="Symptoms, preferences or other private notes"
+                    />
+                  </AuthField>
 
-                  <ReviewCard title="Account">
-                    <ReviewRow label="Email" value={reviewData.account.email || "—"} />
-                  </ReviewCard>
-
-                  <ReviewCard title="Profile">
-                    <ReviewRow
-                      label="Full name"
-                      value={reviewData.profile.fullName || "—"}
+                  <fieldset className="rounded-[3px] border border-white/[0.1] bg-[var(--surface-1)] px-5 py-4">
+                    <legend className="px-1 text-sm font-semibold text-zinc-200">Coach sharing preferences</legend>
+                    <CheckboxField
+                      checked={values.shareCurrentPhaseWithCoach}
+                      onChange={(checked) => handleCheckboxChange("shareCurrentPhaseWithCoach", checked)}
+                      label="Share current phase with coach"
                     />
-                    <ReviewRow label="Phone" value={reviewData.profile.phone || "—"} />
-                    <ReviewRow label="Date of birth" value={reviewData.profile.dateOfBirth} />
-                    <ReviewRow label="Gender" value={reviewData.profile.gender} />
-                    <ReviewRow
-                      label="Primary goal"
-                      value={reviewData.profile.primaryGoal}
+                    <CheckboxField
+                      checked={values.shareExactDatesWithCoach}
+                      onChange={(checked) => handleCheckboxChange("shareExactDatesWithCoach", checked)}
+                      label="Share exact dates with coach"
                     />
-                    <ReviewRow
-                      label="Sport played"
-                      value={reviewData.profile.sportPlayed}
+                    <CheckboxField
+                      checked={values.shareNotesWithCoach}
+                      onChange={(checked) => handleCheckboxChange("shareNotesWithCoach", checked)}
+                      label="Share notes with coach"
                     />
-                    <ReviewRow
-                      label="Current weight"
-                      value={reviewData.profile.currentWeightKg}
-                    />
-                    <ReviewRow
-                      label="Height"
-                      value={reviewData.profile.heightCm}
-                    />
-                    <ReviewRow
-                      label="Additional info"
-                      value={reviewData.profile.additionalInfo}
-                    />
-                    <ReviewRow
-                      label="Emergency contact"
-                      value={`${reviewData.profile.emergencyContactName} — ${reviewData.profile.emergencyContactPhone}`}
-                    />
-                    <ReviewRow
-                      label="Second emergency contact"
-                      value={reviewData.profile.emergencyContact2}
-                    />
-                  </ReviewCard>
-
-                  {reviewData.cycle ? (
-                    <ReviewCard title="Female health options">
-                      <ReviewRow label="Cycle tracking" value={reviewData.cycle.enabled} />
-                      <ReviewRow label="Menopause support" value={reviewData.cycle.menopauseSupport} />
-                      <ReviewRow
-                        label="Last period start"
-                        value={reviewData.cycle.lastPeriodStartDate}
-                      />
-                      <ReviewRow
-                        label="Average cycle length"
-                        value={reviewData.cycle.averageCycleLengthDays}
-                      />
-                      <ReviewRow
-                        label="Period length"
-                        value={reviewData.cycle.periodLengthDays}
-                      />
-                      <ReviewRow
-                        label="Regularity"
-                        value={reviewData.cycle.regularity}
-                      />
-                      <ReviewRow
-                        label="Private notes"
-                        value={reviewData.cycle.privateNotes}
-                      />
-                      <ReviewRow
-                        label="Share current phase"
-                        value={reviewData.cycle.shareCurrentPhaseWithCoach}
-                      />
-                      <ReviewRow
-                        label="Share exact dates"
-                        value={reviewData.cycle.shareExactDatesWithCoach}
-                      />
-                      <ReviewRow
-                        label="Share notes"
-                        value={reviewData.cycle.shareNotesWithCoach}
-                      />
-                    </ReviewCard>
-                  ) : null}
-
-                  <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                    <label className="flex items-start gap-3 text-sm text-zinc-300">
-                      <input
-                        type="checkbox"
-                        checked={agreedToTerms}
-                        onChange={(e) => setAgreedToTerms(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
-                      />
-                      <span>
-                        I agree to the{" "}
-                        <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-gold underline transition hover:text-gold/80">
-                          Terms and Conditions
-                        </Link>
-                      </span>
-                    </label>
-                    <label className="flex items-start gap-3 text-sm text-zinc-300">
-                      <input
-                        type="checkbox"
-                        checked={agreedToPrivacy}
-                        onChange={(e) => setAgreedToPrivacy(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
-                      />
-                      <span>
-                        I agree to the{" "}
-                        <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="text-gold underline transition hover:text-gold/80">
-                          Privacy Policy
-                        </Link>
-                      </span>
-                    </label>
-                  </div>
-                </section>
+                  </fieldset>
+                </>
               )}
-              </div>
+            </>
+          )}
 
-              <div className="flex flex-col-reverse gap-3 border-t border-zinc-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <button
-                  type="button"
-                  onClick={goBack}
-                  disabled={!mounted || step === 0}
-                  className="rounded-lg border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Back
-                </button>
+          {isReviewStep && (
+            <>
+              <p className="-mt-2 text-base leading-relaxed text-zinc-300">Check your details before creating your account.</p>
 
-                <div className="flex gap-3">
-                  {step < totalSteps - 1 ? (
-                    <button
-                      type="button"
-                      onClick={goNext}
-                      disabled={!mounted}
-                      className="btn-primary px-5 py-2.5 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleSubmit}
-                      disabled={!mounted || isSubmitting}
-                      className="btn-primary px-5 py-2.5 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isSubmitting ? "Creating account…" : "Create account"}
-                    </button>
-                  )}
-                </div>
+              {formError ? <FormMessage tone="error">{formError}</FormMessage> : null}
+
+              <ReviewSection title="Account">
+                <ReviewRow label="Email" value={reviewData.account.email || "—"} />
+              </ReviewSection>
+
+              <ReviewSection title="Profile">
+                <ReviewRow label="Full name" value={reviewData.profile.fullName || "—"} />
+                <ReviewRow label="Phone" value={reviewData.profile.phone || "—"} />
+                <ReviewRow label="Date of birth" value={reviewData.profile.dateOfBirth} />
+                <ReviewRow label="Gender" value={reviewData.profile.gender} />
+                <ReviewRow label="Primary goal" value={reviewData.profile.primaryGoal} />
+                <ReviewRow label="Sport played" value={reviewData.profile.sportPlayed} />
+                <ReviewRow label="Current weight" value={reviewData.profile.currentWeightKg} />
+                <ReviewRow label="Height" value={reviewData.profile.heightCm} />
+                <ReviewRow label="Additional info" value={reviewData.profile.additionalInfo} />
+                <ReviewRow
+                  label="Emergency contact"
+                  value={`${reviewData.profile.emergencyContactName} — ${reviewData.profile.emergencyContactPhone}`}
+                />
+                <ReviewRow label="Second emergency contact" value={reviewData.profile.emergencyContact2} />
+              </ReviewSection>
+
+              {reviewData.cycle ? (
+                <ReviewSection title="Female health options">
+                  <ReviewRow label="Cycle tracking" value={reviewData.cycle.enabled} />
+                  <ReviewRow label="Menopause support" value={reviewData.cycle.menopauseSupport} />
+                  <ReviewRow label="Last period start" value={reviewData.cycle.lastPeriodStartDate} />
+                  <ReviewRow label="Average cycle length" value={reviewData.cycle.averageCycleLengthDays} />
+                  <ReviewRow label="Period length" value={reviewData.cycle.periodLengthDays} />
+                  <ReviewRow label="Regularity" value={reviewData.cycle.regularity} />
+                  <ReviewRow label="Private notes" value={reviewData.cycle.privateNotes} />
+                  <ReviewRow label="Share current phase" value={reviewData.cycle.shareCurrentPhaseWithCoach} />
+                  <ReviewRow label="Share exact dates" value={reviewData.cycle.shareExactDatesWithCoach} />
+                  <ReviewRow label="Share notes" value={reviewData.cycle.shareNotesWithCoach} />
+                </ReviewSection>
+              ) : null}
+
+              <div className="grid border-t border-white/[0.08] pt-4">
+                <CheckboxField
+                  checked={agreedToTerms}
+                  onChange={setAgreedToTerms}
+                  label={
+                    <span className="font-normal text-zinc-300">
+                      I agree to the{" "}
+                      <Link href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-gold underline underline-offset-2 hover:text-[var(--primary-hover)]">
+                        Terms and Conditions
+                      </Link>
+                    </span>
+                  }
+                />
+                <CheckboxField
+                  checked={agreedToPrivacy}
+                  onChange={setAgreedToPrivacy}
+                  label={
+                    <span className="font-normal text-zinc-300">
+                      I agree to the{" "}
+                      <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-gold underline underline-offset-2 hover:text-[var(--primary-hover)]">
+                        Privacy Policy
+                      </Link>
+                    </span>
+                  }
+                />
               </div>
-            </div>
-          </section>
+            </>
+          )}
+        </section>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-white/[0.08] pt-6 sm:flex-row sm:items-center sm:justify-between">
+          {step > 0 ? (
+            <button type="button" onClick={goBack} disabled={!mounted} className={BUTTON_SECONDARY}>
+              Back
+            </button>
+          ) : (
+            <span aria-hidden className="hidden sm:block" />
+          )}
+          <div className="sm:min-w-[200px]">
+            {step < totalSteps - 1 ? (
+              <SubmitButton busy={false} disabled={!mounted} label="Continue" busyLabel="Continue" />
+            ) : (
+              <SubmitButton busy={isSubmitting} disabled={!mounted} label="Create account" busyLabel="Creating account…" />
+            )}
+          </div>
         </div>
-      </div>
-    </main>
+      </form>
+    </AuthShell>
   );
 }
 
-function FormField({
+// Single-choice row of swatch chips (theme and accent), as an ARIA radio group.
+function ChoiceGroup<T extends string>({
   label,
-  id,
-  hint,
-  error,
-  trailing,
-  children,
+  description,
+  options,
+  value,
+  onChange,
 }: {
-  label: ReactNode;
-  id: string;
-  hint?: string;
-  error?: string;
-  trailing?: ReactNode;
-  children: ReactNode;
+  label: string;
+  description: string;
+  options: readonly { id: T; label: string; swatch: string }[];
+  value: string;
+  onChange: (id: T) => void;
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-2 block text-sm font-medium text-zinc-200">
-        {label}
-      </label>
-      {hint ? (
-        <p className="mb-2 text-xs text-zinc-500">
-          {hint}
-        </p>
-      ) : null}
-      {trailing ? (
-        <div className="relative">
-          {children}
-          {trailing}
-        </div>
-      ) : (
-        children
-      )}
-      {error ? (
-        <p className="mt-1 text-xs text-red-400">
-          {error}
-        </p>
-      ) : null}
+      <p className="text-sm font-semibold text-zinc-200">{label}</p>
+      <p className="mb-3 mt-1 text-sm leading-relaxed text-zinc-400">{description}</p>
+      <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const selected = value === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(option.id)}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-[3px] border px-3.5 text-sm font-medium transition-colors duration-150 ${
+                selected
+                  ? "border-primary bg-primary/[0.1] text-zinc-50"
+                  : "border-white/[0.14] text-zinc-300 hover:border-white/[0.3] hover:text-zinc-100"
+              }`}
+            >
+              <span aria-hidden="true" className="h-4 w-4 rounded-full ring-1 ring-white/25" style={{ backgroundColor: option.swatch }} />
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function CheckboxRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
+function ReviewSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <label className="flex items-center gap-3 text-sm text-zinc-300">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 accent-primary"
-      />
-      <span>{label}</span>
-    </label>
-  );
-}
-
-function ReviewCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-[10px] border border-zinc-800 bg-zinc-950 p-4">
-      <h4 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-400">
-        {title}
-      </h4>
-      <div className="mt-3 space-y-2">{children}</div>
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{title}</h3>
+      <dl className="mt-3 divide-y divide-white/[0.06] border-y border-white/[0.06]">{children}</dl>
     </div>
   );
 }
 
 function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[180px_minmax(0,1fr)]">
-      <span className="text-sm text-zinc-500">{label}</span>
-      <span className="break-words text-sm text-zinc-100">{value}</span>
+    <div className="grid gap-1 py-2.5 sm:grid-cols-[180px_minmax(0,1fr)]">
+      <dt className="text-sm text-zinc-400">{label}</dt>
+      <dd className="break-words text-sm text-zinc-100">{value}</dd>
     </div>
   );
-}
-
-function inputClass(hasError?: string) {
-  return `w-full rounded-lg border bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
-    hasError
-      ? "border-red-500 focus:border-red-400"
-      : "border-zinc-800 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
-  }`;
 }

@@ -21,7 +21,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[var(--bg-0)]">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-6 lg:h-[72px]">
-        <Link href="/" aria-label="S&C Performance Coaching, home" className="shrink-0">
+        <Link href="/" aria-label="S&C Performance Coaching, home" className="flex h-11 shrink-0 items-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
           <img src="/brand/website-logo-v2.png" alt="" width={160} height={74} className="h-9 w-auto lg:h-11" />
         </Link>
@@ -34,8 +34,8 @@ export function SiteHeader() {
                 key={item.href}
                 href={item.href}
                 aria-current={current ? "page" : undefined}
-                className={`relative py-2 text-sm font-medium transition-colors duration-150 hover:text-white ${
-                  current ? "text-white after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-primary" : "text-zinc-300"
+                className={`relative inline-flex min-h-11 items-center text-sm font-medium transition-colors duration-150 hover:text-white ${
+                  current ? "text-white after:absolute after:inset-x-0 after:bottom-2 after:h-px after:bg-primary" : "text-zinc-300"
                 }`}
               >
                 {item.label}
@@ -47,13 +47,13 @@ export function SiteHeader() {
         <div className="flex items-center gap-3">
           <Link
             href={AUTH_ROUTES.login}
-            className="hidden whitespace-nowrap px-2 py-2 text-sm font-medium text-zinc-400 transition-colors duration-150 hover:text-white sm:inline-flex"
+            className="hidden min-h-11 items-center whitespace-nowrap px-2 text-sm font-medium text-zinc-400 transition-colors duration-150 hover:text-white sm:inline-flex"
           >
             Member login
           </Link>
           <Link
             href={PRIMARY_CTA.href}
-            className="inline-flex h-10 items-center whitespace-nowrap rounded-[3px] bg-primary px-4 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
+            className="inline-flex h-11 items-center whitespace-nowrap rounded-[3px] bg-primary px-4 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
           >
             {PRIMARY_CTA.label}
           </Link>
@@ -61,7 +61,7 @@ export function SiteHeader() {
           <details ref={menu} className="group relative lg:hidden">
             <summary
               aria-label="Menu"
-              className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-[3px] border border-white/[0.14] text-zinc-200 [&::-webkit-details-marker]:hidden"
+              className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-[3px] border border-white/[0.14] text-zinc-200 [&::-webkit-details-marker]:hidden"
             >
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden className="h-5 w-5">
                 <path d="M3 6h14M3 10h14M3 14h14" className="group-open:hidden" />

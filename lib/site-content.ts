@@ -11,7 +11,14 @@ export const SITE_NAV = [
   { label: "Contact", href: "/contact" },
 ] as const;
 
+// CTA language, site-wide: "Book a session" is the one primary action (header
+// and page-end bands, to /contact); class-specific buttons say "Enquire about
+// <class>" and preselect it; the form itself says "Send enquiry".
 export const PRIMARY_CTA = { label: "Book a session", href: "/contact" } as const;
+
+// The reply promise, shown with the enquiry form and in the steps below.
+export const RESPONSE_TIME = "We'll reply by email or phone within one working day.";
+export const ENQUIRY_SENT = "We'll reply by email or phone within one working day to arrange your baseline session.";
 
 // The member's path from enquiry to training; shared by /classes and /contact
 // (the homepage's shorter version lives in HOME_CONTACT.steps).
@@ -22,11 +29,11 @@ export const START_STEPS = [
   },
   {
     title: "We reply to arrange a baseline",
-    body: "A coach gets back to you by email or phone to book your first session at a time that suits.",
+    body: "A coach replies by email or phone within one working day to book your first session at a time that suits.",
   },
   {
     title: "Baseline session",
-    body: "We talk through your goals and history, then assess how you move. Bring training clothes, trainers and water.",
+    body: "We talk through your goals and history, then assess how you move. Bring training clothes, trainers, a towel and water.",
   },
   {
     title: "Your plan begins",
@@ -126,7 +133,7 @@ export const ABOUT_PAGE = {
 export const CONTACT_PAGE = {
   title: "Book your first session.",
   intro:
-    "Send a few lines about your goals and when you can train. A coach will reply to arrange your baseline session.",
+    "Send a few lines about your goals and when you can train. A coach will reply within one working day to arrange your baseline session.",
   formTitle: "Send an enquiry",
   formNote: "Only your name, email and a message are needed.",
   stepsTitle: "What happens next.",

@@ -4,13 +4,19 @@ import Link from "next/link";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
+import { AuthField, fieldA11y, FormMessage, inputClass, SubmitButton } from "@/components/auth/fields";
 import { MARKETING_CLASSES } from "@/lib/marketing-classes";
+import { ENQUIRY_SENT, RESPONSE_TIME } from "@/lib/site-content";
 
 const NOT_SURE = "Not sure yet";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Enquiry form used on the homepage and /contact. "Interested in" is optional
-// and can be preselected (/contact?class=<slug> from the class pages); the API
-// takes no extra field, so the choice is prefixed to the message.
+type Errors = { name?: string; email?: string; message?: string };
+
+// Enquiry form used on the homepage and /contact, built from the same field
+// pieces as the member sign-in screens. "Interested in" is optional and can be
+// preselected (/contact?class=<slug> from the class pages); the API takes no
+// extra field, so the choice is prefixed to the message.
 export function ContactForm({ initialInterest = "" }: { initialInterest?: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -18,11 +24,27 @@ export function ContactForm({ initialInterest = "" }: { initialInterest?: string
   const [message, setMessage] = useState("");
   const [interest, setInterest] = useState(initialInterest);
   const [company, setCompany] = useState(""); // honeypot — real visitors never see/fill this
+  const [errors, setErrors] = useState<Errors>({});
   const [status, setStatus] = useState<"idle" | "submitting" | "sent" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  function validate() {
+    const next: Errors = {};
+    if (!name.trim()) next.name = "Enter your name.";
+    if (!email.trim()) next.email = "Enter your email address.";
+    else if (!EMAIL_RE.test(email.trim())) next.email = "Enter a valid email address.";
+    if (!message.trim()) next.message = "Tell us a little about what you're training for.";
+    setErrors(next);
+    if (Object.keys(next).length > 0) {
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('form[data-contact] [aria-invalid="true"]')?.focus());
+      return false;
+    }
+    return true;
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!validate()) return;
     setStatus("submitting");
     setErrorMessage(null);
 
@@ -34,9 +56,7 @@ export function ContactForm({ initialInterest = "" }: { initialInterest?: string
           name,
           email,
           phone: phone || null,
-          message: interest ? `Interested in: ${interest}
-
-${message}` : message,
+          message: interest ? `Interested in: ${interest}\n\n${message}` : message,
           company,
         }),
       });
@@ -58,112 +78,117 @@ ${message}` : message,
 
   if (status === "sent") {
     return (
-      <div role="status" className="anim-fade border border-white/[0.08] bg-[var(--surface-1)] p-6 text-center">
-        <p className="text-headline text-[32px] text-zinc-50">Message sent.</p>
-        <p className="mt-2 text-base text-zinc-300">
-          Thanks. A coach will reply to arrange your baseline session.
+      <div role="status" className="anim-fade rounded-[4px] border border-white/[0.08] bg-[var(--surface-1)] p-8">
+        <div aria-hidden className="mb-5 h-[2px] w-10 bg-primary" />
+        <p className="text-headline text-[36px] text-zinc-50">Enquiry sent.</p>
+        <p className="mt-3 text-base leading-relaxed text-zinc-300">
+          Thanks{name.trim() ? `, ${name.trim().split(/\s+/)[0]}` : ""}. {ENQUIRY_SENT}
         </p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="border border-white/[0.08] bg-[var(--surface-1)] p-6">
+    <form data-contact onSubmit={handleSubmit} noValidate className="grid gap-5 rounded-[4px] border border-white/[0.08] bg-[var(--surface-1)] p-6 sm:p-8">
       {/* Honeypot — hidden from sighted users, present for bots that fill every field */}
       <div className="hidden" aria-hidden="true">
         <label>
           Company
-          <input
-            type="text"
-            tabIndex={-1}
-            autoComplete="off"
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-          />
+          <input type="text" tabIndex={-1} autoComplete="off" value={company} onChange={(e) => setCompany(e.target.value)} />
         </label>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Name</span>
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border border-white/[0.12] bg-transparent px-3 py-2.5 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
-            placeholder="Your name"
-          />
-        </label>
+      {status === "error" && errorMessage ? <FormMessage tone="error">{errorMessage}</FormMessage> : null}
 
-        <label className="block">
-          <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Phone (optional)</span>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <AuthField label="Name" id="contact-name" error={errors.name}>
           <input
+            id="contact-name"
+            name="name"
+            type="text"
+            autoComplete="name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setErrors((prev) => ({ ...prev, name: undefined }));
+            }}
+            {...fieldA11y("contact-name", errors.name)}
+            className={inputClass(Boolean(errors.name))}
+          />
+        </AuthField>
+
+        <AuthField label="Phone" id="contact-phone" optional>
+          <input
+            id="contact-phone"
+            name="tel"
             type="tel"
+            autoComplete="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full border border-white/[0.12] bg-transparent px-3 py-2.5 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
+            className={inputClass()}
             placeholder="087 123 4567"
           />
-        </label>
+        </AuthField>
       </div>
 
-      <label className="mt-4 block">
-        <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Email</span>
+      <AuthField label="Email" id="contact-email" error={errors.email}>
         <input
+          id="contact-email"
+          name="email"
           type="email"
-          required
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full border border-white/[0.12] bg-transparent px-3 py-2.5 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setErrors((prev) => ({ ...prev, email: undefined }));
+          }}
+          {...fieldA11y("contact-email", errors.email)}
+          className={inputClass(Boolean(errors.email))}
           placeholder="you@example.com"
         />
-      </label>
+      </AuthField>
 
-      <label className="mt-4 block">
-        <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Interested in (optional)</span>
-        <select
-          value={interest}
-          onChange={(e) => setInterest(e.target.value)}
-          className="h-[46px] w-full border border-white/[0.12] bg-[var(--surface-1)] px-3 text-base text-zinc-100 outline-none transition focus:border-primary/60"
-        >
+      <AuthField label="Interested in" id="contact-interest" optional>
+        <select id="contact-interest" value={interest} onChange={(e) => setInterest(e.target.value)} className={inputClass()}>
           <option value="">Choose a class</option>
           {MARKETING_CLASSES.map((c) => (
-            <option key={c.slug} value={c.name}>{c.name}</option>
+            <option key={c.slug} value={c.name}>
+              {c.name}
+            </option>
           ))}
           <option value={NOT_SURE}>{NOT_SURE}</option>
         </select>
-      </label>
+      </AuthField>
 
-      <label className="mt-4 block">
-        <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Message</span>
+      <AuthField label="Message" id="contact-message" error={errors.message}>
         <textarea
-          required
+          id="contact-message"
+          name="message"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          className="min-h-[110px] w-full resize-y border border-white/[0.12] bg-transparent px-3 py-2.5 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-primary/60"
-          placeholder="Tell us what you're training for."
+          onChange={(e) => {
+            setMessage(e.target.value);
+            setErrors((prev) => ({ ...prev, message: undefined }));
+          }}
+          {...fieldA11y("contact-message", errors.message)}
+          className={inputClass(Boolean(errors.message), true)}
+          placeholder="What are you training for, and when can you usually train?"
         />
-      </label>
+      </AuthField>
 
-      {status === "error" && errorMessage ? (
-        <p role="alert" className="mt-4 border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          {errorMessage}
+      <div className="grid gap-3 pt-1">
+        <SubmitButton busy={status === "submitting"} label="Send enquiry" busyLabel="Sending…" />
+        <p className="text-center text-sm text-zinc-400">{RESPONSE_TIME}</p>
+        <p className="text-center text-xs text-zinc-500">
+          We only use these details to reply to you. See our{" "}
+          <Link href="/privacy" className="text-zinc-400 underline underline-offset-2 hover:text-gold">
+            Privacy Policy
+          </Link>
+          .
         </p>
-      ) : null}
-
-      <button
-        type="submit"
-        disabled={status === "submitting"}
-        className="mt-5 w-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-[background-color] duration-150 hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {status === "submitting" ? "Sending…" : "Send message"}
-      </button>
-
-      <p className="mt-3 text-center text-xs text-zinc-500">
-        We only use these details to reply to you. See our{" "}
-        <Link href="/privacy" className="text-zinc-400 underline hover:text-gold">Privacy Policy</Link>.
-      </p>
+      </div>
     </form>
   );
 }

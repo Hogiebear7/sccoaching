@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { ChunkErrorRecovery } from "@/components/ChunkErrorRecovery";
 import { SplashIntro } from "@/components/SplashIntro";
+import { getConfiguredAppUrl } from "@/lib/app-config";
 
 // Self-hosted via next/font/local — see app/fonts/README.md for provenance
 // (fetched from Google's own font-serving API, the same source next/font/google
@@ -78,9 +79,25 @@ const teko = localFont({
   style: "normal",
 });
 
+const SITE_DESCRIPTION =
+  "Small-group strength and conditioning in Navan, Co. Meath: Semi-Private Personal Training, Parent & Baby Classes and Over 50s, coached on the floor and tracked in our app.";
+
+// Defaults for every page; public pages set their own title and description.
+// The canonical origin comes from the configured app URL, falling back to the
+// business domain already used for email.
 export const metadata: Metadata = {
+  metadataBase: new URL(getConfiguredAppUrl() || "https://sandccoaching.com"),
   title: "S&C Performance Coaching",
-  description: "Science-backed training, nutrition and recovery — all in one place.",
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    type: "website",
+    siteName: "S&C Performance Coaching",
+    locale: "en_IE",
+    title: "S&C Performance Coaching",
+    description: SITE_DESCRIPTION,
+    images: [{ url: "/marketing/training-floor.jpg", width: 2048, height: 779, alt: "The S&C training floor in Navan" }],
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {

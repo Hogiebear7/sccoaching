@@ -8,6 +8,7 @@ import { FAQ_PAGE, PRIMARY_CTA } from "@/lib/site-content";
 
 export const metadata: Metadata = {
   title: `FAQ — ${BRAND_NAME}`,
+  alternates: { canonical: "/faq" },
   description: "Pricing, booking, cancellations, pausing, your first session and the S&C app: common questions answered.",
 };
 

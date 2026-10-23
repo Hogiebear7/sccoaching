@@ -4,7 +4,7 @@
 // exists only because S&C predates that table and needs a one-time,
 // hand-entered row instead.
 //
-// Values below mirror lib/content.ts's BRAND_NAME/BRAND_TAGLINE/CONTACT_INFO
+// Values below mirror lib/content.ts's BRAND_NAME/CONTACT_INFO
 // — duplicated rather than imported, matching every other script in this
 // directory (plain .mjs run directly via node, not through the Next.js/TS
 // build, so importing a .ts file isn't available here). Keep in sync with

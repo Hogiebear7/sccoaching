@@ -189,7 +189,7 @@ fastest way to make this system look unfinished.
 
 ## Components
 
-- **Primary button:** gold fill, `on-gold` text, Inter 14px semibold, 3px radius, 48px tall (website). Label says what happens: "Book your first session", "Email to book".
+- **Primary button:** gold fill, `on-gold` text, Inter 14px semibold, 3px radius, 48px tall (website). Label says what happens. Site-wide CTA language: "Book a session" is the one primary action (header, page-end bands → `/contact`); class buttons say "Enquire about <class>" (or "Enquire" on the homepage cards) and preselect it via `/contact?class=<slug>`; the form submits with "Send enquiry".
 - **Copy lives in data:** homepage copy is in `lib/homepage-content.ts` and the classes in `lib/marketing-classes.ts`, ready to move to a back end/CMS; layout files hold no copy.
 - **Secondary button:** transparent, `white/14%` border, Inter 14px medium.
 - **Section label:** short gold rule (32×1px) + 12px uppercase gold text.
@@ -205,9 +205,10 @@ fastest way to make this system look unfinished.
 - **Class detail** (`/classes`): numbered section per class (sticky name, gold price, tagline, its own "Enquire about …" button to `/contact?class=<slug>`), then "Who it's for" (gold-dash list), "What's included" (ruled two-column list) and "What makes it different" (gold left rule). Class data in `lib/marketing-classes.ts`.
 - **Comparison table** (`/about`): two plain columns, muted "Typical gym" vs bright "S&C"; a real `<table>` with a caption. No ticks, crosses or colour-coded cells.
 - **Site footer** (`components/marketing/SiteFooter`): brand line, site links, direct contact, member and legal links.
-- **Contact form:** name, email, message required; phone and "Interested in" optional. The class preselects from `?class=`; the choice is prefixed to the message (the API is unchanged).
+- **Contact form:** built from the auth field pieces (same inputs, labels, errors and submit). Name, email and message required, validated inline with focus moved to the first problem; phone and "Interested in" marked "(optional)". The class preselects from `?class=`; the choice is prefixed to the message (the API is unchanged). The reply promise ("We'll reply by email or phone within one working day.", `RESPONSE_TIME`) sits under the button and in the success message.
 - **Inner-page copy** lives in `lib/site-content.ts` (nav, page copy, the shared four-step "how you start").
-- **Member sign-in** (`components/auth/AuthShell` + `components/auth/fields`, used by `/login` and `/forgot-password`): on `lg` a photo panel of the real training floor (navy overlay, gold top line, logo, the hero headline); on phones a slim bar with logo and "Back to website", form first. Section label + Teko title (52/60px) + one sentence. Inputs 48px, 3px radius, `surface-1` fill, gold border and ring on focus, red with an icon and `aria-invalid`/`aria-describedby` on error. Whole-form messages use a 2px left rule (`role="alert"` / `role="status"`). Flat gold 48px submit with a spinner while busy; a 44px eye toggle (`aria-pressed`) for passwords; "Forgot password?" sits beside the Password label. Secondary routes sit under a hairline. No value-prop lists or promo content.
+- **Member sign-in** (`components/auth/AuthShell` + `components/auth/fields`, used by `/login`, `/signup`, `/forgot-password`, `/reset-password` and `/verify-email-change`): on `lg` a photo panel of the real training floor (navy overlay, gold top line, logo, the hero headline); on phones a slim bar with logo and "Back to website", form first. Section label + Teko title (52/60px) + one sentence. Inputs 48px, 3px radius, `surface-1` fill, gold border and ring on focus, red with an icon and `aria-invalid`/`aria-describedby` on error. Whole-form messages use a 2px left rule (`role="alert"` / `role="status"`). Flat gold 48px submit with a spinner while busy; a 44px eye toggle (`aria-pressed`) for passwords; "Forgot password?" sits beside the Password label. Secondary routes sit under a hairline. No value-prop lists or promo content.
+- **Signup wizard:** `AuthShell wide` (560px column), a segmented gold progress bar with "Step n of N · Next: …", a Teko step title that takes focus on each step, two-column field pairs from `sm`, "(optional)" labels, `CheckboxField` rows (44px, optional bordered box), `ChoiceGroup` swatch chips for theme/accent (3px, 44px), a ruled review list, and "Back" (outline) + "Continue"/"Create account" (gold). The auth screens always stay navy/gold; the swatches show the member's chosen app theme and accent.
 - **App page header:** gold eyebrow chip + Teko page title (40/48px) + muted subtitle (`components/ui/PageHeader`).
 
 ## Motion
@@ -215,6 +216,7 @@ fastest way to make this system look unfinished.
 - **Entrances:** `anim-rise` (480ms, 10px rise, ease-out-expo) staggered 60–100ms; `ScrollReveal` once per element as it enters.
 - **Hero haze:** `components/marketing/HeroShader*` — a server-rendered static navy haze, with the animated WebGPU haze (mesh gradient, faint cloud, slow chalk specks) faded in over it once ready. Rendered at half resolution; telemetry off; pauses off screen.
 - **Feedback:** colour transitions 150ms on hover; buttons press down 1px.
+- **Focus:** one keyboard focus style everywhere: a 2px outline in the active accent (`var(--primary)`, gold on the website and auth), 2px offset. Light surfaces carry `data-surface="light"` and switch the outline to navy. Text fields show a gold border and ring instead of the outline.
 - **Reduced motion:** no haze animation (static haze only), no entrance travel, no splash.
 - **Splash:** the logo splash plays once per tab on app routes; never on the website.
 

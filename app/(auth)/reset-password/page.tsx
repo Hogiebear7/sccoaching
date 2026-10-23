@@ -1,5 +1,14 @@
-import { BRAND_NAME } from "@/lib/content";
+import Link from "next/link";
+
+import { AuthShell } from "@/components/auth/AuthShell";
+import { FormMessage } from "@/components/auth/fields";
 import { ResetPasswordForm } from "./reset-password-form";
+
+export const metadata = {
+  title: "Reset password — S&C Performance Coaching",
+  description: "Choose a new password for your S&C member account.",
+  robots: { index: false },
+};
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -9,29 +18,33 @@ export default async function ResetPasswordPage({
   const { token } = await searchParams;
 
   return (
-    <main data-theme="navy" data-palette="gold" className="relative min-h-screen px-4 py-10 text-zinc-100 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-80 before:bg-[radial-gradient(70%_100%_at_50%_0%,oklch(0.7279_0.0989_82.1/0.08),transparent)]">
-      <div className="mx-auto w-full max-w-md">
-        <div className="mb-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">
-            {BRAND_NAME}
-          </p>
-          <h1 className="text-headline mt-3 text-[40px]">Reset password</h1>
-          <p className="mt-2 text-sm text-zinc-400">
-            Choose a new password for your account.
-          </p>
+    <AuthShell
+      label="Member login"
+      title="Choose a new password."
+      intro="Set a new password for your account, then sign in with it."
+      footer={
+        <Link
+          href="/login"
+          className="group inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gold transition-colors duration-150 hover:text-[var(--primary-hover)]"
+        >
+          <span aria-hidden className="transition-transform duration-150 group-hover:-translate-x-0.5">←</span>
+          Back to sign in
+        </Link>
+      }
+    >
+      {token ? (
+        <ResetPasswordForm token={token} />
+      ) : (
+        <div className="grid gap-6">
+          <FormMessage tone="error">This reset link is incomplete. Request a new one and use the latest email.</FormMessage>
+          <Link
+            href="/forgot-password"
+            className="inline-flex h-12 items-center justify-center rounded-[3px] bg-primary px-6 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
+          >
+            Request a new link
+          </Link>
         </div>
-
-        <div className="panel-raised anim-rise p-6">
-          {token ? (
-            <ResetPasswordForm token={token} />
-          ) : (
-            <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-              This reset link is missing its token. Request a new one from the
-              forgot password page.
-            </p>
-          )}
-        </div>
-      </div>
-    </main>
+      )}
+    </AuthShell>
   );
 }

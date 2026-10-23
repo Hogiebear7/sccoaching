@@ -20,6 +20,7 @@ import { CLASSES_PAGE, PRIMARY_CTA, START_STEPS } from "@/lib/site-content";
 
 export const metadata: Metadata = {
   title: `Classes and pricing — ${BRAND_NAME}`,
+  alternates: { canonical: "/classes" },
   description:
     "Semi-Private Personal Training, Parent & Baby Classes and Over 50s in Navan, Co. Meath: who each class is for, what's included, and prices.",
 };
@@ -119,7 +120,7 @@ export default function ClassesPage() {
       ))}
 
       {/* Every plan includes — the light editorial band, as on the homepage. */}
-      <section className="relative bg-[#f2eee6] text-[#0a1526]">
+      <section data-surface="light" className="relative bg-[#f2eee6] text-[#0a1526]">
         <div className={SECTION}>
           <SectionLabel tone="ivory">All three classes</SectionLabel>
           <h2 className={`mt-4 ${H2}`}>{CLASSES_PAGE.includedTitle}.</h2>

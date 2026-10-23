@@ -29,7 +29,7 @@ const GETTING_STARTED: FaqItem[] = [
   {
     question: "What happens after I enquire?",
     answer:
-      "A coach replies by email or phone to arrange your baseline session. In that session we talk through your goals and assess how you move, then your first block of training is written for you and set up in the app.",
+      "A coach replies by email or phone within one working day to arrange your baseline session. In that session we talk through your goals and assess how you move, then your first block of training is written for you and set up in the app.",
   },
   {
     question: "What should I bring to my first session?",

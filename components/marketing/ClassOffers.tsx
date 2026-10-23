@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { HeadlineText } from "@/components/ui/HeadlineText";
@@ -67,13 +68,13 @@ export function ClassOffers() {
                   <path d="M4 6l4 4 4-4" />
                 </svg>
               </button>
-              <a
-                href="#contact"
+              <Link
+                href={`/contact?class=${cls.slug}`}
                 className="group/link inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gold transition-colors duration-150 hover:text-[var(--primary-hover)]"
               >
                 Enquire
                 <span aria-hidden className="transition-transform duration-150 group-hover/link:translate-x-0.5">→</span>
-              </a>
+              </Link>
             </div>
           </li>
         );

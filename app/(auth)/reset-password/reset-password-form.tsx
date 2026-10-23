@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
+import { AuthField, fieldA11y, FormMessage, inputClass, PasswordToggle, SubmitButton } from "@/components/auth/fields";
+
 // Matches the signup form's requirement copy and the server-side check in
 // validatePasswordStrength (lib/password.ts) — reset-password enforces the
 // same policy, not a weaker one.
 const PASSWORD_REQUIREMENTS_HINT =
   "Must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.";
+
+const MISMATCH = "Passwords do not match.";
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const router = useRouter();
@@ -17,13 +21,14 @@ export function ResetPasswordForm({ token }: { token: string }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError(MISMATCH);
       return;
     }
 
@@ -51,61 +56,55 @@ export function ResetPasswordForm({ token }: { token: string }) {
     }
   }
 
+  // The mismatch is shown on the confirm field; anything from the server
+  // (expired or used link, weak password) is shown above the form.
+  const mismatch = error === MISMATCH;
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error ? (
-        <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          {error}
-        </p>
+    <form onSubmit={handleSubmit} className="grid gap-6">
+      {error && !mismatch ? (
+        <FormMessage tone="error">
+          {error}{" "}
+          <Link href="/forgot-password" className="font-semibold underline underline-offset-2">
+            Request a new link
+          </Link>
+        </FormMessage>
       ) : null}
 
-      <label className="block">
-        <span className="mb-2 block text-sm font-medium text-zinc-200">
-          New password
-        </span>
-        <input
-          type="password"
-          required
-          minLength={8}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-white/[0.08] bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
-          placeholder="At least 8 characters"
-        />
-        <span className="mt-1.5 block text-xs text-zinc-500">{PASSWORD_REQUIREMENTS_HINT}</span>
-      </label>
+      <AuthField label="New password" id="reset-password" hint={PASSWORD_REQUIREMENTS_HINT}>
+        <div className="relative">
+          <input
+            id="reset-password"
+            name="new-password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="new-password"
+            required
+            minLength={8}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            {...fieldA11y("reset-password", undefined, true)}
+            className={`${inputClass()} pr-14`}
+          />
+          <PasswordToggle controls="reset-password" shown={showPassword} onToggle={() => setShowPassword((prev) => !prev)} />
+        </div>
+      </AuthField>
 
-      <label className="block">
-        <span className="mb-2 block text-sm font-medium text-zinc-200">
-          Confirm new password
-        </span>
+      <AuthField label="Confirm new password" id="reset-confirm" error={mismatch ? MISMATCH : undefined}>
         <input
-          type="password"
+          id="reset-confirm"
+          name="confirm-password"
+          type={showPassword ? "text" : "password"}
+          autoComplete="new-password"
           required
           minLength={8}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="w-full rounded-lg border border-white/[0.08] bg-[--input] px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
-          placeholder="Re-enter your new password"
+          {...fieldA11y("reset-confirm", mismatch ? MISMATCH : undefined)}
+          className={inputClass(mismatch)}
         />
-      </label>
+      </AuthField>
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full btn-primary px-5 py-2.5 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isSubmitting ? "Resetting…" : "Reset password"}
-      </button>
-
-      <div className="border-t border-zinc-800 pt-4">
-        <Link
-          href="/login"
-          className="text-sm text-zinc-400 transition hover:text-zinc-200"
-        >
-          Back to sign in
-        </Link>
-      </div>
+      <SubmitButton busy={isSubmitting} label="Save new password" busyLabel="Saving…" />
     </form>
   );
 }
