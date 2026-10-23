@@ -42,7 +42,7 @@ export function ContactForm() {
 
   if (status === "sent") {
     return (
-      <div className="border border-white/[0.08] bg-[var(--surface-1)] p-6 text-center">
+      <div className="anim-fade border border-white/[0.08] bg-[var(--surface-1)] p-6 text-center">
         <p className="text-headline text-[32px] text-zinc-50">Message sent.</p>
         <p className="mt-2 text-base text-zinc-300">
           We&apos;ll get back to you shortly.

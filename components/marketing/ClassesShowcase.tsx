@@ -22,6 +22,12 @@ import { MARKETING_CLASSES as CLASSES } from "@/lib/marketing-classes";
 // the visible focus state.
 export function ClassesShowcase({ imageUrl, imageAlt }: { imageUrl: string; imageAlt: string }) {
   const [active, setActive] = useState<number | null>(null);
+  // The desktop panel keeps showing the last class while it fades out after
+  // the pointer leaves, instead of vanishing in one frame.
+  const [shown, setShown] = useState<number | null>(null);
+  if (active !== null && active !== shown) {
+    setShown(active);
+  }
 
   function handleListBlur(e: FocusEvent<HTMLUListElement>) {
     if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
@@ -93,16 +99,20 @@ export function ClassesShowcase({ imageUrl, imageAlt }: { imageUrl: string; imag
           })}
         </ul>
 
-        {/* Desktop panel — only rendered while a class is active, so the
-            photo shows unobstructed the rest of the time. The frosted scrim
-            guarantees contrast regardless of what's behind it. */}
+        {/* Desktop panel — visible only while a class is active, so the
+            photo shows unobstructed the rest of the time; it fades in on each
+            new class and fades out (150ms) when the pointer leaves. The
+            frosted scrim guarantees contrast regardless of what's behind it. */}
         <div className="hidden lg:block">
-          {active !== null ? (
+          {shown !== null ? (
             <div
-              key={active}
-              className="anim-fade max-w-md rounded-xl bg-[var(--surface-1)]/60 p-7 backdrop-blur-md"
+              key={shown}
+              aria-hidden={active === null}
+              className={`max-w-md rounded-xl bg-[var(--surface-1)]/60 p-7 backdrop-blur-md ${
+                active === null ? "pointer-events-none opacity-0 transition-opacity duration-150 ease-out" : "anim-fade"
+              }`}
             >
-              <p className="text-lg leading-relaxed text-zinc-100">{CLASSES[active].description}</p>
+              <p className="text-lg leading-relaxed text-zinc-100">{CLASSES[shown].description}</p>
             </div>
           ) : null}
         </div>
