@@ -3,39 +3,27 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { findUserById } from "@/lib/db";
-import { AUTH_ROUTES, BRAND_NAME, CONTACT_INFO, HERO_HEADLINE, LANDING_DESCRIPTION, VALUE_PROPS } from "@/lib/content";
+import { AUTH_ROUTES, BRAND_NAME, CONTACT_INFO } from "@/lib/content";
+import { HOME_APPROACH, HOME_CONTACT, HOME_HERO, HOME_PROGRESS, HOME_PROOF } from "@/lib/homepage-content";
 import { verifySession } from "@/lib/session";
 import { AppFeatureGrid } from "@/components/marketing/AppFeatureGrid";
 import { AppShowcase } from "@/components/marketing/AppShowcase";
-import { ClassesShowcase } from "@/components/marketing/ClassesShowcase";
-import { ClassPricingShowcase } from "@/components/marketing/ClassPricingShowcase";
+import { ClassOffers } from "@/components/marketing/ClassOffers";
 import { ContactForm } from "@/components/marketing/ContactForm";
 import { FaqSection } from "@/components/marketing/FaqSection";
 import { HeroShader } from "@/components/marketing/HeroShader";
 import { MemberPreviewStack } from "@/components/marketing/MemberPreviewStack";
+import { SiteHeader } from "@/components/marketing/SiteHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
-// Structural copy, not business fact — the specific claims here (coach
-// qualifications, locality specifics) are placeholders carried over from the
-// design blueprint and need the client's confirmation/edit before launch.
-const DIFFERENTIATORS = [
-  {
-    title: "Your goals, not a template",
-    body: "No member starts on a generic plan. Your first session sets your goals and baseline, then shapes the block that follows.",
-  },
-  {
-    title: "Capped coaching ratios",
-    body: "Small-group sessions stay small on purpose — every rep gets watched, every cue is specific to you, not shouted at the room.",
-  },
-  {
-    title: "Highly qualified coach",
-    body: "15+ years of hands-on experience, backed by multiple science and coaching degrees. Not your standard club trainer.",
-  },
-  {
-    title: "Rooted in the community",
-    body: "Members, athletes, and everyone in between train side by side in a calm, focused environment.",
-  },
-] as const;
+// Public homepage. Layout only: all copy lives in lib/homepage-content.ts and
+// lib/marketing-classes.ts so it can later be edited from the back end/CMS.
+// Section rhythm: navy hero → proof strip → classes → ivory "approach" band →
+// progress → app → FAQ → contact. See DESIGN.md for the system.
+
+const SECTION = "mx-auto max-w-6xl px-6 py-24 lg:py-32";
+const H2 = "text-headline text-[44px] sm:text-[60px]";
+const LABEL = "flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold";
 
 export default async function Root() {
   const cookieStore = await cookies();
@@ -47,210 +35,176 @@ export default async function Root() {
   }
 
   return (
-    <main
-      data-palette="gold"
-      data-theme="navy"
-      className="relative min-h-screen overflow-hidden text-zinc-100"
-    >
-      {/* Ambient — slow navy haze with drifting chalk specks, under the hairline grid */}
-      <HeroShader className="pointer-events-none absolute inset-x-0 top-0 h-[620px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]" />
+    <main data-palette="gold" data-theme="navy" className="relative min-h-screen overflow-hidden text-zinc-100">
+      {/* Ambient — slow navy haze with drifting chalk specks behind the hero */}
+      <HeroShader className="pointer-events-none absolute inset-x-0 top-0 h-[820px] [mask-image:linear-gradient(to_bottom,black,transparent_92%)]" />
 
-      {/* Ambient — restrained hairline grid, no aurora/skew streaks */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[620px] opacity-60 [mask-image:linear-gradient(to_bottom,black,transparent_90%)]"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(90deg, var(--border-subtle) 0, var(--border-subtle) 1px, transparent 1px, transparent 120px)",
-        }}
-      />
+      <SiteHeader />
 
-      {/* Top navigation */}
-      <nav className="relative mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <Link href="/" className="flex items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-          <img src="/brand/website-logo-v2.png" alt="S&amp;C Performance Coaching" className="h-20 w-auto sm:h-[120px]" />
-        </Link>
-        <div className="flex items-center gap-2.5">
-          <Link
-            href={AUTH_ROUTES.login}
-            className="whitespace-nowrap rounded-[3px] px-4 py-2 text-sm font-medium text-zinc-300 transition-colors duration-150 hover:bg-white/[0.06] hover:text-white"
-          >
-            Sign in
-          </Link>
-          <Link
-            href={AUTH_ROUTES.signup}
-            className="whitespace-nowrap rounded-[3px] bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
-          >
-            Create account
-          </Link>
-        </div>
-      </nav>
-
-      {/* Hero — editorial split, staggered page-load choreography. Right
-          column previews three member-area features (training, nutrition,
-          recovery) in the same solid-panel/gold-accent language as the
-          Ledger signature motif, in place of a stock athlete photo. */}
-      <section className="relative mx-auto grid max-w-6xl items-start gap-14 px-6 pb-24 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:pt-20">
+      {/* Hero — who we help and the outcome, one primary action, the real
+          training floor as the brand-led visual. */}
+      <section className="relative mx-auto grid max-w-6xl items-center gap-12 px-6 pb-20 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pb-28 lg:pt-24">
         <div>
-          <h1
-            className="anim-rise text-headline text-[64px] text-zinc-50 sm:text-[96px]"
-            style={{ animationDelay: "150ms" }}
-          >
-            {HERO_HEADLINE.lead}{" "}
-            <em className="not-italic text-gold">{HERO_HEADLINE.accent}</em>
+          <h1 className="anim-rise text-headline text-[64px] text-zinc-50 sm:text-[96px]" style={{ animationDelay: "60ms" }}>
+            {HOME_HERO.headline.lead}{" "}
+            <em className="not-italic text-gold">{HOME_HERO.headline.accent}</em>
           </h1>
-          <p
-            className="anim-rise mt-6 max-w-md text-lg leading-relaxed text-zinc-300"
-            style={{ animationDelay: "260ms" }}
-          >
-            {LANDING_DESCRIPTION}
+          <p className="anim-rise mt-6 max-w-lg text-lg leading-relaxed text-zinc-300 sm:text-xl" style={{ animationDelay: "140ms" }}>
+            {HOME_HERO.intro}
           </p>
-
-          <div
-            className="anim-rise mt-8 flex flex-col gap-3 sm:flex-row"
-            style={{ animationDelay: "360ms" }}
-          >
-            <Link
-              href={AUTH_ROUTES.signup}
-              className="group inline-flex items-center justify-center gap-2 rounded-[3px] bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
+          <div className="anim-rise mt-10 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ animationDelay: "220ms" }}>
+            <a
+              href={HOME_HERO.primaryCta.href}
+              className="group inline-flex h-12 items-center justify-center gap-2 rounded-[3px] bg-primary px-7 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
             >
-              Start training
+              {HOME_HERO.primaryCta.label}
               <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
-            </Link>
-            <Link
-              href={AUTH_ROUTES.login}
-              className="inline-flex items-center justify-center rounded-[3px] border border-white/[0.14] bg-transparent px-6 py-3 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/40 hover:bg-white/[0.04] hover:text-white"
+            </a>
+            <a
+              href={HOME_HERO.secondaryCta.href}
+              className="inline-flex h-12 items-center justify-center rounded-[3px] border border-white/[0.16] px-7 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/50 hover:text-white"
             >
-              Sign in
-            </Link>
+              {HOME_HERO.secondaryCta.label}
+            </a>
           </div>
+        </div>
 
-          <ul
-            className="anim-rise mt-10 space-y-3"
-            style={{ animationDelay: "460ms" }}
-          >
-            {VALUE_PROPS.map((item) => (
-              <li key={item} className="flex items-start gap-3 text-base text-zinc-300">
-                <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-3 w-3 text-primary">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                </span>
-                {item}
+        <figure className="anim-fade relative" style={{ animationDelay: "120ms" }}>
+          <div className="relative overflow-hidden rounded-[4px] border border-white/[0.1]">
+            <div className="absolute inset-x-0 top-0 z-10 h-[2px] bg-primary" aria-hidden />
+            {/* eslint-disable-next-line @next/next/no-img-element -- static marketing photo with fixed dimensions */}
+            <img
+              src={HOME_HERO.image.src}
+              alt={HOME_HERO.image.alt}
+              width={2048}
+              height={779}
+              fetchPriority="high"
+              className="aspect-[4/3] w-full object-cover lg:aspect-[4/5]"
+            />
+          </div>
+          <figcaption className="mt-3 text-sm text-zinc-500">{HOME_HERO.image.caption}</figcaption>
+        </figure>
+      </section>
+
+      {/* Proof strip — short authority markers, no invented statistics. */}
+      <section aria-label="Why S&C" className="relative border-y border-white/[0.06] bg-[var(--surface-1)]">
+        <dl className="mx-auto grid max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 py-12 lg:grid-cols-4 lg:py-14">
+          {HOME_PROOF.map((item) => (
+            <div key={item.label} className="lg:border-l lg:border-white/[0.08] lg:pl-6 lg:first:border-l-0 lg:first:pl-0">
+              <dt className="text-headline text-[44px] leading-none text-zinc-50">{item.value}</dt>
+              <dd className="mt-2 max-w-[22ch] text-sm leading-relaxed text-zinc-400">{item.label}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {/* Classes — the three offers with pricing; details on hover, focus or tap. */}
+      <section id="classes" className="relative scroll-mt-20">
+        <div className={SECTION}>
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+            <div>
+              <p className={LABEL}>
+                <span className="h-px w-8 bg-primary/70" />
+                The training floor
+              </p>
+              <h2 className={`mt-4 ${H2} text-zinc-50`}>Classes we offer.</h2>
+            </div>
+            <p className="max-w-md text-base leading-relaxed text-zinc-300">
+              Every class is coached, capped and programmed. Every plan includes coach messaging, class booking and full workout tracking.
+            </p>
+          </div>
+          <ScrollReveal className="mt-12">
+            <ClassOffers />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* Approach — the one light editorial band on the page. */}
+      <section id="approach" className="relative scroll-mt-20 bg-[#f2eee6] text-[#0a1526]">
+        <div className={`${SECTION} grid gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20`}>
+          <div className="lg:sticky lg:top-28 lg:self-start">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#8a6a2f]">
+              <span className="h-px w-8 bg-[#8a6a2f]" />
+              Our approach
+            </p>
+            <h2 className={`mt-4 ${H2}`}>{HOME_APPROACH.title}</h2>
+            <p className="mt-6 max-w-md text-lg leading-relaxed text-[#2c3a52]">{HOME_APPROACH.intro}</p>
+          </div>
+          <ul className="grid gap-10">
+            {HOME_APPROACH.pillars.map((item) => (
+              <li key={item.title} className="border-t-2 border-[#c6a15b] pt-6">
+                <h3 className="text-headline text-[34px]">{item.title}</h3>
+                <p className="mt-3 max-w-[52ch] text-base leading-relaxed text-[#2c3a52]">{item.body}</p>
               </li>
             ))}
           </ul>
         </div>
-
-        <div
-          className="anim-rise hidden lg:block"
-          style={{ animationDelay: "420ms" }}
-        >
-          <MemberPreviewStack />
-          <p className="mt-4 text-xs italic text-zinc-500">
-            Representative data — your numbers, tracked from week one.
-          </p>
-        </div>
       </section>
 
-      {/* Classes we offer — curated services panel (hover/tap reveals each
-          class's description) over the real gym photo. Replaces the old
-          literal weekly timetable; these three classes are fixed content,
-          not derived from booking data. */}
-      <section className="relative border-t border-white/[0.06]">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <div className="max-w-lg">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
+      {/* Progress — credibility from how results are measured, using the real
+          app; a testimonials block appears only once real quotes are added. */}
+      <section id="progress" className="relative scroll-mt-20">
+        <div className={`${SECTION} grid items-center gap-14 lg:grid-cols-2 lg:gap-20`}>
+          <div>
+            <p className={LABEL}>
               <span className="h-px w-8 bg-primary/70" />
-              The Training Floor
+              Measured, not guessed
             </p>
-            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">Classes we offer.</h2>
+            <h2 className={`mt-4 ${H2} text-zinc-50`}>{HOME_PROGRESS.title}</h2>
+            <p className="mt-6 max-w-md text-lg leading-relaxed text-zinc-300">{HOME_PROGRESS.intro}</p>
+            <ul className="mt-10 grid gap-6">
+              {HOME_PROGRESS.points.map((p) => (
+                <li key={p.title} className="flex gap-4">
+                  <span aria-hidden className="mt-3 h-px w-6 shrink-0 bg-primary" />
+                  <div>
+                    <p className="text-base font-semibold text-zinc-50">{p.title}</p>
+                    <p className="mt-1 text-base leading-relaxed text-zinc-400">{p.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
-
-          <ScrollReveal delayMs={80} className="mt-10">
-            <ClassesShowcase imageUrl="/marketing/training-floor.jpg" imageAlt="Inside the S&C training floor" />
+          <ScrollReveal>
+            <MemberPreviewStack />
+            <p className="mt-4 text-xs italic text-zinc-500">Representative data. Your numbers, tracked from week one.</p>
           </ScrollReveal>
         </div>
-      </section>
 
-      {/* The Standard — differentiators. Structural copy only; see the
-          DIFFERENTIATORS comment above re: placeholder specifics. */}
-      <section className="relative border-t border-white/[0.06] bg-[var(--surface-1)]">
-        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-20 lg:grid-cols-[0.8fr_1.2fr]">
-          <div>
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
-              <span className="h-px w-8 bg-primary/70" />
-              The Standard
-            </p>
-            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">
-              This is a coaching floor, not a workout class.
-            </h2>
-          </div>
-
-          <div className="grid gap-6">
-            {DIFFERENTIATORS.map((item, i) => (
-              <div
-                key={item.title}
-                className={`pb-6 ${i !== DIFFERENTIATORS.length - 1 ? "border-b border-white/[0.08]" : ""}`}
-              >
-                <h3 className="text-headline text-[32px] text-gold">{item.title}</h3>
-                <p className="mt-2 max-w-[52ch] text-base leading-relaxed text-zinc-300">{item.body}</p>
-              </div>
+        {HOME_PROGRESS.testimonials.length > 0 ? (
+          <div className="mx-auto grid max-w-6xl gap-6 px-6 pb-24 md:grid-cols-3">
+            {HOME_PROGRESS.testimonials.map((t) => (
+              <figure key={t.name} className="rounded-[4px] border border-white/[0.08] bg-[var(--surface-1)] p-6">
+                <blockquote className="text-lg leading-relaxed text-zinc-100">“{t.quote}”</blockquote>
+                <figcaption className="mt-5 text-sm">
+                  <span className="font-semibold text-zinc-50">{t.name}</span>
+                  <span className="block text-zinc-400">{t.context}</span>
+                </figcaption>
+              </figure>
             ))}
           </div>
-        </div>
+        ) : null}
       </section>
 
-      {/* Membership — one card per class from "Classes we offer" above,
-          priced to match. Fixed marketing content, not catalog-driven (see
-          the Classes we offer section for the same reasoning): the real
-          catalog only prices Semi-Private tiers today, and these three
-          cards are meant to mirror the class showcase one-to-one. */}
-      <section className="relative border-t border-white/[0.06]">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <div className="max-w-lg">
-            <h2 className="text-headline text-[44px] text-zinc-50 sm:text-[56px]">Choose how you train</h2>
-            <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-zinc-300">
-              Every plan includes coach messaging, class booking, and full workout tracking.
+      {/* The app — for members who train on their own days. */}
+      <section id="app" className="relative scroll-mt-20 border-t border-white/[0.06] bg-[var(--surface-1)]">
+        <div className={SECTION}>
+          <div className="max-w-xl">
+            <p className={LABEL}>
+              <span className="h-px w-8 bg-primary/70" />
+              The app
             </p>
-          </div>
-
-          <ScrollReveal delayMs={80} className="mt-10">
-            <ClassPricingShowcase href={AUTH_ROUTES.signup} />
-          </ScrollReveal>
-        </div>
-      </section>
-
-      {/* App-only membership (Tier 2) — the app-based alternative to the
-          in-person memberships above: real screenshots, then the full feature
-          index behind a native <details> disclosure (works without JS), then
-          the launch line. See AppShowcase.tsx for why store links are
-          placeholders. App questions live in the merged FAQ below. */}
-      <section className="relative border-t border-white/[0.06]">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <div className="max-w-lg">
-            <h2 className="text-headline text-[44px] text-zinc-50 sm:text-[56px]">Coaching that fits in your pocket.</h2>
-            <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-zinc-300">
+            <h2 className={`mt-4 ${H2} text-zinc-50`}>Coaching that fits in your pocket.</h2>
+            <p className="mt-6 text-lg leading-relaxed text-zinc-300">
               Not near the gym, or want to train on your own days? Get the same coaching approach, built into an app.
             </p>
           </div>
 
-          <ScrollReveal delayMs={80} className="mt-10">
+          <ScrollReveal className="mt-12">
             <AppShowcase>
               <details className="group mt-12 border-t border-white/[0.08] pt-8">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
                   <span className="text-headline text-[32px] text-zinc-50">See everything in the app</span>
-                  <svg
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                    className="h-5 w-5 shrink-0 text-gold transition-transform duration-200 group-open:rotate-180"
-                  >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-5 w-5 shrink-0 text-gold transition-transform duration-200 group-open:rotate-180">
                     <path d="M4 6l4 4 4-4" />
                   </svg>
                 </summary>
@@ -268,50 +222,48 @@ export default async function Root() {
         </div>
       </section>
 
-      {/* FAQ — resolves the common objections/questions right before the
-          final CTA asks for action. */}
-      <section className="relative border-t border-white/[0.06]">
-        <div className="mx-auto max-w-3xl px-6 py-20">
-          <div className="max-w-lg">
-            <h2 className="text-headline text-[44px] text-zinc-50 sm:text-[56px]">Common questions.</h2>
-          </div>
-
-          <div className="mt-10">
+      {/* FAQ — resolves the common objections right before the final CTA. */}
+      <section id="faq" className="relative scroll-mt-20 border-t border-white/[0.06]">
+        <div className="mx-auto max-w-3xl px-6 py-24 lg:py-32">
+          <h2 className={`${H2} text-zinc-50`}>Common questions.</h2>
+          <div className="mt-12">
             <FaqSection />
           </div>
         </div>
       </section>
 
-      {/* Final CTA — booking links, contact details, and a real lead-capture
-          form (app/api/contact) so visitors can leave their details. id
-          gives other sections' CTAs (e.g. "Book Your First Session") a real
-          same-page destination to point at. */}
-      <section id="contact" className="relative scroll-mt-20 border-t border-white/[0.06]">
-        <div className="mx-auto grid max-w-5xl gap-12 px-6 py-24 lg:grid-cols-2 lg:items-start">
+      {/* Contact — one obvious next step, three-step expectation, low-friction form. */}
+      <section id="contact" className="relative scroll-mt-20 border-t border-white/[0.06] bg-[var(--surface-1)]">
+        <div className="mx-auto grid max-w-6xl gap-14 px-6 py-24 lg:grid-cols-[1.05fr_0.95fr] lg:items-start lg:gap-20 lg:py-32">
           <div>
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
+            <p className={LABEL}>
               <span className="h-px w-8 bg-primary/70" />
-              Get Started
+              Get started
             </p>
-            <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">
-              Begin your training with us.
-            </h2>
-            <p className="mt-4 max-w-md text-lg leading-relaxed text-zinc-300">
-              Book your first session and walk out with a baseline, a plan, and a coach who already knows your goals.
-            </p>
+            <h2 className={`mt-4 ${H2} text-zinc-50`}>{HOME_CONTACT.title}</h2>
+            <p className="mt-6 max-w-md text-lg leading-relaxed text-zinc-300">{HOME_CONTACT.intro}</p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <ol className="mt-10 grid gap-6 sm:grid-cols-3">
+              {HOME_CONTACT.steps.map((s) => (
+                <li key={s.title} className="border-t-2 border-primary pt-4">
+                  <p className="text-headline text-[24px] text-zinc-50">{s.title}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-zinc-400">{s.body}</p>
+                </li>
+              ))}
+            </ol>
+
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <a
-                href={`mailto:${CONTACT_INFO.email}`}
-                className="inline-flex items-center justify-center rounded-[3px] bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-[background-color] duration-150 hover:bg-[var(--primary-hover)]"
+                href={`mailto:${CONTACT_INFO.email}?subject=${encodeURIComponent("First session enquiry")}`}
+                className="inline-flex h-12 items-center justify-center rounded-[3px] bg-primary px-7 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
               >
-                Book Your First Session
+                {HOME_CONTACT.primaryCta}
               </a>
               <a
                 href={`tel:${CONTACT_INFO.phoneHref}`}
-                className="inline-flex items-center justify-center rounded-[3px] border border-white/[0.14] px-6 py-3 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/40 hover:bg-white/[0.04]"
+                className="inline-flex h-12 items-center justify-center rounded-[3px] border border-white/[0.16] px-7 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/50 hover:text-white"
               >
-                Call the Floor
+                {HOME_CONTACT.secondaryCta}
               </a>
             </div>
 
@@ -329,23 +281,26 @@ export default async function Root() {
                 <dd className="text-base text-zinc-200">{CONTACT_INFO.phone}</dd>
               </div>
             </dl>
+            <p className="mt-6 text-sm text-zinc-400">
+              Already decided?{" "}
+              <Link href={AUTH_ROUTES.signup} className="font-semibold text-gold transition-colors duration-150 hover:text-[var(--primary-hover)]">
+                Create your account
+              </Link>
+            </p>
           </div>
 
-          <div>
-            <ContactForm />
-          </div>
+          <ContactForm />
         </div>
       </section>
 
       {/* Footer */}
       <footer className="relative border-t border-white/[0.06]">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-6 py-10 sm:flex-row sm:items-center">
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-6 py-12 sm:flex-row sm:items-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-          <img src="/brand/website-logo-v2.png" alt="S&amp;C Performance Coaching" className="h-8 w-auto" />
+          <img src="/brand/website-logo-v2.png" alt="S&amp;C Performance Coaching" className="h-9 w-auto" />
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400">
-            <Link href={AUTH_ROUTES.login} className="transition-colors duration-150 hover:text-gold">Sign in</Link>
+            <Link href={AUTH_ROUTES.login} className="transition-colors duration-150 hover:text-gold">Member login</Link>
             <Link href={AUTH_ROUTES.signup} className="transition-colors duration-150 hover:text-gold">Create account</Link>
-            <Link href={AUTH_ROUTES.forgotPassword} className="transition-colors duration-150 hover:text-gold">Forgot password</Link>
             <Link href="/privacy" className="transition-colors duration-150 hover:text-gold">Privacy</Link>
             <Link href="/terms" className="transition-colors duration-150 hover:text-gold">Terms</Link>
           </div>

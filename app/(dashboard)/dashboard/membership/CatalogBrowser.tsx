@@ -135,8 +135,8 @@ export function CatalogBrowser({
       ) : null}
 
       {/* Level 1: categories — high-level offerings. Photo banner + name
-          overlay matches the public marketing page's pricing cards
-          (components/marketing/ClassPricingShowcase.tsx) — ClassImageSlot
+          overlay echoes the public marketing page's class cards
+          (components/marketing/ClassOffers.tsx) — ClassImageSlot
           already falls back to an on-brand placeholder when a category has
           no cover image set yet, so this looks right immediately even
           before staff upload real photos for every category. */}

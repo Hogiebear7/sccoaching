@@ -8,13 +8,6 @@ export const BRAND_NAME = "S&C Performance Coaching";
 export const BRAND_TAGLINE =
   "Science-backed training, nutrition and recovery — all in one place.";
 
-// Marketing hero headline (website only; /login keeps BRAND_TAGLINE). The
-// accent half is set in gold.
-export const HERO_HEADLINE = { lead: "Coached,", accent: "not crowded." } as const;
-
-export const LANDING_DESCRIPTION =
-  "Small-group strength and conditioning coaching in Navan, Co. Meath, with an app that tracks your training, nutrition and recovery.";
-
 export const VALUE_PROPS = [
   "Professional training sessions built around your goals and needs.",
   "Log every rep and workout and track your progress as you train.",

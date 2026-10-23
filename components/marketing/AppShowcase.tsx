@@ -62,7 +62,7 @@ function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void 
         aria-label={`Open a larger view of the ${screen.label} screen`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- real static screenshots, not a next/image-worthy asset */}
-        <img src={screen.src} alt={screen.alt} className="block h-auto w-full" loading="lazy" />
+        <img src={screen.src} alt={screen.alt} width={862} height={1924} className="block h-auto w-full" loading="lazy" />
         <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
           <p className="text-xs leading-relaxed text-zinc-100">{screen.description}</p>
         </div>
@@ -125,7 +125,7 @@ function ScreenLightbox({ screen, onClose }: { screen: AppScreen; onClose: () =>
       >
         <div className="overflow-hidden rounded-[28px] border border-white/[0.14] bg-black shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={screen.src} alt={screen.alt} className="block h-auto w-full" />
+          <img src={screen.src} alt={screen.alt} width={862} height={1924} className="block h-auto w-full" />
         </div>
         <div className="mt-5 flex items-start justify-between gap-4">
           <div>

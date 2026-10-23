@@ -32,6 +32,11 @@ colors:
   success: "#8fbf9f"
   warning: "#e9b452"
   danger: "#e62b34"
+  # Editorial band (one per page, website only)
+  ivory: "#f2eee6"
+  ivory-ink: "#0a1526"
+  ivory-body: "#2c3a52"
+  ivory-gold: "#8a6a2f"
 
 typography:
   headline:
@@ -84,7 +89,7 @@ When code and this file disagree, fix the code or update this file in the same
 change; don't let them drift.
 
 **Key characteristics**
-- Navy surfaces from `{colors.sidebar}` to `{colors.surface-3}`; never flat black, never light mode.
+- Navy surfaces from `{colors.sidebar}` to `{colors.surface-3}`; never flat black. One exception: a single warm ivory editorial band per page (`ivory`) for the brand story.
 - One accent: `{colors.gold}`. It marks the primary action, figures, labels and the second half of a headline. Not decoration.
 - Headlines are uppercase Teko; body is Inter at 16px. No third face in new work.
 - Square-ish geometry: 3px buttons on the website, 4px cards, a 2px gold line along the top of signature cards.
@@ -158,17 +163,19 @@ fastest way to make this system look unfinished.
 ## Layout
 
 - Website container: `max-w-6xl` with 24px side padding (`px-6`); FAQ narrows to `max-w-3xl`.
-- Section rhythm: 80px vertical padding (`py-20`), a 1px `white/6%` line between sections, alternate `bg-0` and `surface-1` to separate neighbours.
+- Section rhythm: 96px vertical padding on phones, 128px from `lg` (`py-24 lg:py-32`). Separate neighbours with a step in surface (`bg-0` ↔ `surface-1`) or the ivory band, plus at most a 1px `white/6%` line.
+- Homepage order (the "trust & authority + conversion" pattern): sticky header → hero → proof strip → classes → ivory approach band → progress → app → FAQ → contact. Every section has an `id` for the header links and `scroll-mt-20` so jumps land under the sticky bar.
+- Images always carry `width`/`height` (or a fixed aspect ratio) so lazy loading never shifts the layout or breaks anchor jumps.
 - Breakpoints (Tailwind): `sm` 640px, `lg` 1024px. The hero is two columns from `lg`; the preview cards hide below `lg`.
-- Phones are their own composition: the logo drops to 80px, nav links never wrap, tap targets are at least 44px.
+- Phones are their own composition: section links move into the header menu, nav links never wrap, tap targets are at least 44px.
 
 ## Shapes and depth
 
 - **Website buttons:** 3px radius, flat gold fill (primary) or a `white/14%` outline (secondary). No gradients, no glow.
 - **App buttons:** pill (`9999px`) primary buttons remain in the member app; see Known gaps.
 - **Cards:** `surface-1` fill, 1px `border-subtle`, 4px radius (`surface-card`). Signature cards add a 2px gold line along the top.
-- **Pricing cards:** 16px radius with a real class photo on top; the featured card gets a gold border and a soft gold shadow.
-- **Shadows:** only on things that float (menus, dialogs, the featured pricing card). No glass, no backdrop blur on new work.
+- **Class cards:** 4px radius, real class photo (4:3) on top, no shadow at rest; hover lifts 2px and turns the border gold.
+- **Shadows:** only on things that float (menus, dialogs). No glass, no backdrop blur on new work.
 
 ## Imagery
 
@@ -179,12 +186,17 @@ fastest way to make this system look unfinished.
 
 ## Components
 
-- **Primary button:** gold fill, `on-gold` text, Inter 14px semibold, 3px radius (website). Label says what happens: "Start training", "Book your first session".
+- **Primary button:** gold fill, `on-gold` text, Inter 14px semibold, 3px radius, 48px tall (website). Label says what happens: "Book your first session", "Email to book".
+- **Copy lives in data:** homepage copy is in `lib/homepage-content.ts` and the classes in `lib/marketing-classes.ts`, ready to move to a back end/CMS; layout files hold no copy.
 - **Secondary button:** transparent, `white/14%` border, Inter 14px medium.
 - **Section label:** short gold rule (32×1px) + 12px uppercase gold text.
-- **Preview card** (hero): `surface-1`, gold top line, Teko title (26px), Inter 12px uppercase gold tag, Teko gold figure (44px).
-- **Class panel:** class names in Teko 34–44px over the training-floor photo; tap/hover reveals the description.
-- **Pricing card:** photo header with Teko class name, white Teko price (44px), "Get started" button; one featured card.
+- **Site header:** slim sticky bar, opaque navy (no blur): logo, section links, a quiet "Member login", one gold "Book a session". Below `lg` the links live in a `<details>` menu that closes when a link is chosen (`components/marketing/SiteHeader`).
+- **Hero:** Teko headline (gold second half), one-sentence who/where/what, primary + secondary button, the real training-floor photo with a 2px gold top line and a caption.
+- **Proof strip:** four short authority markers (Teko value + 14px label) on `surface-1`; only claims the business can stand behind, no invented statistics.
+- **Class card** (`components/marketing/ClassOffers`): photo, Teko name, "From €x / per" with the figure in gold Teko, one-line summary, Details toggle and Enquire link. The full description covers the photo on hover or keyboard focus, and via the toggle on touch.
+- **Ivory band:** Teko navy headline, `ivory-body` text, pillars separated by a 2px gold rule; the label uses `ivory-gold` for contrast.
+- **Preview card** (progress section): `surface-1`, gold top line, Teko title (26px), Inter 12px uppercase gold tag, Teko gold figure (44px).
+- **Testimonials:** real member quotes only (quote, name, context). The block renders only when `HOME_PROGRESS.testimonials` has entries.
 - **FAQ:** one section, two groups ("Training with us", "The app"); only the first question open on load; gold chevrons.
 - **App page header:** gold eyebrow chip + Teko page title (40/48px) + muted subtitle (`components/ui/PageHeader`).
 
