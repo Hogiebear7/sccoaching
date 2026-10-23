@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { findUserById } from "@/lib/db";
-import { AUTH_ROUTES, BRAND_NAME, CONTACT_INFO } from "@/lib/content";
+import { AUTH_ROUTES, CONTACT_INFO } from "@/lib/content";
 import { HOME_APPROACH, HOME_CONTACT, HOME_HERO, HOME_INCLUDED, HOME_PROGRESS, HOME_PROOF } from "@/lib/homepage-content";
 import { verifySession } from "@/lib/session";
 import { AppFeatureGrid } from "@/components/marketing/AppFeatureGrid";
@@ -12,7 +12,9 @@ import { ClassOffers } from "@/components/marketing/ClassOffers";
 import { ContactForm } from "@/components/marketing/ContactForm";
 import { FaqSection } from "@/components/marketing/FaqSection";
 import { HeroShader } from "@/components/marketing/HeroShader";
+import { H2, SECTION } from "@/components/marketing/MarketingPage";
 import { MemberPreviewStack } from "@/components/marketing/MemberPreviewStack";
+import { SiteFooter } from "@/components/marketing/SiteFooter";
 import { SiteHeader } from "@/components/marketing/SiteHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
@@ -21,9 +23,8 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 // Section rhythm: navy hero → proof strip → classes → ivory "approach" band →
 // progress → app → FAQ → contact. See DESIGN.md for the system.
 
-const SECTION = "mx-auto max-w-6xl px-6 py-24 lg:py-32";
-const H2 = "text-headline text-[44px] sm:text-[60px]";
 const LABEL = "flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold";
+const MORE_LINK = "group inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gold transition-colors duration-150 hover:text-[var(--primary-hover)]";
 
 export default async function Root() {
   const cookieStore = await cookies();
@@ -116,6 +117,10 @@ export default async function Root() {
           <ScrollReveal className="mt-12">
             <ClassOffers />
           </ScrollReveal>
+          <Link href="/classes" className={`mt-10 ${MORE_LINK}`}>
+            Compare the classes in detail
+            <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
+          </Link>
         </div>
       </section>
 
@@ -231,6 +236,10 @@ export default async function Root() {
           <div className="mt-12">
             <FaqSection />
           </div>
+          <Link href="/faq" className={`mt-10 ${MORE_LINK}`}>
+            See all questions
+            <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
+          </Link>
         </div>
       </section>
 
@@ -295,20 +304,7 @@ export default async function Root() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="relative border-t border-white/[0.06]">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-6 py-12 sm:flex-row sm:items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-          <img src="/brand/website-logo-v2.png" alt="S&amp;C Performance Coaching" className="h-9 w-auto" />
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400">
-            <Link href={AUTH_ROUTES.login} className="transition-colors duration-150 hover:text-gold">Member login</Link>
-            <Link href={AUTH_ROUTES.signup} className="transition-colors duration-150 hover:text-gold">Create account</Link>
-            <Link href="/privacy" className="transition-colors duration-150 hover:text-gold">Privacy</Link>
-            <Link href="/terms" className="transition-colors duration-150 hover:text-gold">Terms</Link>
-          </div>
-          <p className="text-xs text-zinc-500">© 2026 {BRAND_NAME}</p>
-        </div>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

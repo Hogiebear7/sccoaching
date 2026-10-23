@@ -5,14 +5,6 @@
 // stated. Facts about booking, pausing and cancelling mirror the FAQ and the
 // app's real rules.
 
-export const HOME_NAV = [
-  { label: "Classes", href: "#classes" },
-  { label: "Approach", href: "#approach" },
-  { label: "How it works", href: "#progress" },
-  { label: "The app", href: "#app" },
-  { label: "FAQ", href: "#faq" },
-] as const;
-
 export const HOME_HERO = {
   // Gold second half, as on the rest of the site.
   headline: { lead: "Coached,", accent: "not crowded." },

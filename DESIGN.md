@@ -165,6 +165,8 @@ fastest way to make this system look unfinished.
 - Website container: `max-w-6xl` with 24px side padding (`px-6`); FAQ narrows to `max-w-3xl`.
 - Section rhythm: 96px vertical padding on phones, 128px from `lg` (`py-24 lg:py-32`). Separate neighbours with a step in surface (`bg-0` ↔ `surface-1`) or the ivory band, plus at most a 1px `white/6%` line.
 - Homepage order (the "trust & authority + conversion" pattern): sticky header → hero → proof strip → classes → ivory approach band → progress → app → FAQ → contact. Every section has an `id` for the header links and `scroll-mt-20` so jumps land under the sticky bar.
+- **Website pages:** Home `/`, Classes `/classes`, About `/about`, FAQ `/faq`, Contact `/contact` (plus `/privacy`, `/terms`, Member login). Inner pages use `components/marketing/MarketingPage` (shared header, static haze, footer) and its `PageIntro`, `SectionLabel`, `CtaBand`, `SECTION`, `H2` and button classes, so every page shares the homepage's frame. The animated haze stays on the homepage only.
+- Inner-page rhythm: `PageIntro` → alternating `bg-0` / `surface-1` sections → at most one ivory band → `CtaBand` → footer. Every page answers who it is for, what is offered and the next step, and ends with one clear action.
 - Images always carry `width`/`height` (or a fixed aspect ratio) so lazy loading never shifts the layout or breaks anchor jumps.
 - Breakpoints (Tailwind): `sm` 640px, `lg` 1024px. The hero is two columns from `lg`; the preview cards hide below `lg`.
 - Phones are their own composition: section links move into the header menu, nav links never wrap, tap targets are at least 44px.
@@ -191,7 +193,7 @@ fastest way to make this system look unfinished.
 - **Copy lives in data:** homepage copy is in `lib/homepage-content.ts` and the classes in `lib/marketing-classes.ts`, ready to move to a back end/CMS; layout files hold no copy.
 - **Secondary button:** transparent, `white/14%` border, Inter 14px medium.
 - **Section label:** short gold rule (32×1px) + 12px uppercase gold text.
-- **Site header:** slim sticky bar, opaque navy (no blur): logo, section links, a quiet "Member login", one gold "Book a session". Below `lg` the links live in a `<details>` menu that closes when a link is chosen (`components/marketing/SiteHeader`).
+- **Site header:** slim sticky bar, opaque navy (no blur): logo, page links (`SITE_NAV`: Classes, About, The app, FAQ, Contact), a quiet "Member login", one gold "Book a session" to `/contact`. The current page gets `aria-current` and a 1px gold underline. Below `lg` the links live in a `<details>` menu that closes when a link is chosen (`components/marketing/SiteHeader`).
 - **Hero:** Teko headline (gold second half), one-sentence who/where/what, primary + secondary button, the real training-floor photo with a 2px gold top line and a caption.
 - **Proof strip:** four short process markers (Teko value + 14px label) on `surface-1`: how the coaching works (baseline, group size, programming, app). No statistics, years or qualifications unless confirmed by the owner.
 - **Class card** (`components/marketing/ClassOffers`): Teko name, "From €x / per" with the figure in gold Teko, one-line summary, Details toggle and Enquire link. The full description replaces the summary in a fixed-height area on hover or keyboard focus, and via the toggle on touch. The class is "Over 50s" (lowercase s via `HeadlineText`), never "Older Athletes".
@@ -199,7 +201,12 @@ fastest way to make this system look unfinished.
 - **Preview card** (progress section): `surface-1`, gold top line, Teko title (26px), Inter 12px uppercase gold tag, Teko gold figure (44px).
 - **Every plan includes** (progress section): four concrete terms (coach messaging, booking/waitlist, 3-hour cancelling, pausing) with gold top rules, taken from the FAQ and the app's real rules (`HOME_INCLUDED`).
 - **Testimonials:** none on the site until real, consented member quotes exist. Do not add an empty or hidden shell; trust comes from process and terms instead.
-- **FAQ:** one section, two groups ("Training with us", "The app"); only the first question open on load; gold chevrons.
+- **FAQ:** copy in `lib/faq-content.ts`. Homepage shows two groups ("Training with us", "The app") with a link to `/faq`; `/faq` shows four anchored groups with a sticky topic index and FAQPage structured data. Only the first question open on load; gold chevrons.
+- **Class detail** (`/classes`): numbered section per class (sticky name, gold price, tagline, its own "Enquire about …" button to `/contact?class=<slug>`), then "Who it's for" (gold-dash list), "What's included" (ruled two-column list) and "What makes it different" (gold left rule). Class data in `lib/marketing-classes.ts`.
+- **Comparison table** (`/about`): two plain columns, muted "Typical gym" vs bright "S&C"; a real `<table>` with a caption. No ticks, crosses or colour-coded cells.
+- **Site footer** (`components/marketing/SiteFooter`): brand line, site links, direct contact, member and legal links.
+- **Contact form:** name, email, message required; phone and "Interested in" optional. The class preselects from `?class=`; the choice is prefixed to the message (the API is unchanged).
+- **Inner-page copy** lives in `lib/site-content.ts` (nav, page copy, the shared four-step "how you start").
 - **App page header:** gold eyebrow chip + Teko page title (40/48px) + muted subtitle (`components/ui/PageHeader`).
 
 ## Motion

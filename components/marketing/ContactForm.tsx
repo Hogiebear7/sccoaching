@@ -4,11 +4,19 @@ import Link from "next/link";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-export function ContactForm() {
+import { MARKETING_CLASSES } from "@/lib/marketing-classes";
+
+const NOT_SURE = "Not sure yet";
+
+// Enquiry form used on the homepage and /contact. "Interested in" is optional
+// and can be preselected (/contact?class=<slug> from the class pages); the API
+// takes no extra field, so the choice is prefixed to the message.
+export function ContactForm({ initialInterest = "" }: { initialInterest?: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
+  const [interest, setInterest] = useState(initialInterest);
   const [company, setCompany] = useState(""); // honeypot — real visitors never see/fill this
   const [status, setStatus] = useState<"idle" | "submitting" | "sent" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -22,7 +30,15 @@ export function ContactForm() {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone: phone || null, message, company }),
+        body: JSON.stringify({
+          name,
+          email,
+          phone: phone || null,
+          message: interest ? `Interested in: ${interest}
+
+${message}` : message,
+          company,
+        }),
       });
 
       const data = await res.json().catch(() => null);
@@ -42,10 +58,10 @@ export function ContactForm() {
 
   if (status === "sent") {
     return (
-      <div className="anim-fade border border-white/[0.08] bg-[var(--surface-1)] p-6 text-center">
+      <div role="status" className="anim-fade border border-white/[0.08] bg-[var(--surface-1)] p-6 text-center">
         <p className="text-headline text-[32px] text-zinc-50">Message sent.</p>
         <p className="mt-2 text-base text-zinc-300">
-          We&apos;ll get back to you shortly.
+          Thanks. A coach will reply to arrange your baseline session.
         </p>
       </div>
     );
@@ -105,6 +121,21 @@ export function ContactForm() {
       </label>
 
       <label className="mt-4 block">
+        <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Interested in (optional)</span>
+        <select
+          value={interest}
+          onChange={(e) => setInterest(e.target.value)}
+          className="h-[46px] w-full border border-white/[0.12] bg-[var(--surface-1)] px-3 text-base text-zinc-100 outline-none transition focus:border-primary/60"
+        >
+          <option value="">Choose a class</option>
+          {MARKETING_CLASSES.map((c) => (
+            <option key={c.slug} value={c.name}>{c.name}</option>
+          ))}
+          <option value={NOT_SURE}>{NOT_SURE}</option>
+        </select>
+      </label>
+
+      <label className="mt-4 block">
         <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">Message</span>
         <textarea
           required
@@ -116,7 +147,7 @@ export function ContactForm() {
       </label>
 
       {status === "error" && errorMessage ? (
-        <p className="mt-4 border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+        <p role="alert" className="mt-4 border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           {errorMessage}
         </p>
       ) : null}
