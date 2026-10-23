@@ -4,6 +4,7 @@ import { BRAND_NAME, CONTACT_INFO } from "@/lib/content";
 
 export const metadata = {
   title: `Terms of Service — ${BRAND_NAME}`,
+  alternates: { canonical: "/terms" },
   description: `The terms that apply to using ${BRAND_NAME}'s website, membership, and class bookings.`,
 };
 

@@ -52,6 +52,7 @@ describe("validation", () => {
     expect(fromMock).toHaveBeenCalledWith("contact_inquiries");
     expect(insertMock).toHaveBeenCalledWith({ name: "Alex Visitor", email: "alex@x.test", phone: "0851234567", message: "Interested in coaching." });
     expect(mail.sendEmail).toHaveBeenCalledTimes(1);
+    expect(mail.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ replyTo: "alex@x.test" }));
   });
 
   it("trims fields before storing and emailing", async () => {

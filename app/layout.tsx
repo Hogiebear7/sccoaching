@@ -4,7 +4,7 @@ import "./globals.css";
 
 import { ChunkErrorRecovery } from "@/components/ChunkErrorRecovery";
 import { SplashIntro } from "@/components/SplashIntro";
-import { getConfiguredAppUrl } from "@/lib/app-config";
+import { getSiteUrl } from "@/lib/site-url";
 
 // Self-hosted via next/font/local — see app/fonts/README.md for provenance
 // (fetched from Google's own font-serving API, the same source next/font/google
@@ -82,11 +82,14 @@ const teko = localFont({
 const SITE_DESCRIPTION =
   "Small-group strength and conditioning in Navan, Co. Meath: Semi-Private Personal Training, Parent & Baby Classes and Over 50s, coached on the floor and tracked in our app.";
 
+const GOOGLE_SITE_VERIFICATION = process.env.GOOGLE_SITE_VERIFICATION?.trim();
+
 // Defaults for every page; public pages set their own title and description.
-// The canonical origin comes from the configured app URL, falling back to the
-// business domain already used for email.
+// The canonical origin comes from APP_URL (lib/site-url.ts). Metadata on
+// static pages is rendered at build time, so APP_URL and
+// GOOGLE_SITE_VERIFICATION must be set before the production build runs.
 export const metadata: Metadata = {
-  metadataBase: new URL(getConfiguredAppUrl() || "https://sandccoaching.com"),
+  metadataBase: new URL(getSiteUrl()),
   title: "S&C Performance Coaching",
   description: SITE_DESCRIPTION,
   openGraph: {
@@ -98,6 +101,8 @@ export const metadata: Metadata = {
     images: [{ url: "/marketing/training-floor.jpg", width: 2048, height: 779, alt: "The S&C training floor in Navan" }],
   },
   twitter: { card: "summary_large_image" },
+  // Search Console HTML-tag verification; omitted unless the token is set.
+  ...(GOOGLE_SITE_VERIFICATION ? { verification: { google: GOOGLE_SITE_VERIFICATION } } : {}),
 };
 
 export const viewport: Viewport = {

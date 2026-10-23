@@ -38,6 +38,10 @@ recorded anywhere in the repository). At minimum, production needs:
   links point at `localhost`.
 - The Stripe, Revolut, Supabase, Resend, Anthropic, VAPID and Google Play
   variables documented in `.env.local.example` and `docs/launch-checklist.md`.
+- Public website, search and analytics variables (`APP_URL` for canonical
+  URLs/sitemap, `SEARCH_INDEXING`, `GOOGLE_SITE_VERIFICATION`, the GA4
+  `NEXT_PUBLIC_` pair) and the contact-form requirements: see
+  `docs/soft-launch-deployment.md`.
 
 **`TRUSTED_PROXY_HOPS`** (new, added alongside this session's rate-limiting
 work — see `lib/client-ip.ts`): governs whether `X-Forwarded-For` is trusted

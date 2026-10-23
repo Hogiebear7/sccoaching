@@ -7,6 +7,7 @@ import { findUserById } from "@/lib/db";
 import { AUTH_ROUTES, CONTACT_INFO } from "@/lib/content";
 import { HOME_APPROACH, HOME_CONTACT, HOME_HERO, HOME_INCLUDED, HOME_PROGRESS, HOME_PROOF } from "@/lib/homepage-content";
 import { verifySession } from "@/lib/session";
+import { SiteAnalytics } from "@/components/analytics/SiteAnalytics";
 import { AppFeatureGrid } from "@/components/marketing/AppFeatureGrid";
 import { AppShowcase } from "@/components/marketing/AppShowcase";
 import { ClassOffers } from "@/components/marketing/ClassOffers";
@@ -311,6 +312,7 @@ export default async function Root() {
       </section>
 
       <SiteFooter />
+      <SiteAnalytics />
     </main>
   );
 }

@@ -103,7 +103,8 @@ export async function POST(request: Request) {
     phone: trimmedPhone,
     message: message.trim(),
   });
-  await sendEmail({ to: NOTIFY_EMAIL, ...notification });
+  // Reply-To is the enquirer, so answering the notification reaches them directly.
+  await sendEmail({ to: NOTIFY_EMAIL, ...notification, replyTo: email.trim() });
 
   return NextResponse.json(GENERIC_SUCCESS, { status: 200 });
 }

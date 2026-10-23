@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
+import { trackEvent } from "@/components/analytics/SiteAnalytics";
 import { AuthField, fieldA11y, FormMessage, inputClass, SubmitButton } from "@/components/auth/fields";
 import { MARKETING_CLASSES } from "@/lib/marketing-classes";
 import { ENQUIRY_SENT, RESPONSE_TIME } from "@/lib/site-content";
@@ -70,6 +71,7 @@ export function ContactForm({ initialInterest = "" }: { initialInterest?: string
       }
 
       setStatus("sent");
+      trackEvent("generate_lead", { interest: interest || "Not specified" });
     } catch {
       setErrorMessage("Something went wrong. Please try again.");
       setStatus("error");

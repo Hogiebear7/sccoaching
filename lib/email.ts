@@ -27,6 +27,8 @@ export interface EmailPayload {
   html: string;
   text: string;
   attachments?: EmailAttachment[];
+  /** Where replies go instead of the sender (e.g. the enquirer on a website lead). */
+  replyTo?: string;
 }
 
 // Sends a transactional email. Never throws — failures are logged and swallowed
@@ -45,6 +47,7 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     html: payload.html,
     text: payload.text,
     attachments: payload.attachments,
+    ...(payload.replyTo ? { replyTo: payload.replyTo } : {}),
   }).catch((err: unknown) => ({ data: null, error: err }));
 
   if (error) {

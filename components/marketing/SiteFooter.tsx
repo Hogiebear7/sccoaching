@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CookieSettingsLink } from "@/components/analytics/SiteAnalytics";
 import { AUTH_ROUTES, BRAND_NAME, CONTACT_INFO } from "@/lib/content";
 import { SITE_NAV } from "@/lib/site-content";
 
@@ -48,6 +49,7 @@ export function SiteFooter() {
             <li><Link href={AUTH_ROUTES.signup} className={LINK}>Create account</Link></li>
             <li><Link href="/privacy" className={LINK}>Privacy</Link></li>
             <li><Link href="/terms" className={LINK}>Terms</Link></li>
+            <CookieSettingsLink className={LINK} />
           </ul>
         </div>
       </div>

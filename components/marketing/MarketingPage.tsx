@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { SiteAnalytics } from "@/components/analytics/SiteAnalytics";
+
 import { STATIC_HAZE } from "./haze";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
@@ -28,6 +30,7 @@ export function MarketingPage({ children }: { children: ReactNode }) {
       <SiteHeader />
       {children}
       <SiteFooter />
+      <SiteAnalytics />
     </main>
   );
 }

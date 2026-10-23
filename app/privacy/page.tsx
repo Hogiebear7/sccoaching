@@ -4,6 +4,7 @@ import { BRAND_NAME, CONTACT_INFO } from "@/lib/content";
 
 export const metadata = {
   title: `Privacy Policy — ${BRAND_NAME}`,
+  alternates: { canonical: "/privacy" },
   description: `How ${BRAND_NAME} collects, uses, and protects your personal data.`,
 };
 
