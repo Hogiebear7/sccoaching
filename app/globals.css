@@ -666,12 +666,40 @@ html {
    viewport. transitionDelay is set inline per-instance for stagger. */
 .scroll-reveal {
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s cubic-bezier(0.16, 0.84, 0.44, 1), transform 0.7s cubic-bezier(0.16, 0.84, 0.44, 1);
+  transform: translateY(12px);
+  transition: opacity 450ms cubic-bezier(0.22, 1, 0.36, 1), transform 450ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .scroll-reveal--visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Marketing app-screenshot lightbox (components/marketing/AppShowcase.tsx):
+   the backdrop fades in and the enlarged screen settles from 96%; closing is
+   a quicker opacity-only fade handled by a transition on the component. */
+@keyframes lightbox-backdrop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes lightbox-panel {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@utility anim-lightbox-backdrop {
+  animation: lightbox-backdrop 200ms ease-out both;
+}
+@utility anim-lightbox-panel {
+  animation: lightbox-panel 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Top-down reveal for a <details> body each time it opens (marketing "See
+   everything in the app"). Closing stays instant; works without JS. */
+@keyframes details-reveal {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); }
+  to   { opacity: 1; clip-path: inset(0); }
+}
+details[open] > .details-reveal {
+  animation: details-reveal 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* Ambient float for hero collage elements — small, slow, never distracting.

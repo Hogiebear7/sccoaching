@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 // Real in-app screenshots, one per bottom-tab screen — member-provided,
 // status bar already cropped off. Order matches the app's own tab bar
@@ -76,24 +76,53 @@ function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void 
 // existing modal convention (fixed inset-0 backdrop + click-outside-to-
 // close, see components/member/ExerciseSearchModal.tsx) rather than
 // inventing a new one.
+// Closing fades out for this long before the lightbox unmounts.
+const LIGHTBOX_EXIT_MS = 150;
+
 function ScreenLightbox({ screen, onClose }: { screen: AppScreen; onClose: () => void }) {
+  const [closing, setClosing] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Every close path (Escape, backdrop, close button) plays the short exit
+  // first; reduced-motion visitors close immediately.
+  const requestClose = useCallback(() => {
+    if (closeTimer.current) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      onClose();
+      return;
+    }
+    setClosing(true);
+    closeTimer.current = setTimeout(onClose, LIGHTBOX_EXIT_MS);
+  }, [onClose]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") requestClose();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [requestClose]);
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={`${screen.label} screen, enlarged`}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm"
-      onClick={onClose}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm ${
+        closing ? "opacity-0 transition-opacity duration-150 ease-out" : "anim-lightbox-backdrop"
+      }`}
+      onClick={requestClose}
     >
-      <div className="max-h-full w-full max-w-sm overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`max-h-full w-full max-w-sm overflow-y-auto ${
+          closing ? "opacity-0 transition-opacity duration-150 ease-out" : "anim-lightbox-panel"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="overflow-hidden rounded-[28px] border border-white/[0.14] bg-black shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={screen.src} alt={screen.alt} className="block h-auto w-full" />
@@ -105,7 +134,7 @@ function ScreenLightbox({ screen, onClose }: { screen: AppScreen; onClose: () =>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="shrink-0 rounded-full border border-white/[0.14] p-2 text-zinc-400 transition-colors hover:border-white/[0.3] hover:text-zinc-100"
             aria-label="Close"
           >

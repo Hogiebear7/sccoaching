@@ -160,13 +160,13 @@ export default async function Root() {
           not derived from booking data. */}
       <section className="relative border-t border-white/[0.06]">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <ScrollReveal className="max-w-lg">
+          <div className="max-w-lg">
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
               <span className="h-px w-8 bg-primary/70" />
               The Training Floor
             </p>
             <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">Classes we offer.</h2>
-          </ScrollReveal>
+          </div>
 
           <ScrollReveal delayMs={80} className="mt-10">
             <ClassesShowcase imageUrl="/marketing/training-floor.jpg" imageAlt="Inside the S&C training floor" />
@@ -178,7 +178,7 @@ export default async function Root() {
           DIFFERENTIATORS comment above re: placeholder specifics. */}
       <section className="relative border-t border-white/[0.06] bg-[var(--surface-1)]">
         <div className="mx-auto grid max-w-6xl gap-10 px-6 py-20 lg:grid-cols-[0.8fr_1.2fr]">
-          <ScrollReveal>
+          <div>
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
               <span className="h-px w-8 bg-primary/70" />
               The Standard
@@ -186,18 +186,17 @@ export default async function Root() {
             <h2 className="mt-4 text-headline text-[44px] text-zinc-50 sm:text-[56px]">
               This is a coaching floor, not a workout class.
             </h2>
-          </ScrollReveal>
+          </div>
 
           <div className="grid gap-6">
             {DIFFERENTIATORS.map((item, i) => (
-              <ScrollReveal
+              <div
                 key={item.title}
-                delayMs={i * 90}
                 className={`pb-6 ${i !== DIFFERENTIATORS.length - 1 ? "border-b border-white/[0.08]" : ""}`}
               >
                 <h3 className="text-headline text-[32px] text-gold">{item.title}</h3>
                 <p className="mt-2 max-w-[52ch] text-base leading-relaxed text-zinc-300">{item.body}</p>
-              </ScrollReveal>
+              </div>
             ))}
           </div>
         </div>
@@ -210,12 +209,12 @@ export default async function Root() {
           cards are meant to mirror the class showcase one-to-one. */}
       <section className="relative border-t border-white/[0.06]">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <ScrollReveal className="max-w-lg">
+          <div className="max-w-lg">
             <h2 className="text-headline text-[44px] text-zinc-50 sm:text-[56px]">Choose how you train</h2>
             <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-zinc-300">
               Every plan includes coach messaging, class booking, and full workout tracking.
             </p>
-          </ScrollReveal>
+          </div>
 
           <ScrollReveal delayMs={80} className="mt-10">
             <ClassPricingShowcase href={AUTH_ROUTES.signup} />
@@ -230,12 +229,12 @@ export default async function Root() {
           placeholders. App questions live in the merged FAQ below. */}
       <section className="relative border-t border-white/[0.06]">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <ScrollReveal className="max-w-lg">
+          <div className="max-w-lg">
             <h2 className="text-headline text-[44px] text-zinc-50 sm:text-[56px]">Coaching that fits in your pocket.</h2>
             <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-zinc-300">
               Not near the gym, or want to train on your own days? Get the same coaching approach, built into an app.
             </p>
-          </ScrollReveal>
+          </div>
 
           <ScrollReveal delayMs={80} className="mt-10">
             <AppShowcase>
@@ -255,11 +254,13 @@ export default async function Root() {
                     <path d="M4 6l4 4 4-4" />
                   </svg>
                 </summary>
-                <p className="mt-3 max-w-[60ch] text-base leading-relaxed text-zinc-300">
-                  Every tool below is live in the app today — training, nutrition, recovery, and planning, all connected.
-                </p>
-                <div className="mt-10">
-                  <AppFeatureGrid />
+                <div className="details-reveal">
+                  <p className="mt-3 max-w-[60ch] text-base leading-relaxed text-zinc-300">
+                    Every tool below is live in the app today — training, nutrition, recovery, and planning, all connected.
+                  </p>
+                  <div className="mt-10">
+                    <AppFeatureGrid />
+                  </div>
                 </div>
               </details>
             </AppShowcase>
@@ -271,13 +272,13 @@ export default async function Root() {
           final CTA asks for action. */}
       <section className="relative border-t border-white/[0.06]">
         <div className="mx-auto max-w-3xl px-6 py-20">
-          <ScrollReveal className="max-w-lg">
+          <div className="max-w-lg">
             <h2 className="text-headline text-[44px] text-zinc-50 sm:text-[56px]">Common questions.</h2>
-          </ScrollReveal>
+          </div>
 
-          <ScrollReveal delayMs={80} className="mt-10">
+          <div className="mt-10">
             <FaqSection />
-          </ScrollReveal>
+          </div>
         </div>
       </section>
 
@@ -287,7 +288,7 @@ export default async function Root() {
           same-page destination to point at. */}
       <section id="contact" className="relative scroll-mt-20 border-t border-white/[0.06]">
         <div className="mx-auto grid max-w-5xl gap-12 px-6 py-24 lg:grid-cols-2 lg:items-start">
-          <ScrollReveal>
+          <div>
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
               <span className="h-px w-8 bg-primary/70" />
               Get Started
@@ -328,11 +329,11 @@ export default async function Root() {
                 <dd className="text-base text-zinc-200">{CONTACT_INFO.phone}</dd>
               </div>
             </dl>
-          </ScrollReveal>
+          </div>
 
-          <ScrollReveal delayMs={120}>
+          <div>
             <ContactForm />
-          </ScrollReveal>
+          </div>
         </div>
       </section>
 
