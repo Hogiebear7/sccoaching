@@ -1,12 +1,14 @@
 // Copy for the public homepage, kept as plain data (separate from layout) so
-// it can later be edited from the back end/CMS. Claims marked CONFIRM are
-// carried over from the existing site and still need the coach's sign-off;
-// nothing here is an invented statistic or testimonial.
+// it can later be edited from the back end/CMS. Trust here comes from how the
+// coaching works (process, programming, what's included), not from proof we
+// don't have yet: no statistics, qualifications, testimonials or results are
+// stated. Facts about booking, pausing and cancelling mirror the FAQ and the
+// app's real rules.
 
 export const HOME_NAV = [
   { label: "Classes", href: "#classes" },
   { label: "Approach", href: "#approach" },
-  { label: "Progress", href: "#progress" },
+  { label: "How it works", href: "#progress" },
   { label: "The app", href: "#app" },
   { label: "FAQ", href: "#faq" },
 ] as const;
@@ -25,12 +27,12 @@ export const HOME_HERO = {
   },
 } as const;
 
-// Short authority markers for the strip under the hero. CONFIRM all four.
+// Short markers for the strip under the hero: how the coaching works.
 export const HOME_PROOF = [
-  { value: "15+", label: "Years of hands-on coaching experience" },
-  { value: "Capped", label: "Group sizes, so every rep is watched" },
-  { value: "1:1", label: "Programming built for you, inside a group" },
-  { value: "1 app", label: "Training, nutrition and recovery, tracked together" },
+  { value: "Baseline", label: "Your first session measures where you start" },
+  { value: "Capped", label: "Small groups, so every rep is coached" },
+  { value: "1:1", label: "Programming written for you, inside a group" },
+  { value: "1 app", label: "Booking, coach messaging and tracking included" },
 ] as const;
 
 export const HOME_APPROACH = {
@@ -47,23 +49,15 @@ export const HOME_APPROACH = {
       body: "Small-group sessions stay small on purpose. Every rep gets watched, every cue is specific to you, not shouted at the room.",
     },
     {
-      // CONFIRM qualifications wording.
-      title: "Highly qualified coach",
-      body: "15+ years of hands-on experience, backed by multiple science and coaching degrees. Not your standard club trainer.",
+      title: "A plan that adapts",
+      body: "Your block is adjusted as your lifts, readiness and recovery change, using what you log in the app rather than guesswork.",
     },
     {
-      title: "Rooted in the community",
-      body: "Members, athletes, and everyone in between train side by side in a calm, focused environment.",
+      title: "Calm, focused sessions",
+      body: "Members, athletes and everyone in between train side by side, without the noise of a crowded gym.",
     },
   ],
 } as const;
-
-export interface Testimonial {
-  quote: string;
-  name: string;
-  /** e.g. "Semi-Private member since 2024". */
-  context: string;
-}
 
 export const HOME_PROGRESS = {
   title: "Progress you can see.",
@@ -74,17 +68,23 @@ export const HOME_PROGRESS = {
     { title: "Readiness before you train", body: "A short daily check-in on sleep, soreness and fatigue shapes the session ahead." },
     { title: "Lifts and targets, tracked", body: "Weekly volume, personal bests and nutrition targets update as you progress." },
   ],
-  // Real member quotes only. The testimonials block stays hidden while this is empty.
-  testimonials: [] as Testimonial[],
 } as const;
+
+// "Every plan includes": concrete terms that build trust without testimonials.
+export const HOME_INCLUDED = [
+  { title: "Coach messaging", body: "Ask your coach a question between sessions, in the app." },
+  { title: "Class booking", body: "Book in the app. If a class is full, join the waitlist." },
+  { title: "Flexible cancelling", body: "Cancel at least 3 hours before a class and your credit comes back." },
+  { title: "Pause when you need to", body: "Pause for 2 weeks, 1 month or 6 months; billing pauses with it." },
+] as const;
 
 export const HOME_CONTACT = {
   title: "Book your first session.",
   intro:
     "Tell us what you're training for. We'll book your baseline session and you'll leave with a plan and a coach who already knows your goals.",
   steps: [
-    { title: "Send an enquiry", body: "A few lines about your goals and availability." },
-    { title: "Baseline session", body: "We assess where you're starting from, on the floor." },
+    { title: "Send an enquiry", body: "A few lines about your goals and when you can train." },
+    { title: "Baseline session", body: "Bring training clothes, trainers and water. We assess where you're starting from." },
     { title: "Your plan begins", body: "Your first block is written and waiting in the app." },
   ],
   primaryCta: "Email to book",

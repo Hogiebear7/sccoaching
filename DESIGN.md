@@ -174,15 +174,16 @@ fastest way to make this system look unfinished.
 - **Website buttons:** 3px radius, flat gold fill (primary) or a `white/14%` outline (secondary). No gradients, no glow.
 - **App buttons:** pill (`9999px`) primary buttons remain in the member app; see Known gaps.
 - **Cards:** `surface-1` fill, 1px `border-subtle`, 4px radius (`surface-card`). Signature cards add a 2px gold line along the top.
-- **Class cards:** 4px radius, real class photo (4:3) on top, no shadow at rest; hover lifts 2px and turns the border gold.
+- **Class cards:** typographic, no photo: 4px radius, 2px gold top line, no shadow at rest; hover lifts 2px and turns the border gold.
 - **Shadows:** only on things that float (menus, dialogs). No glass, no backdrop blur on new work.
 
 ## Imagery
 
-- Real photography of training: coach and member together, dark gym, warm practical light. Class photos live in `public/marketing/`.
-- Never bake text into a photo; the class name is set in Teko over the image's dark lower edge.
+- Only S&C's own imagery: the real training-floor photo and real app screenshots. No stock photos standing in for members, classes or the coach.
+- Class cards carry no image until S&C has its own photography of each class; never use stock to fill the slot.
+- Never bake text into a photo.
 - Real app screenshots, not mock dashboards, when showing the product.
-- Wanted: photography of S&C's own coach and floor to replace the stock-style class photos.
+- Wanted: photography of S&C's own coach, floor and classes.
 
 ## Components
 
@@ -192,11 +193,12 @@ fastest way to make this system look unfinished.
 - **Section label:** short gold rule (32×1px) + 12px uppercase gold text.
 - **Site header:** slim sticky bar, opaque navy (no blur): logo, section links, a quiet "Member login", one gold "Book a session". Below `lg` the links live in a `<details>` menu that closes when a link is chosen (`components/marketing/SiteHeader`).
 - **Hero:** Teko headline (gold second half), one-sentence who/where/what, primary + secondary button, the real training-floor photo with a 2px gold top line and a caption.
-- **Proof strip:** four short authority markers (Teko value + 14px label) on `surface-1`; only claims the business can stand behind, no invented statistics.
-- **Class card** (`components/marketing/ClassOffers`): photo, Teko name, "From €x / per" with the figure in gold Teko, one-line summary, Details toggle and Enquire link. The full description covers the photo on hover or keyboard focus, and via the toggle on touch.
+- **Proof strip:** four short process markers (Teko value + 14px label) on `surface-1`: how the coaching works (baseline, group size, programming, app). No statistics, years or qualifications unless confirmed by the owner.
+- **Class card** (`components/marketing/ClassOffers`): Teko name, "From €x / per" with the figure in gold Teko, one-line summary, Details toggle and Enquire link. The full description replaces the summary in a fixed-height area on hover or keyboard focus, and via the toggle on touch. The class is "Over 50s" (lowercase s via `HeadlineText`), never "Older Athletes".
 - **Ivory band:** Teko navy headline, `ivory-body` text, pillars separated by a 2px gold rule; the label uses `ivory-gold` for contrast.
 - **Preview card** (progress section): `surface-1`, gold top line, Teko title (26px), Inter 12px uppercase gold tag, Teko gold figure (44px).
-- **Testimonials:** real member quotes only (quote, name, context). The block renders only when `HOME_PROGRESS.testimonials` has entries.
+- **Every plan includes** (progress section): four concrete terms (coach messaging, booking/waitlist, 3-hour cancelling, pausing) with gold top rules, taken from the FAQ and the app's real rules (`HOME_INCLUDED`).
+- **Testimonials:** none on the site until real, consented member quotes exist. Do not add an empty or hidden shell; trust comes from process and terms instead.
 - **FAQ:** one section, two groups ("Training with us", "The app"); only the first question open on load; gold chevrons.
 - **App page header:** gold eyebrow chip + Teko page title (40/48px) + muted subtitle (`components/ui/PageHeader`).
 
@@ -238,4 +240,4 @@ fastest way to make this system look unfinished.
 - **App buttons** are pills while website buttons are 3px rectangles; decide one shape.
 - **Space Grotesk** still renders stat values in the app; review whether Teko figures should replace it.
 - **Older surfaces** (staff/admin tools, `/app` and `/admin` prototypes) still use retired styles in places.
-- **Photography:** class photos are stock-style; S&C's own coach and floor are not yet shown.
+- **Photography:** only the training-floor photo is S&C's own; the coach and classes are not yet shown.

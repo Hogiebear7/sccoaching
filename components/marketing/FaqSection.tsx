@@ -46,7 +46,7 @@ const FAQS: FaqItem[] = [
   {
     question: "How much does membership cost?",
     answer:
-      "Semi-Private Personal Training starts from €160/month. Parent & Baby and Older Athletes classes start from €20/class. Every plan includes coach messaging, class booking, and full workout tracking in the app. See the Membership section above for the full breakdown.",
+      "Semi-Private Personal Training starts from €160/month. Parent & Baby and Over 50s classes start from €20/class. Every plan includes coach messaging, class booking, and full workout tracking in the app. See Classes we offer above for the full breakdown.",
   },
   {
     question: "Where are you located?",
@@ -56,7 +56,7 @@ const FAQS: FaqItem[] = [
 
 // App-only (Tier 2) FAQ — scoped to the standalone app subscription described
 // in AppShowcase.tsx. Kept separate from FAQS above (which covers the
-// in-person Semi-Private/Parent & Baby/Older Athletes memberships) rather than
+// in-person Semi-Private/Parent & Baby/Over 50s memberships) rather than
 // merged into one list, since the two products have different answers to
 // similar-sounding questions (e.g. cost, what's included). Grounded in
 // AppShowcase's own placeholders — no invented pricing or store links, since

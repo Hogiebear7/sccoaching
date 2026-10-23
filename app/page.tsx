@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { findUserById } from "@/lib/db";
 import { AUTH_ROUTES, BRAND_NAME, CONTACT_INFO } from "@/lib/content";
-import { HOME_APPROACH, HOME_CONTACT, HOME_HERO, HOME_PROGRESS, HOME_PROOF } from "@/lib/homepage-content";
+import { HOME_APPROACH, HOME_CONTACT, HOME_HERO, HOME_INCLUDED, HOME_PROGRESS, HOME_PROOF } from "@/lib/homepage-content";
 import { verifySession } from "@/lib/session";
 import { AppFeatureGrid } from "@/components/marketing/AppFeatureGrid";
 import { AppShowcase } from "@/components/marketing/AppShowcase";
@@ -86,8 +86,8 @@ export default async function Root() {
         </figure>
       </section>
 
-      {/* Proof strip — short authority markers, no invented statistics. */}
-      <section aria-label="Why S&C" className="relative border-y border-white/[0.06] bg-[var(--surface-1)]">
+      {/* Proof strip — how the coaching works, no invented statistics. */}
+      <section aria-label="How S&C coaching works" className="relative border-y border-white/[0.06] bg-[var(--surface-1)]">
         <dl className="mx-auto grid max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 py-12 lg:grid-cols-4 lg:py-14">
           {HOME_PROOF.map((item) => (
             <div key={item.label} className="lg:border-l lg:border-white/[0.08] lg:pl-6 lg:first:border-l-0 lg:first:pl-0">
@@ -141,8 +141,8 @@ export default async function Root() {
         </div>
       </section>
 
-      {/* Progress — credibility from how results are measured, using the real
-          app; a testimonials block appears only once real quotes are added. */}
+      {/* Progress — credibility from how training is measured and what every
+          plan includes, using the real app; no testimonials or results claims. */}
       <section id="progress" className="relative scroll-mt-20">
         <div className={`${SECTION} grid items-center gap-14 lg:grid-cols-2 lg:gap-20`}>
           <div>
@@ -170,19 +170,21 @@ export default async function Root() {
           </ScrollReveal>
         </div>
 
-        {HOME_PROGRESS.testimonials.length > 0 ? (
-          <div className="mx-auto grid max-w-6xl gap-6 px-6 pb-24 md:grid-cols-3">
-            {HOME_PROGRESS.testimonials.map((t) => (
-              <figure key={t.name} className="rounded-[4px] border border-white/[0.08] bg-[var(--surface-1)] p-6">
-                <blockquote className="text-lg leading-relaxed text-zinc-100">“{t.quote}”</blockquote>
-                <figcaption className="mt-5 text-sm">
-                  <span className="font-semibold text-zinc-50">{t.name}</span>
-                  <span className="block text-zinc-400">{t.context}</span>
-                </figcaption>
-              </figure>
-            ))}
+        {/* Every plan includes — concrete terms (mirroring the FAQ and the
+            app's real booking/pause rules) instead of social proof. */}
+        <div className="mx-auto max-w-6xl px-6 pb-24 lg:pb-32">
+          <div className="border-t border-white/[0.08] pt-12">
+            <h3 className="text-headline text-[32px] text-zinc-50">Every plan includes</h3>
+            <ul className="mt-8 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+              {HOME_INCLUDED.map((item) => (
+                <li key={item.title} className="border-t-2 border-primary pt-4">
+                  <p className="text-base font-semibold text-zinc-50">{item.title}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-zinc-400">{item.body}</p>
+                </li>
+              ))}
+            </ul>
           </div>
-        ) : null}
+        </div>
       </section>
 
       {/* The app — for members who train on their own days. */}
