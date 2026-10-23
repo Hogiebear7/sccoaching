@@ -207,6 +207,7 @@ fastest way to make this system look unfinished.
 - **Site footer** (`components/marketing/SiteFooter`): brand line, site links, direct contact, member and legal links.
 - **Contact form:** name, email, message required; phone and "Interested in" optional. The class preselects from `?class=`; the choice is prefixed to the message (the API is unchanged).
 - **Inner-page copy** lives in `lib/site-content.ts` (nav, page copy, the shared four-step "how you start").
+- **Member sign-in** (`components/auth/AuthShell` + `components/auth/fields`, used by `/login` and `/forgot-password`): on `lg` a photo panel of the real training floor (navy overlay, gold top line, logo, the hero headline); on phones a slim bar with logo and "Back to website", form first. Section label + Teko title (52/60px) + one sentence. Inputs 48px, 3px radius, `surface-1` fill, gold border and ring on focus, red with an icon and `aria-invalid`/`aria-describedby` on error. Whole-form messages use a 2px left rule (`role="alert"` / `role="status"`). Flat gold 48px submit with a spinner while busy; a 44px eye toggle (`aria-pressed`) for passwords; "Forgot password?" sits beside the Password label. Secondary routes sit under a hairline. No value-prop lists or promo content.
 - **App page header:** gold eyebrow chip + Teko page title (40/48px) + muted subtitle (`components/ui/PageHeader`).
 
 ## Motion
