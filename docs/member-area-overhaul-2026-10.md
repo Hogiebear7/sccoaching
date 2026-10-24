@@ -64,3 +64,35 @@ What changed
   Next session. All `data-tour` targets kept.
 - `ReadinessRing` gained a `quiet` variant (no glow, Teko score) for the app;
   the website preview keeps the original.
+
+## Slice 3 — Workouts, Recovery, Schedule, Bookings (+ type/shape pass)
+
+- **Legibility pass (codemod, member files only):** every `text-[8–10.5px]`
+  became `text-[11px]` (≈100 places; DESIGN.md forbids text under 12px, 11px
+  is the floor for caps labels), and text chips/buttons using `rounded-full`
+  became `rounded-[3px]` (≈60 places). Avatars, dots and the unread count stay
+  round. Staff-only `DietaryRequirementsSummary` was left untouched; the
+  shared `DietaryRequirementsFields` (member profile + signup) got 3px chips.
+- Glassy `shadow-[inset_0_1px_…]` highlights removed from member files.
+- Member form controls: 44px minimum height, 16px text on phones (no iOS
+  zoom on focus) — scoped CSS, so the long workout/recovery forms gain it
+  without per-field edits.
+- Empty states: solid tile, 15px title, 14px body (scoped CSS); Bookings'
+  empty state gets a "Browse the schedule" button; clearer Schedule copy.
+- **Workouts:** Workout Helper loses its gradient wash; stats in Teko on a
+  carved strip, context lines wrap instead of truncating ("Not logged tod…");
+  time/equipment/focus controls are 40–44px with a raised selected tile.
+  Streak/records figures in Teko, `kg` kept lowercase; history shows
+  "Monday 21 September" instead of ISO dates; duration chip no longer
+  stretches full width on phones.
+- **Recovery:** hero uses the quiet ring + Teko status. **Honesty fix:** it
+  said "Today's readiness" for the latest check-in even when that was weeks
+  old; it now says "Last check-in · Sun 20 Sep" and prompts for today's.
+  Recent days show friendly dates; Save is full width on phones.
+  `readinessStatus` moved to `lib/recovery.ts` (client-safe) and re-exported
+  from `lib/dashboard-data.ts`.
+- **Bookings:** `BookingCard` uses a typographic time rail (Teko time,
+  duration) like Home; semantic status badges; "Cancel booking" is a 40px
+  outline button; inline alert styling for errors.
+- **Schedule:** class covers kept (staff upload them for members), with a
+  scrim instead of a text shadow; 40px secondary buttons; alert styling.

@@ -105,7 +105,7 @@ export function ScheduleCalendar({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+      <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
         {WEEKDAY_HEADER.map((d) => (
           <div key={d} className="py-1">
             {d}
@@ -134,7 +134,7 @@ export function ScheduleCalendar({
             >
               <span className={`font-medium ${isToday ? "text-gold" : "text-zinc-200"}`}>{cell.day}</span>
               {dayClasses.length > 0 ? (
-                <span className="rounded-full bg-gold/20 px-1.5 text-[10px] font-semibold text-gold tabular-nums">
+                <span className="rounded-[3px] bg-gold/20 px-1.5 text-[11px] font-semibold text-gold tabular-nums">
                   {dayClasses.length}
                 </span>
               ) : null}

@@ -169,7 +169,7 @@ function FilterRow({
             key={opt}
             aria-pressed={active === opt}
             onClick={() => onSelect(opt)}
-            className={`truncate rounded-full border px-2 py-1.5 text-center text-xs font-medium capitalize transition ${
+            className={`truncate rounded-[3px] border px-2 py-1.5 text-center text-xs font-medium capitalize transition ${
               active === opt
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border text-muted-foreground hover:border-primary hover:text-primary"

@@ -300,10 +300,10 @@ export function AiChat({
             <div className="flex flex-wrap items-center gap-1.5">
               {context && (
                 <>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(context.tierLabel)}`}>
+                  <span className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(context.tierLabel)}`}>
                     Today · {context.tierLabel}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
                     <span className={`h-1.5 w-1.5 rounded-full ${readinessDot(context.readinessScore)}`} />
                     Readiness <span className="tabular-nums">{context.readinessScore ?? "—"}</span>
                     {context.readinessDelta != null && context.readinessDelta !== 0 && (
@@ -324,10 +324,10 @@ export function AiChat({
                       </span>
                     )}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
                     Load <span className="text-zinc-400">{context.loadBandLabel}</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
                     <span className="tabular-nums">{context.sessionCount}</span>
                     <span className="text-zinc-400">workout{context.sessionCount === 1 ? "" : "s"}</span>
                   </span>
@@ -337,7 +337,7 @@ export function AiChat({
                 <Link
                   href="/dashboard/nutrition"
                   title="Open the drink calculator in Nutrition"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-[border-color,background-color,color] duration-150 hover:border-teal-500/30 hover:bg-teal-500/[0.06] hover:text-teal-300"
+                  className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-[border-color,background-color,color] duration-150 hover:border-teal-500/30 hover:bg-teal-500/[0.06] hover:text-teal-300"
                 >
                   Drink <span className="text-zinc-400 tabular-nums">{describeDrinkSettings(drinkSettings)}</span>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-2.5 w-2.5 text-zinc-500">
@@ -359,7 +359,7 @@ export function AiChat({
       >
         {messages.length === 0 ? (
           <div className="py-6 text-center">
-            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[10px] border border-white/[0.07] bg-white/[0.03] text-zinc-500 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[10px] border border-white/[0.07] bg-white/[0.03] text-zinc-500">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
@@ -377,7 +377,7 @@ export function AiChat({
                   type="button"
                   disabled={isSending}
                   onClick={() => void sendMessage(prompt)}
-                  className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-400 transition-[border-color,background-color,color,transform] duration-150 hover:border-teal-500/30 hover:bg-teal-500/[0.06] hover:text-teal-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-[3px] border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-400 transition-[border-color,background-color,color,transform] duration-150 hover:border-teal-500/30 hover:bg-teal-500/[0.06] hover:text-teal-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {prompt}
                 </button>
@@ -392,7 +392,7 @@ export function AiChat({
                 <div
                   className={`max-w-[85%] rounded-[10px] px-4 py-3 text-sm leading-relaxed ${
                     isUser
-                      ? `rounded-br-md bg-teal-500/90 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] ${msg.pending ? "opacity-70" : ""}`
+                      ? `rounded-br-md bg-teal-500/90 text-white ${msg.pending ? "opacity-70" : ""}`
                       : "rounded-bl-md border border-white/[0.05] bg-white/[0.05] text-zinc-100"
                   }`}
                 >
@@ -403,7 +403,7 @@ export function AiChat({
                     )}
                   </p>
                   {!msg.streaming && (
-                    <p className={`mt-1.5 text-[10px] tabular-nums ${isUser ? "text-white/60" : "text-zinc-500"}`}>
+                    <p className={`mt-1.5 text-[11px] tabular-nums ${isUser ? "text-white/60" : "text-zinc-500"}`}>
                       {isUser ? "You" : "AI Coach"}
                       {formatTime(msg.createdAt) ? ` · ${formatTime(msg.createdAt)}` : ""}
                     </p>

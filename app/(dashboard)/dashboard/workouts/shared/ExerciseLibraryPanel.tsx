@@ -79,7 +79,7 @@ export function ExerciseLibraryPanel({
             type="button"
             aria-pressed={section === chip.value}
             onClick={() => setSection(chip.value)}
-            className={`truncate rounded-full border px-2 py-1.5 text-center text-xs font-medium transition ${
+            className={`truncate rounded-[3px] border px-2 py-1.5 text-center text-xs font-medium transition ${
               section === chip.value
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border text-muted-foreground hover:border-primary hover:text-primary"

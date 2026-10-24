@@ -17,16 +17,12 @@ import { estimatePhase } from "./cycle-phase";
 import { estimatePregnancy } from "./pregnancy";
 import { isPeriodLapsed, SUBSCRIPTION_STATUS_LABEL } from "./membership-status";
 import { readinessDelta, readinessSeries, weeklyTrainingSummary } from "./progress";
-import { computeRollingTrainingLoad, readinessGuidance } from "./recovery";
+import { computeRollingTrainingLoad, readinessGuidance, readinessStatus } from "./recovery";
 import { classPassBalance, remainingSessions } from "./scheduling-status";
 import { classifyLoad, LOAD_BAND_LABEL } from "./workout-helper";
 
-export function readinessStatus(score: number): string {
-  if (score >= 80) return "Primed";
-  if (score >= 60) return "Ready";
-  if (score >= 40) return "Steady";
-  return "Ease off";
-}
+// Lives in ./recovery (client-safe, no datastore import); re-exported here for existing callers.
+export { readinessStatus };
 
 export interface DashboardData {
   firstName: string;

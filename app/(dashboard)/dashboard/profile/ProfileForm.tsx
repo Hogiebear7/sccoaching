@@ -575,7 +575,7 @@ function GoalTimelineCard() {
                 key={d}
                 type="button"
                 onClick={() => setTrainingDaysPerWeek(d)}
-                className={`rounded-full border px-3 py-1 text-xs ${
+                className={`rounded-[3px] border px-3 py-1 text-xs ${
                   trainingDaysPerWeek === d
                     ? "border-primary/60 bg-primary/10 text-primary"
                     : "border-white/[0.09] text-muted-foreground hover:border-primary/40"
@@ -600,10 +600,10 @@ function GoalTimelineCard() {
           {goalTargetDate ? (
             <>
               <span className="text-xs text-muted-foreground">Adjust:</span>
-              <button type="button" onClick={() => nudgeDate(-7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
+              <button type="button" onClick={() => nudgeDate(-7)} className="rounded-[3px] border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
                 1 week sooner
               </button>
-              <button type="button" onClick={() => nudgeDate(7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
+              <button type="button" onClick={() => nudgeDate(7)} className="rounded-[3px] border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
                 1 week later
               </button>
             </>
@@ -1268,7 +1268,7 @@ export function ProfileForm({
                     key={value}
                     type="button"
                     onClick={() => setBwFilter(value)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                    className={`rounded-[3px] border px-3 py-1 text-xs font-medium transition ${
                       bwFilter === value
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-white/[0.09] text-muted-foreground hover:border-primary/60 hover:text-primary"
@@ -1367,7 +1367,7 @@ export function ProfileForm({
                     key={value}
                     type="button"
                     onClick={() => setBfFilter(value)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                    className={`rounded-[3px] border px-3 py-1 text-xs font-medium transition ${
                       bfFilter === value
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-white/[0.09] text-muted-foreground hover:border-primary/60 hover:text-primary"

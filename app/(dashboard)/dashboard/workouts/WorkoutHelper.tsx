@@ -85,12 +85,12 @@ function ExerciseCard({ item }: { item: PlanExercise }) {
       {(fromHistory || prescription.kind === "rpe") && (
         <div className="mt-2">
           {fromHistory ? (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent-data)]/25 bg-[var(--accent-data-weak)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--accent-data)]">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent-data)]/25 bg-[var(--accent-data-weak)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--accent-data)]">
               <span className="h-1 w-1 rounded-full bg-[var(--accent-data)]" />
               From your history
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.1] bg-white/[0.05] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-zinc-400">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.1] bg-white/[0.05] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-zinc-400">
               <span className="h-1 w-1 rounded-full bg-zinc-500" />
               RPE target
             </span>
@@ -224,10 +224,6 @@ export function WorkoutHelper({
     <div className="surface-card surface-card--accent overflow-hidden">
       {/* ── Masthead ── */}
       <div className="relative border-b border-white/[0.06] p-5 sm:p-6">
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-32"
-          style={{ background: "radial-gradient(70% 100% at 30% 0%, color-mix(in oklch, var(--primary) 10%, transparent), transparent)" }}
-        />
         <div className="relative">
           <div className="flex items-start gap-3.5">
             <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10">
@@ -258,34 +254,34 @@ export function WorkoutHelper({
           </div>
 
           {/* Context strip */}
-          <div className="mt-5 grid grid-cols-3 divide-x divide-white/[0.06] rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+          <div className="mt-5 grid grid-cols-3 divide-x divide-white/[0.06] rounded-[4px] border border-white/[0.08] bg-[var(--bg-0)]">
             <div className="px-3 py-3 sm:px-4">
-              <p className="label-caps text-[9px] sm:text-[10px]">Readiness</p>
+              <p className="label-caps text-[11px] sm:text-[11px]">Readiness</p>
               <p className="mt-1.5 flex items-center gap-1.5">
                 <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${readiness.dot}`} />
-                <span className={`text-display text-lg leading-none tabular-nums ${readiness.text}`}>
+                <span className={`text-headline text-[26px] tabular-nums ${readiness.text}`}>
                   {context.readinessScore ?? "—"}
                 </span>
               </p>
-              <p className="mt-1 truncate text-[10px] text-zinc-500">{readiness.sub}</p>
+              <p className="mt-1 text-xs leading-snug text-zinc-400">{readiness.sub}</p>
             </div>
             <div className="px-3 py-3 sm:px-4">
-              <p className="label-caps text-[9px] sm:text-[10px]">7-Day Load</p>
-              <p className="text-display mt-1.5 text-lg leading-none text-zinc-100">
+              <p className="label-caps text-[11px] sm:text-[11px]">7-Day Load</p>
+              <p className="mt-1.5 text-headline text-[26px] text-zinc-50">
                 {LOAD_BAND_LABEL[loadBand]}
               </p>
-              <p className="mt-1 truncate text-[10px] text-zinc-500">
+              <p className="mt-1 text-xs leading-snug text-zinc-400">
                 {context.daysWithLoad > 0
                   ? `${context.daysWithLoad} day${context.daysWithLoad === 1 ? "" : "s"} logged`
                   : "No sessions logged"}
               </p>
             </div>
             <div className="px-3 py-3 sm:px-4">
-              <p className="label-caps text-[9px] sm:text-[10px]">History</p>
-              <p className="text-display mt-1.5 text-lg leading-none text-zinc-100 tabular-nums">
+              <p className="label-caps text-[11px] sm:text-[11px]">History</p>
+              <p className="mt-1.5 text-headline text-[26px] tabular-nums text-zinc-50">
                 {sessions.length > 0 ? sessions.length : "—"}
               </p>
-              <p className="mt-1 truncate text-[10px] text-zinc-500">
+              <p className="mt-1 text-xs leading-snug text-zinc-400">
                 {sessions.length > 0
                   ? `workout${sessions.length === 1 ? "" : "s"} on record`
                   : "None yet"}
@@ -296,7 +292,7 @@ export function WorkoutHelper({
           {context.readinessScore === null && (
             <Link
               href="/dashboard/recovery"
-              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]"
+              className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]"
             >
               Log today&apos;s recovery for a sharper session
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3 w-3">
@@ -311,18 +307,18 @@ export function WorkoutHelper({
       <div className="border-b border-white/[0.06] p-5 sm:p-6">
         <div className="space-y-5">
           <div>
-            <p className="label-caps mb-2 text-[10px]">Time available</p>
-            <div className="grid grid-cols-4 gap-0.5 rounded-lg border border-white/[0.09] bg-white/[0.03] p-0.5">
+            <p className="label-caps mb-2 text-[11px]">Time available</p>
+            <div className="grid grid-cols-4 gap-1 rounded-[4px] border border-white/[0.1] bg-[var(--bg-0)] p-1">
               {TIME_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setTime(opt.value)}
                   aria-pressed={time === opt.value}
-                  className={`rounded-lg px-1 py-2 text-xs font-medium tabular-nums transition-[background-color,color,transform] duration-150 active:scale-[0.97] ${
+                  className={`min-h-10 rounded-[3px] px-1 text-sm font-semibold tabular-nums transition-colors duration-150 ${
                     time === opt.value
-                      ? "bg-white/[0.08] text-zinc-50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07)]"
-                      : "text-zinc-500 hover:text-zinc-300"
+                      ? "bg-[var(--surface-3)] text-zinc-50"
+                      : "text-zinc-400 hover:text-zinc-100"
                   }`}
                 >
                   {opt.label}
@@ -332,22 +328,22 @@ export function WorkoutHelper({
           </div>
 
           <div>
-            <p className="label-caps mb-2 text-[10px]">Equipment</p>
-            <div className="grid grid-cols-2 gap-0.5 rounded-lg border border-white/[0.09] bg-white/[0.03] p-0.5 sm:grid-cols-5">
+            <p className="label-caps mb-2 text-[11px]">Equipment</p>
+            <div className="grid grid-cols-2 gap-1 rounded-[4px] border border-white/[0.1] bg-[var(--bg-0)] p-1 sm:grid-cols-5">
               {EQUIPMENT_OPTIONS.map((opt, i) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setEquipment(opt.value)}
                   aria-pressed={equipment === opt.value}
-                  className={`rounded-lg px-1 py-2 text-xs font-medium transition-[background-color,color,transform] duration-150 active:scale-[0.97] ${
+                  className={`min-h-10 rounded-[3px] px-1 text-sm font-semibold transition-colors duration-150 ${
                     // 5 options: on the 2-col mobile grid, let the last one
                     // span the final row so the control stays balanced.
                     i === EQUIPMENT_OPTIONS.length - 1 ? "max-sm:col-span-2" : ""
                   } ${
                     equipment === opt.value
-                      ? "bg-white/[0.08] text-zinc-50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07)]"
-                      : "text-zinc-500 hover:text-zinc-300"
+                      ? "bg-[var(--surface-3)] text-zinc-50"
+                      : "text-zinc-400 hover:text-zinc-100"
                   }`}
                 >
                   {opt.label}
@@ -357,7 +353,7 @@ export function WorkoutHelper({
           </div>
 
           <div>
-            <p className="label-caps mb-2 text-[10px]">
+            <p className="label-caps mb-2 text-[11px]">
               Focus <span className="font-normal normal-case tracking-normal text-zinc-600">· optional</span>
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -367,10 +363,10 @@ export function WorkoutHelper({
                   type="button"
                   onClick={() => setFocus(opt.value)}
                   aria-pressed={focus === opt.value}
-                  className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-95 ${
+                  className={`min-h-10 rounded-[3px] border px-3.5 text-sm font-medium transition-colors duration-150 ${
                     focus === opt.value
-                      ? "border-primary/40 bg-primary/10 text-primary shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]"
-                      : "border-white/[0.08] text-zinc-500 hover:border-white/[0.15] hover:text-zinc-300"
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-white/[0.12] text-zinc-300 hover:border-white/[0.24] hover:text-zinc-100"
                   }`}
                 >
                   {opt.label}
@@ -403,18 +399,18 @@ export function WorkoutHelper({
         <div className="anim-rise p-5 sm:p-6">
           {/* Session summary — coach note */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(plan.tier)}`}>
+            <span className={`inline-flex items-center rounded-[3px] border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(plan.tier)}`}>
               {plan.tierLabel}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+            <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
               <WorkoutTypeIcon type={workoutTypeFromLabel(plan.focusLabel)} className="h-3 w-3" />
               {plan.focusLabel}
             </span>
-            <span className="inline-flex items-center rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 tabular-nums">
+            <span className="inline-flex items-center rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 tabular-nums">
               ~{time === 60 ? "60+" : time} min
             </span>
             {plan.historyAnchoredCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-data)]/25 bg-[var(--accent-data-weak)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent-data)] tabular-nums">
+              <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-[var(--accent-data)]/25 bg-[var(--accent-data-weak)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent-data)] tabular-nums">
                 <span className="h-1 w-1 rounded-full bg-[var(--accent-data)]" />
                 {plan.historyAnchoredCount} from your history
               </span>
@@ -448,7 +444,7 @@ export function WorkoutHelper({
             ))}
           </div>
 
-          <p className="mt-6 border-t border-white/[0.05] pt-4 text-xs leading-relaxed text-zinc-600">
+          <p className="mt-6 border-t border-white/[0.06] pt-4 text-sm leading-relaxed text-zinc-400">
             Guidance from your logs — adjust to how you feel on the day. Log the session below and
             future recommendations get sharper.
           </p>

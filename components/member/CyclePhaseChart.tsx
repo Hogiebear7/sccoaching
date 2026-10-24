@@ -33,7 +33,7 @@ export function CyclePhaseChart({
           className="absolute top-0 flex -translate-x-1/2 flex-col items-center"
           style={{ left: `${markerPct}%` }}
         >
-          <span className="text-[9px] font-semibold uppercase tracking-wide text-foreground">Today</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground">Today</span>
           <svg viewBox="0 0 8 6" className="mt-0.5 h-1.5 w-2" aria-hidden>
             <path d="M4 6 0 0h8Z" fill="var(--foreground)" />
           </svg>

@@ -275,7 +275,7 @@ function NotificationRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${chipClass}`}>
+              <span className={`inline-block rounded-[3px] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${chipClass}`}>
                 {TYPE_LABEL[n.type]}
               </span>
 

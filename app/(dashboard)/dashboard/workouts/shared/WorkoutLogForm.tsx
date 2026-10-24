@@ -505,7 +505,7 @@ export function WorkoutLogForm({
                             type="button"
                             onClick={() => updateRow(row.key, { unitMode: "weight" })}
                             aria-pressed={row.unitMode === "weight"}
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold transition ${
+                            className={`rounded px-1.5 py-0.5 text-[11px] font-semibold transition ${
                               row.unitMode === "weight"
                                 ? "bg-primary/15 text-primary"
                                 : "text-muted-foreground hover:text-foreground"
@@ -517,7 +517,7 @@ export function WorkoutLogForm({
                             type="button"
                             onClick={() => updateRow(row.key, { unitMode: "time" })}
                             aria-pressed={row.unitMode === "time"}
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold transition ${
+                            className={`rounded px-1.5 py-0.5 text-[11px] font-semibold transition ${
                               row.unitMode === "time"
                                 ? "bg-primary/15 text-primary"
                                 : "text-muted-foreground hover:text-foreground"
@@ -548,7 +548,7 @@ export function WorkoutLogForm({
                           Reps
                           <InfoTooltip text="How many repetitions you completed per set." />
                         </label>
-                        <label className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                        <label className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
                           <input
                             type="checkbox"
                             checked={row.perSide}

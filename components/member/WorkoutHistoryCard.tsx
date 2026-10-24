@@ -21,7 +21,7 @@ export default function WorkoutHistoryCard({ session }: { session: WorkoutSessio
         </div>
         <div className="text-right">
           <p className="text-sm font-semibold text-teal-400 tabular-nums leading-tight">{vol.toLocaleString()} kg</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">total volume</p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">total volume</p>
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5">

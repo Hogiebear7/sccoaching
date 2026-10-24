@@ -36,7 +36,7 @@ export function MessagesView({
           aria-pressed={tab === "ai"}
           className={`rounded-lg px-4 py-2 text-sm font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.97] ${
             tab === "ai"
-              ? "bg-white/[0.08] text-zinc-50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]"
+              ? "bg-white/[0.08] text-zinc-50"
               : "text-zinc-500 hover:text-zinc-300"
           }`}
         >
@@ -48,7 +48,7 @@ export function MessagesView({
           aria-pressed={tab === "coach"}
           className={`rounded-lg px-4 py-2 text-sm font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.97] ${
             tab === "coach"
-              ? "bg-white/[0.08] text-zinc-50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]"
+              ? "bg-white/[0.08] text-zinc-50"
               : "text-zinc-500 hover:text-zinc-300"
           }`}
         >

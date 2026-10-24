@@ -254,7 +254,7 @@ export function NutritionAiCoach({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold tracking-tight text-zinc-100">AI Nutrition Coach</p>
-            <span className="rounded-full border border-gold/30 bg-gold/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gold">
+            <span className="rounded-[3px] border border-gold/30 bg-gold/[0.08] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gold">
               New
             </span>
           </div>
@@ -307,21 +307,21 @@ export function NutritionAiCoach({
 
         {context && (
           <div className="relative mt-3 flex flex-wrap items-center gap-1.5">
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(context.fuelDay ?? undefined)}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(context.fuelDay ?? undefined)}`}>
               Today · {context.fuelDayLabel}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 tabular-nums">
+            <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 tabular-nums">
               {context.carbGramsDay}g carbs
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+            <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
               Week <span className="text-zinc-400">{context.weekBandLabel}</span>
             </span>
             {context.nextSession && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+              <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
                 Next: <span className="text-zinc-400">{context.nextSession.title}</span>
               </span>
             )}
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/25 bg-gold/[0.05] px-2.5 py-1 text-[11px] font-medium text-gold">
+            <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-gold/25 bg-gold/[0.05] px-2.5 py-1 text-[11px] font-medium text-gold">
               Tomorrow <span className="tabular-nums">{EXERTION_LABEL[tomorrow]}</span>
             </span>
           </div>
@@ -346,7 +346,7 @@ export function NutritionAiCoach({
           <div ref={scrollRef} role="log" aria-live="polite" className="max-h-[480px] space-y-3 overflow-y-auto p-5">
             {messages.length === 0 ? (
               <div className="py-6 text-center">
-                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[10px] border border-white/[0.07] bg-white/[0.03] text-zinc-500 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
+                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[10px] border border-white/[0.07] bg-white/[0.03] text-zinc-500">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
@@ -363,7 +363,7 @@ export function NutritionAiCoach({
                       type="button"
                       disabled={isSending}
                       onClick={() => void sendMessage(prompt)}
-                      className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-400 transition-[border-color,background-color,color,transform] duration-150 hover:border-gold/30 hover:bg-gold/[0.06] hover:text-gold active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-[3px] border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-400 transition-[border-color,background-color,color,transform] duration-150 hover:border-gold/30 hover:bg-gold/[0.06] hover:text-gold active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {prompt}
                     </button>
@@ -383,7 +383,7 @@ export function NutritionAiCoach({
                     <div
                       className={`max-w-[85%] rounded-[10px] px-4 py-3 text-sm leading-relaxed ${
                         isUser
-                          ? `rounded-br-md bg-primary text-primary-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] ${msg.pending ? "opacity-70" : ""}`
+                          ? `rounded-br-md bg-primary text-primary-foreground ${msg.pending ? "opacity-70" : ""}`
                           : "rounded-bl-md border border-white/[0.05] bg-white/[0.05] text-zinc-100"
                       }`}
                     >
@@ -394,7 +394,7 @@ export function NutritionAiCoach({
                         )}
                       </p>
                       {!msg.streaming && (
-                        <p className={`mt-1.5 text-[10px] tabular-nums ${isUser ? "text-primary-foreground/70" : "text-zinc-500"}`}>
+                        <p className={`mt-1.5 text-[11px] tabular-nums ${isUser ? "text-primary-foreground/70" : "text-zinc-500"}`}>
                           {isUser ? "You" : "AI Nutrition Coach"}
                           {formatTime(msg.createdAt) ? ` · ${formatTime(msg.createdAt)}` : ""}
                         </p>

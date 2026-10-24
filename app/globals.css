@@ -875,3 +875,33 @@ details[open] > .details-reveal {
 [data-member-app] .skeleton {
   border-radius: 3px;
 }
+
+/* Member form controls: 44px minimum touch height, and 16px text on phones
+   so iOS Safari never zooms the page when a field takes focus. */
+[data-member-app] :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select) {
+  min-height: 2.75rem;
+}
+@media (max-width: 639px) {
+  [data-member-app] :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea) {
+    font-size: 16px;
+  }
+}
+
+/* Member empty states: a calm solid tile, a 15px title and a readable
+   14px line (the shared markup is a title <p> then a body <p>). */
+[data-member-app] .empty-state {
+  border-style: solid;
+  border-color: var(--border-subtle);
+  background-color: var(--surface-1);
+  padding: 1.75rem 1.25rem;
+}
+[data-member-app] .empty-state > p:first-child {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+[data-member-app] .empty-state > p + p {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}

@@ -66,7 +66,7 @@ export function SetLevelsPanel({
               type="button"
               aria-pressed={windowDays === opt.days}
               onClick={() => setWindowDays(opt.days)}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+              className={`rounded-[3px] px-2.5 py-1 text-[11px] font-medium transition ${
                 windowDays === opt.days ? "bg-data/15 text-data" : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
@@ -93,7 +93,7 @@ export function SetLevelsPanel({
 
           <div className="mt-3 flex items-center justify-center gap-4">
             {(["low", "moderate", "high"] as const).map((tier) => (
-              <span key={tier} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span key={tier} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span
                   className="h-2.5 w-2.5 rounded-full"
                   style={{ background: "var(--accent-data)", opacity: TIER_DOT_OPACITY[tier] }}
@@ -112,7 +112,7 @@ export function SetLevelsPanel({
                 <span className="text-[13px] font-medium text-foreground">{SECTION_LABELS[section]}</span>
                 <span className="flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums">
                   {levels[section].weeklySets} sets/wk
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tierBadgeClass(levels[section].tier)}`}>
+                  <span className={`rounded-[3px] px-1.5 py-0.5 text-[11px] font-semibold ${tierBadgeClass(levels[section].tier)}`}>
                     {TIER_LABEL[levels[section].tier]}
                   </span>
                 </span>

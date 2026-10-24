@@ -35,8 +35,8 @@ export default function ResourceCard({ resource }: { resource: Resource }) {
         <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{resource.description}</p>
         <div className="flex items-center gap-2 mt-2">
           <Badge variant={typeKey}>{resource.type}</Badge>
-          <span className="text-[10px] text-zinc-600">{resource.sizeLabel}</span>
-          <span className="text-[10px] text-zinc-600">· {formatDate(resource.sharedDate)}</span>
+          <span className="text-[11px] text-zinc-600">{resource.sizeLabel}</span>
+          <span className="text-[11px] text-zinc-600">· {formatDate(resource.sharedDate)}</span>
         </div>
       </div>
     </div>

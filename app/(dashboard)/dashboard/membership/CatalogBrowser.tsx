@@ -27,7 +27,7 @@ import { HeadlineText } from "@/components/ui/HeadlineText";
 function CommitmentTag({ recurring, label }: { recurring: boolean; label: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+      className={`inline-flex items-center gap-1 rounded-[3px] px-2 py-0.5 text-[11px] font-semibold ${
         recurring ? "bg-data/15 text-data" : "bg-gold/[0.12] text-gold"
       }`}
     >
@@ -211,7 +211,7 @@ export function CatalogBrowser({
                       <p className="font-semibold text-zinc-50">{p.name}</p>
                       <CommitmentTag recurring={!isPass} label={isPass ? "Pass" : "Membership"} />
                       {p.id === currentPackageId ? (
-                        <span className="rounded-full border border-[var(--success)]/30 bg-[var(--success-weak)] px-2 py-0.5 text-[10px] font-semibold text-[var(--success)]">
+                        <span className="rounded-[3px] border border-[var(--success)]/30 bg-[var(--success-weak)] px-2 py-0.5 text-[11px] font-semibold text-[var(--success)]">
                           Your plan
                         </span>
                       ) : null}
@@ -265,7 +265,7 @@ export function CatalogBrowser({
                     <p className="flex flex-wrap items-center gap-2 font-semibold text-zinc-50">
                       {memberBillingLabel(o)}
                       {isCurrent ? (
-                        <span className="rounded-full border border-[var(--success)]/40 bg-[var(--success-weak)] px-2 py-0.5 text-[10px] font-semibold text-[var(--success)]">
+                        <span className="rounded-[3px] border border-[var(--success)]/40 bg-[var(--success-weak)] px-2 py-0.5 text-[11px] font-semibold text-[var(--success)]">
                           Your plan
                         </span>
                       ) : (
@@ -288,7 +288,7 @@ export function CatalogBrowser({
                     ) : null}
                   </div>
                   {isCurrent ? (
-                    <span className="shrink-0 rounded-full border border-[var(--success)]/40 px-4 py-2 text-sm font-medium text-[var(--success)]">
+                    <span className="shrink-0 rounded-[3px] border border-[var(--success)]/40 px-4 py-2 text-sm font-medium text-[var(--success)]">
                       Current
                     </span>
                   ) : (

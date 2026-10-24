@@ -24,6 +24,7 @@ import { MuscleMap } from "@/components/graphics/MuscleMap";
 import { SetLevelsPanel } from "./shared/SetLevelsPanel";
 import { SegmentedControl } from "@/components/member/SegmentedControl";
 import { ScreenHeader } from "@/components/member/ScreenHeader";
+import { formatFriendlyClassDate } from "@/lib/dates";
 
 // Workouts — a real information-architecture rethink, not a reskin:
 //
@@ -149,15 +150,15 @@ export function WorkoutsView({
           <div className="surface-card surface-card--accent min-w-0 p-5">
             <div className="flex items-baseline justify-between">
               <div>
-                <p className="label-caps text-[9px]">Streak</p>
+                <p className="label-caps text-[11px]">Streak</p>
                 <p className="text-headline mt-2 text-[44px] leading-none text-gold">{streakWeeks}</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {streakWeeks === 1 ? "week trained" : "weeks trained"} in a row
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-display text-[20px] leading-none tabular-nums">{weeklyStats.count}</p>
-                <p className="mt-1 text-[10px] text-muted-foreground">this week</p>
+                <p className="text-headline text-[32px] tabular-nums text-zinc-50">{weeklyStats.count}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">this week</p>
               </div>
             </div>
 
@@ -165,7 +166,7 @@ export function WorkoutsView({
               {currentWeekDays.map((d) => (
                 <span
                   key={d.iso}
-                  className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums ${
+                  className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
                     d.trained
                       ? "bg-primary text-primary-foreground"
                       : d.isToday
@@ -189,12 +190,12 @@ export function WorkoutsView({
                 </div>
               ))}
             </div>
-            <p className="mt-1.5 text-[10px] text-zinc-600">6-week frequency</p>
+            <p className="mt-1.5 text-xs text-zinc-400">6-week frequency</p>
           </div>
 
           <div className="surface-card min-w-0 p-5">
             <div className="flex items-baseline justify-between">
-              <p className="label-caps text-[9px]">Recent records</p>
+              <p className="label-caps text-[11px]">Recent records</p>
               <p className="text-[11px] text-muted-foreground tabular-nums">{sessions.length} sessions logged</p>
             </div>
             {personalBests.length === 0 ? (
@@ -209,20 +210,20 @@ export function WorkoutsView({
                 {personalBests.map((pb) => (
                   <div
                     key={pb.exerciseName}
-                    className="w-[136px] shrink-0 snap-start rounded-lg border border-white/[0.08] bg-white/[0.02] p-3"
+                    className="w-[148px] shrink-0 snap-start rounded-[4px] border border-white/[0.08] bg-[var(--bg-0)] p-3.5"
                   >
-                    <p className="truncate text-[12px] font-semibold text-foreground">{pb.exerciseName}</p>
-                    <p className="text-display mt-1.5 text-[18px] leading-none tabular-nums text-gold">
+                    <p className="truncate text-sm font-semibold text-zinc-100">{pb.exerciseName}</p>
+                    <p className="mt-2 text-headline text-[28px] tabular-nums text-gold">
                       {pb.heaviestWeight
                         ? Number.isFinite(parseFloat(pb.heaviestWeight.weightStr))
-                          ? `${pb.heaviestWeight.value} kg`
+                          ? <>{pb.heaviestWeight.value}<span className="ml-1 font-sans text-sm font-semibold normal-case text-zinc-300">kg</span></>
                           : pb.heaviestWeight.weightStr
                         : pb.highestReps
                           ? `×${pb.highestReps.reps}`
                           : "—"}
                     </p>
-                    <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">
-                      {pb.heaviestWeight?.date ?? pb.highestReps?.date ?? ""}
+                    <p className="mt-1 text-xs text-zinc-400 tabular-nums">
+                      {shortDate(pb.heaviestWeight?.date ?? pb.highestReps?.date ?? "")}
                     </p>
                   </div>
                 ))}
@@ -260,9 +261,9 @@ export function WorkoutsView({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-xs text-muted-foreground">{session.date}</p>
+                      <p className="text-sm text-zinc-400">{formatFriendlyClassDate(session.date)}</p>
                       {session.classId ? (
-                        <span className="rounded-full border border-primary/25 bg-primary/[0.08] px-2 py-0.5 text-[10px] font-semibold text-primary">
+                        <span className="rounded-[3px] border border-primary/25 bg-primary/[0.08] px-2 py-0.5 text-[11px] font-semibold text-primary">
                           Class
                         </span>
                       ) : null}
@@ -270,7 +271,7 @@ export function WorkoutsView({
                         <button
                           type="button"
                           onClick={() => setEditingClassSessionId(session.id)}
-                          className="text-[11px] font-medium text-primary transition hover:text-[var(--primary-hover)]"
+                          className="inline-flex min-h-8 items-center text-sm font-semibold text-primary transition hover:text-[var(--primary-hover)]"
                         >
                           Edit (today only)
                         </button>
@@ -279,13 +280,13 @@ export function WorkoutsView({
                         <button
                           type="button"
                           onClick={() => setEditingSelfSessionId(session.id)}
-                          className="text-[11px] font-medium text-primary transition hover:text-[var(--primary-hover)]"
+                          className="inline-flex min-h-8 items-center text-sm font-semibold text-primary transition hover:text-[var(--primary-hover)]"
                         >
                           Edit
                         </button>
                       ) : null}
                     </div>
-                    <h4 className="mt-1 text-base font-semibold">{session.title}</h4>
+                    <h3 className="mt-1 text-[17px] font-semibold text-zinc-50">{session.title}</h3>
                     {editingClassSessionId === session.id ? (
                       <ClassSessionEditor
                         session={session}
@@ -318,7 +319,7 @@ export function WorkoutsView({
                             <div key={i} className="flex items-baseline gap-2 text-sm">
                               {section && <MuscleMap section={section} className="h-4 w-3 shrink-0 self-center" />}
                               {ex.supersetGroup && (
-                                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                <span className="rounded-[3px] bg-primary/15 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
                                   {ex.supersetGroup}
                                 </span>
                               )}
@@ -339,7 +340,7 @@ export function WorkoutsView({
                   </div>
 
                   {session.durationMins !== null && (
-                    <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs text-secondary-foreground">
+                    <span className="shrink-0 self-start rounded-[3px] border border-white/[0.12] px-2.5 py-1 text-xs font-semibold tabular-nums text-zinc-200">
                       {session.durationMins} min
                     </span>
                   )}
@@ -360,11 +361,11 @@ export function WorkoutsView({
           )}
         </div>
 
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
+        <div className="surface-card p-4 sm:p-5">
           {trackedExercises.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-1.5">
               {trackedExercises.map((name) => (
-                <span key={name} className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
+                <span key={name} className="flex items-center gap-1.5 rounded-[3px] bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
                   {name}
                   <button type="button" onClick={() => removeTracked(name)} className="leading-none text-muted-foreground transition hover:text-foreground" aria-label={`Remove ${name}`}>
                     ×
@@ -435,7 +436,7 @@ export function WorkoutsView({
           these open on every visit; progressive disclosure keeps the page
           short unless a member actually wants to browse or search. */}
       <div className="border-t border-white/[0.06] pt-6">
-        <p className="mb-3 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">Reference</p>
+        <p className="mb-3 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-600">Reference</p>
 
         <details className="group rounded-xl border border-white/[0.06]">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-300 transition hover:text-zinc-100">
@@ -459,4 +460,11 @@ export function WorkoutsView({
       </div>
     </section>
   );
+}
+
+// "2026-09-21" -> "21 Sep 2026" for compact record cards.
+function shortDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }

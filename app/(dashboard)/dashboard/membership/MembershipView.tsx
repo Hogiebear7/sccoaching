@@ -138,7 +138,7 @@ export function MembershipView({
                   <p className="label-caps">Current membership</p>
                   <p className="mt-2 text-xl font-semibold tracking-tight text-zinc-50">{currentPlanName}</p>
                 </div>
-                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusBadgeClass(subscriptionStatus, periodLapsed, pendingIsStale)}`}>
+                <span className={`shrink-0 rounded-[3px] border px-2.5 py-1 text-[11px] font-medium ${statusBadgeClass(subscriptionStatus, periodLapsed, pendingIsStale)}`}>
                   {statusBadgeLabel(subscriptionStatus, periodLapsed, pendingIsStale)}
                 </span>
               </div>
