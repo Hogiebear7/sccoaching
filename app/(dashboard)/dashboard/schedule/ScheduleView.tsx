@@ -13,6 +13,8 @@ import { HeadlineText } from "@/components/ui/HeadlineText";
 import { WorkoutTypeIcon, workoutTypeFromLabel } from "@/components/graphics/WorkoutTypeIcon";
 import { BookingCard } from "../bookings/BookingCard";
 import { ScheduleCalendar } from "./ScheduleCalendar";
+import { SegmentedControl } from "@/components/member/SegmentedControl";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 
 export type ScheduleClass = ClassRecord & {
   coachEmail: string;
@@ -366,22 +368,22 @@ export function ScheduleView({
 
   return (
     <section className="anim-rise space-y-8">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Club</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Claim your spot, then show up.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Browse upcoming classes and book your spot.
-          {remainingSessions !== null && (
-            <>
-              {" "}·{" "}
-              <span className="font-medium text-zinc-200">{remainingSessions}</span>{" "}
-              session{remainingSessions === 1 ? "" : "s"} remaining.
-            </>
-          )}
-        </p>
-      </div>
+      <ScreenHeader
+        section="Club"
+        title="Schedule"
+        subtitle={
+          <>
+            Browse upcoming classes and book your spot.
+            {remainingSessions !== null && (
+              <>
+                {" "}·{" "}
+                <span className="font-medium text-zinc-100 tabular-nums">{remainingSessions}</span>{" "}
+                session{remainingSessions === 1 ? "" : "s"} remaining.
+              </>
+            )}
+          </>
+        }
+      />
 
       {noActiveMembership && (
         <div className="flex items-start gap-2 rounded-lg border border-[var(--warning)]/25 bg-[var(--warning-weak)] p-3 text-sm text-[var(--warning)]">
@@ -404,35 +406,16 @@ export function ScheduleView({
         </p>
       )}
 
-      <div className="inline-flex rounded-full border border-white/[0.1] bg-white/[0.03] p-1">
-        <button
-          type="button"
-          onClick={() => setTab("browse")}
-          className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
-            tab === "browse" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          Browse
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("calendar")}
-          className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
-            tab === "calendar" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          Calendar
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("bookings")}
-          className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
-            tab === "bookings" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          My bookings{upcomingBookings.length > 0 ? ` (${upcomingBookings.length})` : ""}
-        </button>
-      </div>
+      <SegmentedControl
+        label="Schedule view"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "browse", label: "Browse" },
+          { value: "calendar", label: "Calendar" },
+          { value: "bookings", label: `My bookings${upcomingBookings.length > 0 ? ` (${upcomingBookings.length})` : ""}` },
+        ]}
+      />
 
       {tab === "browse" && (
         <>

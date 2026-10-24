@@ -36,6 +36,7 @@ import { IconBadge } from "@/components/graphics/IconBadge";
 import { IconSelect } from "@/components/ui/IconSelect";
 import { NutrientFunctionIcon, type NutrientFunction } from "@/components/graphics/NutrientFunctionIcon";
 import { NutritionAiCoach } from "./NutritionAiCoach";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 
 const EXERTION_OPTIONS: Exertion[] = ["low", "medium", "high", "match"];
 const BOTTLE_OPTIONS = [500, 750, 1000] as const;
@@ -543,15 +544,11 @@ export function NutritionView({
   return (
     <section className="anim-rise space-y-10">
       {/* Bespoke editorial header — same voice/pattern as Workouts variant C */}
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Fuelling</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Fuel built around your training, not a guess.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Daily targets and sports hydration, tuned to what you&apos;ve actually logged.
-        </p>
-      </div>
+      <ScreenHeader
+        section="Training"
+        title="Nutrition"
+        subtitle="Daily targets and hydration, tuned to what you've actually logged."
+      />
 
       {/* Hero — Today's Fuel: status, macro targets, and food ideas unified
           under one header, instead of three separate panels each competing

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 
 import { ExerciseMediaSlot } from "@/components/ui/ExerciseMediaSlot";
 import type { ExerciseLibraryRecord } from "@/lib/exercise-library/types";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 
 type Item = ExerciseLibraryRecord & { thumbnailUrl: string | null; favorited: boolean };
 
@@ -70,15 +71,11 @@ export function ExerciseLibraryView({
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Training</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Exercise Library
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Browse demonstrations, cues, and muscle targets for every exercise in the library.
-        </p>
-      </div>
+      <ScreenHeader
+        section="Training"
+        title="Exercise library"
+        subtitle="Browse demonstrations, cues, and muscle targets for every exercise in the library."
+      />
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">

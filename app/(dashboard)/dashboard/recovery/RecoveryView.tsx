@@ -11,6 +11,7 @@ import { ScoreHelp } from "@/components/ui/ScoreHelp";
 import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
 import type { PhaseEstimate } from "@/lib/cycle-phase";
 import { intensityMix, weeklyTrainingSummary } from "@/lib/progress";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
 
 type RecoveryFormValues = {
@@ -155,17 +156,11 @@ export function RecoveryView({
 
   return (
     <section className="anim-rise space-y-10">
-      {/* Bespoke editorial header — same voice as Workouts/Nutrition */}
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Training</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Today&rsquo;s check-in sharpens everything else.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Sleep, soreness, and fatigue — logged in under a minute, felt in your session plan and
-          fuelling guidance too.
-        </p>
-      </div>
+      <ScreenHeader
+        section="Training"
+        title="Recovery"
+        subtitle="A one-minute daily check-in on sleep, soreness and fatigue. It shapes your session plan and fuelling guidance."
+      />
 
       {/* Hero — Today's Readiness: status ring, context stats, and the
           check-in form unified in one dominant zone, instead of three

@@ -14,6 +14,7 @@ import {
 } from "@/lib/membership-status";
 import { type ClassPassBalance } from "@/lib/scheduling-status";
 import { CatalogBrowser } from "./CatalogBrowser";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 
 // Active/good-standing reads as success; anything requiring attention reads
 // as destructive (unchanged — that mapping was already correct); anything
@@ -108,15 +109,11 @@ export function MembershipView({
 
   return (
     <section className="anim-rise space-y-10">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Club</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Know exactly what you&rsquo;re paying for.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Your package controls which sessions you can book.
-        </p>
-      </div>
+      <ScreenHeader
+        section="Club"
+        title="Membership"
+        subtitle="Your package controls which sessions you can book."
+      />
 
       {passCheckoutStatus === "pending" && (
         <p className="rounded-lg border border-[var(--success)]/25 bg-[var(--success-weak)] px-4 py-3 text-sm text-[var(--success)]">

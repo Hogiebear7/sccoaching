@@ -19,6 +19,7 @@ import { latestBodyFatLog } from "@/lib/body-fat";
 import { latestWeightLog } from "@/lib/body-weight";
 import { COUNTRY_OPTIONS, GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
 import { DietaryRequirementsFields } from "@/components/profile/DietaryRequirementsFields";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 import { ProfileStatsCard } from "./ProfileStatsCard";
 
 const BW_W = 400;
@@ -704,12 +705,15 @@ export function ProfileForm({
   bodyWeightLogs,
   bodyFatLogs,
   statsData,
+  accountMenu,
 }: {
   email: string;
   profile: ProfileRecord;
   bodyWeightLogs: BodyWeightLogRecord[];
   bodyFatLogs: BodyFatLogRecord[];
   statsData: MemberStatsData;
+  /** Phone-only account links + log out, rendered under the header. */
+  accountMenu?: ReactNode;
 }) {
   const router = useRouter();
   const [values, setValues] = useState<ProfileFormValues>(() => toFormValues(profile));
@@ -910,13 +914,9 @@ export function ProfileForm({
 
   return (
     <section className="anim-rise space-y-10">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Account</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          The details that shape your plan.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{email}</p>
-      </div>
+      <ScreenHeader section="Account" title={profile.fullName || "Profile"} subtitle={email} />
+
+      {accountMenu}
 
       <ProfileStatsCard data={statsData} />
 

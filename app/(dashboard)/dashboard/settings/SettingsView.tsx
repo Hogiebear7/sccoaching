@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import type { MeasurementUnits, ProfileRecord } from "@/lib/profile-schema";
 import { AppearancePanel } from "@/components/settings/AppearancePanel";
 import { SupportPanel } from "@/components/settings/SupportPanel";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 // TRIAL-ONLY — see docs/bug-reports.md.
 import { BugReportPanel } from "@/components/settings/BugReportPanel";
 
@@ -372,12 +373,7 @@ export function SettingsView({
 
   return (
     <section className="anim-rise space-y-10">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Account</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Set it up your way.
-        </h1>
-      </div>
+      <ScreenHeader section="Account" title="Settings" />
 
       {/* Account */}
       <div>

@@ -22,6 +22,8 @@ import { formatRun, todayDateString } from "./shared/formatters";
 import { computeCurrentWeekDays, computeWeeklyFrequency } from "./shared/consistency";
 import { MuscleMap } from "@/components/graphics/MuscleMap";
 import { SetLevelsPanel } from "./shared/SetLevelsPanel";
+import { SegmentedControl } from "@/components/member/SegmentedControl";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 
 // Workouts — a real information-architecture rethink, not a reskin:
 //
@@ -109,40 +111,26 @@ export function WorkoutsView({
           rather than reusing the generic PageHeader every other screen
           shares, since the opening here is the tabbed hero below it, not
           a standalone header block. */}
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Training</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Where today&rsquo;s session starts.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Plan a session from your readiness and history, or log what you just did.
-        </p>
-      </div>
+      <ScreenHeader
+        section="Training"
+        title="Workouts"
+        subtitle="Plan a session from your readiness and history, or log what you just did."
+      />
 
       {/* Hero — one dominant action zone, switched by intent rather than
           stacked. Both panels stay mounted so switching tabs never drops
           in-progress input in the log form. */}
       <div>
-        <div className="mb-4 inline-flex rounded-full border border-white/[0.1] bg-white/[0.03] p-1">
-          <button
-            type="button"
-            onClick={() => setHeroTab("plan")}
-            className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
-              heroTab === "plan" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            Plan a session
-          </button>
-          <button
-            type="button"
-            onClick={() => setHeroTab("log")}
-            className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
-              heroTab === "log" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            Log a session
-          </button>
-        </div>
+        <SegmentedControl
+          label="Workout mode"
+          className="mb-4"
+          value={heroTab}
+          onChange={setHeroTab}
+          options={[
+            { value: "plan", label: "Plan a session" },
+            { value: "log", label: "Log a session" },
+          ]}
+        />
 
         <div className={heroTab === "plan" ? "" : "hidden"}>
           <WorkoutHelper sessions={sessions} context={helperContext} />

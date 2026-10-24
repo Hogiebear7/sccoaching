@@ -13,6 +13,7 @@ import { resolveCurrentBodyFatPct } from "@/lib/body-fat";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { buildMemberStatsData } from "@/lib/member-stats";
 import { verifySession } from "@/lib/session";
+import { AccountMenu } from "@/components/member/AccountMenu";
 import { ProfileForm } from "./ProfileForm";
 
 export default async function ProfilePage() {
@@ -66,6 +67,7 @@ export default async function ProfilePage() {
       bodyWeightLogs={bodyWeightLogs}
       bodyFatLogs={bodyFatLogs}
       statsData={statsData}
+      accountMenu={<AccountMenu />}
     />
   );
 }
