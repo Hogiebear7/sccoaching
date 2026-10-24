@@ -406,6 +406,17 @@ export function SettingsView({
               {resetSending ? "Sending…" : resetSent ? "Link sent" : "Reset password"}
             </button>
           </div>
+          <div className="flex items-center justify-between gap-4 px-5 py-4">
+            <p className="text-sm text-zinc-400">Signed in on this device</p>
+            <form action="/api/auth/logout" method="POST">
+              <button
+                type="submit"
+                className="inline-flex min-h-10 shrink-0 items-center rounded-[3px] border border-white/[0.14] px-3.5 text-[13px] font-medium text-zinc-200 transition-colors duration-150 hover:border-white/[0.3] hover:text-white"
+              >
+                Log out
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 

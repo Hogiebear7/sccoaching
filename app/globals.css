@@ -905,3 +905,10 @@ details[open] > .details-reveal {
   line-height: 1.5;
   color: var(--text-secondary);
 }
+
+/* Error text: the danger red (#e62b34) is too dark to read on navy as text,
+   so member error copy uses a lighter tint of the same hue (AA on surface-1).
+   Fills, borders and icons keep the true danger red. */
+[data-member-app] .text-destructive {
+  color: oklch(0.8 0.1 25);
+}

@@ -6,6 +6,7 @@ import type { AiMessageRecord, MessageRecord } from "@/lib/db";
 import type { CoachingContextDisplay } from "@/lib/ai-context";
 import type { DrinkSettings } from "@/lib/drink-settings";
 import { MessagesThread } from "@/components/messages/MessagesThread";
+import { SegmentedControl } from "@/components/member/SegmentedControl";
 import { AiChat } from "./AiChat";
 
 type Tab = "ai" | "coach";
@@ -25,36 +26,21 @@ export function MessagesView({
   initialPrompt: string | null;
   fallbackDrinkSettings?: DrinkSettings | null;
 }) {
-  const [tab, setTab] = useState<Tab>("ai");
+  // Coach messaging is the default: it's the human relationship members come
+  // here for. A deep link with an AI prompt (?prompt=…) still opens the AI tab.
+  const [tab, setTab] = useState<Tab>(initialPrompt ? "ai" : "coach");
 
   return (
     <div className="space-y-4">
-      <div className="flex w-fit gap-0.5 rounded-lg border border-white/[0.09] bg-white/[0.03] p-0.5">
-        <button
-          type="button"
-          onClick={() => setTab("ai")}
-          aria-pressed={tab === "ai"}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.97] ${
-            tab === "ai"
-              ? "bg-white/[0.08] text-zinc-50"
-              : "text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          AI Coach
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("coach")}
-          aria-pressed={tab === "coach"}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.97] ${
-            tab === "coach"
-              ? "bg-white/[0.08] text-zinc-50"
-              : "text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          Message coach
-        </button>
-      </div>
+      <SegmentedControl
+        label="Conversation"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "coach", label: "Your coach" },
+          { value: "ai", label: "AI coach" },
+        ]}
+      />
 
       {tab === "ai" ? (
         <AiChat
@@ -65,7 +51,7 @@ export function MessagesView({
           fallbackDrinkSettings={fallbackDrinkSettings}
         />
       ) : (
-        <MessagesThread messages={coachMessages} currentUserRole="member" />
+        <MessagesThread messages={coachMessages} currentUserRole="member" variant="member" />
       )}
     </div>
   );

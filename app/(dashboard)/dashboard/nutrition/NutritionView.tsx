@@ -27,7 +27,7 @@ import {
   type WeightGoalBias,
 } from "@/lib/nutrition";
 import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
-import { FOOD_ITEM_EMOJI, type FoodRecommendations } from "@/lib/nutrition-recommendations";
+import type { FoodRecommendations } from "@/lib/nutrition-recommendations";
 import type { AiMessageRecord } from "@/lib/db";
 import type { NutritionCoachContextDisplay } from "@/lib/ai-context";
 import type { ResolvedNutritionTarget } from "@/lib/nutrition-target-data";
@@ -719,9 +719,8 @@ export function NutritionView({
                       {items.map((item) => (
                         <span
                           key={item.name}
-                          className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.09] bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-200"
+                          className="inline-flex items-center rounded-[3px] border border-white/[0.12] px-2.5 py-1 text-sm text-zinc-200"
                         >
-                          <span aria-hidden="true">{FOOD_ITEM_EMOJI[item.name] ?? "🍽️"}</span>
                           {item.name}
                         </span>
                       ))}

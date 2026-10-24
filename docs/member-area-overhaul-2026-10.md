@@ -96,3 +96,28 @@ What changed
   outline button; inline alert styling for errors.
 - **Schedule:** class covers kept (staff upload them for members), with a
   scrim instead of a text shadow; 40px secondary buttons; alert styling.
+
+## Slice 4 — Messages, Settings, Nutrition, Library, colour clean-up
+
+- **Messages:** "Your coach" is now the first and default tab (AI coach
+  second). A deep link with an AI prompt (`?prompt=`) still opens the AI tab.
+  `SegmentedControl` replaces the old pill toggle. The coach thread
+  (`components/messages/MessagesThread.tsx`, shared with staff) gained an
+  opt-in `variant="member"`: navy bubbles instead of teal, a gold "Coach"
+  label, "18 Sept, 09:14" timestamps, gold-focus composer, friendlier empty
+  copy. Staff keep the default variant.
+- **Settings:** Log out added to Account details (Settings is where people
+  look for it; phones also have it on Profile).
+- **Nutrition:** emoji removed from the food-idea chips (text-only chips, per
+  UI UX Pro Max "no emoji as icons"); the emoji map stays in
+  `lib/nutrition-recommendations.ts`, unused by this screen.
+- **Exercise library:** pre-existing problem — it rendered every exercise
+  at once (≈141,000px tall on a phone). Now 24 at a time with
+  "Show more (N left)", a live count, reset on search/filter changes; 44px
+  search, favourites and filter controls.
+- **Retired colours:** hard-coded teal/amber/emerald in the AI coach, Cycle
+  and Programme screens mapped to semantic tokens (success, warning, gold
+  accent, navy bubbles, gold focus). The legacy `components/member/*` files
+  that only serve the blocked `/app` prototype were left alone.
+- Error text (`.text-destructive`) uses a lighter tint of the danger red in
+  the member app so it is readable on navy.

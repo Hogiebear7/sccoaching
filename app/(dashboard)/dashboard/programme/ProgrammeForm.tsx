@@ -125,7 +125,7 @@ export function ProgrammeForm({ programme }: { programme?: ProgrammeRecord }) {
         ) : null}
 
         {successMessage ? (
-          <p className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          <p className="mb-4 rounded-lg border border-[var(--success)]/30 bg-[var(--success-weak)] px-4 py-3 text-sm text-[var(--success)]">
             {successMessage}
           </p>
         ) : null}
@@ -307,6 +307,6 @@ function inputClass(hasError?: string) {
   return `w-full rounded-lg border bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 ${
     hasError
       ? "border-red-500 focus:border-red-400"
-      : "border-zinc-800 focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15"
+      : "border-zinc-800 focus:border-primary focus:ring-2 focus:ring-primary/20"
   }`;
 }
