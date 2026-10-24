@@ -2,14 +2,19 @@
 // Recovery summary so the score reads identically everywhere. Color follows
 // the app's semantic tokens (not literal hues) so it recolors correctly
 // per palette/theme: success ≥60, data/neutral 40–59, warning <40.
+//
+// `quiet` is the member-app style (DESIGN.md "Member app"): no glow, score in
+// Teko. The marketing preview keeps the original look.
 export function ReadinessRing({
   score,
   size = 76,
+  quiet = false,
 }: {
   score: number | null;
   size?: number;
+  quiet?: boolean;
 }) {
-  const stroke = 6;
+  const stroke = quiet ? Math.max(5, Math.round(size / 14)) : 6;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = score === null ? 0 : Math.max(0, Math.min(100, score)) / 100;
@@ -44,15 +49,24 @@ export function ReadinessRing({
             strokeLinecap="round"
             strokeDasharray={c}
             strokeDashoffset={c * (1 - pct)}
-            style={{ filter: `drop-shadow(0 0 6px color-mix(in oklch, ${color} 50%, transparent))` }}
+            style={quiet ? undefined : { filter: `drop-shadow(0 0 6px color-mix(in oklch, ${color} 50%, transparent))` }}
           />
         )}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-display text-[22px] leading-none tabular-nums">
-          {score ?? "—"}
-        </span>
-        <span className="text-[9px] font-medium text-muted-foreground">/100</span>
+        {quiet ? (
+          <>
+            <span className="text-headline leading-none tabular-nums text-zinc-50" style={{ fontSize: Math.round(size * 0.36) }}>
+              {score ?? "—"}
+            </span>
+            <span className="mt-0.5 text-[11px] font-medium text-zinc-400">/100</span>
+          </>
+        ) : (
+          <>
+            <span className="text-display text-[22px] leading-none tabular-nums">{score ?? "—"}</span>
+            <span className="text-[9px] font-medium text-muted-foreground">/100</span>
+          </>
+        )}
       </div>
     </div>
   );

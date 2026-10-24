@@ -20,14 +20,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     body: "A quick 30-second look at where everything lives before you get started.",
   },
   {
-    target: "next-session",
-    title: "Your next session",
-    body: "Whatever you've got booked shows here first. Nothing on the books yet? You can book straight from this card.",
+    target: "readiness",
+    title: "Today",
+    body: "Your daily check-in turns into a readiness score, what it means for training, and the next step. Load, sleep and sessions sit underneath.",
   },
   {
-    target: "readiness",
-    title: "Readiness",
-    body: "Log a daily recovery check-in and this fills in with a readiness score, your 7-day training load, sleep, and session guidance.",
+    target: "next-session",
+    title: "Your next session",
+    body: "Whatever you've got booked shows here. Nothing on the books yet? Book straight from this card.",
   },
   {
     target: "nutrition",

@@ -42,3 +42,25 @@ What changed
   header on phones; header now shows the member's name.
 - New primitives: `ListGroup` / `ListRow` / `StatusBadge`
   (`components/member/ListGroup.tsx`).
+
+## Slice 2 — Home (dashboard)
+
+- One question first: **"What should I do today?"** The header's supporting
+  line states today's readiness (or asks for the check-in), and the signature
+  "Today" card (gold top line) holds the readiness ring, its meaning, and one
+  gold action: *Log today's check-in* (no check-in) or *Plan today's session*.
+- Three KPIs with context sit in the same card (7-day load + band/week change,
+  sleep + quality, sessions in 7 days); Teko figures, units in Inter.
+- Readiness sparkline moved to a quiet footer row ("Readiness, last 14 days").
+- Next session: typographic day/time block instead of an image rail; one
+  "View schedule" row; empty state with an outline "Book a session" (gold is
+  reserved for the day's main action).
+- Nutrition, Membership/Coach and Shortcuts are settings-style list rows
+  (`ListGroup`), not equal-weight tiles. Membership status is a semantic badge.
+- Removed: decorative banner image and scrims, count-up number animation
+  (frequent screen: no motion), glowing ring/sparkline.
+- **Bug fixed:** sleep quality showed "/5" but is logged 1–10; now "/10".
+- First-login tour (`lib/dashboard-tour.ts`) reordered to match: Today, then
+  Next session. All `data-tour` targets kept.
+- `ReadinessRing` gained a `quiet` variant (no glow, Teko score) for the app;
+  the website preview keeps the original.
