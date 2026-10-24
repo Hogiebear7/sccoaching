@@ -89,6 +89,14 @@ function ReadinessSparkline({ series }: { series: (number | null)[] }) {
   );
 }
 
+// Header phrasing for each readiness status (lib/recovery readinessStatus).
+const READINESS_PHRASE: Record<string, string> = {
+  Primed: "primed to train hard",
+  Ready: "ready to train as planned",
+  Steady: "train steady and listen to your body",
+  "Ease off": "an easier day will serve you better",
+};
+
 export default async function DashboardPage() {
   const cookieStore = await cookies();
   const userId = verifySession(cookieStore.get("session")?.value)?.userId ?? null;
@@ -119,7 +127,8 @@ export default async function DashboardPage() {
   const todayReadiness =
     recoveryLogs.find((l) => l.date === todayISO)?.readinessScore ?? null;
   const readinessTrend = readinessSeries(recoveryLogs, todayISO, 14);
-  const hasTrend = readinessTrend.some((v) => v !== null);
+  // A trend needs at least two points; one lone dot reads as broken.
+  const hasTrend = readinessTrend.filter((v) => v !== null).length >= 2;
   const delta = readinessDelta(recoveryLogs, todayISO);
   const rolling = computeRollingTrainingLoad(recoveryLogs);
   const loadBand = classifyLoad(rolling.sevenDaySum, rolling.daysWithLoad);
@@ -220,7 +229,7 @@ export default async function DashboardPage() {
         <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-zinc-300">
           {todayReadiness === null
             ? "Start with a 30-second check-in and today's guidance appears here."
-            : `Readiness ${todayReadiness}: ${readinessStatus(todayReadiness).toLowerCase()}. ${nextBooking ? `Next class ${formatFriendlyClassDate(nextBooking.date).toLowerCase()} at ${nextBooking.startTime}.` : ""}`}
+            : `Readiness ${todayReadiness} today: ${READINESS_PHRASE[readinessStatus(todayReadiness)] ?? "check in with how you feel"}.${nextBooking ? ` Next class ${formatFriendlyClassDate(nextBooking.date).toLowerCase()} at ${nextBooking.startTime}.` : ""}`}
         </p>
       </header>
 
