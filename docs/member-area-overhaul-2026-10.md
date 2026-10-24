@@ -121,3 +121,14 @@ What changed
   that only serve the blocked `/app` prototype were left alone.
 - Error text (`.text-destructive`) uses a lighter tint of the danger red in
   the member app so it is readable on navy.
+
+## Slice 5 — States and documentation
+
+- `app/(dashboard)/dashboard/loading.tsx`: skeleton in the screen rhythm for
+  route transitions (none existed; navigation showed nothing).
+- `app/(dashboard)/dashboard/error.tsx`: in-app error with "Try again"
+  (Next 16 `retry()`) and "Go to Home", keeping the app bar and tabs,
+  instead of the full-page global error.
+- `DESIGN.md`: new **Member app** section (principles, shell, components,
+  scoped rules); app button and page-title entries updated; the "app buttons
+  are pills" known gap closed.

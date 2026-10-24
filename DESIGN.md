@@ -61,7 +61,7 @@ typography:
 sizes:
   hero-headline: "64px (phone) / 96px (≥640px)"
   section-headline: "44px / 56px"
-  app-page-title: "40px / 48px"
+  app-page-title: "44px / 52px"
   sub-headline: "28–34px"
   figure: "44px"
   lead: "18px"
@@ -174,7 +174,7 @@ fastest way to make this system look unfinished.
 ## Shapes and depth
 
 - **Website buttons:** 3px radius, flat gold fill (primary) or a `white/14%` outline (secondary). No gradients, no glow.
-- **App buttons:** pill (`9999px`) primary buttons remain in the member app; see Known gaps.
+- **App buttons:** the member app uses the same flat 3px buttons as the website (gold primary, white/14% outline secondary), 44px minimum.
 - **Cards:** `surface-1` fill, 1px `border-subtle`, 4px radius (`surface-card`). Signature cards add a 2px gold line along the top.
 - **Class cards:** typographic, no photo: 4px radius, 2px gold top line, no shadow at rest; hover lifts 2px and turns the border gold.
 - **Shadows:** only on things that float (menus, dialogs). No glass, no backdrop blur on new work.
@@ -210,7 +210,7 @@ fastest way to make this system look unfinished.
 - **Member sign-in** (`components/auth/AuthShell` + `components/auth/fields`, used by `/login`, `/signup`, `/forgot-password`, `/reset-password` and `/verify-email-change`): on `lg` a photo panel of the real training floor (navy overlay, gold top line, logo, the hero headline); on phones a slim bar with logo and "Back to website", form first. Section label + Teko title (52/60px) + one sentence. Inputs 48px, 3px radius, `surface-1` fill, gold border and ring on focus, red with an icon and `aria-invalid`/`aria-describedby` on error. Whole-form messages use a 2px left rule (`role="alert"` / `role="status"`). Flat gold 48px submit with a spinner while busy; a 44px eye toggle (`aria-pressed`) for passwords; "Forgot password?" sits beside the Password label. Secondary routes sit under a hairline. No value-prop lists or promo content.
 - **Signup wizard:** `AuthShell wide` (560px column), a segmented gold progress bar with "Step n of N · Next: …", a Teko step title that takes focus on each step, two-column field pairs from `sm`, "(optional)" labels, `CheckboxField` rows (44px, optional bordered box), `ChoiceGroup` swatch chips for theme/accent (3px, 44px), a ruled review list, and "Back" (outline) + "Continue"/"Create account" (gold). The auth screens always stay navy/gold; the swatches show the member's chosen app theme and accent.
 - **Cookie banner** (`components/analytics/SiteAnalytics`, public pages only, shown only when analytics is switched on): fixed bottom bar on `surface-1`, one sentence + Privacy Policy link, "Decline" (outline) and "Accept" (gold) at equal size, 44px. Nothing from Google loads before "Accept"; "Cookie settings" in the footer reopens it.
-- **App page header:** gold eyebrow chip + Teko page title (40/48px) + muted subtitle (`components/ui/PageHeader`).
+- **App page header:** see Member app below (`components/member/ScreenHeader`). `components/ui/PageHeader` remains for staff screens.
 
 ## Motion
 
@@ -236,6 +236,63 @@ fastest way to make this system look unfinished.
 - Put text inside photos, or text smaller than 12px.
 - Add a second ambient animation; the hero haze is the only one.
 
+## Member app
+
+The logged-in area (`/dashboard/*`) is a mobile-first app in the same navy/gold
+system. The shell carries `data-member-app`, which scopes the app recipes in
+`app/globals.css` (staff and admin screens don't carry it and keep the older
+recipes until their own pass).
+
+**Principles**
+- Each screen answers one question first. Home: "what should I do today?"
+  (readiness, its meaning, one gold action).
+- A few numbers with context, never a wall of stats: caps label, Teko figure,
+  one context line. Units sit in small Inter so Teko never uppercases them.
+- One gold action per screen section; everything else is an outline button,
+  a text link or a list row.
+- Colour is semantic: success / warning / danger for state, data blue for
+  charts, gold for the action and the active tab. No teal, no glows, no glass.
+- Say what the data is. A stale value is labelled ("Last check-in · Sun 20
+  Sep"), never presented as today's.
+
+**Shell**
+- App bar: opaque `bg-0`, 56px. Phones: logo, Messages, Notifications (count
+  badge), avatar → Profile (account hub with Log out). Desktop: greeting +
+  the same inboxes.
+- Bottom tab bar (phones): full width, opaque `sidebar` navy, hairline top,
+  64px targets; current tab gold with a 2px bar on top. No floating capsule.
+- Sidebar (desktop): solid `sidebar`, grouped links, 2px gold left rule on
+  the current page, member card and Log out at the foot.
+
+**Components** (`components/member/`)
+- `ScreenHeader`: gold section label, Teko screen name (44/52px), one line.
+  Screens are named, not sloganned ("Recovery", not a tagline).
+- `SectionTitle`: 12px caps label between groups, optional text link.
+- `SegmentedControl`: equal segments, full width on phones, 44px, raised
+  navy selected tile (gold stays for actions), arrow-key tablist.
+- `ListGroup` / `ListRow`: settings-style rows, 56px, icon tile, title,
+  detail line, trailing value or `StatusBadge`, chevron when it navigates.
+- `StatusBadge`: 3px outline badge in a semantic tone.
+- `ReadinessRing quiet`: no glow, Teko score.
+- Signature card: `surface-card surface-card--accent` (2px gold top line),
+  one per screen at most.
+- Time rail (bookings, next session): `bg-0` block with Teko time and
+  duration; class covers only on Schedule browse, under a scrim.
+- Message thread `variant="member"`: own messages on `surface-3`, coach
+  messages on `bg-0` with a gold "Coach" label.
+- Empty states: solid tile, 15px title, 14px line, a button when there is an
+  obvious next step. Loading: skeleton in the screen's rhythm
+  (`dashboard/loading.tsx`). Errors: in-app retry (`dashboard/error.tsx`).
+
+**Rules enforced by the scoped CSS**
+- Radius: cards 4px, controls 3px, nothing above 6px (`--radius-*` scoped).
+- Type floor: 11px for caps labels, 12px for everything else; body 15–16px.
+- Form controls: 44px minimum; 16px text on phones (no iOS zoom).
+- No `backdrop-filter`, inset highlights, glows or gradient buttons.
+- No Space Grotesk: `text-display` resolves to Inter semibold with tabular
+  figures; big figures use `text-headline` (Teko).
+- No emoji as icons.
+
 ## Mapping to the mobile app
 
 | This file | `sc-coaching-mobile/src/constants/theme.ts` |
@@ -248,7 +305,6 @@ fastest way to make this system look unfinished.
 ## Known gaps
 
 - **Mobile fonts:** the Expo app bundles no custom fonts, so its headings use the phone's serif and body uses the system font. Matching the website needs Teko (and ideally Inter) added via `expo-font`, `Font.display = "Teko"` with uppercase headings, and a new app build.
-- **App buttons** are pills while website buttons are 3px rectangles; decide one shape.
 - **Space Grotesk** still renders stat values in the app; review whether Teko figures should replace it.
 - **Older surfaces** (staff/admin tools, `/app` and `/admin` prototypes) still use retired styles in places.
 - **Photography:** only the training-floor photo is S&C's own; the coach and classes are not yet shown.
