@@ -912,3 +912,10 @@ details[open] > .details-reveal {
 [data-member-app] .text-destructive {
   color: oklch(0.8 0.1 25);
 }
+
+/* Toggle chips (filters, dietary choices, theme swatches, reminder presets)
+   get a 40px touch height; with their 6–8px gaps that clears the target-size
+   guidance without per-component edits. */
+[data-member-app] :is(button[aria-pressed], button[role="radio"], button[role="tab"]) {
+  min-height: 2.5rem;
+}
