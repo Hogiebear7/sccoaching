@@ -4,10 +4,11 @@ import type { NextRequest } from "next/server";
 import { findNutritionTargetByUserId, findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { PACE_OPTIONS } from "@/lib/nutrition-target";
-import type { CalorieDistribution } from "@/lib/profile-schema";
+import type { ActivityLevel, CalorieDistribution } from "@/lib/profile-schema";
 
 const DISTRIBUTIONS: CalorieDistribution[] = ["even", "training"];
 const PACES: number[] = [0, ...PACE_OPTIONS.lose, ...PACE_OPTIONS.gain];
+const ACTIVITY_LEVELS: ActivityLevel[] = ["sedentary", "light", "moderate", "very"];
 
 function preferencesFor(userId: string) {
   const profile = findProfileByUserId(userId);
@@ -15,14 +16,15 @@ function preferencesFor(userId: string) {
   return {
     calorieDistribution: profile?.calorieDistribution ?? null,
     goalPacePctPerWeek: profile?.goalPacePctPerWeek ?? null,
+    activityLevel: profile?.activityLevel ?? null,
     coachDistribution: coach?.distribution ?? null,
     distributionLocked: Boolean(coach?.distributionLocked && coach.distribution),
   };
 }
 
 // The member's own nutrition-target preferences: how their weekly calories
-// are spread, and their weekly pace. Self-owned only — the session user is
-// the owner. A coach lock (NutritionTargetRecord.distributionLocked) blocks
+// are spread, their weekly pace, and how active they are day to day.
+// Self-owned only — the session user is the owner. A coach lock (NutritionTargetRecord.distributionLocked) blocks
 // distribution changes; pace is always the member's call.
 export async function GET(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
-  const { calorieDistribution, goalPacePctPerWeek } = (body ?? {}) as Record<string, unknown>;
+  const { calorieDistribution, goalPacePctPerWeek, activityLevel } = (body ?? {}) as Record<string, unknown>;
 
   let distribution = profile.calorieDistribution ?? null;
   if (calorieDistribution !== undefined) {
@@ -77,7 +79,15 @@ export async function POST(request: NextRequest) {
     pace = goalPacePctPerWeek as number | null;
   }
 
-  saveProfile({ ...profile, calorieDistribution: distribution, goalPacePctPerWeek: pace });
+  let activity = profile.activityLevel ?? null;
+  if (activityLevel !== undefined) {
+    if (activityLevel !== null && !ACTIVITY_LEVELS.includes(activityLevel as ActivityLevel)) {
+      return NextResponse.json({ success: false, message: "activityLevel must be sedentary, light, moderate, very or null." }, { status: 400 });
+    }
+    activity = activityLevel as ActivityLevel | null;
+  }
+
+  saveProfile({ ...profile, calorieDistribution: distribution, goalPacePctPerWeek: pace, activityLevel: activity });
 
   return NextResponse.json({ success: true, message: "Preferences saved.", data: preferencesFor(user.id) });
 }

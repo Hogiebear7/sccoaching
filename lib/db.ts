@@ -2238,6 +2238,7 @@ function readDb(): Database {
       trainingDaysPerWeek: p.trainingDaysPerWeek ?? null,
       goalPacePctPerWeek: p.goalPacePctPerWeek ?? null,
       calorieDistribution: p.calorieDistribution ?? null,
+      activityLevel: p.activityLevel ?? null,
       secondaryGoal: p.secondaryGoal ?? null,
       country: p.country ?? null,
     })),

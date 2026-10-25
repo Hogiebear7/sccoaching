@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activityExpenditureKcal,
   clampPace,
   defaultPaceForGoal,
   distributeWeek,
@@ -184,6 +185,15 @@ describe("resting and formula expenditure", () => {
       "standard", "reduced", "standard", "reduced", "standard", "reduced", "reduced",
     ]);
     expect(mixed).toBeLessThan(allStandard);
+  });
+});
+
+describe("activityExpenditureKcal", () => {
+  it("multiplies resting burn by the standard factor", () => {
+    expect(activityExpenditureKcal(1320, "sedentary")).toBe(1584);
+    expect(activityExpenditureKcal(1320, "light")).toBe(1815);
+    expect(activityExpenditureKcal(1320, "moderate")).toBe(2046);
+    expect(activityExpenditureKcal(1320, "very")).toBe(2277);
   });
 });
 

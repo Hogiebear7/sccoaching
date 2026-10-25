@@ -65,6 +65,11 @@ export interface UserRecord {
 // planned training days.
 export type CalorieDistribution = "even" | "training";
 
+// The member's everyday activity outside planned training, MacroFactor-style.
+// When set, it decides the starting expenditure estimate (resting burn x a
+// standard activity factor) instead of the fuel-band heuristic.
+export type ActivityLevel = "sedentary" | "light" | "moderate" | "very";
+
 export interface ProfileRecord {
   userId: string;
   fullName: string;
@@ -108,6 +113,7 @@ export interface ProfileRecord {
   // lib/nutrition-target.ts defaultPaceForGoal / resolveDistribution).
   goalPacePctPerWeek?: number | null;
   calorieDistribution?: CalorieDistribution | null;
+  activityLevel?: ActivityLevel | null;
   // ISO 3166-1 alpha-2 (e.g. "IE", "US") — used to nudge food-search ranking
   // toward locally-relevant results (see lib/food-catalog.ts's country
   // boost). Optional/nullable for pre-existing records (see db.ts

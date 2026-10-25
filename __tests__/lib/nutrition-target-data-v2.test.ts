@@ -200,6 +200,15 @@ describe("v2 resolver", () => {
     expect(getResolvedNutritionTarget(USER, TODAY, TODAY)).toMatchObject({ mode: "auto", calories: null, weekBudgetKcal: null });
   });
 
+  it("a stated activity level sets the starting burn", () => {
+    h.findProfileByUserId.mockReturnValue({ ...PROFILE, activityLevel: "light" });
+    const target = getResolvedNutritionTarget(USER, TODAY, TODAY)!;
+    // Resting 1,320 x 1.375 = 1,815; Moderate loss -330 -> 1,485.
+    expect(target.expenditureKcal).toBe(1815);
+    expect(target.dailyAverageKcal).toBe(1485);
+    expect(target.rationale!.join(" ")).toContain("how active you said you are");
+  });
+
   it("macros always add up to the day's calories within rounding", () => {
     mockTier.mockReturnValue("membership");
     for (const d of getResolvedNutritionTargetsForWeek(USER, TODAY, TODAY)!.days) {

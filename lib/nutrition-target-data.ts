@@ -42,6 +42,7 @@ import {
   paceAdjustKcal,
   resolveDistribution,
   restingKcal,
+  activityExpenditureKcal,
   SEX_FLOOR_KCAL,
   weeklyBudget,
   type CalorieDistribution,
@@ -53,7 +54,7 @@ import {
   type WeightPoint,
 } from "./nutrition-target";
 import { trainingLoadForLog, trainingLoadForSession } from "./recovery";
-import type { Gender, TrainingDayOfWeek, WeeklyTrainingSession } from "./profile-schema";
+import type { ActivityLevel, Gender, TrainingDayOfWeek, WeeklyTrainingSession } from "./profile-schema";
 import { activeWeeklySessions } from "./weekly-training";
 
 function isoDaysFrom(dateISO: string, days: number): string {
@@ -285,6 +286,7 @@ interface ResolveContext {
   /** The member's chosen pace, or null to fall back (see goalAdjustFor). */
   paceSetting: number | null;
   memberDistribution: CalorieDistribution | null;
+  activityLevel: ActivityLevel | null;
   isMembershipTier: boolean;
   recoveryLogs: RecoveryLogRecord[];
   sessions: WeeklyTrainingSession[];
@@ -365,14 +367,12 @@ function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: numbe
   );
 
   const { adjustKcal, pacePctPerWeek } = goalAdjustFor(ctx, bodyWeightKg);
-  const formulaKcal = formulaExpenditureKcal(
-    bodyWeightKg,
-    ctx.gender,
-    ctx.dateOfBirth,
-    weekStart,
-    ctx.heightCm,
-    fuelBands.map((b) => b.day)
-  );
+  const resting = restingKcal(bodyWeightKg, ctx.gender, ctx.dateOfBirth, weekStart, ctx.heightCm);
+  // A member-stated activity level sets the starting burn; without one, the
+  // week's fuel days do (the original cold-start heuristic).
+  const formulaKcal = ctx.activityLevel
+    ? activityExpenditureKcal(resting, ctx.activityLevel)
+    : formulaExpenditureKcal(bodyWeightKg, ctx.gender, ctx.dateOfBirth, weekStart, ctx.heightCm, fuelBands.map((b) => b.day));
   const expenditure = learnExpenditure({
     formulaKcal,
     weightLogs: ctx.weightPoints,
@@ -380,7 +380,6 @@ function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: numbe
     goalAdjustKcal: adjustKcal,
     checkInDate: weekStart,
   });
-  const resting = restingKcal(bodyWeightKg, ctx.gender, ctx.dateOfBirth, weekStart, ctx.heightCm);
   const budget = weeklyBudget(expenditure.kcal, adjustKcal, minimumDailyAverageKcal(ctx.gender, resting, expenditure.kcal));
   const { distribution, source: distributionSource } = resolveDistribution({
     coachDistribution: ctx.overrideRecord?.distribution ?? null,
@@ -430,6 +429,8 @@ export function buildWeeklyRationale(input: {
   expenditureSource: "formula" | "learned";
   completeDaysLast14: number;
   usedHeightAndAge: boolean;
+  /** e.g. "how active you said you are"; null falls back to "weekly training". */
+  activityLabel?: string | null;
   pacePctPerWeek: number;
   bodyWeightKg: number;
   paceLimited: boolean;
@@ -448,7 +449,7 @@ export function buildWeeklyRationale(input: {
       ? `Built on your burn as learned from your complete food days and weigh-ins — about ${input.expenditureKcal.toLocaleString("en-GB")} kcal a day.`
       : `Built on an estimate of your burn — about ${input.expenditureKcal.toLocaleString("en-GB")} kcal a day — from your weight${
           input.usedHeightAndAge ? ", height and age" : ""
-        } and weekly training. Log complete food days and weigh in a few times a week, and after about two weeks it learns your real burn (${input.completeDaysLast14} of the last 14 days counted).`
+        } and ${input.activityLabel ?? "weekly training"}. Log complete food days and weigh in a few times a week, and after about two weeks it learns your real burn (${input.completeDaysLast14} of the last 14 days counted).`
   );
 
   const kgPerWeek = Math.round(Math.abs(input.pacePctPerWeek / 100) * input.bodyWeightKg * 100) / 100;
@@ -521,6 +522,7 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
       expenditureSource: plan.expenditure.source,
       completeDaysLast14: plan.expenditure.completeDaysLast14,
       usedHeightAndAge: ctx.heightCm !== null && ctx.dateOfBirth !== null,
+      activityLabel: ctx.activityLevel ? "how active you said you are" : null,
       pacePctPerWeek: plan.pacePctPerWeek,
       bodyWeightKg,
       paceLimited: plan.budget.paceLimited,
@@ -615,6 +617,7 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
     primaryGoal: profile.primaryGoal,
     paceSetting: profile.goalPacePctPerWeek ?? null,
     memberDistribution: profile.calorieDistribution ?? null,
+    activityLevel: profile.activityLevel ?? null,
     isMembershipTier: isMembershipTier(resolveMemberTierForUser(userId)),
     recoveryLogs,
     sessions: schedule?.sessions ?? [],

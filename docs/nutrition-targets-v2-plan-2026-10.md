@@ -48,7 +48,12 @@ the diary; they just don't feed the estimate.
 
 ### 2. Expenditure (how much they burn)
 
-- **Starting estimate (formula):** Mifflin-St Jeor resting burn when height and date
+- **Starting estimate with an activity level (added after slice C, owner-approved):**
+  if the member has answered "How active are you outside training?" (Mostly
+  sitting 1.2 · Lightly active 1.375 · Moderately active 1.55 · Very active 1.725),
+  the starting burn is resting burn × that factor. New profile field
+  `activityLevel`, set through the preferences route and onboarding.
+- **Starting estimate (formula, no activity level):** Mifflin-St Jeor resting burn when height and date
   of birth are on file, otherwise the existing bodyweight heuristic. This is multiplied
   by an activity factor from the member's weekly training plan, averaged over the week
   (not per day).
@@ -160,9 +165,9 @@ weight steady.
 
 **Correction found in slice C:** this section first said 1,650. That assumed
 moderate sessions were "standard" fuel days, which they aren't under the
-existing bands. A known open point is whether to add a MacroFactor-style activity
-question so the starting burn isn't capped by the fuel-band calibration; that is
-for the owner to decide.
+existing bands. The owner then approved a MacroFactor-style activity question. If she answers
+"Lightly active", her starting burn is 1,320 × 1.375 = 1,815, and her average
+is 1,485.
 
 ## Data changes (all additive and optional — no migration)
 

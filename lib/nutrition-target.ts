@@ -22,7 +22,7 @@ import {
   type FuelDay,
   type WeightGoalBias,
 } from "./nutrition";
-import type { CalorieDistribution, Gender, TrainingActivityType, TrainingDayOfWeek, TrainingIntensity, WeeklyTrainingSession } from "./profile-schema";
+import type { ActivityLevel, CalorieDistribution, Gender, TrainingActivityType, TrainingDayOfWeek, TrainingIntensity, WeeklyTrainingSession } from "./profile-schema";
 import type { PhaseName } from "./cycle-phase";
 
 // ─── Date helpers ───────────────────────────────────────────────────────
@@ -736,6 +736,23 @@ export function formulaExpenditureKcal(
     0
   );
   return Math.round(total / days.length);
+}
+
+// Standard activity factors (the Harris-Benedict / Mifflin convention):
+// mostly sitting, lightly active, moderately active, very active.
+export const ACTIVITY_FACTOR: Record<ActivityLevel, number> = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  very: 1.725,
+};
+
+// The starting expenditure when the member has told us how active they are:
+// resting burn x the matching factor. Preferred over formulaExpenditureKcal,
+// whose fuel bands are tuned for carb periodisation and read moderate
+// training as a light week.
+export function activityExpenditureKcal(restingBurnKcal: number, level: ActivityLevel): number {
+  return Math.round(restingBurnKcal * ACTIVITY_FACTOR[level]);
 }
 
 // ─── Goal pace ──────────────────────────────────────────────────────────

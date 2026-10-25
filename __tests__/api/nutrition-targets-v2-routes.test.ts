@@ -125,6 +125,13 @@ describe("/api/mobile/nutrition/preferences", () => {
     expect(h.saveProfile).toHaveBeenCalledWith(expect.objectContaining({ calorieDistribution: "even", goalPacePctPerWeek: -0.5 }));
   });
 
+  it("saves an activity level and rejects unknown ones", async () => {
+    expect((await save({ activityLevel: "athlete" }, A_MEMBER.id)).status).toBe(400);
+    expect(h.saveProfile).not.toHaveBeenCalled();
+    expect((await save({ activityLevel: "light" }, A_MEMBER.id)).status).toBe(200);
+    expect(h.saveProfile).toHaveBeenCalledWith(expect.objectContaining({ activityLevel: "light" }));
+  });
+
   it("rejects paces that aren't offered and unknown distributions", async () => {
     expect((await save({ goalPacePctPerWeek: -3 }, A_MEMBER.id)).status).toBe(400);
     expect((await save({ goalPacePctPerWeek: -0.6 }, A_MEMBER.id)).status).toBe(400);
@@ -146,6 +153,7 @@ describe("/api/mobile/nutrition/preferences", () => {
     expect((await res.json()).data).toEqual({
       calorieDistribution: null,
       goalPacePctPerWeek: null,
+      activityLevel: null,
       coachDistribution: "training",
       distributionLocked: true,
     });
