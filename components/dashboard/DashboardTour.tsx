@@ -150,7 +150,7 @@ export function DashboardTour({ initialCompleted }: { initialCompleted: boolean 
         className="surface-card surface-card--accent anim-rise p-5 outline-none"
         style={cardStyle}
       >
-        <p className="label-caps text-[9px] text-primary" aria-live="polite">
+        <p className="label-caps text-[11px] text-primary" aria-live="polite">
           Step {stepIndex + 1} of {STEPS.length}
         </p>
         <h3 id={titleId} className="text-display mt-1.5 text-[17px]">{step.title}</h3>

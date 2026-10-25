@@ -13,6 +13,8 @@ import { HeadlineText } from "@/components/ui/HeadlineText";
 import { WorkoutTypeIcon, workoutTypeFromLabel } from "@/components/graphics/WorkoutTypeIcon";
 import { BookingCard } from "../bookings/BookingCard";
 import { ScheduleCalendar } from "./ScheduleCalendar";
+import { SegmentedControl } from "@/components/member/SegmentedControl";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 
 export type ScheduleClass = ClassRecord & {
   coachEmail: string;
@@ -240,11 +242,13 @@ export function ScheduleView({
               alt={classRecord.imageAlt}
               className="absolute inset-0"
             />
+            {/* Scrim keeps the time legible over any cover (no text shadow). */}
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/30 to-black/60" />
             <div className="relative flex h-full flex-col justify-between p-2.5">
-              <span className="text-headline text-[28px] leading-none text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)] tabular-nums">
+              <span className="text-headline text-[28px] leading-none text-white tabular-nums">
                 {classRecord.startTime}
               </span>
-              <span className="text-[10px] font-medium uppercase tracking-wide text-white/75">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-white/75">
                 {classRecord.durationMins} min
               </span>
             </div>
@@ -253,17 +257,17 @@ export function ScheduleView({
           {/* Details + actions */}
           <div className="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/[0.09] bg-white/[0.05] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              <span className="inline-flex items-center gap-1 rounded-[3px] border border-white/[0.09] bg-white/[0.05] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
                 <WorkoutTypeIcon type={workoutTypeFromLabel(categoryText)} className="h-2.5 w-2.5" />
                 {categoryText}
               </span>
               <h4 className="text-headline mt-1.5 truncate text-[24px] leading-tight text-foreground">
                 <HeadlineText text={classRecord.title} />
               </h4>
-              <p className="mt-1 truncate text-xs text-muted-foreground">
+              <p className="mt-1 truncate text-sm text-zinc-400">
                 Coach · {classRecord.coachEmail}
               </p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
                 <span className="tabular-nums">
                   {classRecord.bookedCount}/{classRecord.capacity} booked
                 </span>
@@ -294,7 +298,7 @@ export function ScheduleView({
                       type="button"
                       onClick={() => handleRespond(classRecord.waitlistEntryId!, "reject")}
                       disabled={respondingEntryId === classRecord.waitlistEntryId}
-                      className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex min-h-10 items-center rounded-[3px] border border-white/[0.14] px-4 text-sm font-medium text-zinc-200 transition-colors hover:border-white/[0.3] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Decline
                     </button>
@@ -310,7 +314,7 @@ export function ScheduleView({
                   type="button"
                   onClick={() => handleWaitlist(classRecord.id, "leave")}
                   disabled={isSubmitting}
-                  className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex min-h-10 items-center rounded-[3px] border border-white/[0.14] px-4 text-sm font-medium text-zinc-200 transition-colors hover:border-white/[0.3] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmitting ? "Updating…" : "Leave waitlist"}
                 </button>
@@ -319,7 +323,7 @@ export function ScheduleView({
                   type="button"
                   onClick={() => handleWaitlist(classRecord.id, "join")}
                   disabled={isSubmitting}
-                  className="rounded-lg border border-white/[0.09] bg-white/[0.05] px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex min-h-10 items-center rounded-[3px] border border-white/[0.14] px-4 text-sm font-medium text-zinc-100 transition-colors hover:border-primary/50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmitting ? "Joining…" : "Join waitlist"}
                 </button>
@@ -342,19 +346,19 @@ export function ScheduleView({
           (classRecord.waitlistEntryId && respondError[classRecord.waitlistEntryId])) && (
           <div className="space-y-2 px-4 pb-4">
             {classRecord.blockReason && (
-              <p className="rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-muted-foreground">
+              <p className="rounded-[3px] bg-white/[0.04] px-3 py-2 text-sm text-zinc-300">
                 Not bookable: {classRecord.blockReason}
               </p>
             )}
 
             {cardError && (
-              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <p role="alert" className="rounded-[3px] border-l-2 border-[var(--danger)] bg-[var(--danger-weak)] px-3 py-2 text-sm text-red-200">
                 {cardError}
               </p>
             )}
 
             {classRecord.waitlistEntryId && respondError[classRecord.waitlistEntryId] && (
-              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <p role="alert" className="rounded-[3px] border-l-2 border-[var(--danger)] bg-[var(--danger-weak)] px-3 py-2 text-sm text-red-200">
                 {respondError[classRecord.waitlistEntryId]}
               </p>
             )}
@@ -366,22 +370,22 @@ export function ScheduleView({
 
   return (
     <section className="anim-rise space-y-8">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Club</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Claim your spot, then show up.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Browse upcoming classes and book your spot.
-          {remainingSessions !== null && (
-            <>
-              {" "}·{" "}
-              <span className="font-medium text-zinc-200">{remainingSessions}</span>{" "}
-              session{remainingSessions === 1 ? "" : "s"} remaining.
-            </>
-          )}
-        </p>
-      </div>
+      <ScreenHeader
+        section="Club"
+        title="Schedule"
+        subtitle={
+          <>
+            Browse upcoming classes and book your spot.
+            {remainingSessions !== null && (
+              <>
+                {" "}·{" "}
+                <span className="font-medium text-zinc-100 tabular-nums">{remainingSessions}</span>{" "}
+                session{remainingSessions === 1 ? "" : "s"} remaining.
+              </>
+            )}
+          </>
+        }
+      />
 
       {noActiveMembership && (
         <div className="flex items-start gap-2 rounded-lg border border-[var(--warning)]/25 bg-[var(--warning-weak)] p-3 text-sm text-[var(--warning)]">
@@ -404,42 +408,23 @@ export function ScheduleView({
         </p>
       )}
 
-      <div className="inline-flex rounded-full border border-white/[0.1] bg-white/[0.03] p-1">
-        <button
-          type="button"
-          onClick={() => setTab("browse")}
-          className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
-            tab === "browse" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          Browse
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("calendar")}
-          className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
-            tab === "calendar" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          Calendar
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("bookings")}
-          className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
-            tab === "bookings" ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          My bookings{upcomingBookings.length > 0 ? ` (${upcomingBookings.length})` : ""}
-        </button>
-      </div>
+      <SegmentedControl
+        label="Schedule view"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "browse", label: "Browse" },
+          { value: "calendar", label: "Calendar" },
+          { value: "bookings", label: `My bookings${upcomingBookings.length > 0 ? ` (${upcomingBookings.length})` : ""}` },
+        ]}
+      />
 
       {tab === "browse" && (
         <>
           {pendingOffers.length > 0 && (
             <div className="surface-card surface-card--accent overflow-hidden">
               <div className="p-4 sm:p-5">
-                <p className="label-caps text-[9px] text-gold">Needs a response</p>
+                <p className="label-caps text-[11px] text-gold">Needs a response</p>
                 <div className="mt-3 space-y-2.5">
                   {pendingOffers.map((c) => (
                     <div
@@ -481,7 +466,7 @@ export function ScheduleView({
           {classes.length === 0 ? (
             <div className="empty-state">
               <p className="text-sm font-medium">No classes scheduled yet</p>
-              <p className="mt-1 text-xs text-muted-foreground">Check back soon.</p>
+              <p className="mt-1 text-xs text-muted-foreground">New classes appear here as soon as your coach adds them.</p>
             </div>
           ) : (
             <div className="space-y-5">
@@ -511,7 +496,7 @@ export function ScheduleView({
         upcomingBookings.length === 0 ? (
           <div className="empty-state">
             <p className="text-sm font-medium">No upcoming bookings</p>
-            <p className="mt-1 text-xs text-muted-foreground">Browse the schedule to book a session.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Pick a class from Browse to book your next session.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -583,7 +568,7 @@ const STATUS_ICON: Record<StatusKind, string> = {
 function StatusBadge({ status }: { status: { kind: StatusKind; label: string } }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${STATUS_STYLE[status.kind]}`}
+      className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2.5 py-1 text-[11px] font-semibold ${STATUS_STYLE[status.kind]}`}
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 shrink-0">
         <path d={STATUS_ICON[status.kind]} />

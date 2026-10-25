@@ -8,6 +8,7 @@ import type { MeasurementUnits, ProfileRecord } from "@/lib/profile-schema";
 import { AppearancePanel } from "@/components/settings/AppearancePanel";
 import { DeleteAccountPanel } from "@/components/settings/DeleteAccountPanel";
 import { SupportPanel } from "@/components/settings/SupportPanel";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 // TRIAL-ONLY — see docs/bug-reports.md.
 import { BugReportPanel } from "@/components/settings/BugReportPanel";
 
@@ -376,12 +377,7 @@ export function SettingsView({
 
   return (
     <section className="anim-rise space-y-10">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Account</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Set it up your way.
-        </h1>
-      </div>
+      <ScreenHeader section="Account" title="Settings" />
 
       {/* Account */}
       <div>
@@ -409,10 +405,21 @@ export function SettingsView({
               type="button"
               onClick={handlePasswordReset}
               disabled={resetSending || resetSent}
-              className="shrink-0 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-zinc-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-150 hover:border-white/[0.16] hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="shrink-0 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-zinc-200 transition-colors duration-150 hover:border-white/[0.16] hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {resetSending ? "Sending…" : resetSent ? "Link sent" : "Reset password"}
             </button>
+          </div>
+          <div className="flex items-center justify-between gap-4 px-5 py-4">
+            <p className="text-sm text-zinc-400">Signed in on this device</p>
+            <form action="/api/auth/logout" method="POST">
+              <button
+                type="submit"
+                className="inline-flex min-h-10 shrink-0 items-center rounded-[3px] border border-white/[0.14] px-3.5 text-[13px] font-medium text-zinc-200 transition-colors duration-150 hover:border-white/[0.3] hover:text-white"
+              >
+                Log out
+              </button>
+            </form>
           </div>
         </div>
       </div>
@@ -429,7 +436,7 @@ export function SettingsView({
             <div className="flex items-center gap-2.5">
               <p className="text-sm font-medium text-zinc-100">{membership.planName ?? "No active plan"}</p>
               {membership.statusLabel && (
-                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] font-medium leading-none ${membership.statusIsActive ? "border-[var(--success)]/25 bg-[var(--success-weak)] text-[var(--success)]" : "border-white/[0.06] text-zinc-500"}`}>
+                <span className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2 py-[3px] text-[11px] font-medium leading-none ${membership.statusIsActive ? "border-[var(--success)]/25 bg-[var(--success-weak)] text-[var(--success)]" : "border-white/[0.06] text-zinc-500"}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${membership.statusIsActive ? "bg-[var(--success)]" : "bg-zinc-500"}`} />
                   {membership.statusLabel}
                 </span>
@@ -468,7 +475,7 @@ export function SettingsView({
                   disabled={unitsSaving}
                   className={`rounded-lg px-4 py-1.5 text-xs font-medium capitalize transition-colors duration-150 disabled:cursor-not-allowed ${
                     units === u
-                      ? "bg-white/[0.08] text-zinc-50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]"
+                      ? "bg-white/[0.08] text-zinc-50"
                       : "text-zinc-500 hover:text-zinc-300"
                   }`}
                 >
@@ -538,7 +545,7 @@ export function SettingsView({
                 </p>
               </div>
               {reminderTimings.length > 0 && (
-                <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary tabular-nums">
+                <span className="shrink-0 rounded-[3px] bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary tabular-nums">
                   {reminderTimings.length} active
                 </span>
               )}
@@ -564,7 +571,7 @@ export function SettingsView({
                     key={mins}
                     type="button"
                     onClick={() => toggleTiming(mins)}
-                    className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                    className={`rounded-[3px] border px-4 py-1.5 text-sm font-medium transition ${
                       active
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border text-muted-foreground hover:border-primary hover:text-primary"
@@ -612,7 +619,7 @@ export function SettingsView({
                   {reminderTimings.map((mins) => (
                     <span
                       key={mins}
-                      className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm text-primary"
+                      className="flex items-center gap-1.5 rounded-[3px] border border-primary/30 bg-primary/10 px-3 py-1 text-sm text-primary"
                     >
                       {formatTimingLabel(mins)}
                       <button

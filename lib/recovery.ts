@@ -95,3 +95,11 @@ export function computeRollingTrainingLoad(
 
   return { sevenDaySum, sevenDayAverage, daysWithLoad };
 }
+
+/** One-word readiness label for a 0–100 score (Home and Recovery headers). */
+export function readinessStatus(score: number): string {
+  if (score >= 80) return "Primed";
+  if (score >= 60) return "Ready";
+  if (score >= 40) return "Steady";
+  return "Ease off";
+}

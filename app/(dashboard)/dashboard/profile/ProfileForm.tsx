@@ -19,6 +19,7 @@ import { latestBodyFatLog } from "@/lib/body-fat";
 import { latestWeightLog } from "@/lib/body-weight";
 import { COUNTRY_OPTIONS, GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
 import { DietaryRequirementsFields } from "@/components/profile/DietaryRequirementsFields";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 import { ProfileStatsCard } from "./ProfileStatsCard";
 
 const BW_W = 400;
@@ -574,7 +575,7 @@ function GoalTimelineCard() {
                 key={d}
                 type="button"
                 onClick={() => setTrainingDaysPerWeek(d)}
-                className={`rounded-full border px-3 py-1 text-xs ${
+                className={`rounded-[3px] border px-3 py-1 text-xs ${
                   trainingDaysPerWeek === d
                     ? "border-primary/60 bg-primary/10 text-primary"
                     : "border-white/[0.09] text-muted-foreground hover:border-primary/40"
@@ -599,10 +600,10 @@ function GoalTimelineCard() {
           {goalTargetDate ? (
             <>
               <span className="text-xs text-muted-foreground">Adjust:</span>
-              <button type="button" onClick={() => nudgeDate(-7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
+              <button type="button" onClick={() => nudgeDate(-7)} className="rounded-[3px] border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
                 1 week sooner
               </button>
-              <button type="button" onClick={() => nudgeDate(7)} className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
+              <button type="button" onClick={() => nudgeDate(7)} className="rounded-[3px] border border-white/[0.09] px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary">
                 1 week later
               </button>
             </>
@@ -704,12 +705,15 @@ export function ProfileForm({
   bodyWeightLogs,
   bodyFatLogs,
   statsData,
+  accountMenu,
 }: {
   email: string;
   profile: ProfileRecord;
   bodyWeightLogs: BodyWeightLogRecord[];
   bodyFatLogs: BodyFatLogRecord[];
   statsData: MemberStatsData;
+  /** Phone-only account links + log out, rendered under the header. */
+  accountMenu?: ReactNode;
 }) {
   const router = useRouter();
   const [values, setValues] = useState<ProfileFormValues>(() => toFormValues(profile));
@@ -910,13 +914,9 @@ export function ProfileForm({
 
   return (
     <section className="anim-rise space-y-10">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Account</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          The details that shape your plan.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{email}</p>
-      </div>
+      <ScreenHeader section="Account" title={profile.fullName || "Profile"} subtitle={email} />
+
+      {accountMenu}
 
       <ProfileStatsCard data={statsData} />
 
@@ -1268,7 +1268,7 @@ export function ProfileForm({
                     key={value}
                     type="button"
                     onClick={() => setBwFilter(value)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                    className={`rounded-[3px] border px-3 py-1 text-xs font-medium transition ${
                       bwFilter === value
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-white/[0.09] text-muted-foreground hover:border-primary/60 hover:text-primary"
@@ -1367,7 +1367,7 @@ export function ProfileForm({
                     key={value}
                     type="button"
                     onClick={() => setBfFilter(value)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                    className={`rounded-[3px] border px-3 py-1 text-xs font-medium transition ${
                       bfFilter === value
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-white/[0.09] text-muted-foreground hover:border-primary/60 hover:text-primary"

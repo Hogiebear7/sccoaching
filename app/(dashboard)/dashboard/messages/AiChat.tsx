@@ -73,16 +73,16 @@ export function buildSuggestedPrompts(
 }
 
 function tierChipClass(tierLabel: string): string {
-  if (tierLabel === "Full session") return "border-teal-500/25 bg-teal-500/[0.08] text-teal-300";
-  if (tierLabel === "Reduced session") return "border-amber-500/25 bg-amber-500/[0.08] text-amber-300";
+  if (tierLabel === "Full session") return "border-[var(--success)]/30 bg-[var(--success-weak)] text-[var(--success)]";
+  if (tierLabel === "Reduced session") return "border-[var(--warning)]/25 bg-[var(--warning-weak)] text-[var(--warning)]";
   return "border-white/[0.1] bg-white/[0.05] text-zinc-300";
 }
 
 function readinessDot(score: number | null): string {
   if (score === null) return "bg-zinc-500";
-  if (score >= 75) return "bg-teal-400";
+  if (score >= 75) return "bg-[var(--success)]";
   if (score >= 50) return "bg-zinc-300";
-  return "bg-amber-400";
+  return "bg-[var(--warning)]";
 }
 
 function formatTime(iso: string): string {
@@ -282,8 +282,8 @@ export function AiChat({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(70%_100%_at_25%_0%,rgba(45,212,191,0.07),transparent)]" />
         <div className="relative flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-teal-500/25 bg-teal-500/10">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5 text-teal-300">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5 text-primary">
                 <path d="M12 3a7 7 0 0 0-7 7c0 2.1.93 4.09 2.54 5.43V19a2 2 0 0 0 2 2h4.92a2 2 0 0 0 2-2v-3.57A7 7 0 0 0 19 10a7 7 0 0 0-7-7z" />
                 <path d="M9.5 21h5" />
               </svg>
@@ -300,15 +300,15 @@ export function AiChat({
             <div className="flex flex-wrap items-center gap-1.5">
               {context && (
                 <>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(context.tierLabel)}`}>
+                  <span className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2.5 py-1 text-[11px] font-semibold ${tierChipClass(context.tierLabel)}`}>
                     Today · {context.tierLabel}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
                     <span className={`h-1.5 w-1.5 rounded-full ${readinessDot(context.readinessScore)}`} />
                     Readiness <span className="tabular-nums">{context.readinessScore ?? "—"}</span>
                     {context.readinessDelta != null && context.readinessDelta !== 0 && (
                       <span
-                        className={`inline-flex items-center gap-0.5 tabular-nums ${context.readinessDelta > 0 ? "text-teal-300" : "text-amber-300"}`}
+                        className={`inline-flex items-center gap-0.5 tabular-nums ${context.readinessDelta > 0 ? "text-[var(--success)]" : "text-[var(--warning)]"}`}
                       >
                         {/* Same SVG arrow as the home readiness chip — text
                             triangles misalign on mobile fonts. */}
@@ -324,10 +324,10 @@ export function AiChat({
                       </span>
                     )}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
                     Load <span className="text-zinc-400">{context.loadBandLabel}</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300">
                     <span className="tabular-nums">{context.sessionCount}</span>
                     <span className="text-zinc-400">workout{context.sessionCount === 1 ? "" : "s"}</span>
                   </span>
@@ -337,7 +337,7 @@ export function AiChat({
                 <Link
                   href="/dashboard/nutrition"
                   title="Open the drink calculator in Nutrition"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-[border-color,background-color,color] duration-150 hover:border-teal-500/30 hover:bg-teal-500/[0.06] hover:text-teal-300"
+                  className="inline-flex items-center gap-1.5 rounded-[3px] border border-white/[0.1] bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-[border-color,background-color,color] duration-150 hover:border-primary/40 hover:bg-primary/[0.06] hover:text-zinc-50"
                 >
                   Drink <span className="text-zinc-400 tabular-nums">{describeDrinkSettings(drinkSettings)}</span>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-2.5 w-2.5 text-zinc-500">
@@ -359,7 +359,7 @@ export function AiChat({
       >
         {messages.length === 0 ? (
           <div className="py-6 text-center">
-            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[10px] border border-white/[0.07] bg-white/[0.03] text-zinc-500 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[10px] border border-white/[0.07] bg-white/[0.03] text-zinc-500">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
@@ -377,7 +377,7 @@ export function AiChat({
                   type="button"
                   disabled={isSending}
                   onClick={() => void sendMessage(prompt)}
-                  className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-400 transition-[border-color,background-color,color,transform] duration-150 hover:border-teal-500/30 hover:bg-teal-500/[0.06] hover:text-teal-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-[3px] border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-400 transition-[border-color,background-color,color,transform] duration-150 hover:border-primary/40 hover:bg-primary/[0.06] hover:text-zinc-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {prompt}
                 </button>
@@ -392,18 +392,18 @@ export function AiChat({
                 <div
                   className={`max-w-[85%] rounded-[10px] px-4 py-3 text-sm leading-relaxed ${
                     isUser
-                      ? `rounded-br-md bg-teal-500/90 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)] ${msg.pending ? "opacity-70" : ""}`
+                      ? `rounded-br-md bg-[var(--surface-3)] text-zinc-50 ${msg.pending ? "opacity-70" : ""}`
                       : "rounded-bl-md border border-white/[0.05] bg-white/[0.05] text-zinc-100"
                   }`}
                 >
                   <p className="whitespace-pre-wrap">
                     {msg.content}
                     {msg.streaming && (
-                      <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse rounded-full bg-teal-300 align-middle" />
+                      <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse rounded-full bg-primary align-middle" />
                     )}
                   </p>
                   {!msg.streaming && (
-                    <p className={`mt-1.5 text-[10px] tabular-nums ${isUser ? "text-white/60" : "text-zinc-500"}`}>
+                    <p className={`mt-1.5 text-[11px] tabular-nums ${isUser ? "text-white/60" : "text-zinc-500"}`}>
                       {isUser ? "You" : "AI Coach"}
                       {formatTime(msg.createdAt) ? ` · ${formatTime(msg.createdAt)}` : ""}
                     </p>
@@ -422,7 +422,7 @@ export function AiChat({
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
-                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-400/70"
+                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary/70"
                     style={{ animationDelay: `${i * 150}ms` }}
                   />
                 ))}

@@ -5,10 +5,15 @@ import { useMemo, useState } from "react";
 
 import { ExerciseMediaSlot } from "@/components/ui/ExerciseMediaSlot";
 import type { ExerciseLibraryRecord } from "@/lib/exercise-library/types";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 
 type Item = ExerciseLibraryRecord & { thumbnailUrl: string | null; favorited: boolean };
 
 type FilterKey = "bodyPart" | "equipment" | "category";
+
+// The library can hold over a thousand exercises; render a page at a time so
+// phones aren't asked to lay out every card (and image) at once.
+const PAGE_SIZE = 24;
 
 export function ExerciseLibraryView({
   items,
@@ -22,6 +27,7 @@ export function ExerciseLibraryView({
   const [favoritedIds, setFavoritedIds] = useState<Set<string>>(new Set(items.filter((i) => i.favorited).map((i) => i.id)));
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -65,35 +71,38 @@ export function ExerciseLibraryView({
   }
 
   function setFilter(key: FilterKey, value: string) {
+    setVisibleCount(PAGE_SIZE);
     setActive((prev) => (prev[key] === value ? { ...prev, [key]: undefined } : { ...prev, [key]: value }));
   }
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Training</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Exercise Library
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Browse demonstrations, cues, and muscle targets for every exercise in the library.
-        </p>
-      </div>
+      <ScreenHeader
+        section="Training"
+        title="Exercise library"
+        subtitle="Browse demonstrations, cues, and muscle targets for every exercise in the library."
+      />
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setVisibleCount(PAGE_SIZE);
+            }}
             placeholder="Search the library…"
             aria-label="Search the exercise library"
-            className="w-full max-w-sm rounded-lg border border-border bg-input px-4 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+            className="input-field max-w-sm"
           />
           <button
-            onClick={() => setOnlyFavorites((v) => !v)}
+            onClick={() => {
+              setOnlyFavorites((v) => !v);
+              setVisibleCount(PAGE_SIZE);
+            }}
             aria-pressed={onlyFavorites}
-            className={`chip label-caps ${onlyFavorites ? "border-primary bg-primary/10 !text-primary" : ""}`}
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-[3px] border px-3.5 text-sm font-medium transition-colors ${onlyFavorites ? "border-primary bg-primary/10 text-primary" : "border-white/[0.14] text-zinc-300 hover:border-white/[0.3]"}`}
           >
             ★ Favorites
           </button>
@@ -117,8 +126,12 @@ export function ExerciseLibraryView({
             : "No exercises match your search/filters."}
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {filtered.map((item) => (
+        <>
+        <p className="text-sm text-zinc-400 tabular-nums" aria-live="polite">
+          {filtered.length.toLocaleString()} exercise{filtered.length === 1 ? "" : "s"}
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+          {filtered.slice(0, visibleCount).map((item) => (
             <Link
               key={item.id}
               href={`/dashboard/exercise-library/${item.slug}`}
@@ -147,6 +160,16 @@ export function ExerciseLibraryView({
             </Link>
           ))}
         </div>
+        {filtered.length > visibleCount ? (
+          <button
+            type="button"
+            onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+            className="flex min-h-12 w-full items-center justify-center rounded-[3px] border border-white/[0.14] text-sm font-semibold text-zinc-100 transition-colors duration-150 hover:border-primary/50"
+          >
+            Show more ({(filtered.length - visibleCount).toLocaleString()} left)
+          </button>
+        ) : null}
+        </>
       )}
     </div>
   );
@@ -172,10 +195,10 @@ function FilterRow({
             key={opt}
             aria-pressed={active === opt}
             onClick={() => onSelect(opt)}
-            className={`truncate rounded-full border px-2 py-1.5 text-center text-xs font-medium capitalize transition ${
+            className={`min-h-9 truncate rounded-[3px] border px-2.5 py-1.5 text-center text-sm font-medium capitalize transition ${
               active === opt
                 ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+                : "border-white/[0.12] text-zinc-300 hover:border-primary/60 hover:text-white"
             }`}
           >
             {opt}

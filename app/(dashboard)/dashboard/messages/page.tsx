@@ -11,7 +11,7 @@ import {
 } from "@/lib/db";
 import { resolveBookingsForUser } from "@/lib/bookings";
 import { buildCoachingContext, type CoachingContextDisplay } from "@/lib/ai-context";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 import { isAiConfigured } from "@/lib/ai";
 import { verifySession } from "@/lib/session";
 import { MessagesView } from "./MessagesView";
@@ -63,10 +63,10 @@ export default async function DashboardMessagesPage({
 
   return (
     <section className="space-y-8">
-      <PageHeader
-        eyebrow="Club"
+      <ScreenHeader
+        section="Club"
         title="Messages"
-        subtitle="Ask the AI assistant, or message your coach directly."
+        subtitle="Message your coach directly, or ask the AI coach about your training data."
       />
 
       <MessagesView

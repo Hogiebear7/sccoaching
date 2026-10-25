@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { NotificationRecord, NotificationType } from "@/lib/db";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 
 const TYPE_LABEL: Record<NotificationType, string> = {
   message: "Message",
@@ -153,13 +154,11 @@ export function NotificationsView({
   return (
     <section className="anim-rise space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Account</p>
-          <h1 className="text-headline mt-2 text-[36px] text-zinc-50 sm:text-[44px]">
-            What needs your attention first.
-          </h1>
-          <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
-        </div>
+        <ScreenHeader
+          section="Account"
+          title="Notifications"
+          subtitle={subtitle}
+        />
 
         {unreadCount > 0 ? (
           <button
@@ -276,7 +275,7 @@ function NotificationRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${chipClass}`}>
+              <span className={`inline-block rounded-[3px] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${chipClass}`}>
                 {TYPE_LABEL[n.type]}
               </span>
 

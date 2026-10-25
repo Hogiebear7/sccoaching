@@ -8,14 +8,33 @@ export function NavLink({
   href,
   children,
   tag,
+  variant = "default",
 }: {
   href: string;
   children: ReactNode;
   /** Optional right-aligned badge. Opt-in — omit it and the link renders as before. */
   tag?: { label: string; tone: "primary" | "legacy" };
+  /** "member": the member-app sidebar style (gold left rule when current). Staff keep "default". */
+  variant?: "default" | "member";
 }) {
   const pathname = usePathname();
   const isActive = pathname === href;
+
+  if (variant === "member") {
+    return (
+      <Link
+        href={href}
+        aria-current={isActive ? "page" : undefined}
+        className={`flex min-h-10 items-center border-l-2 pl-[22px] pr-6 text-sm font-medium transition-colors duration-150 ${
+          isActive
+            ? "border-primary bg-white/[0.04] text-zinc-50"
+            : "border-transparent text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-100"
+        }`}
+      >
+        {children}
+      </Link>
+    );
+  }
 
   return (
     <Link

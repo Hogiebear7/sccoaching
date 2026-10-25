@@ -27,7 +27,7 @@ import {
   type WeightGoalBias,
 } from "@/lib/nutrition";
 import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
-import { FOOD_ITEM_EMOJI, type FoodRecommendations } from "@/lib/nutrition-recommendations";
+import type { FoodRecommendations } from "@/lib/nutrition-recommendations";
 import type { AiMessageRecord } from "@/lib/db";
 import type { NutritionCoachContextDisplay } from "@/lib/ai-context";
 import type { ResolvedNutritionTarget } from "@/lib/nutrition-target-data";
@@ -36,6 +36,7 @@ import { IconBadge } from "@/components/graphics/IconBadge";
 import { IconSelect } from "@/components/ui/IconSelect";
 import { NutrientFunctionIcon, type NutrientFunction } from "@/components/graphics/NutrientFunctionIcon";
 import { NutritionAiCoach } from "./NutritionAiCoach";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 
 const EXERTION_OPTIONS: Exertion[] = ["low", "medium", "high", "match"];
 const BOTTLE_OPTIONS = [500, 750, 1000] as const;
@@ -235,7 +236,7 @@ function Segmented<T extends string | number>({
           aria-pressed={value === opt}
           className={`rounded-lg px-1 py-2 text-xs font-medium tabular-nums transition-[background-color,color,transform] duration-150 active:scale-[0.97] ${
             value === opt
-              ? "bg-white/[0.08] text-zinc-50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07)]"
+              ? "bg-white/[0.08] text-zinc-50"
               : "text-zinc-500 hover:text-zinc-300"
           }`}
         >
@@ -543,15 +544,11 @@ export function NutritionView({
   return (
     <section className="anim-rise space-y-10">
       {/* Bespoke editorial header — same voice/pattern as Workouts variant C */}
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Fuelling</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Fuel built around your training, not a guess.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Daily targets and sports hydration, tuned to what you&apos;ve actually logged.
-        </p>
-      </div>
+      <ScreenHeader
+        section="Training"
+        title="Nutrition"
+        subtitle="Daily targets and hydration, tuned to what you've actually logged."
+      />
 
       {/* Hero — Today's Fuel: status, macro targets, and food ideas unified
           under one header, instead of three separate panels each competing
@@ -563,7 +560,7 @@ export function NutritionView({
             style={{ background: "radial-gradient(70% 100% at 25% 0%, color-mix(in oklch, var(--gold) 8%, transparent), transparent)" }}
           />
           <div className="relative flex flex-wrap items-center justify-between gap-2">
-            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(liveTarget?.fuelDay ?? "")}`}>
+            <span className={`inline-flex items-center rounded-[3px] border px-2.5 py-1 text-[11px] font-semibold ${fuelChipClass(liveTarget?.fuelDay ?? "")}`}>
               {liveTarget?.fuelDayLabel ??
                 (liveTarget?.mode === "manual"
                   ? liveTarget.setByMember
@@ -579,19 +576,19 @@ export function NutritionView({
 
           {hasTarget ? (
             <>
-              <div className="relative mt-5 grid grid-cols-3 divide-x divide-white/[0.08] rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+              <div className="relative mt-5 grid grid-cols-3 divide-x divide-white/[0.08] rounded-lg border border-white/[0.1] bg-white/[0.05]">
                 <div className="px-3 py-3.5 text-center sm:px-4">
                   <div className="flex justify-center">
                     <IconBadge tone="gold" size="sm">
                       <FoodCategoryIcon type="carb" />
                     </IconBadge>
                   </div>
-                  <p className="label-caps mt-1.5 text-[9px]">Carbs</p>
+                  <p className="label-caps mt-1.5 text-[11px]">Carbs</p>
                   <p className="text-display mt-1 text-[24px] leading-none text-gold tabular-nums">
                     {liveTarget!.carbsG}
                     <span className="text-xs text-zinc-500"> g</span>
                   </p>
-                  <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{(liveTarget!.carbsG! / targetBodyWeightKg).toFixed(1)} g/kg</p>
+                  <p className="mt-1 text-[11px] text-zinc-600 tabular-nums">{(liveTarget!.carbsG! / targetBodyWeightKg).toFixed(1)} g/kg</p>
                 </div>
                 <div className="px-3 py-3.5 text-center sm:px-4">
                   <div className="flex justify-center">
@@ -599,12 +596,12 @@ export function NutritionView({
                       <FoodCategoryIcon type="protein" />
                     </IconBadge>
                   </div>
-                  <p className="label-caps mt-1.5 text-[9px]">Protein</p>
+                  <p className="label-caps mt-1.5 text-[11px]">Protein</p>
                   <p className="text-display mt-1 text-[24px] leading-none text-zinc-50 tabular-nums">
                     {liveTarget!.proteinG}
                     <span className="text-xs text-zinc-500"> g</span>
                   </p>
-                  <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{(liveTarget!.proteinG! / targetBodyWeightKg).toFixed(1)} g/kg</p>
+                  <p className="mt-1 text-[11px] text-zinc-600 tabular-nums">{(liveTarget!.proteinG! / targetBodyWeightKg).toFixed(1)} g/kg</p>
                 </div>
                 <div className="px-3 py-3.5 text-center sm:px-4">
                   <div className="flex justify-center">
@@ -612,12 +609,12 @@ export function NutritionView({
                       <FoodCategoryIcon type="fat" />
                     </IconBadge>
                   </div>
-                  <p className="label-caps mt-1.5 text-[9px]">Fat</p>
+                  <p className="label-caps mt-1.5 text-[11px]">Fat</p>
                   <p className="text-display mt-1 text-[24px] leading-none text-zinc-50 tabular-nums">
                     {liveTarget!.fatG}
                     <span className="text-xs text-zinc-500"> g</span>
                   </p>
-                  <p className="mt-1 text-[10px] text-zinc-600 tabular-nums">{(liveTarget!.fatG! / targetBodyWeightKg).toFixed(1)} g/kg</p>
+                  <p className="mt-1 text-[11px] text-zinc-600 tabular-nums">{(liveTarget!.fatG! / targetBodyWeightKg).toFixed(1)} g/kg</p>
                 </div>
               </div>
               <p className="relative mt-2 text-[11px] leading-relaxed text-zinc-600">
@@ -653,24 +650,24 @@ export function NutritionView({
         <div className="border-b border-white/[0.06] p-5 sm:p-6">
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-2.5">
-              <p className="label-caps text-[9px]">Yesterday</p>
+              <p className="label-caps text-[11px]">Yesterday</p>
               <p className="mt-1 text-[13px] font-semibold text-zinc-200">{EXERTION_LABEL[yesterdayExertion]}</p>
-              <p className="mt-0.5 text-[10px] text-zinc-600">from your logs</p>
+              <p className="mt-0.5 text-[11px] text-zinc-600">from your logs</p>
             </div>
             <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-2.5">
-              <p className="label-caps text-[9px]">Today</p>
+              <p className="label-caps text-[11px]">Today</p>
               <p className="mt-1 text-[13px] font-semibold text-zinc-200">{EXERTION_LABEL[todayExertion]}</p>
-              <p className="mt-0.5 text-[10px] text-zinc-600">from your logs</p>
+              <p className="mt-0.5 text-[11px] text-zinc-600">from your logs</p>
             </div>
             <div className="rounded-lg border border-gold/25 bg-gold/[0.05] px-2 py-2.5">
-              <p className="label-caps text-[9px]">Tomorrow</p>
+              <p className="label-caps text-[11px]">Tomorrow</p>
               <p className="mt-1 text-[13px] font-semibold text-gold">{EXERTION_LABEL[tomorrow]}</p>
-              <p className="mt-0.5 text-[10px] text-zinc-600">your plan ↓</p>
+              <p className="mt-0.5 text-[11px] text-zinc-600">your plan ↓</p>
             </div>
           </div>
 
           <div className="mt-3">
-            <p className="label-caps mb-2 text-[10px]">Tomorrow&apos;s planned session</p>
+            <p className="label-caps mb-2 text-[11px]">Tomorrow&apos;s planned session</p>
             <Segmented
               options={EXERTION_OPTIONS}
               value={tomorrow}
@@ -685,7 +682,7 @@ export function NutritionView({
             Exclusions stay in plain view, never behind a collapsed control. */}
         <div className="p-5 sm:p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="label-caps text-[10px]">Food ideas for today</p>
+            <p className="label-caps text-[11px]">Food ideas for today</p>
             <Link
               href="/dashboard/profile"
               className="text-[11px] font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]"
@@ -711,7 +708,7 @@ export function NutritionView({
                     <IconBadge tone="gold" size="sm">
                       <FoodCategoryIcon type={key} />
                     </IconBadge>
-                    <p className="label-caps text-[9px]">{label}</p>
+                    <p className="label-caps text-[11px]">{label}</p>
                   </div>
                   {items.length === 0 ? (
                     <p className="mt-2 text-xs text-zinc-500">
@@ -722,9 +719,8 @@ export function NutritionView({
                       {items.map((item) => (
                         <span
                           key={item.name}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.09] bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-200"
+                          className="inline-flex items-center rounded-[3px] border border-white/[0.12] px-2.5 py-1 text-sm text-zinc-200"
                         >
-                          <span aria-hidden="true">{FOOD_ITEM_EMOJI[item.name] ?? "🍽️"}</span>
                           {item.name}
                         </span>
                       ))}
@@ -809,7 +805,7 @@ export function NutritionView({
         <div className="surface-card overflow-hidden">
           <div className="space-y-4 border-b border-white/[0.06] p-5">
             <div>
-              <p className="label-caps mb-2 text-[10px]">Sport</p>
+              <p className="label-caps mb-2 text-[11px]">Sport</p>
               <IconSelect
                 ariaLabel="Sport"
                 value={sport}
@@ -826,7 +822,7 @@ export function NutritionView({
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="label-caps mb-2 text-[10px]">Distance (km)</p>
+                    <p className="label-caps mb-2 text-[11px]">Distance (km)</p>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -840,7 +836,7 @@ export function NutritionView({
                     />
                   </div>
                   <div>
-                    <p className="label-caps mb-2 text-[10px]">Effort</p>
+                    <p className="label-caps mb-2 text-[11px]">Effort</p>
                     <Segmented
                       options={RUN_EFFORT_OPTIONS}
                       value={runEffort}
@@ -856,7 +852,7 @@ export function NutritionView({
                       type="button"
                       onClick={() => applyRunPreset(preset.km)}
                       aria-pressed={runKm === preset.km}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] font-medium tabular-nums transition-[background-color,color,border-color] duration-150 active:scale-[0.97] ${
+                      className={`rounded-[3px] border px-3 py-1.5 text-[11px] font-medium tabular-nums transition-[background-color,color,border-color] duration-150 active:scale-[0.97] ${
                         runKm === preset.km
                           ? "border-primary/40 bg-primary/[0.12] text-primary"
                           : "border-white/[0.1] bg-white/[0.04] text-zinc-400 hover:border-white/[0.14] hover:text-zinc-200"
@@ -869,7 +865,7 @@ export function NutritionView({
               </div>
             ) : (
               <div>
-                <p className="label-caps mb-2 text-[10px]">{sportCfg.roleLabel}</p>
+                <p className="label-caps mb-2 text-[11px]">{sportCfg.roleLabel}</p>
                 <IconSelect
                   ariaLabel={sportCfg.roleLabel}
                   value={role}
@@ -887,15 +883,15 @@ export function NutritionView({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="label-caps mb-2 text-[10px]">Bottle</p>
+                <p className="label-caps mb-2 text-[11px]">Bottle</p>
                 <Segmented options={BOTTLE_OPTIONS} value={bottleMl} onChange={setBottleMl} format={(v) => `${v} ml`} />
               </div>
               <div>
-                <p className="label-caps mb-2 text-[10px]">{sportCfg.runMode ? "Run duration" : "Session length"}</p>
+                <p className="label-caps mb-2 text-[11px]">{sportCfg.runMode ? "Run duration" : "Session length"}</p>
                 {sportCfg.runMode ? (
                   <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-center">
                     <p className="text-sm font-semibold text-zinc-100 tabular-nums">≈ {durationInfo.mins} min</p>
-                    <p className="text-[10px] text-zinc-600">from distance & effort</p>
+                    <p className="text-[11px] text-zinc-600">from distance & effort</p>
                   </div>
                 ) : (
                   <Segmented
@@ -910,12 +906,12 @@ export function NutritionView({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="label-caps mb-2 text-[10px]">Sweat rate</p>
+                <p className="label-caps mb-2 text-[11px]">Sweat rate</p>
                 <Segmented options={SWEAT_OPTIONS.map((o) => o.value)} value={sweat} onChange={setSweat} format={(v) => SWEAT_OPTIONS.find((o) => o.value === v)!.label} />
                 <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600">{SWEAT_HINT[sweat]}</p>
               </div>
               <div>
-                <p className="label-caps mb-2 text-[10px]">Conditions</p>
+                <p className="label-caps mb-2 text-[11px]">Conditions</p>
                 <Segmented options={TEMP_OPTIONS.map((o) => o.value)} value={temp} onChange={setTemp} format={(v) => TEMP_OPTIONS.find((o) => o.value === v)!.label} />
                 <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600">{TEMP_HINT[temp]}</p>
               </div>
@@ -971,7 +967,7 @@ export function NutritionView({
               { label: "Energy", value: `${drink.calories} kcal`, tone: "text-zinc-50" },
             ].map((cell) => (
               <div key={cell.label} className="px-2 py-3 text-center">
-                <p className="label-caps text-[9px]">{cell.label}</p>
+                <p className="label-caps text-[11px]">{cell.label}</p>
                 <p className={`text-display mt-1 text-[15px] tabular-nums ${cell.tone}`}>{cell.value}</p>
               </div>
             ))}
@@ -980,7 +976,7 @@ export function NutritionView({
           {/* Sodium badge + timing */}
           <div className="border-t border-white/[0.06] p-5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${sodiumBadgeClass(drink.sodiumBadge)}`}>
+              <span className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2.5 py-1 text-[11px] font-medium ${sodiumBadgeClass(drink.sodiumBadge)}`}>
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${
                     drink.sodiumBadge === "optimal"
@@ -999,7 +995,7 @@ export function NutritionView({
             </div>
             <p className="mt-2 text-xs leading-relaxed text-zinc-500">{sodiumExplainer(drink.sodiumBadge)}</p>
 
-            <p className="label-caps mb-2 mt-4 text-[10px]">Drinking plan</p>
+            <p className="label-caps mb-2 mt-4 text-[11px]">Drinking plan</p>
             <p className="mb-2.5 text-xs leading-relaxed text-zinc-400">
               <span className="font-medium text-zinc-200">{sportCfg.runMode ? "Carry: " : "Bottle: "}</span>
               {plan.bottleAdvice}
@@ -1007,9 +1003,9 @@ export function NutritionView({
             <div className={`grid gap-2 text-center ${plan.phases.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
               {plan.phases.map((cell) => (
                 <div key={cell.label} className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-2.5">
-                  <p className="label-caps text-[9px]">{cell.label}</p>
+                  <p className="label-caps text-[11px]">{cell.label}</p>
                   <p className="text-display mt-1 text-[15px] text-zinc-100 tabular-nums">{cell.amount}</p>
-                  <p className="mt-0.5 text-[10px] leading-relaxed text-zinc-600">{cell.tip}</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-600">{cell.tip}</p>
                 </div>
               ))}
             </div>
@@ -1066,7 +1062,7 @@ export function NutritionView({
                         <span>
                           <span className="text-[13px] font-semibold text-zinc-100">{item.name}</span>
                           <span
-                            className={`ml-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 align-middle text-[10px] font-medium ${
+                            className={`ml-2 inline-flex items-center gap-1 rounded-[3px] border px-2 py-0.5 align-middle text-[11px] font-medium ${
                               item.tag === "Electrolyte"
                                 ? "border-gold/30 bg-gold/[0.08] text-gold"
                                 : "border-primary/25 bg-primary/[0.08] text-primary"

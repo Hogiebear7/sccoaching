@@ -51,7 +51,8 @@ for (const screen of SCREENS) {
     await page.waitForLoadState("networkidle");
     // The first-run walkthrough must not be on screen (global-setup marks it seen).
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    if (screen.name === "messages") await expect(page.getByText("AI coach unavailable")).toBeVisible();
+    // Messages opens on the coach thread (the AI coach is the second tab).
+    if (screen.name === "messages") await expect(page.getByPlaceholder("Write to your coach…")).toBeVisible();
     if (screen.name === "membership") await expect(page.getByText(/Online payment isn.t set up yet/)).toBeVisible();
     await expect(page).toHaveScreenshot(`${screen.name}-mobile.png`, {
       fullPage: true,

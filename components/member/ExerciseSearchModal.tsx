@@ -73,10 +73,10 @@ export default function ExerciseSearchModal({ memberId, onSelect, onClose }: Pro
                 {last ? (
                   <div className="text-right ml-2">
                     <p className="text-xs font-medium text-teal-400 tabular-nums">{last.maxWeightKg}kg × {last.reps}</p>
-                    <p className="text-[10px] text-zinc-600 mt-0.5">{daysSince(last.date)}</p>
+                    <p className="text-[11px] text-zinc-600 mt-0.5">{daysSince(last.date)}</p>
                   </div>
                 ) : (
-                  <span className="text-[10px] text-zinc-600 ml-2">No history</span>
+                  <span className="text-[11px] text-zinc-600 ml-2">No history</span>
                 )}
               </button>
             );

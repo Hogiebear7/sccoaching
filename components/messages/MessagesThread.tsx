@@ -10,12 +10,17 @@ export function MessagesThread({
   messages,
   currentUserRole,
   memberId,
+  variant = "default",
 }: {
   messages: MessageRecord[];
   currentUserRole: "member" | "staff";
   memberId?: string;
+  /** "member": the member-app look (navy bubbles, gold "Coach" label, gold
+   *  focus). Staff keep "default". */
+  variant?: "default" | "member";
 }) {
   const router = useRouter();
+  const member = variant === "member";
   const [body, setBody] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [aiNote, setAiNote] = useState<string | null>(null);
@@ -95,7 +100,7 @@ export function MessagesThread({
     <div className="space-y-4">
       <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-6">
         {messages.length === 0 ? (
-          <p className="text-sm text-zinc-400">No messages yet.</p>
+          <p className="text-sm text-zinc-400">{member ? "No messages yet. Ask your coach anything about your training, bookings or plan." : "No messages yet."}</p>
         ) : (
           <div className="space-y-3">
             {messages.map((message) => {
@@ -107,21 +112,43 @@ export function MessagesThread({
                   className={`flex ${isOwnRole ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-[10px] px-4 py-3 text-sm ${
-                      isOwnRole
-                        ? "bg-teal-500 text-black"
-                        : "border border-zinc-800 bg-zinc-900 text-zinc-100"
-                    }`}
+                    className={
+                      member
+                        ? `max-w-[85%] rounded-[6px] px-4 py-3 text-[15px] leading-relaxed ${
+                            isOwnRole
+                              ? "rounded-br-[2px] bg-[var(--surface-3)] text-zinc-50"
+                              : "rounded-bl-[2px] border border-white/[0.1] bg-[var(--bg-0)] text-zinc-100"
+                          }`
+                        : `max-w-[80%] rounded-[10px] px-4 py-3 text-sm ${
+                            isOwnRole
+                              ? "bg-teal-500 text-black"
+                              : "border border-zinc-800 bg-zinc-900 text-zinc-100"
+                          }`
+                    }
                   >
-                    <p>{message.body}</p>
-                    <p
-                      className={`mt-1 text-xs ${
-                        isOwnRole ? "text-black/60" : "text-zinc-500"
-                      }`}
-                    >
-                      {message.senderRole === "staff" ? "Coach" : "Member"} ·{" "}
-                      {new Date(message.createdAt).toLocaleString()}
-                    </p>
+                    {member && !isOwnRole ? (
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">Coach</p>
+                    ) : null}
+                    <p className="whitespace-pre-line">{message.body}</p>
+                    {member ? (
+                      <p className="mt-1.5 text-xs text-zinc-400">
+                        {new Date(message.createdAt).toLocaleString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    ) : (
+                      <p
+                        className={`mt-1 text-xs ${
+                          isOwnRole ? "text-black/60" : "text-zinc-500"
+                        }`}
+                      >
+                        {message.senderRole === "staff" ? "Coach" : "Member"} ·{" "}
+                        {new Date(message.createdAt).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                 </div>
               );
@@ -153,8 +180,13 @@ export function MessagesThread({
               setBody(e.target.value);
               setFormError(null);
             }}
-            className="min-h-[60px] flex-1 resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-500"
-            placeholder="Write a message…"
+            aria-label={member ? "Message your coach" : undefined}
+            className={
+              member
+                ? "input-field min-h-[60px] flex-1 resize-y"
+                : "min-h-[60px] flex-1 resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-500"
+            }
+            placeholder={member ? "Write to your coach…" : "Write a message…"}
           />
           <div className="flex flex-col gap-2 self-end">
             {currentUserRole === "staff" && memberId ? (

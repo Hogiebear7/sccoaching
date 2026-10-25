@@ -754,3 +754,168 @@ details[open] > .details-reveal {
 @utility pb-nav-safe {
   padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
 }
+
+/* ─── Member app (logged-in /dashboard) ───────────────────────────────
+   The member shell carries data-member-app (app/(dashboard)/dashboard/
+   layout.tsx). Inside it, the older shared recipes (frosted .panel, glowing
+   capsule .btn-primary, blue-focus .input-field, 20px radius) are re-pointed
+   at the navy/gold app language from DESIGN.md "Member app": solid tonal
+   surfaces, hairline borders, square-ish geometry, flat gold actions and
+   no glows. Scoped (unlayered, so it wins over the utility layer) because
+   the staff and admin surfaces still use the same recipes and are out of
+   scope. */
+[data-member-app] {
+  --radius: 4px;
+  --radius-sm: 3px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 6px;
+  /* Small grey text never drops below 60% white on navy. */
+  --color-zinc-600: oklch(1 0 0 / 0.6);
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: 0 18px 48px -16px oklch(0.1 0.03 259 / 0.7);
+  --shadow-card: none;
+  --shadow-elev: var(--shadow-3);
+}
+
+[data-member-app] .panel,
+[data-member-app] .panel-raised {
+  background-color: var(--surface-1);
+  background-image: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  box-shadow: none;
+}
+[data-member-app] .panel-raised {
+  background-color: var(--surface-2);
+}
+
+[data-member-app] .well {
+  background-color: oklch(0.1954 0.0381 258.8 / 0.6);
+  border: 1px solid oklch(1 0 0 / 0.1);
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+[data-member-app] .chip {
+  border-radius: 3px;
+  background-color: oklch(1 0 0 / 0.06);
+  font-size: 0.75rem;
+}
+
+[data-member-app] .empty-state {
+  border-radius: 4px;
+  border-color: oklch(1 0 0 / 0.16);
+  background-color: oklch(1 0 0 / 0.02);
+}
+
+[data-member-app] .chart-glow {
+  filter: none;
+}
+
+[data-member-app] .label-caps {
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+}
+
+/* No third typeface in the app: Space Grotesk "display" text becomes Inter
+   semibold with tabular figures. Large figures use text-headline (Teko). */
+[data-member-app] .text-display,
+[data-member-app] .title-athletic {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background-image: none;
+  color: inherit;
+}
+
+/* Flat gold action: 3px, 44px minimum, no gradient or glow. */
+[data-member-app] .btn-primary {
+  min-height: 2.75rem;
+  border-radius: 3px;
+  border: 0;
+  background-image: none;
+  background-color: var(--primary);
+  box-shadow: none;
+  letter-spacing: 0;
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+[data-member-app] .btn-primary:hover:not(:disabled) {
+  filter: none;
+  background-color: var(--primary-hover);
+}
+
+/* Inputs: carved navy, 44px, gold focus border and ring. */
+[data-member-app] .input-field {
+  min-height: 2.75rem;
+  border-radius: 3px;
+  border-color: oklch(1 0 0 / 0.14);
+  background-color: var(--input);
+  font-size: 1rem;
+  box-shadow: none;
+}
+[data-member-app] .input-field:hover {
+  border-color: oklch(1 0 0 / 0.24);
+}
+[data-member-app] .input-field:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 22%, transparent);
+}
+
+[data-member-app] .hover-lift:hover {
+  box-shadow: none;
+  border-color: oklch(1 0 0 / 0.26);
+}
+
+[data-member-app] .skeleton {
+  border-radius: 3px;
+}
+
+/* Member form controls: 44px minimum touch height, and 16px text on phones
+   so iOS Safari never zooms the page when a field takes focus. */
+[data-member-app] :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select) {
+  min-height: 2.75rem;
+}
+@media (max-width: 639px) {
+  [data-member-app] :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea) {
+    font-size: 16px;
+  }
+}
+
+/* Member empty states: a calm solid tile, a 15px title and a readable
+   14px line (the shared markup is a title <p> then a body <p>). */
+[data-member-app] .empty-state {
+  border-style: solid;
+  border-color: var(--border-subtle);
+  background-color: var(--surface-1);
+  padding: 1.75rem 1.25rem;
+}
+[data-member-app] .empty-state > p:first-child {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+[data-member-app] .empty-state > p + p {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* Error text: the danger red (#e62b34) is too dark to read on navy as text,
+   so member error copy uses a lighter tint of the same hue (AA on surface-1).
+   Fills, borders and icons keep the true danger red. */
+[data-member-app] .text-destructive {
+  color: oklch(0.8 0.1 25);
+}
+
+/* Toggle chips (filters, dietary choices, theme swatches, reminder presets)
+   get a 40px touch height; with their 6–8px gaps that clears the target-size
+   guidance without per-component edits. */
+[data-member-app] :is(button[aria-pressed], button[role="radio"], button[role="tab"]) {
+  min-height: 2.5rem;
+}

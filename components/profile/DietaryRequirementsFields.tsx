@@ -44,7 +44,7 @@ export function DietaryRequirementsFields({
                 type="button"
                 aria-pressed={active}
                 onClick={() => onChange({ dietaryPreference: opt.value })}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                className={`rounded-[3px] border px-3 py-1.5 text-xs font-medium transition ${
                   active
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border text-muted-foreground hover:border-primary/60"
@@ -125,7 +125,7 @@ function ChipMultiSelect({
               type="button"
               aria-pressed={active}
               onClick={() => onToggle(opt.value)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+              className={`rounded-[3px] border px-3 py-1.5 text-xs font-medium transition ${
                 active
                   ? "border-gold bg-gold/[0.12] text-gold"
                   : "border-border text-muted-foreground hover:border-gold/60"

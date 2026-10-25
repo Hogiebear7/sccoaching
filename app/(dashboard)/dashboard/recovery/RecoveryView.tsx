@@ -11,7 +11,8 @@ import { ScoreHelp } from "@/components/ui/ScoreHelp";
 import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
 import type { PhaseEstimate } from "@/lib/cycle-phase";
 import { intensityMix, weeklyTrainingSummary } from "@/lib/progress";
-import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
+import { readinessGuidance, readinessStatus, trainingLoadForLog } from "@/lib/recovery";
 
 type RecoveryFormValues = {
   date: string;
@@ -83,6 +84,9 @@ export function RecoveryView({
 }) {
   const router = useRouter();
   const [values, setValues] = useState<RecoveryFormValues>(() => emptyFormValues());
+  // The hero shows the latest check-in; say so when it isn't today's.
+  const todayISO = todayDateString();
+  const latestLogDate = logs[0]?.date ?? null;
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -155,34 +159,36 @@ export function RecoveryView({
 
   return (
     <section className="anim-rise space-y-10">
-      {/* Bespoke editorial header — same voice as Workouts/Nutrition */}
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Training</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Today&rsquo;s check-in sharpens everything else.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Sleep, soreness, and fatigue — logged in under a minute, felt in your session plan and
-          fuelling guidance too.
-        </p>
-      </div>
+      <ScreenHeader
+        section="Training"
+        title="Recovery"
+        subtitle="A one-minute daily check-in on sleep, soreness and fatigue. It shapes your session plan and fuelling guidance."
+      />
 
       {/* Hero — Today's Readiness: status ring, context stats, and the
           check-in form unified in one dominant zone, instead of three
           separate panels each competing for the same attention. */}
       <div className="surface-card surface-card--accent overflow-hidden">
-        <div className="relative border-b border-white/[0.06] p-5 sm:p-6">
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-28"
-            style={{ background: "radial-gradient(70% 100% at 25% 0%, color-mix(in oklch, var(--primary) 10%, transparent), transparent)" }}
-          />
-          <div className="relative flex flex-wrap items-center gap-4">
-            <ReadinessRing score={latestReadinessScore} size={72} />
+        <div className="border-b border-white/[0.06] p-5 sm:p-6">
+          <div className="flex flex-wrap items-start gap-5">
+            <ReadinessRing score={latestReadinessScore} size={96} quiet />
             <div className="min-w-0 flex-1">
-              <p className="label-caps text-[9px]">Today&apos;s readiness</p>
-              <p className="mt-1.5 text-sm leading-relaxed text-zinc-300">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                {latestLogDate === null
+                  ? "Today's readiness"
+                  : latestLogDate === todayISO
+                    ? "Today's readiness"
+                    : `Last check-in · ${shortDay(latestLogDate)}`}
+              </p>
+              <p className="mt-1 text-headline text-[30px] text-zinc-50">
+                {latestReadinessScore !== null ? readinessStatus(latestReadinessScore) : "No check-in yet"}
+              </p>
+              <p className="mt-1.5 text-[15px] leading-relaxed text-zinc-300">
                 {latestGuidance ?? "Log today's check-in below to get guidance."}
               </p>
+              {latestLogDate !== null && latestLogDate !== todayISO ? (
+                <p className="mt-1.5 text-sm text-[var(--warning)]">Log today&apos;s check-in to update this.</p>
+              ) : null}
               {phaseEstimate && phaseEstimate.phase !== "Unknown" ? (
                 <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">
                   {phaseEstimate.readinessNote}
@@ -196,24 +202,24 @@ export function RecoveryView({
             </div>
           </div>
 
-          <div className="relative mt-5 grid grid-cols-2 divide-x divide-white/[0.08] rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
-            <div className="px-3 py-3 sm:px-4">
-              <p className="label-caps text-[9px] sm:text-[10px]">7-day load</p>
-              <p className="text-display mt-1.5 text-lg leading-none text-zinc-100 tabular-nums">
-                {rollingLoad.sevenDaySum > 0 ? rollingLoad.sevenDaySum : "—"}
-              </p>
-              <p className="mt-1 truncate text-[10px] text-zinc-500">
+          <dl className="mt-5 grid grid-cols-2 divide-x divide-white/[0.06] rounded-[4px] border border-white/[0.08] bg-[var(--bg-0)]">
+            <div className="px-4 py-3.5">
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">7-day load</dt>
+              <dd className="mt-1.5 text-headline text-[28px] tabular-nums text-zinc-50">
+                {rollingLoad.sevenDaySum > 0 ? rollingLoad.sevenDaySum.toLocaleString() : "—"}
+              </dd>
+              <dd className="mt-1 text-xs leading-snug text-zinc-400">
                 {rollingLoad.daysWithLoad > 0
                   ? `Avg ${rollingLoad.sevenDayAverage}/day · ${rollingLoad.daysWithLoad} day${rollingLoad.daysWithLoad === 1 ? "" : "s"}`
-                  : "Log duration & RPE"}
-              </p>
+                  : "Log time and RPE"}
+              </dd>
             </div>
-            <div className="px-3 py-3 sm:px-4">
-              <p className="label-caps text-[9px] sm:text-[10px]">Check-ins</p>
-              <p className="text-display mt-1.5 text-lg leading-none text-zinc-100 tabular-nums">{logs.length}</p>
-              <p className="mt-1 truncate text-[10px] text-zinc-500">Total entries logged</p>
+            <div className="px-4 py-3.5">
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Check-ins</dt>
+              <dd className="mt-1.5 text-headline text-[28px] tabular-nums text-zinc-50">{logs.length}</dd>
+              <dd className="mt-1 text-xs leading-snug text-zinc-400">Logged in total</dd>
             </div>
-          </div>
+          </dl>
         </div>
 
         {/* Check-in form */}
@@ -379,13 +385,13 @@ export function RecoveryView({
             <button
               type="submit"
               disabled={isSubmitting || justSaved}
-              className="inline-flex min-w-[132px] items-center justify-center gap-2 btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-90"
+              className="inline-flex w-full items-center justify-center gap-2 btn-primary px-5 py-2 disabled:cursor-not-allowed disabled:opacity-90 sm:w-auto sm:min-w-[160px]"
             >
               {isSubmitting ? (
                 <>
                   <span
                     aria-hidden="true"
-                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white motion-reduce:animate-none"
+                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current/30 border-t-current motion-reduce:animate-none"
                   />
                   Saving
                 </>
@@ -440,25 +446,25 @@ export function RecoveryView({
               const open = expandedLogId === log.id;
 
               return (
-                <div key={log.id} className="surface-card p-3.5">
+                <div key={log.id} className="surface-card px-4 py-1">
                   {/* Collapsed: date + the two scores. Tap for full detail. */}
                   <button
                     type="button"
                     aria-expanded={open}
                     onClick={() => setExpandedLogId(open ? null : log.id)}
-                    className="flex w-full items-center justify-between gap-3 text-left"
+                    className="flex min-h-12 w-full items-center justify-between gap-3 text-left"
                   >
-                    <span className="text-sm font-medium text-foreground">{log.date}</span>
+                    <span className="text-[15px] font-semibold text-zinc-100">{shortDay(log.date)}</span>
                     <span className="flex shrink-0 items-center gap-2">
                       {log.readinessScore !== null && (
                         <span
-                          className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tabular-nums ${readinessBadgeClass(log.readinessScore)}`}
+                          className={`rounded-[3px] border px-2.5 py-0.5 text-[11px] font-semibold tabular-nums ${readinessBadgeClass(log.readinessScore)}`}
                         >
                           {log.readinessScore}/100
                         </span>
                       )}
                       {load !== null && (
-                        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] text-secondary-foreground tabular-nums">
+                        <span className="rounded-[3px] border border-white/[0.12] px-2.5 py-0.5 text-[11px] font-semibold text-zinc-300 tabular-nums">
                           Load {load}
                         </span>
                       )}
@@ -507,7 +513,7 @@ export function RecoveryView({
           collapsed by default rather than always taking full vertical
           space. */}
       <div className="border-t border-white/[0.06] pt-6">
-        <p className="mb-3 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">Reference</p>
+        <p className="mb-3 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-600">Reference</p>
         <details className="group rounded-xl border border-white/[0.06]">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-300 transition hover:text-zinc-100">
             Recovery guidance
@@ -580,8 +586,8 @@ function ProgressModules({ logs }: { logs: RecoveryLogRecord[] }) {
         {hasWeeks && (
           <div className="surface-card p-5">
             <div className="flex items-baseline justify-between">
-              <p className="label-caps text-[9px]">Training weeks</p>
-              <span className="text-[10px] text-zinc-600">load = duration × RPE</span>
+              <p className="label-caps text-[11px]">Training weeks</p>
+              <span className="text-[11px] text-zinc-600">load = duration × RPE</span>
             </div>
             <div className="mt-4 space-y-2.5">
               {weeks.map((week) => (
@@ -614,7 +620,7 @@ function ProgressModules({ logs }: { logs: RecoveryLogRecord[] }) {
                 </div>
               ))}
             </div>
-            <p className="mt-3 border-t border-white/[0.06] pt-2.5 text-[10px] text-zinc-600">
+            <p className="mt-3 border-t border-white/[0.06] pt-2.5 text-[11px] text-zinc-600">
               Mon–Sun · dot size scales with that day&apos;s load · % vs previous week
             </p>
           </div>
@@ -623,8 +629,8 @@ function ProgressModules({ logs }: { logs: RecoveryLogRecord[] }) {
         {mix && (
           <div className="surface-card p-5">
             <div className="flex items-baseline justify-between">
-              <p className="label-caps text-[9px]">Intensity mix</p>
-              <span className="text-[10px] text-zinc-600 tabular-nums">
+              <p className="label-caps text-[11px]">Intensity mix</p>
+              <span className="text-[11px] text-zinc-600 tabular-nums">
                 last 4 weeks · {mix.sessions} session{mix.sessions === 1 ? "" : "s"}
               </span>
             </div>
@@ -659,7 +665,7 @@ function ProgressModules({ logs }: { logs: RecoveryLogRecord[] }) {
                 </div>
               ))}
             </div>
-            <p className="mt-3 border-t border-white/[0.06] pt-2.5 text-[10px] text-zinc-600">
+            <p className="mt-3 border-t border-white/[0.06] pt-2.5 text-[11px] text-zinc-600">
               Share of training load in each effort band, from your logged sessions.
             </p>
           </div>
@@ -693,4 +699,11 @@ function inputClass(hasError?: string) {
       ? "border-destructive focus:border-destructive"
       : "border-border focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
   }`;
+}
+
+// "2026-09-20" -> "Sun 20 Sep"
+function shortDay(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 }

@@ -87,9 +87,9 @@ export default function WorkoutLogger({ memberId }: Props) {
               </div>
               {/* Set header */}
               <div className="grid grid-cols-[28px_1fr_1fr_40px] gap-2 mb-2 px-1">
-                <span className="text-[10px] font-semibold tracking-[0.08em] text-zinc-600 text-center">SET</span>
-                <span className="text-[10px] font-semibold tracking-[0.08em] text-zinc-600 text-center">WEIGHT (KG)</span>
-                <span className="text-[10px] font-semibold tracking-[0.08em] text-zinc-600 text-center">REPS</span>
+                <span className="text-[11px] font-semibold tracking-[0.08em] text-zinc-600 text-center">SET</span>
+                <span className="text-[11px] font-semibold tracking-[0.08em] text-zinc-600 text-center">WEIGHT (KG)</span>
+                <span className="text-[11px] font-semibold tracking-[0.08em] text-zinc-600 text-center">REPS</span>
                 <span />
               </div>
               {item.sets.map((set, setIdx) => (

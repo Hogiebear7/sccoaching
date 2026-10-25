@@ -8,7 +8,7 @@ const TABS = [
   { label: "Schedule",  href: "/dashboard/schedule",  exact: false },
   { label: "Workouts",  href: "/dashboard/workouts",  exact: false },
   { label: "Recovery",  href: "/dashboard/recovery",  exact: false },
-  // Profile moved out of the dock — it lives in the top-right avatar.
+  // Profile lives in the top-right avatar; messages in the top bar.
   { label: "Nutrition", href: "/dashboard/nutrition", exact: false },
 ] as const;
 
@@ -25,53 +25,42 @@ const ICON_PATHS: Record<string, string> = {
     "M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.657 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657zM9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z",
 };
 
+// Phone tab bar: full-width, opaque navy, a hairline on top. The current tab
+// is gold (icon, label and a 2px bar along its top edge); the rest are quiet.
+// No floating capsule, blur or glow.
 export function BottomNavBar() {
   const pathname = usePathname();
   const activeIdx = TABS.findIndex(({ href, exact }) =>
     exact ? pathname === href : pathname.startsWith(href)
   );
-  const slotPct = 100 / TABS.length;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-safe lg:hidden">
-      {/* Floating frosted capsule dock; the active tab is a solid teal pill
-          that glides between slots. Blur is static (never animated). */}
-      <ul className="relative mx-auto mb-3 flex max-w-md items-center rounded-full border border-white/[0.12] bg-zinc-900/70 p-1 shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
-        {activeIdx >= 0 && (
-          <span
-            aria-hidden="true"
-            className="absolute bottom-1 top-1 rounded-full transition-[left] duration-200 ease-out"
-            style={{
-              // Slot width inside the padded capsule is (100% − 0.5rem)/5;
-              // the pill spans the full slot so the icon sits dead-centre.
-              left: `calc(0.25rem + ${activeIdx} * (${slotPct}% - 0.1rem))`,
-              width: `calc(${slotPct}% - 0.1rem)`,
-              // Accent tokens (not hardcoded teal) so palette presets recolour
-              // the active pill along with the rest of the actions.
-              backgroundImage: "linear-gradient(180deg, var(--accent-grad-top), var(--accent-grad-bottom))",
-              boxShadow: "inset 0 1px 0 0 rgba(255,255,255,0.25), 0 4px 16px -4px var(--accent-glow)",
-            }}
-          />
-        )}
-        {TABS.map(({ label, href, exact }, idx) => {
+    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.08] bg-[var(--sidebar)] pb-safe lg:hidden">
+      <ul className="mx-auto flex max-w-xl">
+        {TABS.map(({ label, href }, idx) => {
           const active = idx === activeIdx;
-          void exact;
           return (
-            <li key={href} className="relative z-10 flex-1">
+            <li key={href} className="relative flex-1">
               <Link
                 href={href}
-                className={`flex flex-col items-center gap-0.5 rounded-full px-1 py-1.5 text-[9.5px] font-semibold transition-[color,transform] duration-150 active:scale-95 ${
-                  active ? "text-primary-foreground" : "text-zinc-500 hover:text-zinc-300"
+                aria-current={active ? "page" : undefined}
+                className={`flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors duration-150 ${
+                  active ? "text-primary" : "text-zinc-400 hover:text-zinc-100"
                 }`}
               >
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-x-4 top-0 h-[2px] bg-primary transition-opacity duration-150 ${active ? "opacity-100" : "opacity-0"}`}
+                />
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth={active ? 2.2 : 1.8}
+                  strokeWidth={active ? 2 : 1.7}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="h-5 w-5"
+                  aria-hidden="true"
+                  className="h-[22px] w-[22px]"
                 >
                   <path d={ICON_PATHS[label]} />
                 </svg>

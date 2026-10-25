@@ -1,6 +1,6 @@
 import { formatFriendlyClassDate } from "@/lib/dates";
 import type { ResolvedBooking } from "@/lib/bookings";
-import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
+import { StatusBadge } from "@/components/member/ListGroup";
 
 // Day + date together (friendly weekday format with Today/Tomorrow
 // prefixes), matching Schedule's own date-group headings.
@@ -11,6 +11,11 @@ const formatDayDate = formatFriendlyClassDate;
 // bookings" tab (upcoming only, plain). One implementation, one set of
 // token semantics, so the two surfaces can no longer drift the way the
 // old separately-written copies did.
+//
+// Member-app layout (DESIGN.md "Member app"): a typographic time rail (Teko
+// time, duration) like Home's next-session card, then title, date, coach and
+// a semantic status. Past rows are quieter (muted rail) so upcoming reads
+// first.
 export function BookingCard({
   booking,
   cancellable,
@@ -29,59 +34,31 @@ export function BookingCard({
   return (
     <div className={hero ? "surface-card surface-card--accent overflow-hidden" : "surface-card overflow-hidden"}>
       <div className="flex items-stretch">
-        {/* Image rail — real class cover or on-brand placeholder — with the
-            time overlaid (matches Home + Schedule). */}
-        <div className={`relative shrink-0 ${hero ? "w-[104px] sm:w-[140px]" : "w-[84px] sm:w-[104px]"}`}>
-          <ClassImageSlot
-            seed={booking.category || booking.classId}
-            label={booking.title}
-            imageUrl={booking.imageUrl}
-            alt={booking.imageAlt}
-            // Past bookings: subtly mute the cover/placeholder (desaturate +
-            // slightly dim) so completed items read as calmer at a glance,
-            // independent of the status badge's color — a shape/texture
-            // cue, not just a color one. The filter only touches this image
-            // layer — the white time overlay sits in a sibling layer and
-            // stays fully legible.
-            className={`absolute inset-0 ${cancellable ? "" : "grayscale-[0.7] brightness-95"}`}
-          />
-          <div className="relative flex h-full flex-col justify-between p-2.5">
-            <span className={`text-headline leading-none text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)] tabular-nums ${hero ? "text-[32px]" : "text-[28px]"}`}>
-              {booking.startTime}
-            </span>
-            <span className="text-[10px] font-medium uppercase tracking-wide text-white/75">
-              {booking.durationMins} min
-            </span>
-          </div>
+        <div
+          className={`flex shrink-0 flex-col items-center justify-center border-r border-white/[0.06] bg-[var(--bg-0)] px-2 py-4 ${
+            hero ? "w-[96px] sm:w-[112px]" : "w-[84px] sm:w-[96px]"
+          }`}
+        >
+          <span className={`text-headline tabular-nums ${cancellable ? "text-zinc-50" : "text-zinc-400"} ${hero ? "text-[34px]" : "text-[28px]"}`}>
+            {booking.startTime}
+          </span>
+          <span className="mt-1 text-xs font-medium text-zinc-400 tabular-nums">{booking.durationMins} min</span>
         </div>
 
-        {/* Details + status/actions */}
-        <div className="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              {formatDayDate(booking.date)}
-            </p>
-            <h4 className={`mt-1 truncate font-semibold text-foreground ${hero ? "text-lg" : "text-base"}`}>
-              {booking.title}
-            </h4>
-            <p className="mt-1 truncate text-sm text-muted-foreground">Coach: {booking.coachEmail}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">{formatDayDate(booking.date)}</p>
+            <h3 className={`mt-1 truncate font-semibold text-zinc-50 ${hero ? "text-lg" : "text-base"}`}>{booking.title}</h3>
+            <p className="mt-1 truncate text-sm text-zinc-400">Coach: {booking.coachEmail}</p>
           </div>
 
-          <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+          <div className="flex shrink-0 flex-row flex-wrap items-center gap-2 sm:flex-col sm:items-end">
             {cancellable ? (
-              <span className="rounded-full border border-[var(--success)]/25 bg-[var(--success-weak)] px-3 py-1 text-xs font-semibold text-[var(--success)]">
-                Confirmed
-              </span>
+              <StatusBadge tone="good">Confirmed</StatusBadge>
+            ) : booking.attended ? (
+              <StatusBadge tone="good">Attended</StatusBadge>
             ) : (
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  booking.attended
-                    ? "border border-[var(--success)]/25 bg-[var(--success-weak)] text-[var(--success)]"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {booking.attended ? "Attended" : "Not checked in"}
-              </span>
+              <StatusBadge tone="neutral">Not checked in</StatusBadge>
             )}
 
             {cancellable ? (
@@ -89,9 +66,9 @@ export function BookingCard({
                 type="button"
                 onClick={onCancel}
                 disabled={isCancelling}
-                className="rounded-lg border border-white/[0.09] px-3 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 items-center rounded-[3px] border border-white/[0.14] px-3.5 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-white/[0.3] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isCancelling ? "Cancelling…" : "Cancel"}
+                {isCancelling ? "Cancelling…" : "Cancel booking"}
               </button>
             ) : null}
           </div>
@@ -100,8 +77,8 @@ export function BookingCard({
 
       {cancellable ? (
         <p
-          className={`px-4 pb-3 text-xs ${
-            booking.willRestoreSession ? "text-muted-foreground" : "text-[var(--warning)]"
+          className={`border-t border-white/[0.06] px-4 py-3 text-sm sm:px-5 ${
+            booking.willRestoreSession ? "text-zinc-400" : "text-[var(--warning)]"
           }`}
         >
           {booking.willRestoreSession
@@ -111,7 +88,7 @@ export function BookingCard({
       ) : null}
 
       {error ? (
-        <p className="mx-4 mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <p role="alert" className="mx-4 mb-4 rounded-[3px] border-l-2 border-[var(--danger)] bg-[var(--danger-weak)] px-3 py-2 text-sm text-red-200 sm:mx-5">
           {error}
         </p>
       ) : null}

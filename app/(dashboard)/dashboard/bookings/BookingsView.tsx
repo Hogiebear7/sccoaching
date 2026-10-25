@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { ResolvedBooking } from "@/lib/bookings";
+import { ScreenHeader } from "@/components/member/ScreenHeader";
 import { BookingCard } from "./BookingCard";
 
 // Bookings — same IA-first standard as Workouts/Nutrition/Recovery/
@@ -70,16 +71,16 @@ export function BookingsView({
 
   return (
     <section className="anim-rise space-y-10">
-      <div>
-        <p className="text-mono text-[11px] uppercase tracking-[0.24em] text-gold">Club</p>
-        <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">
-          Your training, booked and on record.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Cancelling at least {cancellationCutoffHours}h before a class restores your session —
-          cancelling later doesn&apos;t.
-        </p>
-      </div>
+      <ScreenHeader
+        section="Club"
+        title="Bookings"
+        subtitle={
+          <>
+            Cancelling at least {cancellationCutoffHours}h before a class restores your session —
+            cancelling later doesn&apos;t.
+          </>
+        }
+      />
 
       {successMessage ? (
         <p className="rounded-lg border border-[var(--success)]/30 bg-[var(--success-weak)] px-4 py-3 text-sm text-[var(--success)]">
@@ -106,11 +107,11 @@ export function BookingsView({
       ) : (
         <div className="empty-state">
           <p className="text-sm font-medium">No upcoming bookings</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            <Link href="/dashboard/schedule" className="text-gold transition hover:text-gold/80">
+          <p className="mt-1 text-xs text-muted-foreground">Book a class and it shows up here, with the option to cancel.</p>
+          <p className="mt-4">
+            <Link href="/dashboard/schedule" className="inline-flex min-h-11 items-center justify-center rounded-[3px] border border-white/[0.16] px-5 text-sm font-semibold text-zinc-100 transition-colors duration-150 hover:border-primary/50">
               Browse the schedule
-            </Link>{" "}
-            to book a class.
+            </Link>
           </p>
         </div>
       )}
