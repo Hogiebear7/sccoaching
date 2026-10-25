@@ -111,6 +111,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "mobile/gyms/geocode", scope: "self" },
   { route: "mobile/gyms/my-gym/visibility", scope: "own-tenant", capabilities: ["gym.manageAvailability"], evidence: ["gymId"], note: "Acts only on the acting staff member's own gym, resolved from their account." },
   { route: "mobile/gyms/nearby", scope: "self" },
+  { route: "mobile/app-preferences", scope: "self" },
   { route: "mobile/hydration", scope: "self" },
   { route: "mobile/membership", scope: "self" },
   { route: "mobile/messages", scope: "self" },
