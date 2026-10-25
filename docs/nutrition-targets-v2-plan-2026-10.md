@@ -1,6 +1,6 @@
 # Nutrition targets v2 — plan (2026-10-25)
 
-Status: **approved 2026-10-25.** Slice A (engine) done; B–F to follow, each paused for review.
+Status: **approved 2026-10-25.** Slices A–C done; D–F to follow, each paused for review.
 
 ## Why
 
@@ -136,24 +136,33 @@ mid-day.
 
 ## Worked example (tester-like profile)
 
-Female, 60 kg, 165 cm, 30 years old, goal "Weight loss", no goal date, trains three
-days a week, logs about 1,300 kcal on days with missed snacks, weight steady.
+Female, 60 kg, 165 cm, 30 years old, goal "Weight loss", no goal date, three
+moderate gym sessions a week, logs about 1,300 kcal on days with missed snacks,
+weight steady.
 
 **Today:**
 - Once adaptive kicks in, learned burn ≈ 1,300 (partial days taken as real).
 - × 0.8 = 1,040, raised to the 1,080 floor → **about 1,080 kcal**.
-- Before that: about 1,410 on rest days.
 
 **v2:**
-- **Burn:** partial days don't count (they fail the 60% test and aren't marked
-  complete), so she stays on the formula. Resting burn 1,320 × 1.5 → **expenditure
-  ≈ 1,980**.
-- **Pace:** Moderate −0.5% = 0.30 kg/week → −330 kcal/day → average **1,650**.
-- **Minimum:** max(1,200, 1,320, 1,485) = 1,485. The average of 1,650 is above it,
-  so nothing changes.
-- **Same every day:** 1,650 each day.
-- **Match my training:** training days 1,750 and rest days 1,575 (weights 1.0 and
-  0.9, rescaled to the same 11,550 weekly budget). This is covered by a unit test.
+- **Burn:** partial days don't count, so she stays on the formula: resting burn
+  1,320 × the week's fuel-day multiplier.
+  - The existing fuel bands smooth each day over yesterday and tomorrow, so three
+    moderate sessions make every day a "Reduced fuel day" (×1.33).
+  - Expenditure ≈ **1,760**.
+- **Pace:** Moderate −0.5% → −330 kcal/day → average **1,430**.
+- **Minimum:** max(1,200, 1,320, 1,320) = 1,320. The average is above it, so
+  nothing changes.
+- **Same every day:** 1,430.
+- **Match my training:** about 1,517 on gym days and 1,365 on rest days. The split
+  uses each day's own session, not the smoothed band.
+- If she marks days complete, the estimate then learns from what she actually eats.
+
+**Correction found in slice C:** this section first said 1,650. That assumed
+moderate sessions were "standard" fuel days, which they aren't under the
+existing bands. A known open point is whether to add a MacroFactor-style activity
+question so the starting burn isn't capped by the fuel-band calibration; that is
+for the owner to decide.
 
 ## Data changes (all additive and optional — no migration)
 

@@ -1,19 +1,22 @@
 // Resolves a member's effective nutrition target for a given date (or a
 // full Mon-Sun week), pulling in the records lib/nutrition-target.ts needs
 // and honoring the staff-controlled mode (auto/manual/disabled) on
-// NutritionTargetRecord. This is the one place both the AI coach context,
+// NutritionTargetRecord. Auto targets are v2 weekly targets: one budget per
+// Mon-Sun week, spread evenly or by training (see
+// docs/nutrition-targets-v2-plan-2026-10.md). This is the one place both the AI coach context,
 // the mobile/web nutrition views, and the new Day/Week screens should call
 // through — so every surface always agrees on the same number.
 
 import { computeGoalTimeline, goalTimelineAdjustKcal as kcalFromWeeklyRate } from "./body-composition-goal";
 import { resolveCurrentBodyFatPct } from "./body-fat";
 import { resolveCurrentWeightKg } from "./body-weight";
-import { estimatePhase, type PhaseName } from "./cycle-phase";
+import { estimatePhase } from "./cycle-phase";
 import {
   findBodyFatLogsByUserId,
   findBodyWeightLogsByUserId,
   findCycleSettingsByUserId,
   findFoodEntriesByUserId,
+  findNutritionDayStatusesByUserId,
   findNutritionTargetByUserId,
   findProfileByUserId,
   findRecoveryLogsByUserId,
@@ -24,20 +27,33 @@ import {
   type RecoveryLogRecord,
   type WorkoutSessionRecord,
 } from "./db";
-import { exertionFromDayLoad, goalBiasFromPrimaryGoal, weightedThreeDayLoad, type Exertion } from "./nutrition";
+import { exertionFromDayLoad, fuelBandForLoad, weightedThreeDayLoad, type Exertion, type FuelBand, type FuelDay } from "./nutrition";
+import { isMembershipTier } from "./member-access";
+import { resolveMemberTierForUser } from "./membership-entitlement";
 import {
-  buildTargetRationale,
-  complianceAdjustmentKcal,
-  computeDailyTarget,
-  estimateAdaptiveTdee,
+  defaultPaceForGoal,
+  distributeWeek,
   exertionFromWeeklySessions,
-  type DailyTarget,
-  type IntakePoint,
-  type TdeeEstimate,
+  formulaExpenditureKcal,
+  KCAL_PER_KG_FAT,
+  learnExpenditure,
+  macrosForCalorieTarget,
+  minimumDailyAverageKcal,
+  paceAdjustKcal,
+  resolveDistribution,
+  restingKcal,
+  SEX_FLOOR_KCAL,
+  weeklyBudget,
+  type CalorieDistribution,
+  type DayLogStatus,
+  type DiaryDay,
+  type DistributionSource,
+  type ExpenditureEstimate,
+  type WeeklyBudget,
   type WeightPoint,
 } from "./nutrition-target";
 import { trainingLoadForLog, trainingLoadForSession } from "./recovery";
-import type { TrainingDayOfWeek, WeeklyTrainingSession } from "./profile-schema";
+import type { Gender, TrainingDayOfWeek, WeeklyTrainingSession } from "./profile-schema";
 import { activeWeeklySessions } from "./weekly-training";
 
 function isoDaysFrom(dateISO: string, days: number): string {
@@ -111,12 +127,26 @@ function loadForDate(
   return weightedThreeDayLoad(yesterday, today, tomorrow);
 }
 
-function dailyCaloriesByDate(entries: { date: string; calories: number }[]): Map<string, number> {
-  const map = new Map<string, number>();
+// One DiaryDay per date the member logged food on: summed calories, how many
+// meal slots have food, and their own complete/incomplete mark.
+function diaryDaysFrom(
+  entries: { date: string; calories: number; mealType: string }[],
+  statuses: { date: string; status: DayLogStatus }[]
+): DiaryDay[] {
+  const byDate = new Map<string, { calories: number; slots: Set<string> }>();
   for (const e of entries) {
-    map.set(e.date, (map.get(e.date) ?? 0) + e.calories);
+    const day = byDate.get(e.date) ?? { calories: 0, slots: new Set<string>() };
+    day.calories += e.calories;
+    day.slots.add(e.mealType);
+    byDate.set(e.date, day);
   }
-  return map;
+  const statusByDate = new Map(statuses.map((s) => [s.date, s.status]));
+  return [...byDate.entries()].map(([date, d]) => ({
+    date,
+    calories: d.calories,
+    mealSlotsLogged: d.slots.size,
+    status: statusByDate.get(date) ?? null,
+  }));
 }
 
 export interface ResolvedNutritionTarget {
@@ -128,6 +158,8 @@ export interface ResolvedNutritionTarget {
   fatG: number | null;
   fuelDay: string | null;
   fuelDayLabel: string | null;
+  /** "adaptive" once expenditure has been learned from complete food days
+      and weigh-ins, "estimated" while it's still the formula. */
   source: "adaptive" | "estimated" | "manual" | null;
   notes: string | null;
   /** The member's current weight as resolved from logs (see
@@ -135,8 +167,7 @@ export interface ResolvedNutritionTarget {
       (the AI coach) always match what the target math actually used. */
   bodyWeightKg: number | null;
   /** Member-facing "why this number" lines — null when there's no number to
-      explain (disabled/no weight on file). See buildTargetRationale in
-      lib/nutrition-target.ts. */
+      explain (disabled/no weight on file). See buildWeeklyRationale below. */
   rationale: string[] | null;
   /** True when mode is "manual" and the member set it themselves (via the
       AI Nutrition Coach's "Apply this target" button — see
@@ -145,7 +176,36 @@ export interface ResolvedNutritionTarget {
       the two so the UI doesn't mislabel a member's own override as
       coach-set. */
   setByMember: boolean;
+  // ── v2 weekly fields (docs/nutrition-targets-v2-plan-2026-10.md). Null
+  //    whenever the target isn't auto-computed (manual, disabled, no weight).
+  weekStart: string | null;
+  weekBudgetKcal: number | null;
+  dailyAverageKcal: number | null;
+  expenditureKcal: number | null;
+  expenditureSource: "formula" | "learned" | null;
+  /** Complete food days in the 14 days before this week's check-in. */
+  completeDaysLast14: number | null;
+  /** Signed % of bodyweight per week the budget aims for. */
+  pacePctPerWeek: number | null;
+  paceLimited: boolean;
+  minimumApplied: boolean;
+  distribution: CalorieDistribution | null;
+  distributionSource: DistributionSource | null;
 }
+
+const NO_WEEK_FIELDS = {
+  weekStart: null,
+  weekBudgetKcal: null,
+  dailyAverageKcal: null,
+  expenditureKcal: null,
+  expenditureSource: null,
+  completeDaysLast14: null,
+  pacePctPerWeek: null,
+  paceLimited: false,
+  minimumApplied: false,
+  distribution: null,
+  distributionSource: null,
+} as const;
 
 function disabledResult(dateISO: string, notes: string | null, bodyWeightKg: number | null): ResolvedNutritionTarget {
   return {
@@ -162,6 +222,7 @@ function disabledResult(dateISO: string, notes: string | null, bodyWeightKg: num
     bodyWeightKg,
     rationale: null,
     setByMember: false,
+    ...NO_WEEK_FIELDS,
   };
 }
 
@@ -189,6 +250,7 @@ function manualResult(dateISO: string, record: NutritionTargetRecord, bodyWeight
         : "Set directly by your coach — it doesn't change automatically day to day.",
     ],
     setByMember,
+    ...NO_WEEK_FIELDS,
   };
 }
 
@@ -207,24 +269,7 @@ function emptyAutoResult(dateISO: string): ResolvedNutritionTarget {
     bodyWeightKg: null,
     rationale: null,
     setByMember: false,
-  };
-}
-
-function autoResult(dateISO: string, target: DailyTarget, bodyWeightKg: number): ResolvedNutritionTarget {
-  return {
-    date: dateISO,
-    mode: "auto",
-    calories: target.calories,
-    proteinG: target.proteinG,
-    carbsG: target.carbsG,
-    fatG: target.fatG,
-    fuelDay: target.fuelDay,
-    fuelDayLabel: target.fuelDayLabel,
-    source: target.source,
-    notes: null,
-    bodyWeightKg,
-    rationale: buildTargetRationale(target),
-    setByMember: false,
+    ...NO_WEEK_FIELDS,
   };
 }
 
@@ -233,32 +278,214 @@ interface ResolveContext {
   todayISO: string;
   overrideRecord: NutritionTargetRecord | undefined;
   bodyWeightKg: number | null;
-  gender: import("./profile-schema").Gender;
+  gender: Gender;
   dateOfBirth: string | null;
   heightCm: number | null;
-  goalBias: import("./nutrition").WeightGoalBias;
+  primaryGoal: string;
+  /** The member's chosen pace, or null to fall back (see goalAdjustFor). */
+  paceSetting: number | null;
+  memberDistribution: CalorieDistribution | null;
+  isMembershipTier: boolean;
   recoveryLogs: RecoveryLogRecord[];
   sessions: WeeklyTrainingSession[];
   workoutSessions: WorkoutSessionRecord[];
-  tdee: TdeeEstimate | null;
-  foodEntries: { date: string; calories: number }[];
+  weightPoints: WeightPoint[];
+  diaryDays: DiaryDay[];
   /** Only ever applied to dateISO === todayISO — see loadForDate. */
   tomorrowOverride?: Exertion;
   /** Cycle-tracking inputs, present only when the member has it enabled —
-      see estimatePhase in lib/cycle-phase.ts. Phase is resolved per-date
-      inside resolveTargetForDate (it varies day to day), not precomputed
-      once here. */
+      see estimatePhase in lib/cycle-phase.ts. */
   cycleTracking: {
     lastPeriodStartDate: string | null;
     averageCycleLengthDays: number | null;
     periodLengthDays: number | null;
     regularity: import("./profile-schema").CycleRegularity | null;
   } | null;
-  /** Precomputed once (anchored to todayISO, not per-date) from the
-      member's goal fields + logged trend — see buildContext and
-      lib/body-composition-goal.ts. Null when no goal timeline is set,
-      which keeps computeDailyTarget's original flat goalBias behavior. */
+  /** From the member's goal weight/body-fat + target date (see buildContext
+      and lib/body-composition-goal.ts). Used as the pace only when the
+      member hasn't chosen one. Null when no goal timeline is set. */
   goalTimelineAdjustKcal: number | null;
+  /** Weekly results, computed once per week per request. */
+  weekCache: Map<string, ResolvedWeekPlan>;
+}
+
+interface ResolvedWeekPlan {
+  weekStart: string;
+  fuelBands: FuelBand[];
+  lutealDays: boolean[];
+  dayKcal: number[];
+  expenditure: ExpenditureEstimate;
+  budget: WeeklyBudget;
+  pacePctPerWeek: number;
+  distribution: CalorieDistribution;
+  distributionSource: DistributionSource;
+}
+
+const SPLIT_DAY_FOR_EXERTION: Record<Exertion, FuelDay> = {
+  low: "reduced",
+  medium: "standard",
+  high: "full",
+  match: "match",
+};
+
+// The member's chosen pace wins; otherwise a goal timeline's rate; otherwise
+// the default for their primary goal.
+function goalAdjustFor(ctx: ResolveContext, bodyWeightKg: number): { adjustKcal: number; pacePctPerWeek: number } {
+  if (ctx.paceSetting !== null) {
+    return { adjustKcal: paceAdjustKcal(ctx.paceSetting, bodyWeightKg), pacePctPerWeek: ctx.paceSetting };
+  }
+  if (ctx.goalTimelineAdjustKcal !== null) {
+    const pct = ((ctx.goalTimelineAdjustKcal * 7) / KCAL_PER_KG_FAT / bodyWeightKg) * 100;
+    return { adjustKcal: ctx.goalTimelineAdjustKcal, pacePctPerWeek: Math.round(pct * 100) / 100 };
+  }
+  const pace = defaultPaceForGoal(ctx.primaryGoal);
+  return { adjustKcal: paceAdjustKcal(pace, bodyWeightKg), pacePctPerWeek: pace };
+}
+
+function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: number): ResolvedWeekPlan {
+  const cached = ctx.weekCache.get(weekStart);
+  if (cached) return cached;
+
+  const dates = Array.from({ length: 7 }, (_, i) => isoDaysFrom(weekStart, i));
+  const fuelBands = dates.map((d) =>
+    fuelBandForLoad(
+      loadForDate(d, ctx.recoveryLogs, ctx.sessions, ctx.workoutSessions, d === ctx.todayISO ? ctx.tomorrowOverride : undefined)
+    )
+  );
+  const lutealDays = dates.map((d) =>
+    ctx.cycleTracking
+      ? estimatePhase(
+          ctx.cycleTracking.lastPeriodStartDate,
+          ctx.cycleTracking.averageCycleLengthDays,
+          ctx.cycleTracking.periodLengthDays,
+          ctx.cycleTracking.regularity,
+          d
+        ).phase === "Luteal"
+      : false
+  );
+
+  const { adjustKcal, pacePctPerWeek } = goalAdjustFor(ctx, bodyWeightKg);
+  const formulaKcal = formulaExpenditureKcal(
+    bodyWeightKg,
+    ctx.gender,
+    ctx.dateOfBirth,
+    weekStart,
+    ctx.heightCm,
+    fuelBands.map((b) => b.day)
+  );
+  const expenditure = learnExpenditure({
+    formulaKcal,
+    weightLogs: ctx.weightPoints,
+    diaryDays: ctx.diaryDays,
+    goalAdjustKcal: adjustKcal,
+    checkInDate: weekStart,
+  });
+  const resting = restingKcal(bodyWeightKg, ctx.gender, ctx.dateOfBirth, weekStart, ctx.heightCm);
+  const budget = weeklyBudget(expenditure.kcal, adjustKcal, minimumDailyAverageKcal(ctx.gender, resting, expenditure.kcal));
+  const { distribution, source: distributionSource } = resolveDistribution({
+    coachDistribution: ctx.overrideRecord?.distribution ?? null,
+    coachLocked: ctx.overrideRecord?.distributionLocked ?? false,
+    memberDistribution: ctx.memberDistribution,
+    isMembershipTier: ctx.isMembershipTier,
+  });
+  // The split follows each day's OWN planned/logged session, not the fuel
+  // band: bands smooth over yesterday and tomorrow, so three moderate gym
+  // days a week come out "reduced" every day and there'd be nothing to
+  // spread. A moderate session counts as standard, a rest day as reduced.
+  const tomorrowISO = isoDaysFrom(ctx.todayISO, 1);
+  const splitDays: FuelDay[] = dates.map((d) => {
+    const exertion =
+      d === tomorrowISO && ctx.tomorrowOverride
+        ? ctx.tomorrowOverride
+        : exertionForDate(d, ctx.recoveryLogs, ctx.sessions, ctx.workoutSessions);
+    return SPLIT_DAY_FOR_EXERTION[exertion];
+  });
+  const dayKcal = distributeWeek({
+    weekBudgetKcal: budget.weekBudgetKcal,
+    distribution,
+    fuelDays: splitDays,
+    lutealDays,
+    dayFloorKcal: SEX_FLOOR_KCAL[ctx.gender],
+  });
+
+  const plan: ResolvedWeekPlan = {
+    weekStart,
+    fuelBands,
+    lutealDays,
+    dayKcal,
+    expenditure,
+    budget,
+    pacePctPerWeek,
+    distribution,
+    distributionSource,
+  };
+  ctx.weekCache.set(weekStart, plan);
+  return plan;
+}
+
+// Member-facing "why this number" lines for a v2 weekly target, in display
+// order — built only from what the week plan actually used.
+export function buildWeeklyRationale(input: {
+  expenditureKcal: number;
+  expenditureSource: "formula" | "learned";
+  completeDaysLast14: number;
+  usedHeightAndAge: boolean;
+  pacePctPerWeek: number;
+  bodyWeightKg: number;
+  paceLimited: boolean;
+  minimumApplied: boolean;
+  distribution: CalorieDistribution;
+  distributionSource: DistributionSource;
+  fuelDayLabel: string;
+  dayKcal: number;
+  dailyAverageKcal: number;
+  lutealToday: boolean;
+}): string[] {
+  const lines: string[] = [];
+
+  lines.push(
+    input.expenditureSource === "learned"
+      ? `Built on your burn as learned from your complete food days and weigh-ins — about ${input.expenditureKcal.toLocaleString("en-GB")} kcal a day.`
+      : `Built on an estimate of your burn — about ${input.expenditureKcal.toLocaleString("en-GB")} kcal a day — from your weight${
+          input.usedHeightAndAge ? ", height and age" : ""
+        } and weekly training. Log complete food days and weigh in a few times a week, and after about two weeks it learns your real burn (${input.completeDaysLast14} of the last 14 days counted).`
+  );
+
+  const kgPerWeek = Math.round(Math.abs(input.pacePctPerWeek / 100) * input.bodyWeightKg * 100) / 100;
+  if (input.paceLimited) {
+    lines.push("We've slowed your pace to keep your target at a safe level for you.");
+  } else if (input.pacePctPerWeek < 0) {
+    lines.push(`Set for losing about ${Math.abs(input.pacePctPerWeek)}% of your bodyweight a week (${kgPerWeek} kg).`);
+  } else if (input.pacePctPerWeek > 0) {
+    lines.push(`Set for gaining about ${input.pacePctPerWeek}% of your bodyweight a week (${kgPerWeek} kg).`);
+  } else {
+    lines.push("Set to maintain your weight.");
+  }
+  if (input.minimumApplied && !input.paceLimited) {
+    lines.push("Held at a safe minimum for you rather than going lower.");
+  }
+
+  const who =
+    input.distributionSource === "coach-locked" || input.distributionSource === "coach"
+      ? " (set by your coach)"
+      : "";
+  if (input.distribution === "even") {
+    lines.push(`Your weekly budget is spread evenly — the same number every day${who}.`);
+  } else {
+    const diff = input.dayKcal - input.dailyAverageKcal;
+    const relative =
+      Math.abs(diff) < 25
+        ? "right on your daily average"
+        : `${Math.abs(diff).toLocaleString("en-GB")} kcal ${diff > 0 ? "above" : "below"} your daily average`;
+    lines.push(`Your weekly budget follows your training${who} — today is a "${input.fuelDayLabel}", ${relative}.`);
+  }
+
+  if (input.lutealToday) {
+    lines.push("Includes +120 kcal for the luteal phase of your cycle, taken from your other days this week.");
+  }
+
+  lines.push("Your budget is reviewed every Monday.");
+  return lines;
 }
 
 function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNutritionTarget {
@@ -268,49 +495,60 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
   if (mode === "manual" && ctx.overrideRecord) return manualResult(dateISO, ctx.overrideRecord, ctx.bodyWeightKg);
 
   if (ctx.bodyWeightKg === null) return emptyAutoResult(dateISO);
+  const bodyWeightKg = ctx.bodyWeightKg;
 
-  let yesterdayComplianceKcal: number | undefined;
-  if (dateISO === ctx.todayISO) {
-    const yesterdayISO = isoDaysFrom(dateISO, -1);
-    const yesterdayTarget = resolveTargetForDate(ctx, yesterdayISO); // dateISO !== todayISO inside, so this doesn't recurse further
-    const yesterdayActual = dailyCaloriesByDate(ctx.foodEntries).get(yesterdayISO) ?? null;
-    yesterdayComplianceKcal =
-      yesterdayTarget.calories !== null && yesterdayActual !== null
-        ? complianceAdjustmentKcal(yesterdayTarget.calories, yesterdayActual)
-        : 0;
-  }
+  const weekStart = mondayOfWeek(dateISO);
+  const plan = weekPlanFor(ctx, weekStart, bodyWeightKg);
+  const index = daysBetweenISO(weekStart, dateISO);
+  const band = plan.fuelBands[index];
+  const calories = plan.dayKcal[index];
+  const macros = macrosForCalorieTarget(calories, bodyWeightKg, band);
 
-  const load = loadForDate(
-    dateISO,
-    ctx.recoveryLogs,
-    ctx.sessions,
-    ctx.workoutSessions,
-    dateISO === ctx.todayISO ? ctx.tomorrowOverride : undefined
-  );
-  const cyclePhase = ctx.cycleTracking
-    ? estimatePhase(
-        ctx.cycleTracking.lastPeriodStartDate,
-        ctx.cycleTracking.averageCycleLengthDays,
-        ctx.cycleTracking.periodLengthDays,
-        ctx.cycleTracking.regularity,
-        dateISO
-      ).phase
-    : null;
-  const target = computeDailyTarget({
-    bodyWeightKg: ctx.bodyWeightKg,
-    gender: ctx.gender,
-    dateOfBirth: ctx.dateOfBirth,
-    heightCm: ctx.heightCm,
-    goalBias: ctx.goalBias,
-    tdee: ctx.tdee,
-    load,
+  return {
     date: dateISO,
-    yesterdayComplianceKcal,
-    cyclePhase,
-    goalTimelineAdjustKcal: ctx.goalTimelineAdjustKcal,
-  });
+    mode: "auto",
+    calories: macros.calories,
+    proteinG: macros.proteinG,
+    carbsG: macros.carbsG,
+    fatG: macros.fatG,
+    fuelDay: band.day,
+    fuelDayLabel: band.label,
+    source: plan.expenditure.source === "learned" ? "adaptive" : "estimated",
+    notes: null,
+    bodyWeightKg,
+    rationale: buildWeeklyRationale({
+      expenditureKcal: plan.expenditure.kcal,
+      expenditureSource: plan.expenditure.source,
+      completeDaysLast14: plan.expenditure.completeDaysLast14,
+      usedHeightAndAge: ctx.heightCm !== null && ctx.dateOfBirth !== null,
+      pacePctPerWeek: plan.pacePctPerWeek,
+      bodyWeightKg,
+      paceLimited: plan.budget.paceLimited,
+      minimumApplied: plan.budget.minimumApplied,
+      distribution: plan.distribution,
+      distributionSource: plan.distributionSource,
+      fuelDayLabel: band.label,
+      dayKcal: calories,
+      dailyAverageKcal: plan.budget.dailyAverageKcal,
+      lutealToday: plan.lutealDays[index],
+    }),
+    setByMember: false,
+    weekStart,
+    weekBudgetKcal: plan.budget.weekBudgetKcal,
+    dailyAverageKcal: plan.budget.dailyAverageKcal,
+    expenditureKcal: plan.expenditure.kcal,
+    expenditureSource: plan.expenditure.source,
+    completeDaysLast14: plan.expenditure.completeDaysLast14,
+    pacePctPerWeek: plan.pacePctPerWeek,
+    paceLimited: plan.budget.paceLimited,
+    minimumApplied: plan.budget.minimumApplied,
+    distribution: plan.distribution,
+    distributionSource: plan.distributionSource,
+  };
+}
 
-  return autoResult(dateISO, target, ctx.bodyWeightKg);
+function daysBetweenISO(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 }
 
 function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exertion): ResolveContext | null {
@@ -325,20 +563,15 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
   const recoveryLogs = findRecoveryLogsByUserId(userId);
   const schedule = findWeeklyTrainingScheduleByUserId(userId);
   const workoutSessions = findWorkoutSessionsByUserId(userId);
-  const foodEntries = findFoodEntriesByUserId(userId);
+  const diaryDays = diaryDaysFrom(findFoodEntriesByUserId(userId), findNutritionDayStatusesByUserId(userId));
 
   const weightPoints: WeightPoint[] = weightLogs.map((l) => ({ date: l.date, weightKg: l.weightKg }));
-  const intakePoints: IntakePoint[] = [...dailyCaloriesByDate(foodEntries).entries()].map(([date, calories]) => ({
-    date,
-    calories,
-  }));
-  const tdee = bodyWeightKg !== null ? estimateAdaptiveTdee(weightPoints, intakePoints, todayISO) : null;
 
   // Body-fat goal is primary when set (a more direct read on "aggressive
   // but still healthy" than scale weight, which conflates fat and muscle);
   // weight goal is the fallback. Only computed when there's a target date —
-  // without one there's no rate to derive, so the member just sees their
-  // "at current trend" projection (built client-side from the same logs).
+  // without one there's no rate to derive. A pace the member picked
+  // (profile.goalPacePctPerWeek) takes precedence over this; see goalAdjustFor.
   const goalTimelineAdjustKcal: number | null = (() => {
     if (bodyWeightKg === null || !profile.goalTargetDate) return null;
 
@@ -379,12 +612,15 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
     gender: profile.gender,
     dateOfBirth: profile.dateOfBirth,
     heightCm: profile.heightCm ?? null,
-    goalBias: goalBiasFromPrimaryGoal(profile.primaryGoal),
+    primaryGoal: profile.primaryGoal,
+    paceSetting: profile.goalPacePctPerWeek ?? null,
+    memberDistribution: profile.calorieDistribution ?? null,
+    isMembershipTier: isMembershipTier(resolveMemberTierForUser(userId)),
     recoveryLogs,
     sessions: schedule?.sessions ?? [],
     workoutSessions,
-    tdee,
-    foodEntries,
+    weightPoints,
+    diaryDays,
     tomorrowOverride,
     cycleTracking: (() => {
       if (!profile.cycleTrackingEnabled) return null;
@@ -398,12 +634,13 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
       };
     })(),
     goalTimelineAdjustKcal,
+    weekCache: new Map(),
   };
 }
 
 // todayISO is injectable (tests, and callers like buildNutritionCoachContext
 // that already treat "today" as a parameter rather than the wall clock) —
-// it anchors both the compliance-nudge comparison and the TDEE window.
+// it anchors which day's real logs feed the plan and the tomorrowOverride.
 // Defaults to the real current date for normal API-route callers.
 export function getResolvedNutritionTarget(
   userId: string,

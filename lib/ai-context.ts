@@ -529,7 +529,24 @@ export function buildNutritionCoachContext(input: NutritionCoachContextInput): N
     lines.push(`- Protein: ${resolvedTarget.proteinG} g`);
     lines.push(`- Carbs: ${resolvedTarget.carbsG} g`);
     lines.push(`- Fat: ${resolvedTarget.fatG} g`);
-    if (goalBias !== "maintain") {
+    // v2 weekly targets: one budget per Mon-Sun week, reviewed every Monday.
+    if (resolvedTarget.weekBudgetKcal !== null && resolvedTarget.dailyAverageKcal !== null) {
+      lines.push(
+        `- Weekly budget: ${resolvedTarget.weekBudgetKcal} kcal (daily average ${resolvedTarget.dailyAverageKcal} kcal), reviewed every Monday — it does not change mid-week, and eating over one day is never taken off the next.`
+      );
+      lines.push(
+        resolvedTarget.distribution === "training"
+          ? "- Spread by training: more on heavy/match days, less on rest days, within ±20% of the daily average."
+          : "- Spread evenly: the same target every day."
+      );
+    }
+    if (resolvedTarget.pacePctPerWeek !== null && resolvedTarget.pacePctPerWeek !== 0) {
+      lines.push(
+        `- Goal pace: ${resolvedTarget.pacePctPerWeek > 0 ? "gain" : "lose"} about ${Math.abs(resolvedTarget.pacePctPerWeek)}% of bodyweight per week${
+          resolvedTarget.paceLimited ? " (slowed to keep the target at a safe minimum)" : ""
+        }.`
+      );
+    } else if (goalBias !== "maintain") {
       lines.push(`- Adjusted for their ${profile.primaryGoal.toLowerCase()} goal.`);
     }
   } else {
