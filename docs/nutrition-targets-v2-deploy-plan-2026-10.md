@@ -1,6 +1,6 @@
 # Nutrition targets v2 — production deploy plan (2026-10-25)
 
-Status: **approved 2026-10-25.** Step 1 done on local `release/nutrition-v2`: 2,968 tests pass, typecheck clean, no lint errors in changed files, `next build --webpack` succeeds with both new routes. Steps 2–3 (owner) next; nothing pushed.
+Status: **approved 2026-10-25.** Step 1 done on local `release/nutrition-v2`: 2,968 tests pass, typecheck clean, no lint errors in changed files, `next build --webpack` succeeds with both new routes. Steps 2–3 done by the owner (below); push awaits the owner's "push now".
 
 Goal: get nutrition targets v2 onto the live server, so that phone build 81
 shows everything (the seven screen changes and the crash fixes, which need no
@@ -120,6 +120,20 @@ Hostinger auto-builds on push. No force-push: it is a fast-forward from
 
 Use your own and test accounts only. Don't change a real member's settings
 unless you mean to.
+
+## Owner checks done (2026-10-25, over SSH)
+
+- **Live source:** `hbuilds/last-source/.git/HEAD` = `7755665632d74ee51cbab26428beba34f3d0dac6`.
+  `lib/site-url.ts` and `docs/soft-launch-deployment.md` (both added in that commit) are present.
+- **Branch:** `origin/redesign/index-html-blueprint` is the only remote branch at that commit
+  (also the repository default).
+- **Datastore:** `~/domains/sandccoaching.com/hbuilds/persistent-data/db.json`. This is outside
+  `versions/` and `current`, so deploys don't replace it.
+- **Backup:** `~/backups/db.json.pre-nutrition-v2-20261025-154731`, mode 600.
+  - 1,857,156 bytes.
+  - sha256 `ab83317d529eba79029b18a91ef4607911deb4f8d676242cbaff4159a7d15e65`, which matches the
+    live file at copy time.
+  - Older backups are kept.
 
 ## Rollback
 
