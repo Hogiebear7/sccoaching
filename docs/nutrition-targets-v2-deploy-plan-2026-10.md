@@ -1,6 +1,6 @@
 # Nutrition targets v2 — production deploy plan (2026-10-25)
 
-Status: **approved 2026-10-25.** Step 1 (local release branch) in progress; nothing pushed.
+Status: **approved 2026-10-25.** Step 1 done on local `release/nutrition-v2`: 2,968 tests pass, typecheck clean, no lint errors in changed files, `next build --webpack` succeeds with both new routes. Steps 2–3 (owner) next; nothing pushed.
 
 Goal: get nutrition targets v2 onto the live server, so that phone build 81
 shows everything (the seven screen changes and the crash fixes, which need no
