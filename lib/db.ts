@@ -3,6 +3,7 @@ import path from "path";
 import { randomUUID, randomBytes, createHash } from "crypto";
 
 import type {
+  CalorieDistribution,
   CyclePrivacyPreferencesRecord,
   CycleSettingsRecord,
   PregnancyStatusRecord,
@@ -470,7 +471,26 @@ export interface NutritionTargetRecord {
   fatG: number | null;
   setByStaffId: string;
   notes: string | null;
+  // Nutrition targets v2: a coach's default spread for this member's weekly
+  // calories, and whether it's locked (the member can't change it). Optional
+  // so earlier records stay valid; preserved by every writer of this record.
+  distribution?: CalorieDistribution | null;
+  distributionLocked?: boolean;
   createdAt: string;
+  updatedAt: string;
+}
+
+// A member's own mark on a food-diary day — "complete" means the day can
+// teach the expenditure estimate even if it looks light, "incomplete" means
+// it never does. One row per member per date; no row means "unmarked"
+// (see isCompleteDay in lib/nutrition-target.ts).
+export type NutritionDayStatus = "complete" | "incomplete";
+
+export interface NutritionDayStatusRecord {
+  id: string;
+  userId: string;
+  date: string;
+  status: NutritionDayStatus;
   updatedAt: string;
 }
 
@@ -1972,6 +1992,7 @@ interface Database {
   workoutTemplates: WorkoutTemplateRecord[];
   gymProfiles: GymProfileRecord[];
   nutritionTargets: NutritionTargetRecord[];
+  nutritionDayStatuses: NutritionDayStatusRecord[];
   foodEntries: FoodEntryRecord[];
   customFoods: FoodRecord[];
   commonFoods: FoodRecord[];
@@ -2111,6 +2132,7 @@ function readDb(): Database {
       workoutTemplates: [],
       gymProfiles: [],
       nutritionTargets: [],
+      nutritionDayStatuses: [],
       foodEntries: [],
       customFoods: [],
       commonFoods: [],
@@ -2214,6 +2236,8 @@ function readDb(): Database {
       goalBodyFatPct: p.goalBodyFatPct ?? null,
       goalTargetDate: p.goalTargetDate ?? null,
       trainingDaysPerWeek: p.trainingDaysPerWeek ?? null,
+      goalPacePctPerWeek: p.goalPacePctPerWeek ?? null,
+      calorieDistribution: p.calorieDistribution ?? null,
       secondaryGoal: p.secondaryGoal ?? null,
       country: p.country ?? null,
     })),
@@ -2234,6 +2258,7 @@ function readDb(): Database {
     // to "manual" on read so its calories/macros keep meaning what they
     // always meant (see NutritionTargetRecord for the mode contract).
     nutritionTargets: (parsed.nutritionTargets ?? []).map((t) => ({ ...t, mode: t.mode ?? "manual" })),
+    nutritionDayStatuses: parsed.nutritionDayStatuses ?? [],
     foodEntries: parsed.foodEntries ?? [],
     customFoods: parsed.customFoods ?? [],
     commonFoods: parsed.commonFoods ?? [],
@@ -2547,7 +2572,7 @@ const MEMBER_OWNED_COLLECTIONS = [
   "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
-  "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
+  "nutritionTargets", "nutritionDayStatuses", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
   "recipes", "shoppingListItems", "foodFavorites",
   // googlePlayPurchases is deliberately NOT here: purchase records are anonymised, never deleted (see deleteUserAndOwnedRecords).
 ] as const;
@@ -2931,6 +2956,34 @@ export function saveNutritionTarget(target: NutritionTargetRecord): void {
   if (index === -1) db.nutritionTargets.push(target);
   else db.nutritionTargets[index] = target;
   writeDb(db);
+}
+
+export function findNutritionDayStatusesByUserId(userId: string): NutritionDayStatusRecord[] {
+  return readDb().nutritionDayStatuses.filter((s) => s.userId === userId);
+}
+
+// Sets or clears (status null) a member's mark on one diary day.
+export function setNutritionDayStatus(userId: string, date: string, status: NutritionDayStatus | null): NutritionDayStatusRecord | null {
+  const db = readDb();
+  const index = db.nutritionDayStatuses.findIndex((s) => s.userId === userId && s.date === date);
+  if (status === null) {
+    if (index !== -1) {
+      db.nutritionDayStatuses.splice(index, 1);
+      writeDb(db);
+    }
+    return null;
+  }
+  const record: NutritionDayStatusRecord = {
+    id: index === -1 ? randomUUID() : db.nutritionDayStatuses[index].id,
+    userId,
+    date,
+    status,
+    updatedAt: new Date().toISOString(),
+  };
+  if (index === -1) db.nutritionDayStatuses.push(record);
+  else db.nutritionDayStatuses[index] = record;
+  writeDb(db);
+  return record;
 }
 
 export function findFoodEntriesByUserId(userId: string): FoodEntryRecord[] {

@@ -60,6 +60,11 @@ export interface UserRecord {
   updatedAt: string;
 }
 
+// How a member's weekly calorie budget is spread across the days (see
+// docs/nutrition-targets-v2-plan-2026-10.md): the same every day, or more on
+// planned training days.
+export type CalorieDistribution = "even" | "training";
+
 export interface ProfileRecord {
   userId: string;
   fullName: string;
@@ -97,6 +102,12 @@ export interface ProfileRecord {
   // fraction of the hard safety ceiling. Optional/nullable, same convention
   // as the goal fields above.
   trainingDaysPerWeek?: number | null;
+  // Nutrition targets v2: the member's chosen weekly pace (signed % of
+  // bodyweight per week, e.g. -0.5) and how their weekly calories are spread.
+  // Both optional/nullable; null means "use the default" (see
+  // lib/nutrition-target.ts defaultPaceForGoal / resolveDistribution).
+  goalPacePctPerWeek?: number | null;
+  calorieDistribution?: CalorieDistribution | null;
   // ISO 3166-1 alpha-2 (e.g. "IE", "US") — used to nudge food-search ranking
   // toward locally-relevant results (see lib/food-catalog.ts's country
   // boost). Optional/nullable for pre-existing records (see db.ts

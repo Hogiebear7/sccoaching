@@ -22,7 +22,7 @@ import {
   type FuelDay,
   type WeightGoalBias,
 } from "./nutrition";
-import type { Gender, TrainingActivityType, TrainingDayOfWeek, TrainingIntensity, WeeklyTrainingSession } from "./profile-schema";
+import type { CalorieDistribution, Gender, TrainingActivityType, TrainingDayOfWeek, TrainingIntensity, WeeklyTrainingSession } from "./profile-schema";
 import type { PhaseName } from "./cycle-phase";
 
 // ─── Date helpers ───────────────────────────────────────────────────────
@@ -546,7 +546,7 @@ export function validateMemberTargetOverride(
 // evenly or by training. Everything below is pure; the resolver in
 // lib/nutrition-target-data.ts feeds it records.
 
-export type CalorieDistribution = "even" | "training";
+export type { CalorieDistribution };
 export type DayLogStatus = "complete" | "incomplete";
 
 function isoDaysFrom(dateISO: string, days: number): string {

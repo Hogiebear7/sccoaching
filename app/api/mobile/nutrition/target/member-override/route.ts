@@ -91,6 +91,8 @@ export async function POST(request: NextRequest) {
     fatG: fat,
     setByStaffId: user.id,
     notes: "Set by member via AI Nutrition Coach chat.",
+    distribution: existing?.distribution ?? null,
+    distributionLocked: existing?.distributionLocked ?? false,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findFoodEntriesByUserId, findUserById } from "@/lib/db";
+import { findFoodEntriesByUserId, findNutritionDayStatusesByUserId, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sumDailyTotals } from "@/lib/nutrition-diary";
 
@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
   }
 
   const entries = findFoodEntriesByUserId(user.id).filter((e) => e.date === date);
+  // The member's own complete/incomplete mark for this day, or null.
+  const dayStatus = findNutritionDayStatusesByUserId(user.id).find((s) => s.date === date)?.status ?? null;
 
-  return NextResponse.json({ success: true, data: { entries, totals: sumDailyTotals(entries) } });
+  return NextResponse.json({ success: true, data: { entries, totals: sumDailyTotals(entries), dayStatus } });
 }

@@ -100,6 +100,7 @@ export const COLLECTION_SCOPE = {
   pendingCancellationCredits: user(),
   recoveryLogs: user(),
   waterLogs: user(),
+  nutritionDayStatuses: user(),
   messages: user("memberId", "Thread belongs to the member; staff access is same-gym only."),
   notifications: user(),
   waitlistEntries: user(),
