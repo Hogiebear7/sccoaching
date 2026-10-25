@@ -53,6 +53,20 @@ function emailWrapper(title: string, body: string): string {
 </html>`;
 }
 
+// The no-show policy sentence, shared by the email and the in-app
+// notification so they never disagree. The 2nd miss warns about a 3rd; the
+// 3rd and later say the threshold has been reached (it used to say "if you
+// miss a third" on a 14th miss).
+export function noShowPolicyLine(missNumber: number): string {
+  if (missNumber <= 1) {
+    return "Please note: missing 3 classes within a calendar month may put your membership at risk, so if plans change, cancelling ahead of time really helps.";
+  }
+  if (missNumber === 2) {
+    return "This is your 2nd missed class this month — if you miss a third, your membership may be at risk of suspension.";
+  }
+  return `This is your ${ordinal(missNumber)} missed class this month, which puts your membership at risk of suspension. Please talk to your coach if something is getting in the way.`;
+}
+
 export function ordinal(n: number): string {
   const suffixes: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
   const mod100 = n % 100;
@@ -432,10 +446,7 @@ export function noShowEmail(opts: NoShowEmailOpts): {
   const actionUrl = `${APP_URL}/dashboard/schedule`;
   const subject = `We missed you for ${className}`;
 
-  const policyLine =
-    missNumber >= 2
-      ? `This is your ${ordinal(missNumber)} missed class this month — if you miss a third, your membership may be at risk of suspension.`
-      : `Please note: missing 3 classes within a calendar month may put your membership at risk, so if plans change, cancelling ahead of time really helps.`;
+  const policyLine = noShowPolicyLine(missNumber);
   const ePolicy = escapeHtml(policyLine);
 
   const html = emailWrapper(`We missed you: ${eClass}`, `

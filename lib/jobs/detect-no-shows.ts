@@ -17,7 +17,7 @@ import {
 } from "@/lib/db";
 import { classStartMs } from "@/lib/class-time";
 import { sendEmail } from "@/lib/email";
-import { noShowEmail, ordinal } from "@/lib/email-templates";
+import { noShowEmail, noShowPolicyLine } from "@/lib/email-templates";
 import { sendPush } from "@/lib/push";
 import type { JobDefinition } from "./types";
 
@@ -99,12 +99,7 @@ export const detectNoShowsJob: JobDefinition = {
       const profile = findProfileByUserId(booking.userId);
       const memberName = profile?.fullName || profile?.email || "there";
 
-      const body =
-        missNumber >= 2
-          ? `Sorry we missed you for today's "${cls.title}" class! We understand things can happen last minute, but if you could cancel your booking in future, that would be greatly appreciated. This is your ${ordinal(
-              missNumber
-            )} missed class this month — if you miss a third, your membership may be at risk of suspension.`
-          : `Sorry we missed you for today's "${cls.title}" class! We understand things can happen last minute, but if you could cancel your booking in future, that would be greatly appreciated. Please note: missing 3 classes in a calendar month may put your membership at risk.`;
+      const body = `Sorry we missed you for today's "${cls.title}" class! We understand things can happen last minute, but if you could cancel your booking in future, that would be greatly appreciated. ${noShowPolicyLine(missNumber)}`;
 
       const notification: NotificationRecord = {
         id: randomUUID(),
