@@ -51,7 +51,7 @@ export const MARKETING_CLASSES: MarketingClass[] = [
     tagline: "Rebuild strength after birth, with your baby beside you.",
     description:
       "A supportive session for the postnatal period: rebuild strength, improve movement and return to training safely, without needing childcare sorted first.",
-    price: { from: "€20", per: "class" },
+    price: { from: "€15", per: "class" },
     forWho: [
       "You're in the postnatal period and ready to return to training",
       "You want to rebuild strength at a sensible pace",
@@ -73,7 +73,7 @@ export const MARKETING_CLASSES: MarketingClass[] = [
     tagline: "Stay strong, mobile and independent for the long term.",
     description:
       "Strength, balance and mobility training for older adults who want to protect their independence: stronger joints and confidence in everyday movement.",
-    price: { from: "€20", per: "class" },
+    price: { from: "€15", per: "class" },
     forWho: [
       "You're over 50 and want to stay strong and capable",
       "You'd like better balance and confidence on your feet",

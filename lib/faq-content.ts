@@ -42,7 +42,7 @@ const CLASSES_AND_PRICING: FaqItem[] = [
   {
     question: "How much does it cost?",
     answer:
-      "Semi-Private Personal Training starts from €160/month. Parent & Baby and Over 50s classes start from €20/class. Every plan includes coach messaging, class booking and full workout tracking in the app.",
+      "Semi-Private Personal Training starts from €160/month. Parent & Baby and Over 50s classes start from €15/class. Every plan includes coach messaging, class booking and full workout tracking in the app.",
   },
   {
     question: "Where are you located?",

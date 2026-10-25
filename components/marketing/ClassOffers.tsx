@@ -36,9 +36,9 @@ export function ClassOffers() {
                 <span>/ {cls.price.per}</span>
               </p>
 
-              <div className="relative mt-6 min-h-[9.5rem] border-t border-white/[0.08] pt-5">
+              <div className="mt-6 mb-3 grid border-t border-white/[0.08] pt-5">
                 <p
-                  className={`text-base leading-relaxed text-zinc-300 transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0 ${
+                  className={`col-start-1 row-start-1 text-base leading-relaxed text-zinc-300 transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0 ${
                     isOpen ? "opacity-0" : "opacity-100"
                   }`}
                 >
@@ -46,7 +46,7 @@ export function ClassOffers() {
                 </p>
                 <p
                   id={descId}
-                  className={`absolute inset-x-0 top-5 text-base leading-relaxed text-zinc-100 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 ${
+                  className={`col-start-1 row-start-1 text-base leading-relaxed text-zinc-100 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 ${
                     isOpen ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
                   }`}
                 >
