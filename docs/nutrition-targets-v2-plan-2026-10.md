@@ -1,6 +1,6 @@
 # Nutrition targets v2 — plan (2026-10-25)
 
-Status: **approved 2026-10-25.** Slices A–C done; D–F to follow, each paused for review.
+Status: **approved 2026-10-25.** Slices A–E done (plus the activity-level addition); F (device test) and the deploy need owner approval.
 
 ## Why
 
