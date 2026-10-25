@@ -537,3 +537,346 @@ export function validateMemberTargetOverride(
 
   return { ok: true };
 }
+
+// ═══ v2: weekly targets ═══════════════════════════════════════════════════
+//
+// See docs/nutrition-targets-v2-plan-2026-10.md. MacroFactor-style: only
+// complete food days teach expenditure, the learned number moves gradually
+// at a Monday check-in, the week gets one budget, and that budget is spread
+// evenly or by training. Everything below is pure; the resolver in
+// lib/nutrition-target-data.ts feeds it records.
+
+export type CalorieDistribution = "even" | "training";
+export type DayLogStatus = "complete" | "incomplete";
+
+function isoDaysFrom(dateISO: string, days: number): string {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function mondayOf(dateISO: string): string {
+  const day = new Date(`${dateISO}T00:00:00Z`).getUTCDay();
+  return isoDaysFrom(dateISO, day === 0 ? -6 : 1 - day);
+}
+
+// ─── Complete days ──────────────────────────────────────────────────────
+
+export interface DiaryDay {
+  date: string;
+  calories: number;
+  /** How many of breakfast/lunch/dinner/snack have at least one entry. */
+  mealSlotsLogged: number;
+  status: DayLogStatus | null;
+}
+
+const COMPLETE_MIN_MEAL_SLOTS = 3;
+const COMPLETE_MIN_SHARE_OF_TARGET = 0.6;
+
+// A day teaches expenditure only when it is complete: marked complete, or it
+// looks complete (3+ meal slots and 60%+ of what that day's target would
+// have been). Marked incomplete or empty never counts.
+export function isCompleteDay(day: DiaryDay, referenceTargetKcal: number | null): boolean {
+  if (day.status === "incomplete" || day.calories <= 0) return false;
+  if (day.status === "complete") return true;
+  return (
+    day.mealSlotsLogged >= COMPLETE_MIN_MEAL_SLOTS &&
+    referenceTargetKcal !== null &&
+    day.calories >= referenceTargetKcal * COMPLETE_MIN_SHARE_OF_TARGET
+  );
+}
+
+// ─── Trend weight ───────────────────────────────────────────────────────
+
+const TREND_ALPHA = 0.1;
+
+// Exponentially smoothed scale weight, one value per calendar day from the
+// first weigh-in to throughDate. Gaps between weigh-ins are linearly
+// interpolated (so a weekly weigher's trend still moves), the last value is
+// carried forward, and same-day weigh-ins are averaged.
+export function trendWeightByDate(logs: WeightPoint[], throughDate: string): Map<string, number> {
+  const byDate = new Map<string, number[]>();
+  for (const p of logs) {
+    if (p.date > throughDate) continue;
+    const arr = byDate.get(p.date) ?? [];
+    arr.push(p.weightKg);
+    byDate.set(p.date, arr);
+  }
+  const daily = [...byDate.entries()]
+    .map(([date, ws]) => ({ date, w: ws.reduce((a, b) => a + b, 0) / ws.length }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const out = new Map<string, number>();
+  if (daily.length === 0) return out;
+
+  let trend = daily[0].w;
+  let next = 0;
+  for (let date = daily[0].date; date <= throughDate; date = isoDaysFrom(date, 1)) {
+    while (next + 1 < daily.length && daily[next + 1].date <= date) next++;
+    const prev = daily[next];
+    const after = daily[next + 1];
+    const scale =
+      prev.date === date || !after
+        ? prev.w
+        : prev.w + ((after.w - prev.w) * daysBetween(prev.date, date)) / daysBetween(prev.date, after.date);
+    trend = date === daily[0].date ? scale : trend + TREND_ALPHA * (scale - trend);
+    out.set(date, trend);
+  }
+  return out;
+}
+
+// ─── Learned expenditure ────────────────────────────────────────────────
+
+const LEARN_WINDOW_DAYS = 14;
+const LEARN_MIN_COMPLETE_DAYS = 7;
+const LEARN_MIN_WEIGH_INS = 4;
+const LEARN_RATE = 0.25;
+const LEARN_MAX_STEP_KCAL = 150;
+
+export interface ExpenditureInput {
+  /** Formula estimate (see formulaExpenditureKcal) — the starting point. */
+  formulaKcal: number;
+  weightLogs: WeightPoint[];
+  diaryDays: DiaryDay[];
+  /** Daily goal adjustment in force, used only to judge "looks complete". */
+  goalAdjustKcal: number;
+  /** The Monday check-in this estimate is for; data up to the day before counts. */
+  checkInDate: string;
+}
+
+export interface ExpenditureEstimate {
+  kcal: number;
+  source: "formula" | "learned";
+  learnedWeeks: number;
+  completeDaysLast14: number;
+}
+
+// Walks every Monday from the first data up to checkInDate. At each one,
+// if the last 14 days had enough complete food days and weigh-ins, the
+// estimate moves 25% of the way to what those days imply, capped at
+// ±150 kcal a week. Deterministic: the same records give the same number,
+// so nothing has to be stored.
+export function learnExpenditure(input: ExpenditureInput): ExpenditureEstimate {
+  const { formulaKcal, weightLogs, diaryDays, goalAdjustKcal, checkInDate } = input;
+  const trend = trendWeightByDate(weightLogs, isoDaysFrom(checkInDate, -1));
+  const weighInDates = new Set(weightLogs.map((p) => p.date));
+  const diaryByDate = new Map(diaryDays.map((d) => [d.date, d]));
+
+  const allDates = [...weighInDates, ...diaryDays.map((d) => d.date)].sort();
+  let estimate = formulaKcal;
+  let learnedWeeks = 0;
+  let completeDaysLast14 = 0;
+  if (allDates.length === 0) return { kcal: Math.round(estimate), source: "formula", learnedWeeks, completeDaysLast14 };
+
+  for (let monday = isoDaysFrom(mondayOf(allDates[0]), 7); monday <= checkInDate; monday = isoDaysFrom(monday, 7)) {
+    const windowStart = isoDaysFrom(monday, -LEARN_WINDOW_DAYS);
+    const windowEnd = isoDaysFrom(monday, -1);
+    const reference = estimate + goalAdjustKcal;
+
+    const intake: number[] = [];
+    let weighIns = 0;
+    for (let d = windowStart; d <= windowEnd; d = isoDaysFrom(d, 1)) {
+      const day = diaryByDate.get(d);
+      if (day && isCompleteDay(day, reference)) intake.push(day.calories);
+      if (weighInDates.has(d)) weighIns++;
+    }
+    if (monday === checkInDate) completeDaysLast14 = intake.length;
+    if (intake.length < LEARN_MIN_COMPLETE_DAYS || weighIns < LEARN_MIN_WEIGH_INS) continue;
+
+    const beforeWindow = isoDaysFrom(windowStart, -1);
+    const startTrend = trend.get(beforeWindow) ?? trend.get(windowStart);
+    const endTrend = trend.get(windowEnd);
+    if (startTrend === undefined || endTrend === undefined) continue;
+    const span = trend.has(beforeWindow) ? LEARN_WINDOW_DAYS : LEARN_WINDOW_DAYS - 1;
+
+    const avgIntake = intake.reduce((a, b) => a + b, 0) / intake.length;
+    const observed = avgIntake - ((endTrend - startTrend) * KCAL_PER_KG_FAT) / span;
+    if (!Number.isFinite(observed) || observed < MIN_PLAUSIBLE_TDEE || observed > MAX_PLAUSIBLE_TDEE) continue;
+
+    estimate += Math.max(-LEARN_MAX_STEP_KCAL, Math.min(LEARN_MAX_STEP_KCAL, LEARN_RATE * (observed - estimate)));
+    learnedWeeks++;
+  }
+
+  return { kcal: Math.round(estimate), source: learnedWeeks > 0 ? "learned" : "formula", learnedWeeks, completeDaysLast14 };
+}
+
+// ─── Formula expenditure + resting burn ─────────────────────────────────
+
+const RESTING_KCAL_PER_KG_FALLBACK = 22;
+
+// Mifflin-St Jeor when height and age are known, otherwise a bodyweight
+// approximation nudged by the same gender multiplier as the cold-start path.
+export function restingKcal(
+  bodyWeightKg: number,
+  gender: Gender,
+  dateOfBirth: string | null,
+  asOfDate: string,
+  heightCm: number | null
+): number {
+  const age = ageFromDob(dateOfBirth, asOfDate);
+  if (heightCm !== null && age !== null) {
+    return Math.round(10 * bodyWeightKg + 6.25 * heightCm - 5 * age + MIFFLIN_GENDER_CONSTANT[gender]);
+  }
+  return Math.round(bodyWeightKg * RESTING_KCAL_PER_KG_FALLBACK * GENDER_MULTIPLIER[gender]);
+}
+
+// The starting expenditure: the cold-start maintenance number averaged over
+// the week's planned fuel days, so one heavy day doesn't set the baseline.
+export function formulaExpenditureKcal(
+  bodyWeightKg: number,
+  gender: Gender,
+  dateOfBirth: string | null,
+  asOfDate: string,
+  heightCm: number | null,
+  weekFuelDays: FuelDay[]
+): number {
+  const days: FuelDay[] = weekFuelDays.length > 0 ? weekFuelDays : ["standard"];
+  const total = days.reduce(
+    (sum, day) => sum + coldStartMaintenanceKcal(bodyWeightKg, day, gender, dateOfBirth, asOfDate, heightCm),
+    0
+  );
+  return Math.round(total / days.length);
+}
+
+// ─── Goal pace ──────────────────────────────────────────────────────────
+
+/** Offered paces, % of bodyweight per week. */
+export const PACE_OPTIONS = {
+  lose: [-0.25, -0.5, -0.75, -1.0],
+  gain: [0.25, 0.5],
+} as const;
+const MIN_PACE_PCT = -1.0;
+const MAX_PACE_PCT = 0.5;
+
+export function defaultPaceForGoal(primaryGoal: string): number {
+  if (primaryGoal === "Weight Loss") return -0.5;
+  if (primaryGoal === "Build Muscle") return 0.25;
+  return 0;
+}
+
+export function clampPace(pacePctPerWeek: number): number {
+  return Math.max(MIN_PACE_PCT, Math.min(MAX_PACE_PCT, pacePctPerWeek));
+}
+
+// % of bodyweight per week -> kcal per day.
+export function paceAdjustKcal(pacePctPerWeek: number, bodyWeightKg: number): number {
+  return Math.round(((clampPace(pacePctPerWeek) / 100) * bodyWeightKg * KCAL_PER_KG_FAT) / 7);
+}
+
+// ─── Minimum + weekly budget ────────────────────────────────────────────
+
+export const SEX_FLOOR_KCAL: Record<Gender, number> = {
+  Female: 1200,
+  Male: 1500,
+  Other: 1350,
+};
+const MAX_DEFICIT_SHARE = 0.25;
+
+export function minimumDailyAverageKcal(gender: Gender, restingBurnKcal: number, expenditureKcal: number): number {
+  return Math.round(Math.max(SEX_FLOOR_KCAL[gender], restingBurnKcal, expenditureKcal * (1 - MAX_DEFICIT_SHARE)));
+}
+
+export interface WeeklyBudget {
+  weekBudgetKcal: number;
+  dailyAverageKcal: number;
+  /** The goal adjustment actually applied after the minimum (kcal/day). */
+  appliedAdjustKcal: number;
+  minimumApplied: boolean;
+  /** A loss pace had to be slowed to respect the minimum. */
+  paceLimited: boolean;
+}
+
+export function weeklyBudget(expenditureKcal: number, goalAdjustKcal: number, minimumAverageKcal: number): WeeklyBudget {
+  const wanted = Math.round(expenditureKcal + goalAdjustKcal);
+  const minimumApplied = wanted < minimumAverageKcal;
+  const dailyAverageKcal = minimumApplied ? minimumAverageKcal : wanted;
+  return {
+    weekBudgetKcal: dailyAverageKcal * 7,
+    dailyAverageKcal,
+    appliedAdjustKcal: dailyAverageKcal - Math.round(expenditureKcal),
+    minimumApplied,
+    paceLimited: minimumApplied && goalAdjustKcal < 0,
+  };
+}
+
+// ─── Spreading the week ─────────────────────────────────────────────────
+
+const FUEL_DAY_WEIGHT: Record<FuelDay, number> = {
+  reduced: 0.9,
+  standard: 1.0,
+  full: 1.1,
+  match: 1.2,
+};
+const DAY_SHARE_MIN = 0.8;
+const DAY_SHARE_MAX = 1.2;
+
+// Seven daily kcal figures (Mon..Sun) that always sum to the weekly budget.
+// "training" weights days by planned fuel day, clamped to ±20% of the
+// average; luteal days get +120 taken evenly from the rest; no day falls
+// below the floor.
+export function distributeWeek(input: {
+  weekBudgetKcal: number;
+  distribution: CalorieDistribution;
+  fuelDays: FuelDay[];
+  lutealDays?: boolean[];
+  dayFloorKcal: number;
+}): number[] {
+  const { weekBudgetKcal, distribution, fuelDays, dayFloorKcal } = input;
+  const n = 7;
+  const luteal = input.lutealDays ?? Array<boolean>(n).fill(false);
+  const avg = weekBudgetKcal / n;
+
+  let shares: number[] = distribution === "training" ? fuelDays.map((d) => FUEL_DAY_WEIGHT[d]) : Array<number>(n).fill(1);
+  for (let i = 0; i < 20; i++) {
+    const mean = shares.reduce((a, b) => a + b, 0) / n;
+    shares = shares.map((s) => Math.max(DAY_SHARE_MIN, Math.min(DAY_SHARE_MAX, s / mean)));
+  }
+  // Clamping leaves the shares a little off a mean of 1; hand the remainder
+  // to the days that aren't pinned at a limit, so no day breaks the ±20%.
+  const isFree = (s: number) => s > DAY_SHARE_MIN + 1e-9 && s < DAY_SHARE_MAX - 1e-9;
+  const residual = n - shares.reduce((a, b) => a + b, 0);
+  const freeTotal = shares.filter(isFree).reduce((a, b) => a + b, 0);
+  if (freeTotal > 0) shares = shares.map((s) => (isFree(s) ? s + (residual * s) / freeTotal : s));
+  let days = shares.map((s) => s * avg);
+
+  const lutealCount = luteal.filter(Boolean).length;
+  if (lutealCount > 0 && lutealCount < n) {
+    const take = (LUTEAL_PHASE_ADJUST_KCAL * lutealCount) / (n - lutealCount);
+    days = days.map((k, i) => (luteal[i] ? k + LUTEAL_PHASE_ADJUST_KCAL : k - take));
+  }
+
+  // Lift any day under the floor, paid for by the days above it.
+  for (let i = 0; i < 5; i++) {
+    const shortfall = days.reduce((s, k) => s + Math.max(0, dayFloorKcal - k), 0);
+    if (shortfall <= 0) break;
+    const spare = days.reduce((s, k) => s + Math.max(0, k - dayFloorKcal), 0);
+    days = days.map((k) => (k < dayFloorKcal ? dayFloorKcal : k - (spare > 0 ? ((k - dayFloorKcal) / spare) * shortfall : 0)));
+  }
+
+  const rounded = days.map((k) => Math.round(k));
+  const drift = weekBudgetKcal - rounded.reduce((a, b) => a + b, 0);
+  if (drift !== 0) {
+    // Rounding drift (a few kcal) goes to the day nearest the average, which
+    // is never one pinned at a limit or the floor.
+    let nearest = 0;
+    for (let i = 1; i < n; i++) if (Math.abs(rounded[i] - avg) < Math.abs(rounded[nearest] - avg)) nearest = i;
+    rounded[nearest] += drift;
+  }
+  return rounded;
+}
+
+// ─── Who decides the distribution ───────────────────────────────────────
+
+export type DistributionSource = "coach-locked" | "member" | "coach" | "default";
+
+export function resolveDistribution(input: {
+  coachDistribution: CalorieDistribution | null;
+  coachLocked: boolean;
+  memberDistribution: CalorieDistribution | null;
+  isMembershipTier: boolean;
+}): { distribution: CalorieDistribution; source: DistributionSource } {
+  if (input.coachLocked && input.coachDistribution) return { distribution: input.coachDistribution, source: "coach-locked" };
+  if (input.memberDistribution) return { distribution: input.memberDistribution, source: "member" };
+  if (input.coachDistribution) return { distribution: input.coachDistribution, source: "coach" };
+  return { distribution: input.isMembershipTier ? "training" : "even", source: "default" };
+}
