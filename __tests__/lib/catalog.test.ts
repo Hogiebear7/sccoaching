@@ -39,23 +39,46 @@ function oneTime(id: string, packageId: string, amountCents: number, visible = t
 
 describe("categoryFromPrice", () => {
   const category = cat("c1");
-  const packages = [pkg("p1", "c1"), pkg("p2", "c1"), pkg("hidden", "c1", false), pkg("other", "c2")];
+  const unlimited = (id: string): MembershipPackageRecord => ({
+    ...pkg(id, "c1"),
+    sessionAllowanceType: "unlimited",
+    sessionAllowanceCount: null,
+  });
+  const packages: MembershipPackageRecord[] = [
+    pkg("p1", "c1"),
+    pkg("p2", "c1"),
+    pkg("hidden", "c1", false),
+    pkg("other", "c2"),
+    unlimited("u1"),
+    { ...pkg("pack20", "c1"), sessionAllowanceCount: 20 },
+    { ...pkg("drop", "c1"), sessionAllowanceType: "single_use", sessionAllowanceCount: 1 },
+  ];
 
   it("prefers the cheapest VISIBLE RECURRING option and never lets a one-off undercut it", () => {
     const options = [
       opt("o1", "p1", 25000), // recurring
       opt("o2", "p2", 12000), // recurring (cheapest recurring)
-      oneTime("cheapPass", "p1", 3500), // one-off, cheaper — must NOT win
+      oneTime("cheapPass", "u1", 3500), // one-off unlimited pass, cheaper — must NOT win
       opt("cheapHidden", "p1", 5000, false), // hidden — ignored
       opt("onHiddenPkg", "hidden", 1000), // hidden package — ignored
       opt("otherCat", "other", 500), // different category — ignored
     ];
-    expect(categoryFromPrice(category, packages, options)).toEqual({ amountCents: 12000, billingType: "recurring" });
+    expect(categoryFromPrice(category, packages, options)).toEqual({ amountCents: 12000, billingType: "recurring", suffix: "/ month" });
   });
 
   it("falls back to the cheapest one-time option only when there are no recurring options", () => {
-    const options = [oneTime("t1", "p1", 6000), oneTime("t2", "p2", 4000)];
-    expect(categoryFromPrice(category, packages, options)).toEqual({ amountCents: 4000, billingType: "one_time" });
+    const options = [oneTime("t1", "u1", 6000), oneTime("t2", "u1", 4000)];
+    expect(categoryFromPrice(category, packages, options)).toEqual({ amountCents: 4000, billingType: "one_time", suffix: "" });
+  });
+
+  it("shows the cheapest per-class rate when the category sells class packs, even over a membership", () => {
+    const options = [
+      opt("monthly", "p1", 10000), // €100 / month recurring
+      oneTime("twenty", "pack20", 30000), // €300 for 20 = €15 / class
+      oneTime("dropIn", "drop", 2000), // €20 single class
+      oneTime("hiddenPack", "hidden", 100), // hidden package — ignored
+    ];
+    expect(categoryFromPrice(category, packages, options)).toEqual({ amountCents: 1500, billingType: "one_time", suffix: "/ class" });
   });
 
   it("returns null when the category has nothing sellable", () => {

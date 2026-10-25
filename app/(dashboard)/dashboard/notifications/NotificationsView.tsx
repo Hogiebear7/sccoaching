@@ -87,6 +87,9 @@ const TYPE_IS_URGENT: Record<NotificationType, boolean> = {
   mentioned_in_comment: false,
 };
 
+// Routine updates shown before "Show all". Urgent items always show in full.
+const ROUTINE_PREVIEW = 5;
+
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -116,6 +119,7 @@ export function NotificationsView({
   const router = useRouter();
   const [notifications, setNotifications] = useState(initialNotifications);
   const [markingAll, setMarkingAll] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const unreadCount = notifications.filter((n) => n.readAt === null).length;
   const urgentUnreadCount = notifications.filter(
@@ -124,6 +128,7 @@ export function NotificationsView({
 
   const urgent = notifications.filter((n) => TYPE_IS_URGENT[n.type]);
   const routine = notifications.filter((n) => !TYPE_IS_URGENT[n.type]);
+  const visibleRoutine = showAll ? routine : routine.slice(0, ROUTINE_PREVIEW);
 
   async function handleMarkRead(id: string) {
     await fetch(`/api/notifications/${id}/read`, { method: "POST" });
@@ -212,7 +217,7 @@ export function NotificationsView({
             <div>
               <p className="mb-3 px-1 label-caps">Updates</p>
               <ul className="space-y-2">
-                {routine.map((n) => (
+                {visibleRoutine.map((n) => (
                   <NotificationRow
                     key={n.id}
                     notification={n}
@@ -221,6 +226,15 @@ export function NotificationsView({
                   />
                 ))}
               </ul>
+              {routine.length > ROUTINE_PREVIEW ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAll((v) => !v)}
+                  className="mt-3 inline-flex min-h-11 items-center px-1 text-sm font-semibold text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]"
+                >
+                  {showAll ? "Show fewer" : `Show all (${routine.length})`}
+                </button>
+              ) : null}
             </div>
           )}
         </>

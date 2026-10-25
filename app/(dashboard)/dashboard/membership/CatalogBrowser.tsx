@@ -45,6 +45,20 @@ function CommitmentTag({ recurring, label }: { recurring: boolean; label: string
   );
 }
 
+// The public site's class photos, used as a category's cover when staff
+// haven't uploaded one, matched on the category name.
+const CLASS_PHOTOS: { match: RegExp; src: string; alt: string }[] = [
+  { match: /semi[- ]?private/i, src: "/marketing/semi-private-training.jpg", alt: "Semi-private training session" },
+  { match: /parent|baby/i, src: "/marketing/parent-baby-class.jpg", alt: "Parent and baby class" },
+  { match: /over\s*50/i, src: "/marketing/over-50s.jpg", alt: "Over 50s class" },
+];
+
+function coverFor(cat: MembershipCategoryRecord): { src: string | null; alt: string | null } {
+  if (cat.imageUrl) return { src: cat.imageUrl, alt: cat.imageAlt ?? null };
+  const photo = CLASS_PHOTOS.find((p) => p.match.test(cat.name));
+  return photo ? { src: photo.src, alt: photo.alt } : { src: null, alt: null };
+}
+
 // Member drill-down: category cards ("from €X") → packages → billing options
 // → checkout. Recurring options are memberships; one-time options are class
 // passes / top-ups. Entitlement comes from the package, price from the
@@ -144,6 +158,7 @@ export function CatalogBrowser({
         <div className="grid gap-3 sm:grid-cols-2">
           {categories.map((cat) => {
             const from = categoryFromPrice(cat, packages, billingOptions);
+            const cover = coverFor(cat);
             return (
               <button
                 key={cat.id}
@@ -152,7 +167,7 @@ export function CatalogBrowser({
                 className="surface-card group flex flex-col overflow-hidden p-0 text-left transition hover:border-white/[0.18]"
               >
                 <div className="relative">
-                  <ClassImageSlot seed={cat.id} imageUrl={cat.imageUrl} alt={cat.imageAlt} className="h-28 w-full" />
+                  <ClassImageSlot seed={cat.id} imageUrl={cover.src} alt={cover.alt} className="h-40 w-full" />
                   <h3 className="text-headline absolute inset-x-4 bottom-2 text-[24px] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.7)]">
                     <HeadlineText text={cat.name} />
                   </h3>
@@ -169,6 +184,9 @@ export function CatalogBrowser({
                           <span className="text-display text-[22px] leading-none tabular-nums text-zinc-50">
                             {formatPriceCents(from.amountCents)}
                           </span>
+                          {from.suffix ? (
+                            <span className="ml-1.5 text-xs text-muted-foreground">{from.suffix}</span>
+                          ) : null}
                         </>
                       ) : (
                         <span className="text-xs text-muted-foreground">Coming soon</span>

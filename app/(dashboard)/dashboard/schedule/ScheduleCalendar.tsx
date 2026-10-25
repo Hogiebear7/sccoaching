@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { formatFriendlyClassDate } from "@/lib/dates";
-import type { ScheduleClass } from "./ScheduleView";
 
 const WEEKDAY_HEADER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -21,13 +20,16 @@ function todayISO(): string {
 
 // Month-grid alternative to the Browse list — same classes, same booking
 // actions (renderClass is the Browse list's own card renderer, passed down
-// so there's exactly one place booking/waitlist logic lives).
-export function ScheduleCalendar({
+// so there's exactly one place booking/waitlist logic lives). Generic over
+// the item so Bookings' calendar view reuses the same grid.
+export function ScheduleCalendar<T>({
   classesByDate,
   renderClass,
+  emptyText = "No classes scheduled.",
 }: {
-  classesByDate: Record<string, ScheduleClass[]>;
-  renderClass: (classRecord: ScheduleClass) => ReactNode;
+  classesByDate: Record<string, T[]>;
+  renderClass: (classRecord: T) => ReactNode;
+  emptyText?: string;
 }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -148,7 +150,7 @@ export function ScheduleCalendar({
           {selectedDate ? formatFriendlyClassDate(selectedDate) : "Select a date"}
         </p>
         {selectedClasses.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No classes scheduled.</p>
+          <p className="text-sm text-muted-foreground">{emptyText}</p>
         ) : (
           <div className="space-y-3">{selectedClasses.map((c) => renderClass(c))}</div>
         )}

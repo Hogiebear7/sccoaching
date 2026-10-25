@@ -46,26 +46,45 @@ export function slugifyCatalog(name: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-// A category's "from €X" headline. Prefers the cheapest VISIBLE RECURRING
-// option (a membership price) across its visible packages, so a cheap one-off
-// pass never undercuts the headline. Falls back to the cheapest visible
-// one-time option only when the category has no recurring options at all.
-// Returns the billing type too so the card can label a one-off price.
+// A category's "from €X" headline. When the category sells class packs
+// (one-off options on a fixed-count or single-class package) the headline is
+// the cheapest rate per class across them: €300 for 20 sessions reads as
+// "€15 / class", matching the public site. Otherwise it prefers the cheapest
+// VISIBLE RECURRING option (a membership price) across its visible packages,
+// so a cheap one-off never undercuts it, falling back to the cheapest one-time
+// option only when there are no recurring options at all. `suffix` is what the
+// card prints after the price ("/ class", "/ month", or "").
 export function categoryFromPrice(
   category: MembershipCategoryRecord,
   packages: MembershipPackageRecord[],
   options: MembershipBillingOptionRecord[]
-): { amountCents: number; billingType: MembershipBillingOptionRecord["billingType"] } | null {
-  const visiblePackageIds = new Set(
-    packages.filter((p) => p.categoryId === category.id && p.visible).map((p) => p.id)
+): { amountCents: number; billingType: MembershipBillingOptionRecord["billingType"]; suffix: string } | null {
+  const visiblePackages = new Map(
+    packages.filter((p) => p.categoryId === category.id && p.visible).map((p) => [p.id, p])
   );
-  const visibleOptions = options.filter((o) => o.visible && visiblePackageIds.has(o.packageId));
+  const visibleOptions = options.filter((o) => o.visible && visiblePackages.has(o.packageId));
   if (visibleOptions.length === 0) return null;
+
+  let perClass: number | null = null;
+  for (const o of visibleOptions) {
+    if (o.billingType !== "one_time") continue;
+    const p = visiblePackages.get(o.packageId);
+    const sessions =
+      p?.sessionAllowanceType === "single_use" ? 1 : p?.sessionAllowanceType === "fixed_count" ? p.sessionAllowanceCount ?? 0 : 0;
+    if (sessions <= 0) continue;
+    const rate = Math.round(o.amountCents / sessions);
+    if (perClass === null || rate < perClass) perClass = rate;
+  }
+  if (perClass !== null) return { amountCents: perClass, billingType: "one_time", suffix: "/ class" };
 
   const recurring = visibleOptions.filter((o) => o.billingType === "recurring");
   const pool = recurring.length > 0 ? recurring : visibleOptions;
   const cheapest = pool.reduce((min, o) => (o.amountCents < min.amountCents ? o : min), pool[0]);
-  return { amountCents: cheapest.amountCents, billingType: cheapest.billingType };
+  return {
+    amountCents: cheapest.amountCents,
+    billingType: cheapest.billingType,
+    suffix: formatBillingOptionCadence(cheapest),
+  };
 }
 
 // The per-price suffix on the member option row: "/ month", "/ quarter",

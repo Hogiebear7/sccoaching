@@ -4750,7 +4750,10 @@ export function saveBodyFatLog(log: BodyFatLogRecord) {
   writeDb(db);
 }
 
-const MAX_STORED_NOTIFICATIONS = 500;
+// Each member keeps their newest 50 notifications; older ones are dropped
+// when a new one arrives. Per member, so one busy account can't push
+// everyone else's notices out.
+export const MAX_NOTIFICATIONS_PER_USER = 50;
 
 export function findNotificationsByUserId(userId: string): NotificationRecord[] {
   const db = readDb();
@@ -4768,11 +4771,15 @@ export function createNotification(notification: NotificationRecord) {
   const db = readDb();
   db.notifications.push(notification);
 
-  if (db.notifications.length > MAX_STORED_NOTIFICATIONS) {
-    // Keep the most recent records per user — cull oldest globally
-    db.notifications = db.notifications
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, MAX_STORED_NOTIFICATIONS);
+  const mine = db.notifications.filter((n) => n.userId === notification.userId);
+  if (mine.length > MAX_NOTIFICATIONS_PER_USER) {
+    const keep = new Set(
+      mine
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, MAX_NOTIFICATIONS_PER_USER)
+        .map((n) => n.id)
+    );
+    db.notifications = db.notifications.filter((n) => n.userId !== notification.userId || keep.has(n.id));
   }
 
   writeDb(db);
