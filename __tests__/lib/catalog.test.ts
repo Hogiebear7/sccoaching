@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   categoryFromPrice,
+  sellableWhenOpenedFromApp,
   describePackageAllowance,
   formatBillingOptionCadence,
   memberBillingHint,
@@ -126,5 +127,13 @@ describe("slugifyCatalog", () => {
   it("makes a stable underscore slug", () => {
     expect(slugifyCatalog("Semi-Private PT")).toBe("semi_private_pt");
     expect(slugifyCatalog("  Parent & Baby  ")).toBe("parent_baby");
+  });
+});
+
+describe("sellableWhenOpenedFromApp", () => {
+  it("leaves out app-only (digital) packages and keeps in-person ones", () => {
+    expect(sellableWhenOpenedFromApp({ deliveryChannel: "app_only" })).toBe(false);
+    expect(sellableWhenOpenedFromApp({ deliveryChannel: "in_person" })).toBe(true);
+    expect(sellableWhenOpenedFromApp({ deliveryChannel: "hybrid" })).toBe(true);
   });
 });

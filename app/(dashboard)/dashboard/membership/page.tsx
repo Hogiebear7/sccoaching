@@ -8,6 +8,7 @@ import {
   findUserById,
 } from "@/lib/db";
 import { isBillingProviderConfigured } from "@/lib/billing";
+import { sellableWhenOpenedFromApp } from "@/lib/catalog";
 import { isGlobalCatalogPackage, sameGym } from "@/lib/gym-scope";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
@@ -19,11 +20,12 @@ import { MembershipView } from "./MembershipView";
 export default async function DashboardMembershipPage({
   searchParams,
 }: {
-  searchParams: Promise<{ passes?: string; membership?: string }>;
+  searchParams: Promise<{ passes?: string; membership?: string; source?: string }>;
 }) {
   // Return-from-Stripe banner state; informational only — entitlements come
   // from the webhook, never from this redirect. Accept both param names.
-  const { passes, membership } = await searchParams;
+  const { passes, membership, source } = await searchParams;
+  const openedFromApp = source === "app";
   const raw = membership ?? passes;
   const passCheckoutStatus = raw === "pending" ? "pending" : raw === "cancelled" ? "cancelled" : null;
 
@@ -75,6 +77,7 @@ export default async function DashboardMembershipPage({
   const allCategories = findMembershipCategories();
   const packages = findMembershipPackages().filter((p) => {
     if (!p.visible) return false;
+    if (openedFromApp && !sellableWhenOpenedFromApp(p)) return false;
     if (isGlobalCatalogPackage(p)) return true;
     const category = allCategories.find((c) => c.id === p.categoryId);
     return !!category && sameGym(user, category);

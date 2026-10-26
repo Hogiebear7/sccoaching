@@ -46,6 +46,14 @@ export function slugifyCatalog(name: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
+// Store rules: an app may send people to the web to pay for in-person
+// services, but never for digital content it sells itself. So when the
+// membership page is opened from the phone app (?source=app), app-only
+// (digital) packages are left out.
+export function sellableWhenOpenedFromApp(pkg: Pick<MembershipPackageRecord, "deliveryChannel">): boolean {
+  return pkg.deliveryChannel !== "app_only";
+}
+
 // A category's "from €X" headline. When the category sells class packs
 // (one-off options on a fixed-count or single-class package) the headline is
 // the cheapest rate per class across them: €300 for 20 sessions reads as
