@@ -46,6 +46,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       comparison: reviewData.comparison,
       recovery: reviewData.recovery,
       cyclePhase: reviewData.cyclePhase,
+      pregnancy: reviewData.pregnancy,
+      pregnancyFlags: reviewData.pregnancyFlags,
       nutrition: reviewData.nutrition,
       hydration: reviewData.hydration,
       reviewText,
