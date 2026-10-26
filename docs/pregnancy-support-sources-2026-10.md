@@ -49,7 +49,19 @@ app used before.
 - Science for Sport Academy (owner's membership): no pregnancy or menopause
   course. The Female Physiology course (Dr Candice MacMillan) covers lifespan
   physiology, but it's video without transcripts. Its "References and
-  Resources" file is worth downloading for the menopause slice.
+  Resources" file (read 2026-10-26, with the owner's OK) points to:
+  - Donnelly et al. (2021), Reframing return-to-sport postpartum: the 6 Rs
+    framework, BJSM 56:244–245. For slice G.
+  - ePARmed-X+ (eparmedx.com), a screening tool for returning to exercise
+    after the birth. For slice G.
+  - Sundgot-Borgen et al. (2019), Elite athletes get pregnant, have healthy
+    babies and return to sport early postpartum, BMJ Open SEM 5.
+  - Kelly et al. (2022), Impact of menopause on musculoskeletal, endocrine,
+    metabolic and cardiovascular health in female athletes, MSSE. For slice H.
+  - Bondarev et al. (2020), Physical performance during the menopausal
+    transition and the role of physical activity, J Gerontol A 76. For slice H.
+  - Sims et al. (2023), ISSN position stand: nutritional concerns of the
+    female athlete, JISSN 20. For slice H.
 - Institute of Performance Nutrition: no public pregnancy, breastfeeding or
   menopause articles.
 
