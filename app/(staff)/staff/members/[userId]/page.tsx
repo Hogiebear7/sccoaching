@@ -404,41 +404,47 @@ export default async function StaffMemberDetailPage({
         </div>
       ) : null}
 
-      {/* Pregnancy — same privacy model as cycle tracking: private by
-          default, only visible here once the member explicitly turns
-          sharing on (which the mobile app only allows once 12+ weeks
-          along). No panel at all if the member has never engaged with
-          pregnancy tracking, so an unused feature doesn't clutter every
-          eligible member's page. */}
-      {!walled && profile?.cycleTrackingEligible && pregnancyStatus?.isPregnant ? (
+      {/* Pregnancy — private by default: the panel only exists once the
+          member turns sharing on (any stage). Showing it otherwise, even
+          as "not shared", would reveal the pregnancy. */}
+      {!walled && profile?.cycleTrackingEligible && pregnancyStatus?.isPregnant && pregnancyStatus.shareWithCoach && pregnancyEstimate ? (
         <div className="panel p-6">
           <h3 className="text-lg font-semibold">Pregnancy</h3>
-          {!pregnancyStatus.shareWithCoach || !pregnancyEstimate ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              The member has indicated they are pregnant but has not shared details with coaches.
+          <div className="mt-4 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Shared by the member. General guidance only — not medical information.
             </p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Shared by the member. General guidance only — not medical information.
-              </p>
-              <CycleInfoRow
-                label="Stage"
-                value={
-                  pregnancyEstimate.weeksPregnant !== null
-                    ? `${pregnancyEstimate.content?.label ?? ""} · week ${pregnancyEstimate.weeksPregnant}`
-                    : pregnancyEstimate.content?.label ?? "—"
-                }
-              />
-              {pregnancyTraining ? (
-                <CycleInfoRow label="Effort" value={pregnancyTraining.effort} />
-              ) : null}
-              <p className="text-xs text-muted-foreground/70">
-                Adjust programming for reduced high-fall-risk, high-impact, and prolonged supine work as
-                appropriate for this stage. The member&apos;s workout reviews flag exercises that need a swap.
-              </p>
-            </div>
-          )}
+            <CycleInfoRow
+              label="Stage"
+              value={
+                pregnancyEstimate.weeksPregnant !== null
+                  ? `${pregnancyEstimate.content?.label ?? ""} · week ${pregnancyEstimate.weeksPregnant}`
+                  : pregnancyEstimate.content?.label ?? "—"
+              }
+            />
+            {pregnancyTraining ? (
+              <CycleInfoRow label="Effort" value={pregnancyTraining.effort} />
+            ) : null}
+            <p className="text-xs text-muted-foreground/70">
+              Adjust programming for reduced high-fall-risk, high-impact, and prolonged supine work as
+              appropriate for this stage. The member&apos;s workout reviews flag exercises that need a swap.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Menopause stage — only when the member shares it. */}
+      {!walled && profile?.menopauseStage && profile.menopauseShareWithCoach ? (
+        <div className="panel p-6">
+          <h3 className="text-lg font-semibold">Menopause</h3>
+          <div className="mt-4 space-y-3">
+            <p className="text-xs text-muted-foreground">Shared by the member. General guidance only — not medical information.</p>
+            <CycleInfoRow label="Stage" value={profile.menopauseStage === "perimenopause" ? "Perimenopause" : "Post-menopause"} />
+            <p className="text-xs text-muted-foreground/70">
+              Prioritise progressive strength training (2–3 times a week, building to heavy loads), gradual impact work and
+              balance. If the member has low bone density, progress heavy and impact work carefully.
+            </p>
+          </div>
         </div>
       ) : null}
 

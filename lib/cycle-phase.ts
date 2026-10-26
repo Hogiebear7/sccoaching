@@ -19,7 +19,7 @@ export interface PhaseEstimate {
   pausedFor?: CyclePause;
 }
 
-export type CyclePause = "pregnancy" | "postpartum";
+export type CyclePause = "pregnancy" | "postpartum" | "postmenopause";
 
 // Pregnancy pauses the cycle: there is no phase while pregnant, and after the
 // birth the old period dates predict nothing, so it stays paused until the
@@ -49,7 +49,9 @@ export function pausedPhase(pause: CyclePause, cycleLength: number | null = null
     explanation:
       pause === "pregnancy"
         ? "Cycle tracking is paused while you're pregnant."
-        : "Cycle tracking is paused after your baby's birth. Log the start of your first period when it comes and phase estimates will start again.",
+        : pause === "postmenopause"
+          ? "Cycle phase tracking is switched off because you've told us you're post-menopause."
+          : "Cycle tracking is paused after your baby's birth. Log the start of your first period when it comes and phase estimates will start again.",
     trainingGuidance: "—",
     intensityGuidance: "—",
     recoveryGuidance: "—",

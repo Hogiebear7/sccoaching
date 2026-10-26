@@ -60,6 +60,8 @@ export default async function DashboardCyclePage() {
         cycleSettings={cycleSettings}
         cyclePrivacy={cyclePrivacy}
         cyclePause={memberCyclePause(user.id, cycleSettings)}
+        menopauseStage={profile.menopauseStage ?? null}
+        menopauseShareWithCoach={profile.menopauseShareWithCoach ?? false}
       />
       <PregnancyPanel
         isPregnant={pregnancy?.isPregnant ?? false}

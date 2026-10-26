@@ -73,6 +73,8 @@ export type ActivityLevel = "sedentary" | "light" | "moderate" | "very";
 // Tabs a member can put in the phone app's bar (see app-preferences route).
 export type AppTab = "schedule" | "workouts" | "nutrition";
 
+export type MenopauseStage = "perimenopause" | "postmenopause";
+
 export interface ProfileRecord {
   userId: string;
   fullName: string;
@@ -121,6 +123,11 @@ export interface ProfileRecord {
   // on the account so they follow the member across devices. null = never
   // chosen; the app then uses its tier default.
   tabChoice?: AppTab[] | null;
+  // Menopause stage the member chose (lib/menopause.ts). Post-menopause
+  // switches cycle phase tracking off; null = not set.
+  menopauseStage?: MenopauseStage | null;
+  // Lets the coach see the stage. Private by default.
+  menopauseShareWithCoach?: boolean;
   // ISO 3166-1 alpha-2 (e.g. "IE", "US") — used to nudge food-search ranking
   // toward locally-relevant results (see lib/food-catalog.ts's country
   // boost). Optional/nullable for pre-existing records (see db.ts

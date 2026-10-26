@@ -314,6 +314,8 @@ interface ResolveContext {
   /** The member's pregnancy record, if any. Pregnancy pauses the luteal
       shift (see cyclePauseFor). Optional so older callers still compile. */
   pregnancy?: import("./profile-schema").PregnancyStatusRecord | null;
+  /** Post-menopause switches the luteal shift off. */
+  menopauseStage?: import("./profile-schema").MenopauseStage | null;
   /** From the member's goal weight/body-fat + target date (see buildContext
       and lib/body-composition-goal.ts). Used as the pace only when the
       member hasn't chosen one. Null when no goal timeline is set. */
@@ -368,7 +370,9 @@ function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: numbe
     )
   );
   const lutealDays = dates.map((d) =>
-    ctx.cycleTracking && !cyclePauseFor(ctx.pregnancy, ctx.cycleTracking.lastPeriodStartDate, d)
+    ctx.cycleTracking &&
+    ctx.menopauseStage !== "postmenopause" &&
+    !cyclePauseFor(ctx.pregnancy, ctx.cycleTracking.lastPeriodStartDate, d)
       ? estimatePhase(
           ctx.cycleTracking.lastPeriodStartDate,
           ctx.cycleTracking.averageCycleLengthDays,
@@ -678,6 +682,7 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
     })(),
     goalTimelineAdjustKcal,
     pregnancy: findPregnancyStatusByUserId(userId) ?? null,
+    menopauseStage: profile.menopauseStage ?? null,
     weekCache: new Map(),
   };
 }

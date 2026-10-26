@@ -8,6 +8,7 @@ import {
   findUserById,
 } from "@/lib/db";
 import { memberPhaseEstimate } from "@/lib/cycle-phase-data";
+import { menopauseContentFor } from "@/lib/menopause";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // Read-only aggregation for the mobile Cycle Tracking screen — composes the
@@ -42,6 +43,10 @@ export async function GET(request: NextRequest) {
     data: {
       enabled: profile.cycleTrackingEnabled,
       menopauseSupportEnabled: profile.menopauseSupportEnabled,
+      menopauseStage: profile.menopauseStage ?? null,
+      menopauseShareWithCoach: profile.menopauseShareWithCoach ?? false,
+      /** Stage advice with evidence labels (lib/menopause.ts), or null. */
+      menopause: menopauseContentFor(profile.menopauseStage),
       settings,
       privacy,
       phaseEstimate,

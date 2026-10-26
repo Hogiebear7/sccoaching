@@ -10,6 +10,8 @@ import type {
   CycleSettingsRecord,
 } from "@/lib/profile-schema";
 import { estimatePhase, pausedPhase, type CyclePause } from "@/lib/cycle-phase";
+import type { MenopauseStage } from "@/lib/profile-schema";
+import { MenopausePanel } from "./MenopausePanel";
 import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
 
 const REGULARITY_OPTIONS: CycleRegularity[] = ["Regular", "Irregular", "Unsure"];
@@ -38,6 +40,8 @@ export function CycleView({
   cycleSettings,
   cyclePrivacy,
   cyclePause = null,
+  menopauseStage = null,
+  menopauseShareWithCoach = false,
 }: {
   cycleTrackingEnabled: boolean;
   menopauseSupportEnabled: boolean;
@@ -45,6 +49,8 @@ export function CycleView({
   cyclePrivacy: CyclePrivacyPreferencesRecord | null;
   /** Pregnancy or the time after a birth pauses the phase estimate. */
   cyclePause?: CyclePause | null;
+  menopauseStage?: MenopauseStage | null;
+  menopauseShareWithCoach?: boolean;
 }) {
   const router = useRouter();
 
@@ -213,35 +219,8 @@ export function CycleView({
         </div>
       )}
 
-      {/* Menopause support card — shown when preference is enabled */}
-      {menopauseEnabled && (
-        <div className="rounded-xl border border-border bg-card p-6">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="text-lg font-semibold">Menopause support</h3>
-            <span className="text-xs text-muted-foreground">Educational content only — not medical advice</span>
-          </div>
-
-          <div className="mt-4 space-y-5">
-            <MenopauseSection
-              title="Strength training"
-              body="After menopause, strength training is one of the most effective tools for preserving muscle mass, maintaining bone density, and supporting metabolic health. Two to three sessions per week with progressive resistance is a strong foundation."
-            />
-            <MenopauseSection
-              title="Nutrition"
-              body="Protein needs remain high. Adequate calcium and vitamin D support bone health. Consistent meal timing can help stabilise energy levels throughout the day."
-            />
-            <MenopauseSection
-              title="Recovery"
-              body="Sleep quality can be more disrupted during perimenopause and post-menopause. Active recovery, consistent sleep schedules, and stress management all contribute to better training outcomes."
-            />
-          </div>
-
-          <p className="mt-5 text-xs text-muted-foreground/60">
-            This is educational information only. Please speak with a healthcare professional for
-            personal medical guidance.
-          </p>
-        </div>
-      )}
+      {/* Menopause support — stage, evidence-labelled guidance, sharing */}
+      {menopauseEnabled && <MenopausePanel stage={menopauseStage} shareWithCoach={menopauseShareWithCoach} />}
 
       <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="text-lg font-semibold">Cycle information</h3>
@@ -450,15 +429,6 @@ export function CycleView({
         )}
       </div>
 
-    </div>
-  );
-}
-
-function MenopauseSection({ title, body }: { title: string; body: string }) {
-  return (
-    <div>
-      <p className="text-sm font-semibold text-foreground">{title}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
     </div>
   );
 }

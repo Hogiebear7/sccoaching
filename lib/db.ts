@@ -2243,6 +2243,8 @@ function readDb(): Database {
       calorieDistribution: p.calorieDistribution ?? null,
       activityLevel: p.activityLevel ?? null,
       tabChoice: p.tabChoice ?? null,
+      menopauseStage: p.menopauseStage ?? null,
+      menopauseShareWithCoach: p.menopauseShareWithCoach ?? false,
       secondaryGoal: p.secondaryGoal ?? null,
       country: p.country ?? null,
     })),

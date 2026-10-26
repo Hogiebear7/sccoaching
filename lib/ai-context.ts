@@ -233,6 +233,11 @@ export function buildCoachingContext(input: CoachingContextInput): CoachingConte
   lines.push("## Member profile");
   lines.push(`- Name: ${profile.fullName}`);
   lines.push(`- Primary goal: ${profile.primaryGoal}`);
+  if (profile.menopauseStage) {
+    lines.push(
+      `- Menopause stage (member-chosen): ${profile.menopauseStage === "perimenopause" ? "perimenopause" : "post-menopause"}. Prioritise progressive strength training, impact and balance work, protein, calcium and vitamin D. Only give evidence-backed advice: don't claim exercise reduces hot flushes, don't recommend supplements for symptoms, and never advise on HRT or medication — refer those to their GP.`
+    );
+  }
   if (profile.sportPlayed) lines.push(`- Sport: ${profile.sportPlayed}`);
   if (profile.currentWeightKg !== null) lines.push(`- Current body weight: ${profile.currentWeightKg} kg`);
   lines.push(`- Preferred units: ${profile.preferredUnits ?? "metric"}`);
@@ -479,6 +484,11 @@ export function buildNutritionCoachContext(input: NutritionCoachContextInput): N
   lines.push("## Member profile");
   lines.push(`- Name: ${profile.fullName}`);
   lines.push(`- Primary goal: ${profile.primaryGoal}`);
+  if (profile.menopauseStage) {
+    lines.push(
+      `- Menopause stage (member-chosen): ${profile.menopauseStage === "perimenopause" ? "perimenopause" : "post-menopause"}. Prioritise progressive strength training, impact and balance work, protein, calcium and vitamin D. Only give evidence-backed advice: don't claim exercise reduces hot flushes, don't recommend supplements for symptoms, and never advise on HRT or medication — refer those to their GP.`
+    );
+  }
   if (profile.sportPlayed) lines.push(`- Sport: ${profile.sportPlayed}`);
   lines.push(
     `- Body weight used for targets: ${bodyWeightKg} kg${
