@@ -179,8 +179,10 @@ export function getDashboardData(userId: string | undefined): DashboardData | nu
       delta,
       phaseNote: phaseEstimate && phaseEstimate.phase !== "Unknown" ? phaseEstimate.readinessNote : null,
       pregnancyNote:
-        pregnancyEstimate?.content && pregnancyEstimate.weeksPregnant !== null
-          ? `${pregnancyEstimate.content.label}, week ${pregnancyEstimate.weeksPregnant} — see Cycle Tracking for full guidance.`
+        pregnancyEstimate?.content
+          ? `${pregnancyEstimate.content.label}${
+              pregnancyEstimate.weeksPregnant !== null ? `, week ${pregnancyEstimate.weeksPregnant}` : ""
+            } — see Cycle Tracking for full guidance.`
           : null,
     },
     kpis: {
