@@ -218,3 +218,27 @@ describe("v2 resolver", () => {
     }
   });
 });
+
+describe("v2 resolver: pregnancy and breastfeeding", () => {
+  // Week of 2026-10-26. Due 2027-03-15 puts that Monday at week 20 (trimester 2).
+  const pregnant = { userId: USER, isPregnant: true, dueDate: "2027-03-15", shareWithCoach: false, createdAt: "x", updatedAt: "x" };
+
+  it("drops the loss deficit and adds +250 kcal in the second trimester", () => {
+    const before = getResolvedNutritionTarget(USER, TODAY, TODAY)!;
+    h.findPregnancyStatusByUserId.mockReturnValue(pregnant);
+    const target = getResolvedNutritionTarget(USER, TODAY, TODAY)!;
+    expect(target.expenditureKcal).toBe(before.expenditureKcal);
+    expect(target.dailyAverageKcal).toBe(target.expenditureKcal! + 250);
+    expect(target.pacePctPerWeek).toBe(0);
+    expect(target).toMatchObject({ nutritionStage: "pregnant", stageExtraKcal: 250 });
+    expect((target.rationale ?? []).join(" ")).toMatch(/\+250 kcal a day for your second trimester/);
+    expect((target.rationale ?? []).join(" ")).not.toMatch(/Set for losing/);
+  });
+
+  it("adds +500 kcal while breastfeeding in the first 12 weeks", () => {
+    h.findPregnancyStatusByUserId.mockReturnValue({ ...pregnant, dueDate: "2026-10-01", birthDate: "2026-09-28", breastfeeding: true });
+    const target = getResolvedNutritionTarget(USER, TODAY, TODAY)!;
+    expect(target.dailyAverageKcal).toBe(target.expenditureKcal! + 500);
+    expect(target.nutritionStage).toBe("postpartum");
+  });
+});

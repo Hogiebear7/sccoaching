@@ -640,6 +640,10 @@ export interface ExpenditureInput {
   diaryDays: DiaryDay[];
   /** Daily goal adjustment in force, used only to judge "looks complete". */
   goalAdjustKcal: number;
+  /** Dates whose weigh-ins and food days must not teach the estimate
+      (pregnancy, the weeks after a birth, breastfeeding). `to` null = still
+      running. A week whose 14-day window touches the span is skipped. */
+  pause?: { from: string; to: string | null } | null;
   /** The Monday check-in this estimate is for; data up to the day before counts. */
   checkInDate: string;
 }
@@ -657,7 +661,7 @@ export interface ExpenditureEstimate {
 // ±150 kcal a week. Deterministic: the same records give the same number,
 // so nothing has to be stored.
 export function learnExpenditure(input: ExpenditureInput): ExpenditureEstimate {
-  const { formulaKcal, weightLogs, diaryDays, goalAdjustKcal, checkInDate } = input;
+  const { formulaKcal, weightLogs, diaryDays, goalAdjustKcal, checkInDate, pause } = input;
   const trend = trendWeightByDate(weightLogs, isoDaysFrom(checkInDate, -1));
   const weighInDates = new Set(weightLogs.map((p) => p.date));
   const diaryByDate = new Map(diaryDays.map((d) => [d.date, d]));
@@ -672,6 +676,7 @@ export function learnExpenditure(input: ExpenditureInput): ExpenditureEstimate {
     const windowStart = isoDaysFrom(monday, -LEARN_WINDOW_DAYS);
     const windowEnd = isoDaysFrom(monday, -1);
     const reference = estimate + goalAdjustKcal;
+    if (pause && windowEnd >= pause.from && (pause.to === null || windowStart <= pause.to)) continue;
 
     const intake: number[] = [];
     let weighIns = 0;

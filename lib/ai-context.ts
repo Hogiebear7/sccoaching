@@ -540,13 +540,25 @@ export function buildNutritionCoachContext(input: NutritionCoachContextInput): N
           : "- Spread evenly: the same target every day."
       );
     }
+    if (resolvedTarget.nutritionStage) {
+      const stageText = {
+        pregnant: "pregnant",
+        postpartum: "in the first 12 weeks after giving birth",
+        breastfeeding: "breastfeeding",
+      }[resolvedTarget.nutritionStage];
+      lines.push(
+        `- The member is ${stageText}. The target already includes +${resolvedTarget.stageExtraKcal ?? 0} kcal/day for this${
+          resolvedTarget.nutritionStage === "breastfeeding" ? " and keeps any weight loss gentle" : " and holds weight at maintenance"
+        }. Never suggest a calorie deficit, fasting or weight-loss targets beyond this, and refer medical questions to their GP or midwife.`
+      );
+    }
     if (resolvedTarget.pacePctPerWeek !== null && resolvedTarget.pacePctPerWeek !== 0) {
       lines.push(
         `- Goal pace: ${resolvedTarget.pacePctPerWeek > 0 ? "gain" : "lose"} about ${Math.abs(resolvedTarget.pacePctPerWeek)}% of bodyweight per week${
           resolvedTarget.paceLimited ? " (slowed to keep the target at a safe minimum)" : ""
         }.`
       );
-    } else if (goalBias !== "maintain") {
+    } else if (goalBias !== "maintain" && !resolvedTarget.nutritionStage) {
       lines.push(`- Adjusted for their ${profile.primaryGoal.toLowerCase()} goal.`);
     }
   } else {

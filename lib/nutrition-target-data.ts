@@ -11,6 +11,7 @@ import { computeGoalTimeline, goalTimelineAdjustKcal as kcalFromWeeklyRate } fro
 import { resolveCurrentBodyFatPct } from "./body-fat";
 import { resolveCurrentWeightKg } from "./body-weight";
 import { cyclePauseFor, estimatePhase } from "./cycle-phase";
+import { learningPauseFor, nutritionStageFor, stageAdjustment, type StageAdjustment } from "./pregnancy-nutrition";
 import {
   findBodyFatLogsByUserId,
   findBodyWeightLogsByUserId,
@@ -193,6 +194,12 @@ export interface ResolvedNutritionTarget {
   minimumApplied: boolean;
   distribution: CalorieDistribution | null;
   distributionSource: DistributionSource | null;
+  /** Pregnancy / first 12 weeks after the birth / breastfeeding, when it
+      shaped this target (see lib/pregnancy-nutrition.ts). Optional so older
+      result builders still type-check. */
+  nutritionStage?: "pregnant" | "postpartum" | "breastfeeding" | null;
+  /** Extra kcal a day that stage adds. */
+  stageExtraKcal?: number;
 }
 
 const NO_WEEK_FIELDS = {
@@ -325,6 +332,8 @@ interface ResolvedWeekPlan {
   pacePctPerWeek: number;
   distribution: CalorieDistribution;
   distributionSource: DistributionSource;
+  /** Pregnancy / after-birth / breastfeeding change in force this week. */
+  stage: StageAdjustment | null;
 }
 
 const SPLIT_DAY_FOR_EXERTION: Record<Exertion, FuelDay> = {
@@ -370,7 +379,20 @@ function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: numbe
       : false
   );
 
-  const { adjustKcal, pacePctPerWeek } = goalAdjustFor(ctx, bodyWeightKg);
+  const goal = goalAdjustFor(ctx, bodyWeightKg);
+  // Pregnancy and the weeks after the birth hold the goal at maintenance;
+  // breastfeeding later keeps any loss gentle. Its extra kcal sit on top of
+  // the goal and the minimum.
+  const nutritionStage = nutritionStageFor(ctx.pregnancy, weekStart);
+  const stage = nutritionStage ? stageAdjustment(nutritionStage, bodyWeightKg) : null;
+  let adjustKcal = goal.adjustKcal;
+  if (stage?.minAdjustKcal != null) adjustKcal = Math.max(stage.minAdjustKcal, adjustKcal);
+  if (stage?.maxAdjustKcal != null) adjustKcal = Math.min(stage.maxAdjustKcal, adjustKcal);
+  const pacePctPerWeek =
+    adjustKcal === goal.adjustKcal
+      ? goal.pacePctPerWeek
+      : Math.round(((adjustKcal * 7) / KCAL_PER_KG_FAT / bodyWeightKg) * 100 * 100) / 100;
+  const extraKcal = stage?.extraKcal ?? 0;
   const resting = restingKcal(bodyWeightKg, ctx.gender, ctx.dateOfBirth, weekStart, ctx.heightCm);
   // A member-stated activity level sets the starting burn; without one, the
   // week's fuel days do (the original cold-start heuristic).
@@ -381,10 +403,15 @@ function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: numbe
     formulaKcal,
     weightLogs: ctx.weightPoints,
     diaryDays: ctx.diaryDays,
-    goalAdjustKcal: adjustKcal,
+    goalAdjustKcal: adjustKcal + extraKcal,
+    pause: learningPauseFor(ctx.pregnancy, weekStart),
     checkInDate: weekStart,
   });
-  const budget = weeklyBudget(expenditure.kcal, adjustKcal, minimumDailyAverageKcal(ctx.gender, resting, expenditure.kcal));
+  const budget = weeklyBudget(
+    expenditure.kcal,
+    adjustKcal + extraKcal,
+    minimumDailyAverageKcal(ctx.gender, resting, expenditure.kcal) + extraKcal
+  );
   const { distribution, source: distributionSource } = resolveDistribution({
     coachDistribution: ctx.overrideRecord?.distribution ?? null,
     coachLocked: ctx.overrideRecord?.distributionLocked ?? false,
@@ -421,6 +448,7 @@ function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: numbe
     pacePctPerWeek,
     distribution,
     distributionSource,
+    stage,
   };
   ctx.weekCache.set(weekStart, plan);
   return plan;
@@ -445,6 +473,8 @@ export function buildWeeklyRationale(input: {
   dayKcal: number;
   dailyAverageKcal: number;
   lutealToday: boolean;
+  /** The pregnancy / after-birth / breastfeeding line, when one applies. */
+  stageLine?: string | null;
 }): string[] {
   const lines: string[] = [];
 
@@ -457,7 +487,9 @@ export function buildWeeklyRationale(input: {
   );
 
   const kgPerWeek = Math.round(Math.abs(input.pacePctPerWeek / 100) * input.bodyWeightKg * 100) / 100;
-  if (input.paceLimited) {
+  if (input.stageLine && input.pacePctPerWeek === 0) {
+    // The stage line says it's held at maintenance.
+  } else if (input.paceLimited) {
     lines.push("We've slowed your pace to keep your target at a safe level for you.");
   } else if (input.pacePctPerWeek < 0) {
     lines.push(`Set for losing about ${Math.abs(input.pacePctPerWeek)}% of your bodyweight a week (${kgPerWeek} kg).`);
@@ -466,6 +498,7 @@ export function buildWeeklyRationale(input: {
   } else {
     lines.push("Set to maintain your weight.");
   }
+  if (input.stageLine) lines.push(input.stageLine);
   if (input.minimumApplied && !input.paceLimited) {
     lines.push("Held at a safe minimum for you rather than going lower.");
   }
@@ -537,6 +570,7 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
       dayKcal: calories,
       dailyAverageKcal: plan.budget.dailyAverageKcal,
       lutealToday: plan.lutealDays[index],
+      stageLine: plan.stage?.line ?? null,
     }),
     setByMember: false,
     weekStart,
@@ -550,6 +584,8 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
     minimumApplied: plan.budget.minimumApplied,
     distribution: plan.distribution,
     distributionSource: plan.distributionSource,
+    nutritionStage: plan.stage?.kind ?? null,
+    stageExtraKcal: plan.stage?.extraKcal ?? 0,
   };
 }
 

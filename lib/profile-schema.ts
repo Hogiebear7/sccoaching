@@ -243,6 +243,9 @@ export interface PregnancyStatusRecord {
   /** Set after the birth; adds the breastfeeding calorie allowance while
       true. Null before the birth or when the member hasn't said. */
   breastfeeding?: boolean | null;
+  /** When the member said they stopped breastfeeding. Burn learning stays
+      paused until then (see lib/pregnancy-nutrition.ts). */
+  breastfeedingEndedOn?: string | null;
   shareWithCoach: boolean;
   createdAt: string;
   updatedAt: string;
