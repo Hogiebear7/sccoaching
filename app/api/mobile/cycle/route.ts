@@ -7,7 +7,7 @@ import {
   findProfileByUserId,
   findUserById,
 } from "@/lib/db";
-import { estimatePhase } from "@/lib/cycle-phase";
+import { memberPhaseEstimate } from "@/lib/cycle-phase-data";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // Read-only aggregation for the mobile Cycle Tracking screen — composes the
@@ -35,12 +35,7 @@ export async function GET(request: NextRequest) {
 
   const settings = findCycleSettingsByUserId(user.id) ?? null;
   const privacy = findCyclePrivacyByUserId(user.id) ?? null;
-  const phaseEstimate = estimatePhase(
-    settings?.lastPeriodStartDate ?? null,
-    settings?.averageCycleLengthDays ?? null,
-    settings?.periodLengthDays ?? null,
-    settings?.regularity ?? null
-  );
+  const phaseEstimate = memberPhaseEstimate(user.id, settings);
 
   return NextResponse.json({
     success: true,

@@ -10,7 +10,8 @@ import {
   type RecoveryLogRecord,
   type WorkoutSessionRecord,
 } from "./db";
-import { estimatePhase, type PhaseEstimate } from "./cycle-phase";
+import type { PhaseEstimate } from "./cycle-phase";
+import { memberPhaseEstimate } from "./cycle-phase-data";
 import { estimatePregnancy, type PregnancyEstimate } from "./pregnancy";
 import { sumDailyTotals } from "./nutrition-diary";
 import { getResolvedNutritionTarget } from "./nutrition-target-data";
@@ -120,13 +121,7 @@ export function buildWorkoutReviewData(userId: string, session: WorkoutSessionRe
   if (profile?.cycleTrackingEligible && profile.cycleTrackingEnabled) {
     const cycleSettings = findCycleSettingsByUserId(userId);
     if (cycleSettings) {
-      const estimate = estimatePhase(
-        cycleSettings.lastPeriodStartDate,
-        cycleSettings.averageCycleLengthDays,
-        cycleSettings.periodLengthDays,
-        cycleSettings.regularity,
-        session.date
-      );
+      const estimate = memberPhaseEstimate(userId, cycleSettings, session.date);
       if (estimate.phase !== "Unknown") cyclePhase = estimate;
     }
   }

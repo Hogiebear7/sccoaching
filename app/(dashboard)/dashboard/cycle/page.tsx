@@ -6,6 +6,7 @@ import {
   findProfileByUserId,
   findUserById,
 } from "@/lib/db";
+import { memberCyclePause } from "@/lib/cycle-phase-data";
 import { verifySession } from "@/lib/session";
 import { CycleView } from "./CycleView";
 
@@ -49,6 +50,7 @@ export default async function DashboardCyclePage() {
       menopauseSupportEnabled={profile.menopauseSupportEnabled}
       cycleSettings={cycleSettings}
       cyclePrivacy={cyclePrivacy}
+      cyclePause={memberCyclePause(user.id, cycleSettings)}
     />
   );
 }

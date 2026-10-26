@@ -14,6 +14,48 @@ export interface PhaseEstimate {
   recoveryGuidance: string;
   /** One short sentence — for surfacing alongside the daily readiness score, distinct from the longer `explanation`. */
   readinessNote: string;
+  /** Set when cycle tracking is paused by pregnancy or the time after a
+      birth (see cyclePauseFor); the phase is then "Unknown". */
+  pausedFor?: CyclePause;
+}
+
+export type CyclePause = "pregnancy" | "postpartum";
+
+// Pregnancy pauses the cycle: there is no phase while pregnant, and after the
+// birth the old period dates predict nothing, so it stays paused until the
+// member logs a period that started after the birth. The due date stands in
+// for the birth date until "Baby has arrived" sets it.
+export function cyclePauseFor(
+  pregnancy: { isPregnant: boolean; dueDate: string | null; birthDate?: string | null } | null | undefined,
+  lastPeriodStartDate: string | null,
+  asOfDateISO?: string
+): CyclePause | null {
+  if (!pregnancy?.isPregnant) return null;
+  const birth = pregnancy.birthDate ?? pregnancy.dueDate;
+  if (!birth) return "pregnancy";
+  const asOf = asOfDateISO ?? new Date().toISOString().slice(0, 10);
+  if (asOf < birth) return "pregnancy";
+  if (lastPeriodStartDate && lastPeriodStartDate > birth) return null;
+  return "postpartum";
+}
+
+export function pausedPhase(pause: CyclePause, cycleLength: number | null = null): PhaseEstimate {
+  return {
+    phase: "Unknown",
+    cycleDay: null,
+    cycleLength,
+    confidence: "low",
+    phaseLabel: "Paused",
+    explanation:
+      pause === "pregnancy"
+        ? "Cycle tracking is paused while you're pregnant."
+        : "Cycle tracking is paused after your baby's birth. Log the start of your first period when it comes and phase estimates will start again.",
+    trainingGuidance: "—",
+    intensityGuidance: "—",
+    recoveryGuidance: "—",
+    readinessNote: "—",
+    pausedFor: pause,
+  };
 }
 
 type PhaseContent = {

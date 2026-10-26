@@ -9,7 +9,7 @@ import type {
   CycleRegularity,
   CycleSettingsRecord,
 } from "@/lib/profile-schema";
-import { estimatePhase } from "@/lib/cycle-phase";
+import { estimatePhase, pausedPhase, type CyclePause } from "@/lib/cycle-phase";
 import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
 
 const REGULARITY_OPTIONS: CycleRegularity[] = ["Regular", "Irregular", "Unsure"];
@@ -37,11 +37,14 @@ export function CycleView({
   menopauseSupportEnabled: initialMenopauseEnabled,
   cycleSettings,
   cyclePrivacy,
+  cyclePause = null,
 }: {
   cycleTrackingEnabled: boolean;
   menopauseSupportEnabled: boolean;
   cycleSettings: CycleSettingsRecord | null;
   cyclePrivacy: CyclePrivacyPreferencesRecord | null;
+  /** Pregnancy or the time after a birth pauses the phase estimate. */
+  cyclePause?: CyclePause | null;
 }) {
   const router = useRouter();
 
@@ -76,12 +79,14 @@ export function CycleView({
   const [menopauseSuccess, setMenopauseSuccess] = useState<string | null>(null);
   const [isSubmittingMenopause, setIsSubmittingMenopause] = useState(false);
 
-  const phaseEstimate = estimatePhase(
-    cycleSettings?.lastPeriodStartDate ?? null,
-    cycleSettings?.averageCycleLengthDays ?? null,
-    cycleSettings?.periodLengthDays ?? null,
-    cycleSettings?.regularity ?? null
-  );
+  const phaseEstimate = cyclePause
+    ? pausedPhase(cyclePause, cycleSettings?.averageCycleLengthDays ?? null)
+    : estimatePhase(
+        cycleSettings?.lastPeriodStartDate ?? null,
+        cycleSettings?.averageCycleLengthDays ?? null,
+        cycleSettings?.periodLengthDays ?? null,
+        cycleSettings?.regularity ?? null
+      );
 
   const hasExistingData = Boolean(
     cycleSettings?.lastPeriodStartDate ||
@@ -199,10 +204,11 @@ export function CycleView({
       {/* Phase prompt — shown when cycle tracking is enabled but no data yet */}
       {cycleTrackingEnabled && phaseEstimate.phase === "Unknown" && (
         <div className="rounded-xl border border-border bg-card p-6">
-          <h3 className="text-lg font-semibold">Estimated phase</h3>
+          <h3 className="text-lg font-semibold">{phaseEstimate.pausedFor ? "Cycle tracking paused" : "Estimated phase"}</h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            Add your cycle information below to see a phase estimate. All information is private
-            to you.
+            {phaseEstimate.pausedFor
+              ? phaseEstimate.explanation
+              : "Add your cycle information below to see a phase estimate. All information is private to you."}
           </p>
         </div>
       )}

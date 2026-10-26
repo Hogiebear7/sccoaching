@@ -24,7 +24,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
-import { estimatePhase } from "@/lib/cycle-phase";
+import { memberPhaseEstimate } from "@/lib/cycle-phase-data";
 import { estimatePregnancy } from "@/lib/pregnancy";
 import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
@@ -155,14 +155,11 @@ export default async function StaffMemberDetailPage({
     pregnancyStatus?.isPregnant && pregnancyStatus.shareWithCoach
       ? estimatePregnancy(true, pregnancyStatus.dueDate)
       : null;
-  const phaseEstimate = cycleSettings
-    ? estimatePhase(
-        cycleSettings.lastPeriodStartDate,
-        cycleSettings.averageCycleLengthDays,
-        cycleSettings.periodLengthDays,
-        cycleSettings.regularity
-      )
-    : null;
+  // A paused phase would reveal a pregnancy, so the coach only sees it when
+  // the member shares their pregnancy; otherwise no phase is shown at all.
+  const memberPhase = cycleSettings ? memberPhaseEstimate(user.id, cycleSettings) : null;
+  const phaseEstimate =
+    memberPhase?.pausedFor && !(pregnancyStatus?.isPregnant && pregnancyStatus.shareWithCoach) ? null : memberPhase;
   const programme = walled ? null : findProgrammeByUserId(user.id);
   const sessions = walled ? [] : findWorkoutSessionsByUserId(user.id);
   const personalBests = computePersonalBests(sessions);

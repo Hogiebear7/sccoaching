@@ -237,6 +237,12 @@ export interface PregnancyStatusRecord {
   userId: string;
   isPregnant: boolean;
   dueDate: string | null;
+  /** The baby's actual birth date, set from "Baby has arrived". Null until
+      then; the due date stands in for it (see lib/cycle-phase.ts). */
+  birthDate?: string | null;
+  /** Set after the birth; adds the breastfeeding calorie allowance while
+      true. Null before the birth or when the member hasn't said. */
+  breastfeeding?: boolean | null;
   shareWithCoach: boolean;
   createdAt: string;
   updatedAt: string;

@@ -10,7 +10,7 @@
 import { computeGoalTimeline, goalTimelineAdjustKcal as kcalFromWeeklyRate } from "./body-composition-goal";
 import { resolveCurrentBodyFatPct } from "./body-fat";
 import { resolveCurrentWeightKg } from "./body-weight";
-import { estimatePhase } from "./cycle-phase";
+import { cyclePauseFor, estimatePhase } from "./cycle-phase";
 import {
   findBodyFatLogsByUserId,
   findBodyWeightLogsByUserId,
@@ -18,6 +18,7 @@ import {
   findFoodEntriesByUserId,
   findNutritionDayStatusesByUserId,
   findNutritionTargetByUserId,
+  findPregnancyStatusByUserId,
   findProfileByUserId,
   findRecoveryLogsByUserId,
   findWeeklyTrainingScheduleByUserId,
@@ -303,6 +304,9 @@ interface ResolveContext {
     periodLengthDays: number | null;
     regularity: import("./profile-schema").CycleRegularity | null;
   } | null;
+  /** The member's pregnancy record, if any. Pregnancy pauses the luteal
+      shift (see cyclePauseFor). Optional so older callers still compile. */
+  pregnancy?: import("./profile-schema").PregnancyStatusRecord | null;
   /** From the member's goal weight/body-fat + target date (see buildContext
       and lib/body-composition-goal.ts). Used as the pace only when the
       member hasn't chosen one. Null when no goal timeline is set. */
@@ -355,7 +359,7 @@ function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: numbe
     )
   );
   const lutealDays = dates.map((d) =>
-    ctx.cycleTracking
+    ctx.cycleTracking && !cyclePauseFor(ctx.pregnancy, ctx.cycleTracking.lastPeriodStartDate, d)
       ? estimatePhase(
           ctx.cycleTracking.lastPeriodStartDate,
           ctx.cycleTracking.averageCycleLengthDays,
@@ -637,6 +641,7 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
       };
     })(),
     goalTimelineAdjustKcal,
+    pregnancy: findPregnancyStatusByUserId(userId) ?? null,
     weekCache: new Map(),
   };
 }

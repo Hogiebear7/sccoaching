@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   findNutritionDayStatusesByUserId: vi.fn(),
   findNutritionTargetByUserId: vi.fn(),
   findCycleSettingsByUserId: vi.fn(),
+  findPregnancyStatusByUserId: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
 
