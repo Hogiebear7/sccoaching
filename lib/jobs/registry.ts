@@ -6,6 +6,7 @@ import { generateClassSeriesJob } from "./generate-class-series";
 import { notifyExpiringPassesJob } from "./notify-expiring-passes";
 import { notifyLowPassBalanceJob } from "./notify-low-pass-balance";
 import { notifyLapsedMembershipsJob } from "./notify-lapsed-memberships";
+import { notifyPregnancyGoalResumeJob } from "./notify-pregnancy-goal-resume";
 import { processWaitlistOffersJob } from "./process-waitlist-offers";
 import { reconcileGooglePlayPurchasesJob } from "./reconcile-google-play-purchases";
 import { retryGooglePlayAcknowledgementsJob } from "./retry-google-play-acknowledgements";
@@ -39,6 +40,7 @@ export const ALL_JOBS: JobDefinition[] = [
   sendClassRemindersJob,
   sendProgrammeRemindersJob,
   sendProgrammeCheckinsJob,
+  notifyPregnancyGoalResumeJob,
   detectNoShowsJob,
   cleanupPastWaitlistsJob,
   purgeExpiredResetTokensJob,

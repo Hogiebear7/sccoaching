@@ -25,6 +25,7 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   workout_liked: "Workout liked",
   workout_commented: "New comment",
   mentioned_in_comment: "Mentioned you",
+  nutrition_update: "Nutrition",
 };
 
 const TYPE_ICON: Record<NotificationType, string> = {
@@ -59,6 +60,7 @@ const TYPE_ICON: Record<NotificationType, string> = {
     "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
   mentioned_in_comment:
     "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+  nutrition_update: "M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z",
 };
 
 // Time-sensitive types get their own "Needs a response" group ahead of
@@ -85,6 +87,7 @@ const TYPE_IS_URGENT: Record<NotificationType, boolean> = {
   workout_liked: false,
   workout_commented: false,
   mentioned_in_comment: false,
+  nutrition_update: false,
 };
 
 // Routine updates shown before "Show all". Urgent items always show in full.

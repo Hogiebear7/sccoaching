@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
     data: {
       isPregnant: status?.isPregnant ?? false,
       shareWithCoach: status?.shareWithCoach ?? false,
+      birthDate: status?.birthDate ?? null,
+      breastfeeding: status?.breastfeeding ?? null,
       estimate,
     },
   });

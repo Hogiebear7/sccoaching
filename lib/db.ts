@@ -1602,7 +1602,10 @@ export type NotificationType =
   | "new_follower"
   | "workout_liked"
   | "workout_commented"
-  | "mentioned_in_comment";
+  | "mentioned_in_comment"
+  // Calorie target changes the member should know about (pregnancy pausing
+  // a weight goal, the goal resuming after the birth).
+  | "nutrition_update";
 
 export interface NotificationRecord {
   id: string;
@@ -4587,6 +4590,10 @@ export function saveCyclePrivacy(prefs: CyclePrivacyPreferencesRecord) {
 export function findPregnancyStatusByUserId(userId: string): PregnancyStatusRecord | undefined {
   const db = readDb();
   return db.pregnancyStatus.find((p) => p.userId === userId);
+}
+
+export function findAllPregnancyStatuses(): PregnancyStatusRecord[] {
+  return readDb().pregnancyStatus;
 }
 
 export function savePregnancyStatus(status: PregnancyStatusRecord) {

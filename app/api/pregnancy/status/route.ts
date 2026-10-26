@@ -1,16 +1,30 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findPregnancyStatusByUserId, findProfileByUserId, findUserById, savePregnancyStatus } from "@/lib/db";
-import { computeDueDate, estimatePregnancy, COACH_SHARE_UNLOCK_WEEKS } from "@/lib/pregnancy";
+import {
+  createNotification,
+  findPregnancyStatusByUserId,
+  findProfileByUserId,
+  findUserById,
+  savePregnancyStatus,
+} from "@/lib/db";
+import { computeDueDate, estimatePregnancy } from "@/lib/pregnancy";
+import { pregnancyStartISO } from "@/lib/pregnancy-nutrition";
+import { defaultPaceForGoal } from "@/lib/nutrition-target";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { PregnancyStatusRecord } from "@/lib/profile-schema";
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 // Same eligibility gate as cycle tracking (private reproductive-health data).
-// shareWithCoach is re-validated server-side against the record actually
-// being saved, not trusted from the client — a member can't unlock sharing
-// early by sending shareWithCoach:true before 12 weeks, and unsetting
-// isPregnant always clears it too.
+// The member can share with their coach at any point in the pregnancy;
+// unsetting isPregnant always clears sharing and the after-birth fields.
+//
+// Body: { isPregnant, weeksAlong?, shareWithCoach?, birthDate?, breastfeeding? }
+// - birthDate ("Baby has arrived") must be today or earlier and after the
+//   start of the pregnancy.
+// - breastfeeding false after true records today as the day it stopped.
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
   const user = userId ? findUserById(userId) : null;
@@ -35,7 +49,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { isPregnant, weeksAlong, shareWithCoach } = (body ?? {}) as Record<string, unknown>;
+  const { isPregnant, weeksAlong, shareWithCoach, birthDate, breastfeeding } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof isPregnant !== "boolean") {
     return NextResponse.json({ success: false, message: "isPregnant is required." }, { status: 400 });
@@ -57,19 +71,74 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "weeksAlong is required to start tracking." }, { status: 400 });
   }
 
-  const estimate = estimatePregnancy(isPregnant, dueDate, today);
-  const eligibleToShare = isPregnant && (estimate.weeksPregnant ?? 0) >= COACH_SHARE_UNLOCK_WEEKS;
+  let nextBirthDate: string | null = isPregnant ? existing?.birthDate ?? null : null;
+  if (isPregnant && birthDate !== undefined) {
+    if (birthDate === null) {
+      nextBirthDate = null;
+    } else if (
+      typeof birthDate !== "string" ||
+      !ISO_DATE.test(birthDate) ||
+      birthDate > today ||
+      (dueDate !== null && birthDate <= pregnancyStartISO(dueDate))
+    ) {
+      return NextResponse.json({ success: false, message: "Enter your baby's birth date (today or earlier)." }, { status: 400 });
+    } else {
+      nextBirthDate = birthDate;
+    }
+  }
+
+  let nextBreastfeeding: boolean | null = isPregnant ? existing?.breastfeeding ?? null : null;
+  let breastfeedingEndedOn: string | null = isPregnant ? existing?.breastfeedingEndedOn ?? null : null;
+  if (isPregnant && typeof breastfeeding === "boolean") {
+    if (breastfeeding) breastfeedingEndedOn = null;
+    else if (existing?.breastfeeding === true) breastfeedingEndedOn = today;
+    nextBreastfeeding = breastfeeding;
+  }
 
   const record: PregnancyStatusRecord = {
     userId: user.id,
     isPregnant,
     dueDate,
-    shareWithCoach: eligibleToShare && shareWithCoach === true,
+    birthDate: nextBirthDate,
+    breastfeeding: nextBreastfeeding,
+    breastfeedingEndedOn,
+    shareWithCoach: isPregnant && shareWithCoach === true,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
 
   savePregnancyStatus(record);
 
-  return NextResponse.json({ success: true, data: { isPregnant: record.isPregnant, shareWithCoach: record.shareWithCoach, estimate } });
+  // Starting pregnancy tracking with a weight-loss or gain goal pauses that
+  // goal (see lib/pregnancy-nutrition.ts) — say so, here and in the inbox,
+  // rather than leaving it to "Why this number?".
+  const pace = profile.goalPacePctPerWeek ?? defaultPaceForGoal(profile.primaryGoal);
+  const goalPaused = isPregnant && existing?.isPregnant !== true && pace !== 0;
+  if (goalPaused) {
+    createNotification({
+      id: randomUUID(),
+      userId: user.id,
+      type: "nutrition_update",
+      title: "Your weight goal is paused",
+      body: `Your ${pace < 0 ? "weight-loss" : "weight-gain"} goal is paused while you're pregnant. Your calorie target is now set to maintain your weight, with extra calories added as your pregnancy goes on.`,
+      readAt: null,
+      linkHref: "/dashboard/nutrition",
+      dedupeKey: null,
+      createdAt: now,
+    });
+  }
+
+  const estimate = estimatePregnancy(isPregnant, dueDate, today, record);
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      isPregnant: record.isPregnant,
+      shareWithCoach: record.shareWithCoach,
+      birthDate: record.birthDate,
+      breastfeeding: record.breastfeeding,
+      goalPaused,
+      estimate,
+    },
+  });
 }
