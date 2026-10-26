@@ -34,6 +34,7 @@ function baseData(session: WorkoutSessionRecord): WorkoutReviewData {
     recovery: null,
     cyclePhase: null,
     pregnancy: null,
+    pregnancyFlags: [],
     nutrition: null,
     hydration: null,
   };

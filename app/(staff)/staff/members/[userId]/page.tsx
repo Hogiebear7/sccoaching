@@ -26,6 +26,8 @@ import {
 } from "@/lib/db";
 import { memberPhaseEstimate } from "@/lib/cycle-phase-data";
 import { estimatePregnancy } from "@/lib/pregnancy";
+import { nutritionStageFor } from "@/lib/pregnancy-nutrition";
+import { trainingGuidanceFor } from "@/lib/pregnancy-training";
 import { readinessGuidance, trainingLoadForLog } from "@/lib/recovery";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { describeDrinkSettings } from "@/lib/drink-settings";
@@ -155,6 +157,11 @@ export default async function StaffMemberDetailPage({
     pregnancyStatus?.isPregnant && pregnancyStatus.shareWithCoach
       ? estimatePregnancy(true, pregnancyStatus.dueDate, undefined, pregnancyStatus)
       : null;
+  const pregnancyStage =
+    pregnancyStatus?.isPregnant && pregnancyStatus.shareWithCoach
+      ? nutritionStageFor(pregnancyStatus, new Date().toISOString().slice(0, 10))
+      : null;
+  const pregnancyTraining = pregnancyStage ? trainingGuidanceFor(pregnancyStage) : null;
   // A paused phase would reveal a pregnancy, so the coach only sees it when
   // the member shares their pregnancy; otherwise no phase is shown at all.
   const memberPhase = cycleSettings ? memberPhaseEstimate(user.id, cycleSettings) : null;
@@ -420,12 +427,15 @@ export default async function StaffMemberDetailPage({
                 value={
                   pregnancyEstimate.weeksPregnant !== null
                     ? `${pregnancyEstimate.content?.label ?? ""} · week ${pregnancyEstimate.weeksPregnant}`
-                    : "—"
+                    : pregnancyEstimate.content?.label ?? "—"
                 }
               />
+              {pregnancyTraining ? (
+                <CycleInfoRow label="Effort" value={pregnancyTraining.effort} />
+              ) : null}
               <p className="text-xs text-muted-foreground/70">
                 Adjust programming for reduced high-fall-risk, high-impact, and prolonged supine work as
-                appropriate for this stage. See the member&apos;s own app for the full guidance they&apos;re seeing.
+                appropriate for this stage. The member&apos;s workout reviews flag exercises that need a swap.
               </p>
             </div>
           )}

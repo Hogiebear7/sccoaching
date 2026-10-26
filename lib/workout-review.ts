@@ -13,6 +13,8 @@ import {
 import type { PhaseEstimate } from "./cycle-phase";
 import { memberPhaseEstimate } from "./cycle-phase-data";
 import { estimatePregnancy, type PregnancyEstimate } from "./pregnancy";
+import { nutritionStageFor } from "./pregnancy-nutrition";
+import { exerciseFlagFor, type ExerciseFlag } from "./pregnancy-training";
 import { sumDailyTotals } from "./nutrition-diary";
 import { getResolvedNutritionTarget } from "./nutrition-target-data";
 
@@ -68,6 +70,9 @@ export interface WorkoutReviewData {
   recovery: RecoveryLogRecord | null;
   cyclePhase: PhaseEstimate | null;
   pregnancy: PregnancyEstimate | null;
+  /** Exercises in this session that need a swap at the member's pregnancy
+      or after-birth stage (lib/pregnancy-training.ts). */
+  pregnancyFlags: ({ exercise: string } & ExerciseFlag)[];
   nutrition: NutritionCompliance | null;
   hydration: HydrationCompliance | null;
 }
@@ -127,11 +132,17 @@ export function buildWorkoutReviewData(userId: string, session: WorkoutSessionRe
   }
 
   let pregnancy: PregnancyEstimate | null = null;
+  const pregnancyFlags: WorkoutReviewData["pregnancyFlags"] = [];
   if (profile?.cycleTrackingEligible) {
     const pregnancyStatus = findPregnancyStatusByUserId(userId);
     if (pregnancyStatus?.isPregnant) {
       const estimate = estimatePregnancy(true, pregnancyStatus.dueDate, session.date, pregnancyStatus);
       if (estimate.content) pregnancy = estimate;
+      const stage = nutritionStageFor(pregnancyStatus, session.date);
+      for (const ex of session.exercises) {
+        const flag = exerciseFlagFor(ex.name, stage);
+        if (flag && !pregnancyFlags.some((f) => f.exercise === ex.name)) pregnancyFlags.push({ exercise: ex.name, ...flag });
+      }
     }
   }
 
@@ -152,7 +163,7 @@ export function buildWorkoutReviewData(userId: string, session: WorkoutSessionRe
     ? { targetMl: target.calories, loggedMl: findWaterLogByUserIdAndDate(userId, session.date)?.ml ?? 0 }
     : null;
 
-  return { session, comparison, recovery, cyclePhase, pregnancy, nutrition, hydration };
+  return { session, comparison, recovery, cyclePhase, pregnancy, pregnancyFlags, nutrition, hydration };
 }
 
 // Plain-text grounding block for the AI call — every fact here is one the
@@ -200,8 +211,13 @@ export function formatWorkoutReviewContext(data: WorkoutReviewData): string {
 
   if (data.pregnancy?.content) {
     lines.push(
-      `Member was pregnant on this date: ${data.pregnancy.content.label}, week ${data.pregnancy.weeksPregnant}. Keep any comments about intensity or exercise choice general and consistent with standard prenatal exercise guidance — do not invent medical advice.`
+      data.pregnancy.trimester === "postpartum"
+        ? `Member had given birth before this date (${data.pregnancy.content.label}). Keep any comments about intensity or exercise choice general and consistent with standard postnatal return-to-exercise guidance — do not invent medical advice.`
+        : `Member was pregnant on this date: ${data.pregnancy.content.label}, week ${data.pregnancy.weeksPregnant}. Keep any comments about intensity or exercise choice general and consistent with standard prenatal exercise guidance — do not invent medical advice.`
     );
+    for (const f of data.pregnancyFlags) {
+      lines.push(`"${f.exercise}" is flagged for this stage: ${f.reason} Suggested swap: ${f.swap}`);
+    }
   }
 
   if (nutrition) {

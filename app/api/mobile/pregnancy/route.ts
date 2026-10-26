@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 
 import { findPregnancyStatusByUserId, findProfileByUserId, findUserById } from "@/lib/db";
 import { estimatePregnancy } from "@/lib/pregnancy";
+import { nutritionStageFor } from "@/lib/pregnancy-nutrition";
+import { trainingGuidanceFor } from "@/lib/pregnancy-training";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // Read-only aggregation for the mobile Cycle Tracking screen's pregnancy
@@ -29,6 +31,7 @@ export async function GET(request: NextRequest) {
 
   const status = findPregnancyStatusByUserId(user.id) ?? null;
   const estimate = estimatePregnancy(status?.isPregnant ?? false, status?.dueDate ?? null, undefined, status ?? undefined);
+  const stage = nutritionStageFor(status, new Date().toISOString().slice(0, 10));
 
   return NextResponse.json({
     success: true,
@@ -38,6 +41,10 @@ export async function GET(request: NextRequest) {
       birthDate: status?.birthDate ?? null,
       breastfeeding: status?.breastfeeding ?? null,
       estimate,
+      /** Stage-specific training guidance, or null (lib/pregnancy-training.ts). */
+      training: stage ? trainingGuidanceFor(stage) : null,
+      /** What the calorie target is doing for this stage. */
+      nutritionStage: stage,
     },
   });
 }
