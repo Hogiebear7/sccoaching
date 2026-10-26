@@ -113,7 +113,7 @@ export function getDashboardData(userId: string | undefined): DashboardData | nu
 
   const pregnancyStatus = profile?.cycleTrackingEligible ? findPregnancyStatusByUserId(user.id) : undefined;
   const pregnancyEstimate =
-    pregnancyStatus?.isPregnant ? estimatePregnancy(true, pregnancyStatus.dueDate) : null;
+    pregnancyStatus?.isPregnant ? estimatePregnancy(true, pregnancyStatus.dueDate, undefined, pregnancyStatus) : null;
 
   const todayISO = new Date().toISOString().slice(0, 10);
   const todayReadiness = recoveryLogs.find((l) => l.date === todayISO)?.readinessScore ?? null;

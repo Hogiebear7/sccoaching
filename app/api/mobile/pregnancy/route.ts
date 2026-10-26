@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   }
 
   const status = findPregnancyStatusByUserId(user.id) ?? null;
-  const estimate = estimatePregnancy(status?.isPregnant ?? false, status?.dueDate ?? null);
+  const estimate = estimatePregnancy(status?.isPregnant ?? false, status?.dueDate ?? null, undefined, status ?? undefined);
 
   return NextResponse.json({
     success: true,

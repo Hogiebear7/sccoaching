@@ -153,7 +153,7 @@ export default async function StaffMemberDetailPage({
     : undefined;
   const pregnancyEstimate =
     pregnancyStatus?.isPregnant && pregnancyStatus.shareWithCoach
-      ? estimatePregnancy(true, pregnancyStatus.dueDate)
+      ? estimatePregnancy(true, pregnancyStatus.dueDate, undefined, pregnancyStatus)
       : null;
   // A paused phase would reveal a pregnancy, so the coach only sees it when
   // the member shares their pregnancy; otherwise no phase is shown at all.

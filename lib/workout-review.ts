@@ -130,7 +130,7 @@ export function buildWorkoutReviewData(userId: string, session: WorkoutSessionRe
   if (profile?.cycleTrackingEligible) {
     const pregnancyStatus = findPregnancyStatusByUserId(userId);
     if (pregnancyStatus?.isPregnant) {
-      const estimate = estimatePregnancy(true, pregnancyStatus.dueDate, session.date);
+      const estimate = estimatePregnancy(true, pregnancyStatus.dueDate, session.date, pregnancyStatus);
       if (estimate.content) pregnancy = estimate;
     }
   }
