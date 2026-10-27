@@ -1,6 +1,5 @@
 // Creates the one catalog package Tier 2 ("App Subscription") is granted
-// against, plus its three Google Play billing options (monthly / every 6
-// months / yearly) — the primary purchase path is the native Play Billing
+// against, plus its Google Play billing options (monthly and yearly) — the primary purchase path is the native Play Billing
 // flow (see lib/providers/google-play.ts,
 // app/api/mobile/billing/google-play/verify/route.ts); staff manual-grant
 // and invite-link flows (lib/member-access.ts / lib/membership-entitlement.ts)
@@ -37,7 +36,6 @@
 // Env (optional):
 //   GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID   e.g. "app_subscription_tier2"
 //   APP_STORE_PRODUCT_ID_MONTHLY          the App Store Connect product id for the monthly plan
-//   APP_STORE_PRODUCT_ID_SEMIANNUAL       ... for the 6-month plan
 //   APP_STORE_PRODUCT_ID_ANNUAL           ... for the yearly plan
 //
 // The App Store product ids are NEVER defaulted or invented: each is written only when you set it, and must be exactly the
@@ -63,14 +61,14 @@ const GOOGLE_PLAY_PRODUCT_ID = process.env.GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID ?
 
 const APPLE_PRODUCT_IDS = {
   monthly: process.env.APP_STORE_PRODUCT_ID_MONTHLY?.trim() || null,
-  semiannual: process.env.APP_STORE_PRODUCT_ID_SEMIANNUAL?.trim() || null,
   annual: process.env.APP_STORE_PRODUCT_ID_ANNUAL?.trim() || null,
 };
 
+// Owner decisions 2026-10-27: monthly €11.99 and yearly €99.99, each with a 7-day free trial set up in the stores; the 6-month plan is deferred.
+// An earlier "semiannual" option already in a datastore is left as it is: the store has no such base plan, so the app never offers it.
 const PLANS = [
-  { basePlanId: "monthly", name: "App Subscription — Monthly", intervalUnit: "month", intervalCount: 1, amountCents: 1299, sortOrder: 0 },
-  { basePlanId: "semiannual", name: "App Subscription — 6 Months", intervalUnit: "month", intervalCount: 6, amountCents: 5399, sortOrder: 1 },
-  { basePlanId: "annual", name: "App Subscription — Yearly", intervalUnit: "year", intervalCount: 1, amountCents: 8400, sortOrder: 2 },
+  { basePlanId: "monthly", name: "App Subscription — Monthly", intervalUnit: "month", intervalCount: 1, amountCents: 1199, sortOrder: 0 },
+  { basePlanId: "annual", name: "App Subscription — Yearly", intervalUnit: "year", intervalCount: 1, amountCents: 9999, sortOrder: 1 },
 ];
 
 if (!existsSync(DB_PATH)) {
