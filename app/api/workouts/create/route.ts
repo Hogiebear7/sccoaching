@@ -8,7 +8,7 @@ import {
   type WorkoutRunEntry,
   type WorkoutSessionRecord,
 } from "@/lib/db";
-import { parseExerciseEntries } from "@/lib/workout-entries";
+import { parseCardioFields, parseExerciseEntries } from "@/lib/workout-entries";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 function parseOptionalNonNegativeInt(
@@ -141,6 +141,7 @@ export async function POST(request: NextRequest) {
             reps: repsRaw !== null && Number.isFinite(repsRaw) && repsRaw >= 0 ? Math.floor(repsRaw) : null,
             sets: setsRaw !== null && Number.isFinite(setsRaw) && setsRaw >= 0 ? Math.floor(setsRaw) : null,
             notes: typeof r.notes === "string" && r.notes.trim() ? r.notes.trim() : null,
+            ...parseCardioFields(r),
           } satisfies WorkoutRunEntry,
         ];
       })

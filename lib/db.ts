@@ -157,6 +157,10 @@ export interface WorkoutRunEntry {
   reps: number | null;
   sets: number | null;
   notes: string | null;
+  /** What kind of cardio ("Add cardio"); absent on older entries = run. */
+  cardioType?: import("./workout-entries").CardioType;
+  /** Machine level or incline (0-30), when given. */
+  level?: number | null;
 }
 
 export interface WorkoutSessionRecord {

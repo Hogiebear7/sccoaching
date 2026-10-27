@@ -174,6 +174,15 @@ export function formatWorkoutReviewContext(data: WorkoutReviewData): string {
   const lines: string[] = [];
 
   lines.push(`Session: "${session.title}" on ${session.date}, duration ${session.durationMins ?? "not logged"} min.`);
+  for (const c of session.runs ?? []) {
+    const kind = (c.cardioType ?? "run").replace(/_/g, " ");
+    const parts = [
+      c.durationSecs ? `${Math.round(c.durationSecs / 60)} min` : null,
+      c.distance ? `${c.distance} km` : null,
+      c.level != null ? `level/incline ${c.level}` : null,
+    ].filter(Boolean);
+    lines.push(`Cardio: ${kind}${parts.length ? ` (${parts.join(", ")})` : ""}.`);
+  }
   lines.push(
     session.sessionRpe != null
       ? `Session RPE (member-reported, 1-10): ${session.sessionRpe}.`

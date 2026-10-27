@@ -111,3 +111,14 @@ export function formatExerciseLoad(ex: WorkoutExerciseEntry): string {
   if (ex.setType && SET_TYPE_LABEL[ex.setType]) parts.push(`(${SET_TYPE_LABEL[ex.setType]})`);
   return parts.join(" ");
 }
+
+// Cardio pieces logged alongside a session ("Add cardio"). Older entries
+// have no type and are runs.
+export const CARDIO_TYPES = ["run", "walk", "treadmill_walk", "stair_climber", "bike", "rower", "cross_trainer", "other"] as const;
+export type CardioType = (typeof CARDIO_TYPES)[number];
+
+export function parseCardioFields(r: Record<string, unknown>): { cardioType?: CardioType; level?: number | null } {
+  const cardioType = CARDIO_TYPES.includes(r.cardioType as CardioType) ? (r.cardioType as CardioType) : undefined;
+  const level = typeof r.level === "number" && Number.isFinite(r.level) && r.level >= 0 && r.level <= 30 ? Math.round(r.level * 10) / 10 : null;
+  return cardioType ? { cardioType, level } : {};
+}
