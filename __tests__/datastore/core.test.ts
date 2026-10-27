@@ -337,4 +337,25 @@ describe("a writer that does not take the lock is DETECTED (an old build run aga
     expect(core._foreignWriteCount()).toBe(before + 1);
     expect(stderr.mock.calls.map((c) => String(c[0])).join("")).toContain("possible foreign write");
   });
+
+  it("a reused inode number (a new file with a new creation time) is not reported; the same file rewritten in place is", async () => {
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await commit(["a"]);
+    const [dev, ino, born, ...rest] = core._identityOf(db).split(":");
+    const before = core._foreignWriteCount();
+
+    // another hardened process replaced the file and Linux handed it this process's old inode number: different creation time
+    core._noteForeignWrite(db, [dev, ino, String(BigInt(born) + BigInt(1000000)), "999", ...rest.slice(1)].join(":"));
+    expect(core._foreignWriteCount()).toBe(before);
+
+    // the same file (same creation time) with new content and timestamps: an in-place rewrite
+    core._noteForeignWrite(db, [dev, ino, born, "998", ...rest.slice(1)].join(":"));
+    expect(core._foreignWriteCount()).toBe(before + 1);
+  });
+
+  it("the identity carries the file's creation time", async () => {
+    await commit(["a"]);
+    const [, , born] = core._identityOf(db).split(":");
+    expect(born).toBe(String(fs.statSync(db, { bigint: true }).birthtimeNs));
+  });
 });

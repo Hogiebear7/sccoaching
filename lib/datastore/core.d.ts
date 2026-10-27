@@ -12,6 +12,7 @@ export function writeTextForScript(dbPath: string, text: string): void;
 export function _acquireLock(dbPath: string): { ownerId: string; pid: number; host: string; procStart: string | null; takenAt: number };
 export function _releaseLock(dbPath: string, owner: { ownerId: string }): void;
 export function _identityOf(dbPath: string): string;
+export function _noteForeignWrite(dbPath: string, identity: string): void;
 export function _atomicReplace(dbPath: string, text: string): void;
 export function withFileLock<T>(filePath: string, fn: () => T): T;
 export function replaceFileAtomically(filePath: string, text: string): void;
