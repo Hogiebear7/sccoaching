@@ -38,6 +38,8 @@ async function fileToAvatarDataUrl(file: File): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.85);
 }
 
+const THEME_CHOICES_SHOWN = false;
+
 export function AppearancePanel({
   fullName,
   initialAvatarDataUrl,
@@ -218,6 +220,11 @@ export function AppearancePanel({
         </div>
       </div>
 
+      {/* The member area now always matches the phone app's look (see the
+          App v2 block in app/globals.css), so the web theme and accent
+          choices are hidden; the stored values are kept and simply unused. */}
+      {THEME_CHOICES_SHOWN ? (
+      <>
       {/* App theme */}
       <div className="mt-5 border-t border-white/[0.06] pt-4">
         <p className="text-sm font-medium text-zinc-100">App theme</p>
@@ -288,6 +295,8 @@ export function AppearancePanel({
           })}
         </div>
       </div>
+      </>
+      ) : null}
     </div>
   );
 }

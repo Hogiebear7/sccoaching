@@ -919,3 +919,98 @@ details[open] > .details-reveal {
 [data-member-app] :is(button[aria-pressed], button[role="radio"], button[role="tab"]) {
   min-height: 2.5rem;
 }
+
+/* ─── Member app, matched to the phone app (App v2) ───────────────────
+   The website's member area now looks like the phone app, so a member
+   following "Join on the website" from the app lands somewhere familiar.
+   Same tokens as sc-coaching-mobile src/constants/theme.ts (DarkPalette):
+   deep navy, filled surfaces with no outlines, monochrome chrome (white pill
+   actions on navy), colour only for data, 16px cards, 10px inner radius,
+   pill controls, sentence-case labels. Applied whatever web theme or palette
+   the member picked before, so the two always match. Doubled attribute for
+   specificity over [data-theme] / [data-palette] on the same element. */
+[data-member-app][data-member-app] {
+  --bg-0: #060d18;
+  --bg-1: #08111f;
+  --sidebar: #08111f;
+  --surface-1: #0f1a2c;
+  --surface-2: #16243a;
+  --surface-3: #1d2d47;
+  --border-subtle: rgb(255 255 255 / 0.08);
+  --border-default: rgb(255 255 255 / 0.12);
+  --text-primary: #fcfeff;
+  --text-secondary: rgb(255 255 255 / 0.72);
+  --background: var(--bg-0);
+  --foreground: var(--text-primary);
+  --card: var(--surface-1);
+  --card-foreground: var(--text-primary);
+  --muted-foreground: rgb(255 255 255 / 0.62);
+  --border: var(--border-default);
+  --input: #1d2d47;
+  --primary: #ffffff;
+  --primary-hover: #e6eaf0;
+  --primary-foreground: #0a1526;
+  --ring: rgb(255 255 255 / 0.55);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 16px;
+  --radius-2xl: 16px;
+  background: var(--bg-0);
+}
+
+/* Cards: filled, no outline, 16px. */
+[data-member-app] :is(.surface-card, .panel, .panel-raised, .empty-state, .rounded-xl.border.bg-card) {
+  border-color: transparent;
+  border-radius: 16px;
+}
+[data-member-app] .surface-card--accent::before {
+  display: none;
+}
+[data-member-app] .well {
+  border-color: transparent;
+  border-radius: 10px;
+  background-color: var(--surface-2);
+}
+
+/* Actions: white pills on navy, like the app's primary buttons. */
+[data-member-app] .btn-primary {
+  border-radius: 999px;
+  color: var(--primary-foreground);
+  font-weight: 600;
+}
+[data-member-app] :is(a, button)[class*="rounded-[3px]"][class*="border"] {
+  border-radius: 999px;
+  border-color: transparent;
+  background-color: var(--surface-3);
+}
+
+/* Inputs: filled control, no outline until focus. */
+[data-member-app] :is(.input-field, input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea) {
+  border-radius: 10px;
+  border-color: transparent;
+  background-color: var(--input);
+}
+[data-member-app] .input-field:focus {
+  border-color: rgb(255 255 255 / 0.4);
+  box-shadow: none;
+}
+
+/* Labels: sentence case, quiet — the app has no all-caps eyebrows. Gold
+   stays for the brand mark only, so gold text reads as plain ink. */
+[data-member-app] .label-caps,
+[data-member-app] [class*="uppercase"][class*="tracking-"] {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+[data-member-app] .text-gold {
+  color: var(--text-primary);
+}
+[data-member-app] .chip,
+[data-member-app] :is(a, button, span)[class*="rounded-[3px]"] {
+  border-radius: 999px;
+}

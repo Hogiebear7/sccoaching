@@ -25,10 +25,8 @@ export function NavLink({
       <Link
         href={href}
         aria-current={isActive ? "page" : undefined}
-        className={`flex min-h-10 items-center border-l-2 pl-[22px] pr-6 text-sm font-medium transition-colors duration-150 ${
-          isActive
-            ? "border-primary bg-white/[0.04] text-zinc-50"
-            : "border-transparent text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-100"
+        className={`mx-3 flex min-h-10 items-center rounded-full px-4 text-sm font-medium transition-colors duration-150 ${
+          isActive ? "bg-white/[0.09] text-zinc-50" : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
         }`}
       >
         {children}

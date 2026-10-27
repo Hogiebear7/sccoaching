@@ -180,17 +180,17 @@ function fuelChipClass(day: string): string {
 
 function targetSourceLine(target: ResolvedNutritionTarget | null): string {
   if (!target || target.mode === "disabled") {
-    return "Automatic targets are turned off for this member — logging still works.";
+    return "Your coach has turned automatic targets off — logging still works.";
   }
   if (target.mode === "manual") {
     return target.setByMember
       ? "Set by you via the AI Nutrition Coach — it doesn't vary day to day."
-      : "Set by their coach — this member's target doesn't vary day to day.";
+      : "Set by your coach — it doesn't vary day to day.";
   }
   if (target.calories === null) return "No weight on file yet, so a target can't be calculated.";
   return target.source === "adaptive"
-    ? "Learned from their logged weight and food trend — refines automatically as they keep logging."
-    : "Estimated from bodyweight and training load — sharpens once there's enough weight and food history to learn a real trend from.";
+    ? "Learned from your logged weight and food — it keeps refining as you log."
+    : "Estimated from your weight and training — it sharpens once there's enough weight and food history to learn from.";
 }
 
 function sodiumBadgeClass(badge: "below" | "optimal" | "high"): string {

@@ -61,7 +61,7 @@ export default function BottomNav() {
               key={tab.href}
               href={tab.href}
               className={`relative flex flex-col items-center gap-0.5 rounded-xl px-3.5 py-1.5 transition-[color,background-color,transform] duration-150 active:scale-95 ${
-                active ? "bg-white/[0.07] text-blue-300" : "text-zinc-500 hover:text-zinc-300"
+                active ? "bg-white/[0.09] text-zinc-50" : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               {tab.icon}
