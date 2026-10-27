@@ -44,7 +44,7 @@
 import { configuredAiModel } from "@/lib/ai-model";
 import { ratesForKnownModel } from "@/lib/ai-usage";
 import { aiSpendUsd, aiTrialHeadroom, findAiUsageLogsByUserId, findDigitalEntitlementsByUserId, findProfileByUserId, reserveTrialSlot, type AiAllowanceKind, type TrialHeadroomConfig } from "@/lib/db";
-import { isDigitalEntitlementLive, liveDigitalEntitlements } from "@/lib/digital-entitlement";
+import { describeDigitalPlan, isDigitalEntitlementLive, liveDigitalEntitlements, type DigitalPlanSummary } from "@/lib/digital-entitlement";
 
 /** The four groups a MEMBER can be in ("staff" is the shared pool for staff-run features, not a member group). */
 export type MemberAllowanceKind = Exclude<AiAllowanceKind, "staff">;
@@ -291,6 +291,8 @@ export function checkAiAllowance(userId: string, nowMs: number = Date.now()): Al
 /** A member's AI allowance as staff see it, in EUROS (converted at the budgets' own rate, so it matches the settings). */
 export interface MemberAllowanceStatus {
   kind: MemberAllowanceKind;
+  /** The member's live App Subscription for staff to see (a store plan first, then a staff grant with its optional end), or null. */
+  plan: DigitalPlanSummary | null;
   paused: boolean;
   /** Null when allowances are not enforced or this group's budget is not set. */
   budgetEur: number | null;
@@ -308,6 +310,7 @@ export function memberAllowanceStatus(userId: string, nowMs: number = Date.now()
   const round = (n: number) => Math.round(n * 100) / 100;
   return {
     kind,
+    plan: describeDigitalPlan(findDigitalEntitlementsByUserId(userId), nowMs),
     paused: isAiPausedFor(userId),
     budgetEur: budget === null ? null : round(budget / rate),
     spentEur: round(aiSpendUsd(logs, userId, kind, windowMsFor(kind), nowMs) / rate),
