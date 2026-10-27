@@ -14,7 +14,7 @@ export function aiAllowanceRefusal(userId: string): NextResponse | null {
   const rate = checkRateLimit(`ai-any:${userId}`, AI_REQUESTS_PER_MINUTE, 60_000);
   if (!rate.allowed) {
     return NextResponse.json(
-      { success: false, code: AI_RATE_LIMITED_CODE, message: "That's a lot of AI requests in a short time. Please wait a minute and try again." },
+      { success: false, code: AI_RATE_LIMITED_CODE, message: "One moment: AI coaching will be ready again in a minute." },
       { status: 429 }
     );
   }

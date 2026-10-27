@@ -210,7 +210,8 @@ describe("four allowance groups, decided by what the member holds", () => {
     log(fx.memberB.id, 0.5, 0, "complimentary");
     const refused = await check(fx.memberB.id);
     expect(refused).toMatchObject({ ok: false, kind: "complimentary" });
-    expect((refused as { message: string }).message).toMatch(/complimentary/i);
+    // Members never see that there is a limit (owner decision 2026-10-27): a short pause with its end date, nothing about allowances.
+    expect((refused as { message: string }).message).toMatch(/^AI coaching will be ready again/);
     // Complimentary use is not paid use and not trial use.
     expect((await import("@/lib/db")).aiSpendUsd(fx.db.findAiUsageLogsByUserId(fx.memberB.id), fx.memberB.id, "paid", 30 * DAY, Date.now())).toBe(0);
     expect((await import("@/lib/db")).aiSpendUsd(fx.db.findAiUsageLogsByUserId(fx.memberB.id), fx.memberB.id, "trial", null, Date.now())).toBe(0);
@@ -293,7 +294,8 @@ describe("enforced on every member AI route, before the provider is reached", ()
     expect(res.status).toBe(429);
     const body = await res.json();
     expect(body).toMatchObject({ success: false, code: "ai_allowance_reached", kind: "paid", resetsAt: expect.any(String) });
-    expect(body.message).toMatch(/AI allowance/);
+    expect(body.message).toMatch(/^AI coaching will be ready again/);
+    expect(body.message).not.toMatch(/allowance|limit|€|\$/i);
     expect(reached.calls).toEqual([]);
   });
 

@@ -213,19 +213,20 @@ export const ALLOWANCE_COVERS =
 export const UPGRADE_MESSAGE =
   "This AI feature is part of the App Subscription. Everything else in the app, including logging food and workouts, still works.";
 
-export function allowanceMessage(kind: AiAllowanceKind, resetsAt: string | null, format: (iso: string) => string = (iso) => iso.slice(0, 10)): string {
-  const tail = "Your subscription and everything else in the app are unaffected; only the AI features pause.";
+// Owner decision 2026-10-27: members never see that AI has a limit (no "allowance", no amounts, no counters). When one is reached the message
+// reads as a short pause with the time it ends, and says the rest of the app is unaffected. The limit itself is disclosed once, as fair use, in the
+// subscription terms.
+const AI_PAUSE_TAIL = "Everything else in the app works as normal.";
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-IE", { day: "numeric", month: "short", timeZone: "UTC" });
+
+export function allowanceMessage(kind: AiAllowanceKind, resetsAt: string | null, format: (iso: string) => string = shortDate): string {
   switch (kind) {
     case "trial":
-      return `You've used the AI allowance included with your free trial. It doesn't renew during the trial, and your paid AI allowance starts when the trial becomes a paid plan. ${tail}`;
-    case "paid":
-      return `You've used your AI allowance. It is measured over a rolling 30 days: AI use older than 30 days stops counting${resetsAt ? `, so more is available from ${format(resetsAt)}` : ""}. ${tail}`;
+      return `You've made the most of AI coaching during your free trial. It'll be ready again when your subscription starts. ${AI_PAUSE_TAIL}`;
     case "staff":
-      return "The team's shared AI allowance for this period is used up. Nothing else in the app is affected.";
-    case "complimentary":
-      return `You've used the AI allowance that comes with your complimentary access. It is measured over a rolling 30 days${resetsAt ? `, so more is available from ${format(resetsAt)}` : ""}. ${tail}`;
+      return "AI drafting will be ready again soon. Nothing else in the app is affected.";
     default:
-      return `You've used the AI allowance included without a subscription. It is measured over a rolling 30 days${resetsAt ? `, so more is available from ${format(resetsAt)}` : ""}. ${tail}`;
+      return `AI coaching will be ready again ${resetsAt ? `on ${format(resetsAt)}` : "soon"}. ${AI_PAUSE_TAIL}`;
   }
 }
 
@@ -242,7 +243,7 @@ export function aiDailyShare(): number {
   const n = parseBudget(process.env.AI_DAILY_SHARE);
   return n !== null && n > 0 && n <= 1 ? n : DEFAULT_AI_DAILY_SHARE;
 }
-export const DAILY_LIMIT_MESSAGE = "You've used today's AI allowance. It frees up over the next 24 hours, and everything else in the app keeps working.";
+export const DAILY_LIMIT_MESSAGE = "AI coaching will be ready again tomorrow. Everything else in the app works as normal.";
 
 export const ALLOWANCE_UNAVAILABLE_MESSAGE = "AI features aren't available right now. Nothing else in the app is affected.";
 export const TRIAL_AI_UNAVAILABLE_MESSAGE = "AI features aren't available on free trials right now. Your trial, your subscription and everything else in the app are unaffected.";

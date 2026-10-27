@@ -181,3 +181,20 @@ describe("cycle-phase guidance is part of the App subscription; the phase itself
     expect(shown).toMatchObject({ phase: full?.phase, trainingGuidance: "", intensityGuidance: "", recoveryGuidance: "", readinessNote: "" });
   });
 });
+
+describe("members never see that AI has a limit (owner decision 2026-10-27)", () => {
+  it("every member-facing pause message reads as a pause with an end, with no allowance, limit or amount", async () => {
+    const { allowanceMessage, DAILY_LIMIT_MESSAGE, TRIAL_AI_UNAVAILABLE_MESSAGE, ALLOWANCE_UNAVAILABLE_MESSAGE } = await import("@/lib/ai-allowance");
+    const messages = [
+      allowanceMessage("paid", "2026-11-14T10:00:00.000Z"),
+      allowanceMessage("complimentary", null),
+      allowanceMessage("free", null),
+      allowanceMessage("trial", null),
+      DAILY_LIMIT_MESSAGE,
+      TRIAL_AI_UNAVAILABLE_MESSAGE,
+      ALLOWANCE_UNAVAILABLE_MESSAGE,
+    ];
+    for (const m of messages) expect(m).not.toMatch(/allowance|limit|quota|€|\$|\d+(\.\d+)? ?(eur|usd)/i);
+    expect(allowanceMessage("paid", "2026-11-14T10:00:00.000Z")).toBe("AI coaching will be ready again on 14 Nov. Everything else in the app works as normal.");
+  });
+});

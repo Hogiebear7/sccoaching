@@ -440,7 +440,8 @@ describe("the groups through the real reservation", () => {
       expect(err).toBeInstanceOf(AiAllowanceError);
       const e = err as InstanceType<typeof AiAllowanceError>;
       expect(e).toMatchObject({ code: "ai_allowance_reached", kind: "free" });
-      expect(e.message).toMatch(/subscription .* unaffected/i);
+      expect(e.message).toMatch(/Everything else in the app works as normal/);
+      expect(e.message).not.toMatch(/allowance|limit/i);
       expect(e.message).not.toMatch(/fair.use|unlimited/i);
     }
   });
