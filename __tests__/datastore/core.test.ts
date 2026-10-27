@@ -353,6 +353,15 @@ describe("a writer that does not take the lock is DETECTED (an old build run aga
     expect(core._foreignWriteCount()).toBe(before + 1);
   });
 
+  it("a change of metadata alone (ctime, as a scanner tagging the file does) is not reported", async () => {
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await commit(["a"]);
+    const parts = core._identityOf(db).split(":");
+    const before = core._foreignWriteCount();
+    core._noteForeignWrite(db, [...parts.slice(0, 5), String(BigInt(parts[5]) + BigInt(900000000))].join(":"));
+    expect(core._foreignWriteCount()).toBe(before);
+  });
+
   it("the identity carries the file's creation time", async () => {
     await commit(["a"]);
     const [, , born] = core._identityOf(db).split(":");
