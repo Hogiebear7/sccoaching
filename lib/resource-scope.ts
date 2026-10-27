@@ -140,6 +140,8 @@ export interface ModuleCacheScope {
 export const MODULE_CACHE_SCOPE: readonly ModuleCacheScope[] = [
   { file: "lib/ai.ts", symbol: "cachedClient", cacheClass: "global", note: "Anthropic SDK client. Holds the platform API key, no tenant data." },
   { file: "lib/app-config.ts", symbol: "cached", cacheClass: "global", note: "Parsed deployment configuration. Read once at first use." },
+  { file: "lib/db.ts", symbol: "snapshotEpochs", cacheClass: "global", note: "WeakMap from a datastore snapshot object to the number of the turn that read it. Holds only a counter; entries disappear with the snapshot." },
+  { file: "lib/db.ts", symbol: "unknownTopLevelKeys", cacheClass: "keyed", note: "WeakMap keyed by one datastore snapshot object: the top-level keys this version does not know, carried so a rewrite does not delete them. Read only by writeDb for that same snapshot; never returned to a caller, so nothing crosses a request or a tenant." },
   { file: "lib/exercise-library/admin-client.ts", symbol: "cached", cacheClass: "global", note: "Supabase service client for the shared exercise library." },
   { file: "lib/iap/adapter.ts", symbol: "override", cacheClass: "global", note: "Test-only adapter override. Null in every deployment: nothing selects it by configuration. Holds no tenant or user data." },
   { file: "lib/iap/adapter.ts", symbol: "defaultAdapter", cacheClass: "global", note: "Registered once at import with the Google Play adapter. Holds no tenant or user data." },

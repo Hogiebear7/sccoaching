@@ -46,7 +46,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "A valid status is required." }, { status: 400 });
   }
 
-  saveGym({ ...gym, status, updatedAt: new Date().toISOString() });
+  // The body was awaited after the gym was read: apply the status to the gym as it is NOW.
+  saveGym({ ...(findGymById(gymId) ?? gym), status, updatedAt: new Date().toISOString() });
 
   return NextResponse.json({ success: true, message: `Gym marked ${status}.` }, { status: 200 });
 }

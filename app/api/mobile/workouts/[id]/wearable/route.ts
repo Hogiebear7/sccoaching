@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById, findWorkoutSessionById, saveWorkoutSession } from "@/lib/db";
+import { findUserById, findWorkoutSessionById, updateWorkoutSession } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // POST /api/mobile/workouts/[id]/wearable — { calories?, avgHr?, maxHr? }
@@ -46,13 +46,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 
-  saveWorkoutSession({
-    ...workout,
+  // The body was awaited after the workout was read: set only the watch fields, on the workout as it is NOW.
+  updateWorkoutSession(workout.id, () => ({
     ...(calories !== undefined ? { wearableCalories: calories } : {}),
     ...(avgHr !== undefined ? { avgHr } : {}),
     ...(maxHr !== undefined ? { maxHr } : {}),
     updatedAt: new Date().toISOString(),
-  });
+  }));
 
   return NextResponse.json({ success: true, message: "Saved." });
 }

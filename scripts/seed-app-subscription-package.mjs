@@ -38,8 +38,10 @@
 //   GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID   e.g. "app_subscription_tier2"
 
 import { randomUUID } from "crypto";
-import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = process.env.GYM_DB_PATH ?? fileURLToPath(new URL("../data/db.json", import.meta.url));
 const CONFIRM = process.argv.slice(2).includes("--confirm");
@@ -59,7 +61,7 @@ if (!existsSync(DB_PATH)) {
   process.exit(1);
 }
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 
 let pkg = (db.membershipPackages ?? []).find((p) => p.slug === APP_SUBSCRIPTION_PACKAGE_SLUG);
 
@@ -184,7 +186,7 @@ for (const plan of driftedPlans) {
   option.updatedAt = now;
 }
 
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+writeForScript(DB_PATH, db, dbToken);
 
 console.log(`\n✓ Backed up db to ${backup}`);
 if (needsPackage) console.log(`✓ Created package "${pkg.name}" (id: ${pkg.id})`);

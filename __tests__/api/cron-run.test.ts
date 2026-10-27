@@ -37,6 +37,26 @@ describe("GET /api/cron/run", () => {
     process.env.CRON_SECRET = originalSecret;
   });
 
+  it("answers 200 with skipped:true, and runs nothing more, when another run already holds the lease", async () => {
+    const { JobRunInProgressError } = await import("@/lib/jobs/lease");
+    mockRunAllJobs.mockRejectedValueOnce(new JobRunInProgressError());
+    const { GET } = await import("@/app/api/cron/run/route");
+
+    const res = await GET(makeRequest({ authorization: "Bearer test-secret" }));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ success: true, trigger: "cron", skipped: true, outcomes: [] });
+    expect(mockRunAllJobs).toHaveBeenCalledTimes(1);
+  });
+
+  it("still returns a real error for a failure that is not the lease", async () => {
+    mockRunAllJobs.mockRejectedValueOnce(new Error("datastore exploded"));
+    const { GET } = await import("@/app/api/cron/run/route");
+
+    await expect(GET(makeRequest({ authorization: "Bearer test-secret" }))).rejects.toThrow("datastore exploded");
+  });
+
   it("rejects a request with no auth at all", async () => {
     const { GET } = await import("@/app/api/cron/run/route");
 

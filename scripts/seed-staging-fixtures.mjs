@@ -25,6 +25,8 @@ import { randomBytes, randomInt, randomUUID, scryptSync } from "node:crypto";
 import { copyFileSync, existsSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
+const { writeTextForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const FIXTURE_EMAIL_DOMAIN = "@example.test";
@@ -260,7 +262,7 @@ function main(argv, env) {
   try {
     mkdirSync(path.dirname(dbPath), { recursive: true });
     if (exists) copyFileSync(dbPath, `${dbPath}.bak-${new Date().toISOString().replace(/[:.]/g, "-")}`);
-    writeFileSync(dbPath, JSON.stringify(db, null, 2), { encoding: "utf8", mode: 0o600 });
+    writeTextForScript(dbPath, JSON.stringify(db, null, 2));
   } catch (err) {
     try { unlinkSync(credentialsPath); } catch { /* best effort */ }
     throw err;

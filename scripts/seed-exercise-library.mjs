@@ -16,8 +16,10 @@
 // Set GYM_DB_PATH to target a different db file (used by tests).
 
 import { randomUUID } from "crypto";
-import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = process.env.GYM_DB_PATH ?? fileURLToPath(new URL("../data/db.json", import.meta.url));
 const CONFIRM = process.argv.slice(2).includes("--confirm");
@@ -150,7 +152,7 @@ const STARTER_LIBRARY = [
   },
 ];
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 const existing = db.exercises ?? [];
 const existingNames = new Set(existing.map((e) => e.name.trim().toLowerCase()));
 
@@ -191,7 +193,7 @@ db.exercises = [
   })),
 ];
 
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+writeForScript(DB_PATH, db, dbToken);
 
 console.log(`\n✓ Added ${toAdd.length} exercise(s) to the library.`);
 console.log(`  Backup written: ${backup}\n`);

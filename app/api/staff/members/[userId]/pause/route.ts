@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { appendIapEvent, findSubscriptionByUserId, findUserById, saveSubscription } from "@/lib/db";
+import { appendIapEvent, findSubscriptionByUserId, findUserById, updateSubscription } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -107,13 +107,26 @@ export async function POST(
       }
     }
 
-    saveSubscription({
-      ...subscription,
-      status: "paused",
-      statusBeforePause: subscription.status,
-      pausedUntil: resumesAt.toISOString(),
-      updatedAt: now.toISOString(),
+    // The Stripe call above can take a while: apply the change to the row as it is NOW (a webhook may have updated it meanwhile), and only if it can still be paused.
+    let changedMeanwhile = false;
+    updateSubscription(subscription.userId, (current) => {
+      if (current.status !== "active" && current.status !== "past_due") {
+        changedMeanwhile = true;
+        return null;
+      }
+      return { status: "paused", statusBeforePause: current.status, pausedUntil: resumesAt.toISOString(), updatedAt: now.toISOString() };
     });
+    if (changedMeanwhile) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: providerWarning
+            ? `The membership changed while it was being paused, so nothing was saved here. ${providerWarning}`
+            : "The membership changed while it was being paused, so nothing was saved here. Check its status and try again. If it uses Stripe billing, check the subscription there.",
+        },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json(
       {
@@ -144,13 +157,20 @@ export async function POST(
       }
     }
 
-    saveSubscription({
-      ...subscription,
-      status: subscription.statusBeforePause ?? "active",
-      statusBeforePause: null,
-      pausedUntil: null,
-      updatedAt: new Date().toISOString(),
+    let resumeChangedMeanwhile = false;
+    updateSubscription(subscription.userId, (current) => {
+      if (current.status !== "paused") {
+        resumeChangedMeanwhile = true;
+        return null;
+      }
+      return { status: current.statusBeforePause ?? "active", statusBeforePause: null, pausedUntil: null, updatedAt: new Date().toISOString() };
     });
+    if (resumeChangedMeanwhile) {
+      return NextResponse.json(
+        { success: false, message: "The membership changed while it was being resumed, so nothing was saved here. Check its status and try again." },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json(
       { success: true, message: providerWarning ?? "Membership resumed.", warning: providerWarning },

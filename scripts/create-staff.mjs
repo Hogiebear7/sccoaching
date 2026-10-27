@@ -15,9 +15,11 @@
 // data/db.json before writing. Never prints the password. Set GYM_DB_PATH to
 // target a different db file (used by tests).
 
-import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { randomUUID, randomBytes, scryptSync } from "crypto";
+import { createRequire } from "node:module";
+const { readForScript, writeForScript } = createRequire(import.meta.url)("../lib/datastore/core.js");
 
 const DB_PATH = process.env.GYM_DB_PATH ?? fileURLToPath(new URL("../data/db.json", import.meta.url));
 
@@ -61,7 +63,7 @@ if (!ROLES.includes(role)) fail(`--role must be one of: ${ROLES.join(", ")} (got
 
 if (!existsSync(DB_PATH)) fail(`Database not found at ${DB_PATH}. Start the app once (or seed) to create it.`);
 
-const db = JSON.parse(readFileSync(DB_PATH, "utf8"));
+const { db, token: dbToken } = readForScript(DB_PATH);
 db.users ??= [];
 db.profiles ??= [];
 
@@ -113,7 +115,7 @@ db.profiles.push({
   updatedAt: now,
 });
 
-writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+writeForScript(DB_PATH, db, dbToken);
 
 console.log(`✓ Created staff account`);
 console.log(`  email: ${email}`);
