@@ -13,6 +13,8 @@ import { verifySession } from "@/lib/session";
 import { plannedExertionForDate } from "@/lib/weekly-training";
 import type { HelperContext } from "@/lib/workout-helper";
 import { WorkoutsView } from "./WorkoutsView";
+import { FREE_HISTORY_DAYS, freeHistoryStartDate, hasAccess } from "@/lib/member-access";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 
 export default async function DashboardWorkoutsPage() {
   const cookieStore = await cookies();
@@ -58,5 +60,20 @@ export default async function DashboardWorkoutsPage() {
     plannedTodayExertion,
   };
 
-  return <WorkoutsView sessions={sessions} exercises={exercises} helperContext={helperContext} />;
+  // Free: history, trends and personal bests cover the last FREE_HISTORY_DAYS days (owner decision 2026-10-27); nothing is deleted.
+  const fullHistory = hasAccess(resolveMemberAccessForUser(user.id), "fullHistory");
+  const since = freeHistoryStartDate();
+  const visibleSessions = fullHistory ? sessions : sessions.filter((s) => s.date >= since);
+
+  return (
+    <>
+      {fullHistory ? null : (
+        <p className="mb-4 text-sm text-zinc-400">
+          Showing the last {FREE_HISTORY_DAYS} days. Your full history, trends and personal bests are part of the App Subscription in the S&amp;C app.
+          Nothing you log is deleted.
+        </p>
+      )}
+      <WorkoutsView sessions={visibleSessions} exercises={exercises} helperContext={helperContext} />
+    </>
+  );
 }

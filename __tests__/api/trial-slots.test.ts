@@ -108,7 +108,7 @@ describe("a trial the store confirms outside our flow is honoured, not rejected"
     fx.db.createAiUsageLog({ id: "spent", userId: outsider, feature: "coach_chat", model: "claude-opus-4-8", inputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0, outputTokens: 0, costUsd: 0.25, allowanceKind: "trial", createdAt: new Date().toISOString() });
     const { beginAiCall } = await import("@/lib/ai-metering");
     const request = { model: "claude-opus-4-8", max_tokens: 100, messages: [{ role: "user" as const, content: "hello" }] };
-    expect(() => beginAiCall({ userId: outsider, feature: "coach_chat", params: request as never })).toThrow(/allowance/i);
+    expect(() => beginAiCall({ userId: outsider, feature: "coach_chat", params: request as never })).toThrow(/made the most of AI coaching during your free trial/);
   });
 
   it("paid subscribers' AI is untouched by outside trials: the paid reserve stays out of the trials' reach", async () => {

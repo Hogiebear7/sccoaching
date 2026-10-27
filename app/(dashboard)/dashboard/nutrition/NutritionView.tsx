@@ -260,6 +260,7 @@ function Segmented<T extends string | number>({
 // collapsed control — that information is safety-relevant.
 export function NutritionView({
   resolvedTarget,
+  targetsLocked = false,
   bodyWeightKg,
   goalBias,
   primaryGoal,
@@ -278,6 +279,8 @@ export function NutritionView({
   nextSession,
 }: {
   resolvedTarget: ResolvedNutritionTarget | null;
+  /** The member has no App Subscription: the target is part of it, so none is shown. */
+  targetsLocked?: boolean;
   bodyWeightKg: number | null;
   goalBias: WeightGoalBias;
   primaryGoal: string;
@@ -572,7 +575,11 @@ export function NutritionView({
             </span>
             {targetRefetching && <span className="text-xs text-zinc-500">Updating…</span>}
           </div>
-          <p className="relative mt-3 text-sm leading-relaxed text-zinc-300">{targetSourceLine(liveTarget)}</p>
+          <p className="relative mt-3 text-sm leading-relaxed text-zinc-300">
+            {targetsLocked
+              ? "A daily calorie and macro target that adapts to your training is part of the App Subscription in the S&C app. Logging food here is free."
+              : targetSourceLine(liveTarget)}
+          </p>
 
           {hasTarget ? (
             <>

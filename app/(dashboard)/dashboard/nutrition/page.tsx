@@ -22,6 +22,8 @@ import { isAiConfigured } from "@/lib/ai";
 import { getResolvedNutritionTarget } from "@/lib/nutrition-target-data";
 import { verifySession } from "@/lib/session";
 import { NutritionView } from "./NutritionView";
+import { hasAccess } from "@/lib/member-access";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 
 // Friendly label for the "Excluding …" summary line.
 const DIET_LABEL = new Map<string, string>(
@@ -110,11 +112,14 @@ export default async function NutritionPage() {
   // first client render (before the member touches the picker) shows
   // numbers consistent with what's selected — see the picker's live-refetch
   // effect for what happens once they change it.
-  const resolvedTarget = getResolvedNutritionTarget(user.id, todayISO, todayISO, "medium");
+  // Daily calorie and macro targets are part of the App Subscription (owner decision 2026-10-27).
+  const targetsLocked = !hasAccess(resolveMemberAccessForUser(user.id), "calorieTargets");
+  const resolvedTarget = targetsLocked ? null : getResolvedNutritionTarget(user.id, todayISO, todayISO, "medium");
 
   return (
     <NutritionView
       resolvedTarget={resolvedTarget}
+      targetsLocked={targetsLocked}
       bodyWeightKg={resolveCurrentWeightKg(
         profile.currentWeightKg,
         findBodyWeightLogsByUserId(user.id)

@@ -15,6 +15,8 @@ import { buildMemberStatsData } from "@/lib/member-stats";
 import { verifySession } from "@/lib/session";
 import { AccountMenu } from "@/components/member/AccountMenu";
 import { ProfileForm } from "./ProfileForm";
+import { freeHistoryStartDate, hasAccess } from "@/lib/member-access";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 
 export default async function ProfilePage() {
   const cookieStore = await cookies();
@@ -50,7 +52,11 @@ export default async function ProfilePage() {
 
   // Training stats — flattened server-side so the card can filter by range
   // client-side without shipping raw exercise rows.
-  const workouts = findWorkoutSessionsByUserId(user.id);
+  // Free: charts and stats cover the last FREE_HISTORY_DAYS days (owner decision 2026-10-27); nothing is deleted.
+  const fullHistory = hasAccess(resolveMemberAccessForUser(user.id), "fullHistory");
+  const since = freeHistoryStartDate();
+  const workouts = findWorkoutSessionsByUserId(user.id).filter((w) => fullHistory || w.date >= since);
+  const chartWeightLogs = fullHistory ? bodyWeightLogs : bodyWeightLogs.filter((l) => l.date >= since);
   const bookings = findBookingsByUserId(user.id);
   const classDateById: Record<string, string> = {};
   for (const booking of bookings) {
@@ -64,7 +70,7 @@ export default async function ProfilePage() {
     <ProfileForm
       email={user.email}
       profile={syncedProfile}
-      bodyWeightLogs={bodyWeightLogs}
+      bodyWeightLogs={chartWeightLogs}
       bodyFatLogs={bodyFatLogs}
       statsData={statsData}
       accountMenu={<AccountMenu />}
