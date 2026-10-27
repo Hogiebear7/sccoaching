@@ -12,6 +12,8 @@ import {
 } from "@/lib/db";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { freeHistoryStartDate, hasAccess } from "@/lib/member-access";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -25,7 +27,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const logs = [...findBodyWeightLogsByUserId(userId)].sort((a, b) => a.date.localeCompare(b.date));
+  const all = [...findBodyWeightLogsByUserId(userId)].sort((a, b) => a.date.localeCompare(b.date));
+  // Free tier: the weight history and trend cover the last FREE_HISTORY_DAYS days; nothing is deleted, upgrading shows it all again.
+  const since = freeHistoryStartDate();
+  const logs = hasAccess(resolveMemberAccessForUser(userId), "fullHistory") ? all : all.filter((l) => l.date >= since);
 
   return NextResponse.json({ success: true, data: logs });
 }

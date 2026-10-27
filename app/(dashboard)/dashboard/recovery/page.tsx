@@ -7,7 +7,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
-import { memberPhaseEstimate } from "@/lib/cycle-phase-data";
+import { memberPhaseEstimateForViewer } from "@/lib/cycle-phase-data";
 import { computeRollingTrainingLoad, readinessGuidance } from "@/lib/recovery";
 import { verifySession } from "@/lib/session";
 import { RecoveryView } from "./RecoveryView";
@@ -43,7 +43,7 @@ export default async function DashboardRecoveryPage() {
       ? findCycleSettingsByUserId(user.id)
       : undefined;
   const phaseEstimate = cycleSettings
-    ? memberPhaseEstimate(user.id, cycleSettings)
+    ? memberPhaseEstimateForViewer(user.id, cycleSettings)
     : null;
 
   return (

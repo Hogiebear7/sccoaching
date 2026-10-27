@@ -69,6 +69,8 @@ export async function grantMemberTier(
     /** Staff grant: the staff member's user id, for the audit trail. Null for an invite redemption. */
     grantedByUserId?: string | null;
     note?: string | null;
+    /** Complimentary app access only: when it ends (ISO). Null or absent = until withdrawn. */
+    endsAt?: string | null;
   }
 ): Promise<GrantTierResult> {
   const member = findUserById(userId);
@@ -77,7 +79,7 @@ export async function grantMemberTier(
   // Complimentary digital access: a separate row in the digital entitlement store. It never touches the gym Membership
   // row, never cancels a provider subscription, and is shown to staff as complimentary, not as a paid subscription.
   if (tier === "app_subscription") {
-    grantStaffDigitalEntitlement({ userId, grantedByUserId: options?.grantedByUserId ?? null, note: options?.note ?? null });
+    grantStaffDigitalEntitlement({ userId, grantedByUserId: options?.grantedByUserId ?? null, note: options?.note ?? null, endsAt: options?.endsAt ?? null });
     return { ok: true, message: "Complimentary digital access granted.", access: resolveMemberAccessForUser(userId) };
   }
 

@@ -5,6 +5,7 @@ import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { Exertion } from "@/lib/nutrition";
 import { getResolvedNutritionTarget } from "@/lib/nutrition-target-data";
+import { requireFeature } from "@/lib/member-access-response";
 
 const EXERTIONS: Exertion[] = ["low", "medium", "high", "match"];
 
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const locked = requireFeature(user.id, "calorieTargets");
+  if (locked) return locked;
 
   const tomorrowParam = request.nextUrl.searchParams.get("tomorrow");
   const tomorrow = tomorrowParam && EXERTIONS.includes(tomorrowParam as Exertion) ? (tomorrowParam as Exertion) : undefined;

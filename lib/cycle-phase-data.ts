@@ -1,6 +1,8 @@
 import type { CycleSettingsRecord } from "./profile-schema";
 import { findPregnancyStatusByUserId, findProfileByUserId } from "./db";
 import { cyclePauseFor, estimatePhase, pausedPhase, type CyclePause, type PhaseEstimate } from "./cycle-phase";
+import { hasAccess } from "./member-access";
+import { resolveMemberAccessForUser } from "./membership-entitlement";
 
 // The member's phase estimate with pregnancy taken into account. Every
 // server-side phase display goes through here so none can show a phase
@@ -33,4 +35,15 @@ export function memberPhaseEstimate(
     };
   }
   return estimate;
+}
+
+/**
+ * The phase estimate as THIS member may see it. Cycle tracking (the phase and what it means) is on the Free tier; the phase-aware training,
+ * intensity and recovery guidance and the readiness note are part of the App subscription, so a Free member gets them empty. Use this, not
+ * memberPhaseEstimate, wherever a member is shown their own estimate (staff views and the AI keep the full estimate).
+ */
+export function memberPhaseEstimateForViewer(userId: string, settings: CycleSettingsRecord | null): PhaseEstimate | null {
+  const estimate = memberPhaseEstimate(userId, settings);
+  if (!estimate || hasAccess(resolveMemberAccessForUser(userId), "cyclePhaseGuidance")) return estimate;
+  return { ...estimate, trainingGuidance: "", intensityGuidance: "", recoveryGuidance: "", readinessNote: "" };
 }

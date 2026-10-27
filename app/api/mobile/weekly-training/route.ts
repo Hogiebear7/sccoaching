@@ -13,6 +13,7 @@ import type {
   WeeklyTrainingSession,
 } from "@/lib/profile-schema";
 import { activeWeeklySessions, mondayOfWeek } from "@/lib/weekly-training";
+import { requireFeature } from "@/lib/member-access-response";
 
 const MAX_SESSIONS = 21; // generous headroom over 1/day — a day can have AM+PM entries
 const MAX_LABEL_LENGTH = 60;
@@ -124,6 +125,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
+  const locked = requireFeature(session.userId, "weeklyPlanner");
+  if (locked) return locked;
+
   const schedule = findWeeklyTrainingScheduleByUserId(session.userId);
   const sessions = activeWeeklySessions(schedule?.sessions ?? [], todayISO());
 
@@ -138,6 +142,9 @@ export async function POST(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const locked = requireFeature(session.userId, "weeklyPlanner");
+  if (locked) return locked;
 
   let body: unknown;
 

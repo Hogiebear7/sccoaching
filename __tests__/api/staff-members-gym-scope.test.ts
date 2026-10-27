@@ -49,6 +49,8 @@ vi.mock("@/lib/db", () => ({
 // resolveSubscriptionEntitlement/remainingSessions (extra-sessions route).
 const { mockStaffCanViewMemberData } = vi.hoisted(() => ({ mockStaffCanViewMemberData: vi.fn() }));
 vi.mock("@/lib/member-tier-wall", () => ({ staffCanViewMemberData: mockStaffCanViewMemberData }));
+// The allowance status reads the digital entitlement store, which the db mock above does not model; its numbers are tested in the AI allowance tests.
+vi.mock("@/lib/ai-allowance", () => ({ memberAllowanceStatus: () => ({ kind: "free", paused: false, budgetEur: 0, spentEur: 0, dailyCapEur: 0, spentTodayEur: 0 }) }));
 
 const { mockGrantMemberTier } = vi.hoisted(() => ({ mockGrantMemberTier: vi.fn() }));
 vi.mock("@/lib/tier-grant", () => ({ grantMemberTier: mockGrantMemberTier }));

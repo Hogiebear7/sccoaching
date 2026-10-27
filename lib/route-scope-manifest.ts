@@ -264,6 +264,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/gyms/[gymId]/status", scope: "platform", capabilities: ["gyms.moderate"] },
   { route: "staff/invites", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff"] },
   { route: "staff/invites/[inviteId]/revoke", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff"] },
+  { route: "staff/members/[userId]/ai-pause", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGym("], runtimeTenantContext: true },
   { route: "staff/members/[userId]/ai-usage", scope: "tenant-staff", capabilities: ["members.view"], evidence: ["sameGym("] },
   { route: "staff/members/[userId]/archive", scope: "tenant-staff", capabilities: ["members.account"], evidence: ["sameGym("] },
   { route: "staff/members/[userId]/delete", scope: "tenant-staff", capabilities: ["members.hardDelete"], evidence: ["sameGym("] },

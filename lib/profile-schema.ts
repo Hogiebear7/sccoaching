@@ -128,6 +128,8 @@ export interface ProfileRecord {
   menopauseStage?: MenopauseStage | null;
   // Lets the coach see the stage. Private by default.
   menopauseShareWithCoach?: boolean;
+  // Staff paused AI for this member (abuse or a billing problem): when set, every member AI request is refused. Null = not paused.
+  aiPausedAt?: string | null;
   // ISO 3166-1 alpha-2 (e.g. "IE", "US") — used to nudge food-search ranking
   // toward locally-relevant results (see lib/food-catalog.ts's country
   // boost). Optional/nullable for pre-existing records (see db.ts

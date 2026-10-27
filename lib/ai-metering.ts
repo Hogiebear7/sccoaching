@@ -40,6 +40,10 @@ import {
   resetsAtFor,
   windowMsFor,
   AI_ALLOWANCE_WINDOW_MS,
+  aiDailyShare,
+  AI_PAUSED_MESSAGE,
+  DAILY_LIMIT_MESSAGE,
+  isAiPausedFor,
 } from "@/lib/ai-allowance";
 import { UNRECOGNISED_COMPONENT_MARKUP, costFromUsage, costUsdFor, ratesForKnownModel, priceFor, recordAiUsageFromResponse, type ProviderUsage } from "@/lib/ai-usage";
 import { reserveAiBudget, settleAiReservation, type AiAllowanceKind, type AiFeature, type AiUsageLogRecord } from "@/lib/db";
@@ -174,6 +178,8 @@ export function beginAiCall(input: BeginInput, nowMs: number = Date.now()): AiCa
 
   const memberCall = !!userId && isMemberAiFeature(feature);
   const kind: AiAllowanceKind = memberCall ? allowanceKindFor(userId, nowMs) : "staff";
+  // Staff paused AI for this member: refused before anything is reserved or sent, whether or not allowances are enforced.
+  if (memberCall && isAiPausedFor(userId)) throw new AiAllowanceError(AI_UPGRADE_CODE, kind, AI_PAUSED_MESSAGE);
   const enforced = aiAllowanceEnforced();
   const reserveUsd = maxCallCostUsd(params);
   let reservationId: string | null = null;
@@ -208,6 +214,9 @@ export function beginAiCall(input: BeginInput, nowMs: number = Date.now()): AiCa
       protectPaidPoolUsd: pools.paid,
       ceilingUsd: pools.ceiling,
       ceilingWindowMs: AI_ALLOWANCE_WINDOW_MS,
+      // A member's rolling 30-day allowance is also capped per 24 hours (owner decision 2026-10-27). A trial's total is for the whole trial, so it
+      // is capped the same way: at most a third of it in a day.
+      dailyBudgetUsd: memberCall ? budget * aiDailyShare() : null,
       ttlMs: HOLD_TTL_MS,
       nowMs,
     });
@@ -216,6 +225,9 @@ export function beginAiCall(input: BeginInput, nowMs: number = Date.now()): AiCa
         // A shared pool or the emergency ceiling is the owner's, not the member's: members see "unavailable", never a number. A trial or free member is told
         // plainly that AI is unavailable on trials, not that they used something up.
         throw new AiAllowanceError(AI_ALLOWANCE_UNAVAILABLE_CODE, kind, kind === "trial" || kind === "free" ? TRIAL_AI_UNAVAILABLE_MESSAGE : ALLOWANCE_UNAVAILABLE_MESSAGE);
+      }
+      if (result.limit === "daily") {
+        throw new AiAllowanceError(AI_ALLOWANCE_CODE, kind, DAILY_LIMIT_MESSAGE, new Date(nowMs + 24 * 60 * 60 * 1000).toISOString());
       }
       const resetsAt = memberCall && userId ? resetsAtFor(userId, kind, budget, reserveUsd, nowMs) : null;
       throw new AiAllowanceError(AI_ALLOWANCE_CODE, kind, allowanceMessage(kind, resetsAt), resetsAt);

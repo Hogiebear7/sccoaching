@@ -7,6 +7,8 @@ import {
   type WorkoutRunEntry,
 } from "./db";
 import { computePersonalBests, type PersonalBest } from "./workouts";
+import { FREE_HISTORY_DAYS, freeHistoryStartDate, hasAccess } from "./member-access";
+import { resolveMemberAccessForUser } from "./membership-entitlement";
 
 export interface WorkoutSessionSummary {
   id: string;
@@ -32,6 +34,8 @@ export interface ExerciseLibraryEntry {
 }
 
 export interface WorkoutsData {
+  /** Days of history included for a Free member (sessions and bests are limited to them), or null for full history. */
+  historyLimitedToDays: number | null;
   sessions: WorkoutSessionSummary[];
   personalBests: PersonalBest[];
   // Feeds the mobile logging form's exercise autocomplete (see
@@ -57,11 +61,26 @@ export function getWorkoutsData(userId: string | undefined): WorkoutsData | null
   const user = userId ? findUserById(userId) : undefined;
   if (!user) return null;
 
-  const sessions = findWorkoutSessionsByUserId(user.id);
-  const personalBests = computePersonalBests(sessions);
+  const allSessions = findWorkoutSessionsByUserId(user.id);
+  // Free tier: history, trends and personal bests cover the last FREE_HISTORY_DAYS days (owner decision 2026-10-27). Bests are still worked out
+  // from everything logged, so a Free member's best is a true best; they just see the ones set in that window. Nothing is deleted: upgrading
+  // shows the full history again.
+  const fullHistory = hasAccess(resolveMemberAccessForUser(user.id), "fullHistory");
+  const since = freeHistoryStartDate();
+  const sessions = fullHistory ? allSessions : allSessions.filter((s) => s.date >= since);
+  const personalBests = fullHistory
+    ? computePersonalBests(allSessions)
+    : computePersonalBests(allSessions)
+        .map((pb) => ({
+          ...pb,
+          heaviestWeight: pb.heaviestWeight && pb.heaviestWeight.date >= since ? pb.heaviestWeight : null,
+          highestReps: pb.highestReps && pb.highestReps.date >= since ? pb.highestReps : null,
+        }))
+        .filter((pb) => pb.heaviestWeight || pb.highestReps);
   const profile = findProfileByUserId(user.id);
 
   return {
+    historyLimitedToDays: fullHistory ? null : FREE_HISTORY_DAYS,
     sessions: sessions.map((s) => ({
       id: s.id,
       date: s.date,

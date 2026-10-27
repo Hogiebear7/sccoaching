@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
   findBodyWeightLogsByUserId: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
+// Plan gates are covered by __tests__/api/entitlement-server-enforcement.test.ts; this file is about what the route does once past them.
+vi.mock("@/lib/member-access-response", () => ({ requireFeature: () => null, requireUnderFreeLimit: () => null }));
 vi.mock("@/lib/body-weight", () => ({ resolveCurrentWeightKg: vi.fn(() => null) }));
 
 const GYM_A_CALLER = { id: "caller-a", email: "caller@x.test", role: "member" as const, gymId: null, archivedAt: null };

@@ -6,6 +6,7 @@ import type { NextRequest } from "next/server";
 import { findUserById, saveTrainingProgram, type TrainingProgramRecord } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { archiveOtherActivePrograms, parseProgramDays, parseTestCheckpoints } from "@/lib/training-programs";
+import { requireFeature } from "@/lib/member-access-response";
 
 interface AiMetaInput {
   goal: string;
@@ -50,6 +51,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const locked = requireFeature(user.id, "programmes");
+  if (locked) return locked;
 
   let body: unknown;
   try {

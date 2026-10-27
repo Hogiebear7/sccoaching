@@ -38,7 +38,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { tier, packageId } = (body ?? {}) as Record<string, unknown>;
+  const { tier, packageId, endsOn, note } = (body ?? {}) as Record<string, unknown>;
+  // Complimentary app access may end on a date (YYYY-MM-DD, through the end of that day, UTC) and carry a short note for the audit trail.
+  let endsAt: string | null = null;
+  if (endsOn !== undefined && endsOn !== null && endsOn !== "") {
+    if (typeof endsOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(endsOn) || Number.isNaN(Date.parse(`${endsOn}T23:59:59Z`))) {
+      return NextResponse.json({ success: false, message: "The end date must be a valid date (YYYY-MM-DD)." }, { status: 400 });
+    }
+    endsAt = `${endsOn}T23:59:59.999Z`;
+    if (Date.parse(endsAt) <= Date.now()) {
+      return NextResponse.json({ success: false, message: "The end date must be in the future." }, { status: 400 });
+    }
+  }
+  const cleanNote = typeof note === "string" && note.trim() ? note.trim().slice(0, 200) : null;
 
   if (typeof tier !== "string" || !ACTIONS.includes(tier as Action)) {
     return NextResponse.json({ success: false, message: "A valid tier is required." }, { status: 400 });
@@ -50,6 +62,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       : await grantMemberTier(member.id, tier as GrantTier, {
           packageId: typeof packageId === "string" && packageId.trim() ? packageId.trim() : undefined,
           grantedByUserId: staffUser.id,
+          note: cleanNote,
+          endsAt,
         });
 
   if (!result.ok) {

@@ -1715,7 +1715,9 @@ export type NotificationType =
   | "mentioned_in_comment"
   // Calorie target changes the member should know about (pregnancy pausing
   // a weight goal, the goal resuming after the birth).
-  | "nutrition_update";
+  | "nutrition_update"
+  // To the owner (admin managers): AI spending has passed 50% or 80% of the emergency ceiling.
+  | "ai_spend_alert";
 
 export interface NotificationRecord {
   id: string;
@@ -2413,6 +2415,7 @@ function normalizeDatabase(raw: string | null): Database {
       tabChoice: p.tabChoice ?? null,
       menopauseStage: p.menopauseStage ?? null,
       menopauseShareWithCoach: p.menopauseShareWithCoach ?? false,
+      aiPausedAt: p.aiPausedAt ?? null,
       secondaryGoal: p.secondaryGoal ?? null,
       country: p.country ?? null,
     })),
@@ -4923,7 +4926,7 @@ export function aiPoolSpendUsd(logs: readonly AiUsageLogRecord[], kind: AiAllowa
 
 // "budget": the member's own cap (or the staff pool); "pool": this kind's shared class pool; "ceiling": the app-wide emergency ceiling, counting the paid
 // pool's unused remainder when the caller is not a paid subscriber.
-export type ReserveAiBudgetResult = { ok: true; id: string } | { ok: false; limit: "budget" | "pool" | "ceiling"; spentUsd: number; heldUsd: number };
+export type ReserveAiBudgetResult = { ok: true; id: string } | { ok: false; limit: "budget" | "daily" | "pool" | "ceiling"; spentUsd: number; heldUsd: number };
 
 const AI_POOL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -5072,6 +5075,8 @@ export function reserveAiBudget(input: {
   /** An app-wide EMERGENCY ceiling on ALL AI spending (every user, every kind) over ceilingWindowMs. Null/absent: none. Reaching it stops AI for everyone. */
   ceilingUsd?: number | null;
   ceilingWindowMs?: number;
+  /** A member's cap over any rolling 24 hours (a share of their 30-day allowance), so nobody can use a month's AI in a day. Null/absent: none. */
+  dailyBudgetUsd?: number | null;
   ttlMs: number;
   nowMs?: number;
 }): ReserveAiBudgetResult {
@@ -5098,6 +5103,14 @@ export function reserveAiBudget(input: {
   if (spentUsd + heldUsd + input.reserveUsd > input.budgetUsd + 1e-9) {
     if (changed) writeDb(db);
     return { ok: false, limit: "budget", spentUsd, heldUsd };
+  }
+
+  if (input.dailyBudgetUsd !== undefined && input.dailyBudgetUsd !== null && !input.pool) {
+    const daySpent = aiSpendUsd(db.aiUsageLogs, input.userId ?? "", input.kind, 24 * 60 * 60 * 1000, now);
+    if (daySpent + heldUsd + input.reserveUsd > input.dailyBudgetUsd + 1e-9) {
+      if (changed) writeDb(db);
+      return { ok: false, limit: "daily", spentUsd: daySpent, heldUsd };
+    }
   }
 
   if (input.classPool) {

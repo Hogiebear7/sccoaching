@@ -35,25 +35,45 @@ export type MemberFeature =
   | "gymProfiles"
   | "notifications"
   | "aiCoachChat"
-  | "aiNutritionCoachChat";
+  | "aiNutritionCoachChat"
+  | "unlimitedSavedWorkouts"
+  | "unlimitedSavedMeals"
+  | "programmes"
+  | "weeklyPlanner"
+  | "calorieTargets"
+  | "fullHistory"
+  | "cyclePhaseGuidance"
+  | "communityLeaderboards"
+  | "coachMessaging";
 
-// Every gated feature is a DIGITAL feature. Listed individually, not as one boolean, so a feature that should follow the
-// gym Membership instead (none today) has to be added here on purpose.
-const FEATURE_REQUIRES: Record<MemberFeature, "digital" | "gymMembership"> = {
+// What each feature needs (owner decisions 2026-10-27). "free" = everyone: logging (with food search and custom foods) and notifications stay
+// on the Free tier, because nothing in them costs the owner money per use. "digital" = the App subscription (or a staff grant). "gymMembership" =
+// the paid gym Membership, whose only in-app extra is direct coach messaging. Listed one by one so a feature's tier is always a deliberate choice.
+const FEATURE_REQUIRES: Record<MemberFeature, "free" | "digital" | "gymMembership"> = {
   workoutGenerate: "digital",
   trackerImport: "digital",
   workoutReview: "digital",
-  foodSearch: "digital",
-  unlimitedCustomFoods: "digital",
+  foodSearch: "free",
+  unlimitedCustomFoods: "free",
   nutritionMoreTools: "digital",
   gymProfiles: "digital",
-  notifications: "digital",
+  notifications: "free",
   aiCoachChat: "digital",
   aiNutritionCoachChat: "digital",
+  unlimitedSavedWorkouts: "digital",
+  unlimitedSavedMeals: "digital",
+  programmes: "digital",
+  weeklyPlanner: "digital",
+  calorieTargets: "digital",
+  fullHistory: "digital",
+  cyclePhaseGuidance: "digital",
+  communityLeaderboards: "digital",
+  coachMessaging: "gymMembership",
 };
 
 export function hasAccess(access: MemberAccess, feature: MemberFeature): boolean {
-  return access[FEATURE_REQUIRES[feature]];
+  const needs = FEATURE_REQUIRES[feature];
+  return needs === "free" ? true : access[needs];
 }
 
 // Surfaces that belong to the gym Membership and nothing else (human coach messaging, staff visibility into member data).
@@ -61,7 +81,18 @@ export function hasGymMembership(access: MemberAccess): boolean {
   return access.gymMembership;
 }
 
-// Free tier's custom-food/quick-add cap — enforced both server-side
-// (food/custom/create route) and, softer, client-side for an early heads-up
-// before the member fills out the whole form.
+// Free tier's custom-food/quick-add cap. Custom foods are now free and unlimited (a barcode miss must never stop logging), so the gate in
+// food/custom/create always passes; the constant stays for apps that still show it.
 export const FREE_CUSTOM_FOOD_LIMIT = 10;
+
+// Free-tier allowances (owner decisions 2026-10-27): enough to build the habit, with a clear point to upgrade. Enforced on the server.
+export const FREE_SAVED_WORKOUT_LIMIT = 3;
+export const FREE_SAVED_MEAL_LIMIT = 5;
+export const FREE_HISTORY_DAYS = 7;
+
+/** The first date (YYYY-MM-DD) a Free member's history and trends reach back to: today and the 6 days before. */
+export function freeHistoryStartDate(now: Date = new Date()): string {
+  const d = new Date(now);
+  d.setUTCDate(d.getUTCDate() - (FREE_HISTORY_DAYS - 1));
+  return d.toISOString().slice(0, 10);
+}

@@ -2,9 +2,11 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById, saveWorkoutTemplate, type WorkoutTemplateRecord } from "@/lib/db";
+import { findUserById, findWorkoutTemplatesByUserId, saveWorkoutTemplate, type WorkoutTemplateRecord } from "@/lib/db";
+import { FREE_SAVED_WORKOUT_LIMIT } from "@/lib/member-access";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { parsePrescribedExercises } from "@/lib/training-programs";
+import { requireUnderFreeLimit } from "@/lib/member-access-response";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -13,6 +15,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const overLimit = requireUnderFreeLimit(user.id, "unlimitedSavedWorkouts", findWorkoutTemplatesByUserId(user.id).length, FREE_SAVED_WORKOUT_LIMIT, "saved workouts");
+  if (overLimit) return overLimit;
 
   let body: unknown;
   try {

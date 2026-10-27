@@ -7,9 +7,11 @@ import {
   findProfileByUserId,
   findUserById,
 } from "@/lib/db";
-import { memberPhaseEstimate } from "@/lib/cycle-phase-data";
+import { memberPhaseEstimateForViewer } from "@/lib/cycle-phase-data";
 import { menopauseContentFor } from "@/lib/menopause";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { hasAccess } from "@/lib/member-access";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 
 // Read-only aggregation for the mobile Cycle Tracking screen — composes the
 // same finders and the same estimatePhase() the web /dashboard/cycle page
@@ -36,7 +38,9 @@ export async function GET(request: NextRequest) {
 
   const settings = findCycleSettingsByUserId(user.id) ?? null;
   const privacy = findCyclePrivacyByUserId(user.id) ?? null;
-  const phaseEstimate = memberPhaseEstimate(user.id, settings);
+  const phaseEstimate = memberPhaseEstimateForViewer(user.id, settings);
+  // Phase-aware guidance is part of the App subscription; the apps show an upgrade note when this is set (see memberPhaseEstimateForViewer).
+  const guidanceLocked = !hasAccess(resolveMemberAccessForUser(user.id), "cyclePhaseGuidance");
 
   return NextResponse.json({
     success: true,
@@ -50,6 +54,7 @@ export async function GET(request: NextRequest) {
       settings,
       privacy,
       phaseEstimate,
+      guidanceLocked,
     },
   });
 }

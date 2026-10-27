@@ -1,16 +1,31 @@
 import { NextResponse } from "next/server";
 
-import { AI_ALLOWANCE_CODE, AI_ALLOWANCE_UNAVAILABLE_CODE, AI_UPGRADE_CODE, checkAiAllowance } from "@/lib/ai-allowance";
+import { AI_ALLOWANCE_CODE, AI_ALLOWANCE_UNAVAILABLE_CODE, AI_PAUSED_CODE, AI_UPGRADE_CODE, checkAiAllowance } from "@/lib/ai-allowance";
 import { AiAllowanceError, AiRequestTooLargeError } from "@/lib/ai-metering";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // The one line each member-facing AI route adds: null to carry on, or the response to return. The provider is never called when this refuses. It is the
 // friendly answer; the atomic reservation in lib/ai-metering.ts is the guarantee.
+/** Every member AI request counts towards one limit per member, across all AI features (owner decision 2026-10-27), on top of each feature's own. */
+export const AI_REQUESTS_PER_MINUTE = 10;
+export const AI_RATE_LIMITED_CODE = "ai_rate_limited";
+
 export function aiAllowanceRefusal(userId: string): NextResponse | null {
+  const rate = checkRateLimit(`ai-any:${userId}`, AI_REQUESTS_PER_MINUTE, 60_000);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { success: false, code: AI_RATE_LIMITED_CODE, message: "That's a lot of AI requests in a short time. Please wait a minute and try again." },
+      { status: 429 }
+    );
+  }
   const result = checkAiAllowance(userId);
   if (result.ok) return null;
   // A free member's feature that is part of the subscription: a plain "403 needs the subscription", the same shape as every other plan gate.
   if (result.reason === "upgrade") {
     return NextResponse.json({ success: false, code: AI_UPGRADE_CODE, message: result.message }, { status: 403 });
+  }
+  if (result.reason === "paused") {
+    return NextResponse.json({ success: false, code: AI_PAUSED_CODE, message: result.message }, { status: 403 });
   }
   if (result.reason === "unavailable") {
     return NextResponse.json({ success: false, code: AI_ALLOWANCE_UNAVAILABLE_CODE, message: result.message }, { status: 503 });

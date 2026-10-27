@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { memberAllowanceStatus } from "@/lib/ai-allowance";
 import { AI_USAGE_RANGES, summarizeAiUsage, type AiUsageRange } from "@/lib/ai-usage";
 import { findAiUsageLogsByUserId, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
@@ -39,7 +40,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // would otherwise misread it as "free" and 403 nonsensically. sameGym and
   // members.view above still gate a staff row's AI usage exactly like a
   // member's.
-  if (member.role === "member" && !staffCanViewMemberData(userId)) {
+  // AI COST figures (no content) are also open to staff who manage access (members.grantTier), for any member, so the owner can spot and pause
+  // heavy use by an app-only subscriber whose training data stays behind the wall.
+  if (member.role === "member" && !staffCanViewMemberData(userId) && !can(staffUser.role, "members.grantTier")) {
     return NextResponse.json(
       { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
       { status: 403 }
@@ -52,5 +55,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const logs = findAiUsageLogsByUserId(member.id);
   const summary = summarizeAiUsage(logs, range);
 
-  return NextResponse.json({ success: true, data: summary });
+  return NextResponse.json({ success: true, data: { ...summary, allowance: memberAllowanceStatus(member.id) } });
 }

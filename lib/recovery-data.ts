@@ -5,7 +5,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "./db";
-import { memberPhaseEstimate } from "./cycle-phase-data";
+import { memberPhaseEstimateForViewer } from "./cycle-phase-data";
 import { computeRollingTrainingLoad, readinessGuidance } from "./recovery";
 
 export interface RecoveryLogSummary {
@@ -49,7 +49,7 @@ export function getRecoveryData(userId: string | undefined): RecoveryData | null
       ? findCycleSettingsByUserId(user.id)
       : undefined;
   const phaseEstimate = cycleSettings
-    ? memberPhaseEstimate(user.id, cycleSettings)
+    ? memberPhaseEstimateForViewer(user.id, cycleSettings)
     : null;
 
   const todayISO = new Date().toISOString().slice(0, 10);

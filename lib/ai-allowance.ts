@@ -31,16 +31,19 @@
 // paid subscribers; only the paid pool's own use, or a ceiling set below the paid pool (rejected by aiAllowanceConfigured), can. A new trial is only
 // represented as available while the trial pool can honour it (trialCapacity).
 //
-// THE NUMBERS ARE NOT IN THE CODE. They are the owner's, in the environment (USD):
-//   per member: AI_ALLOWANCE_FREE_USD  AI_ALLOWANCE_TRIAL_USD  AI_ALLOWANCE_PAID_USD  AI_ALLOWANCE_COMPLIMENTARY_USD
-//   shared:     AI_TRIAL_POOL_USD  AI_PAID_POOL_USD  AI_COMPLIMENTARY_POOL_USD  AI_STAFF_USD  AI_APP_CEILING_USD
+// THE NUMBERS ARE NOT IN THE CODE. They are the owner's, in the environment, in EUROS (the owner runs the business in euros):
+//   per member: AI_ALLOWANCE_FREE_EUR  AI_ALLOWANCE_TRIAL_EUR  AI_ALLOWANCE_PAID_EUR  AI_ALLOWANCE_COMPLIMENTARY_EUR
+//   shared:     AI_TRIAL_POOL_EUR  AI_PAID_POOL_EUR  AI_COMPLIMENTARY_POOL_EUR  AI_STAFF_EUR  AI_APP_CEILING_EUR
+// Anthropic bills in US dollars and every call is costed in USD, so each euro budget is converted ONCE, here, at AI_USD_PER_EUR (default 1.05). The rate is
+// deliberately below the market rate: a lower rate turns each euro into fewer dollars, so a weaker euro can never let spending pass the euro figure. The older
+// *_USD names are still read when the *_EUR one is unset (tests and any setup made before this change).
 // A value of 0 is valid and means "none". Unset means NOT SET. If NONE are set, nothing is enforced (the behaviour before this existed: development). If any
 // is set, enforcement is ON and anything whose budget is unset is refused (fail closed, code "ai_allowance_unavailable"). The model must also have a known
 // price. A store purchase cannot be started until all nine are set, the ceiling is at least the paid pool, and the model is priced (aiAllowanceConfigured).
 
 import { configuredAiModel } from "@/lib/ai-model";
 import { ratesForKnownModel } from "@/lib/ai-usage";
-import { aiSpendUsd, aiTrialHeadroom, findAiUsageLogsByUserId, findDigitalEntitlementsByUserId, reserveTrialSlot, type AiAllowanceKind, type TrialHeadroomConfig } from "@/lib/db";
+import { aiSpendUsd, aiTrialHeadroom, findAiUsageLogsByUserId, findDigitalEntitlementsByUserId, findProfileByUserId, reserveTrialSlot, type AiAllowanceKind, type TrialHeadroomConfig } from "@/lib/db";
 import { isDigitalEntitlementLive, liveDigitalEntitlements } from "@/lib/digital-entitlement";
 
 /** The four groups a MEMBER can be in ("staff" is the shared pool for staff-run features, not a member group). */
@@ -52,19 +55,23 @@ export const AI_ALLOWANCE_UNAVAILABLE_CODE = "ai_allowance_unavailable";
 /** A member in the free group whose budget is 0: the feature is part of the subscription. A friendly upgrade message, not an error about spending. */
 export const AI_UPGRADE_CODE = "ai_upgrade_required";
 
+// Setting names without their currency suffix: "<name>_EUR" is read first, then "<name>_USD".
 const ENV: Record<MemberAllowanceKind, string> = {
-  free: "AI_ALLOWANCE_FREE_USD",
-  trial: "AI_ALLOWANCE_TRIAL_USD",
-  paid: "AI_ALLOWANCE_PAID_USD",
-  complimentary: "AI_ALLOWANCE_COMPLIMENTARY_USD",
+  free: "AI_ALLOWANCE_FREE",
+  trial: "AI_ALLOWANCE_TRIAL",
+  paid: "AI_ALLOWANCE_PAID",
+  complimentary: "AI_ALLOWANCE_COMPLIMENTARY",
 };
 
 export const ALLOWANCE_KINDS = Object.keys(ENV) as MemberAllowanceKind[];
-const ENV_STAFF = "AI_STAFF_USD";
-const ENV_CEILING = "AI_APP_CEILING_USD";
-const ENV_TRIAL_POOL = "AI_TRIAL_POOL_USD";
-const ENV_PAID_POOL = "AI_PAID_POOL_USD";
-const ENV_COMPLIMENTARY_POOL = "AI_COMPLIMENTARY_POOL_USD";
+const ENV_STAFF = "AI_STAFF";
+const ENV_CEILING = "AI_APP_CEILING";
+const ENV_TRIAL_POOL = "AI_TRIAL_POOL";
+const ENV_PAID_POOL = "AI_PAID_POOL";
+const ENV_COMPLIMENTARY_POOL = "AI_COMPLIMENTARY_POOL";
+
+/** Conservative planning rate for AI budgets (US dollars per euro). Below the market rate on purpose: see the header. */
+export const DEFAULT_AI_USD_PER_EUR = 1.05;
 
 function parseBudget(raw: string | undefined): number | null {
   if (raw === undefined || raw.trim() === "") return null;
@@ -72,18 +79,31 @@ function parseBudget(raw: string | undefined): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/** The rate euro budgets are converted at. An unset or implausible value (outside 0.5 to 2) falls back to the conservative default. */
+export function aiUsdPerEur(): number {
+  const n = parseBudget(process.env.AI_USD_PER_EUR);
+  return n !== null && n >= 0.5 && n <= 2 ? n : DEFAULT_AI_USD_PER_EUR;
+}
+
+/** One budget, in USD for the metering: the euro setting converted, or the older dollar setting when no euro one is set. */
+function budgetUsd(name: string): number | null {
+  const eur = parseBudget(process.env[`${name}_EUR`]);
+  if (eur !== null) return eur * aiUsdPerEur();
+  return parseBudget(process.env[`${name}_USD`]);
+}
+
 export function aiAllowanceBudgets(): Record<MemberAllowanceKind, number | null> {
-  return { free: parseBudget(process.env[ENV.free]), trial: parseBudget(process.env[ENV.trial]), paid: parseBudget(process.env[ENV.paid]), complimentary: parseBudget(process.env[ENV.complimentary]) };
+  return { free: budgetUsd(ENV.free), trial: budgetUsd(ENV.trial), paid: budgetUsd(ENV.paid), complimentary: budgetUsd(ENV.complimentary) };
 }
 
 /** The shared pools (all users together) and the app-wide emergency ceiling. */
 export function aiPoolBudgets(): { staff: number | null; ceiling: number | null; trial: number | null; paid: number | null; complimentary: number | null } {
   return {
-    staff: parseBudget(process.env[ENV_STAFF]),
-    ceiling: parseBudget(process.env[ENV_CEILING]),
-    trial: parseBudget(process.env[ENV_TRIAL_POOL]),
-    paid: parseBudget(process.env[ENV_PAID_POOL]),
-    complimentary: parseBudget(process.env[ENV_COMPLIMENTARY_POOL]),
+    staff: budgetUsd(ENV_STAFF),
+    ceiling: budgetUsd(ENV_CEILING),
+    trial: budgetUsd(ENV_TRIAL_POOL),
+    paid: budgetUsd(ENV_PAID_POOL),
+    complimentary: budgetUsd(ENV_COMPLIMENTARY_POOL),
   };
 }
 
@@ -209,6 +229,21 @@ export function allowanceMessage(kind: AiAllowanceKind, resetsAt: string | null,
   }
 }
 
+/** Staff paused AI for this member (profile.aiPausedAt). */
+export const AI_PAUSED_CODE = "ai_paused";
+export const AI_PAUSED_MESSAGE = "AI features are paused on your account. Please contact the gym.";
+export function isAiPausedFor(userId: string): boolean {
+  return !!findProfileByUserId(userId)?.aiPausedAt;
+}
+
+/** The share of a member's allowance usable in any rolling 24 hours (owner decision 2026-10-27: a third). AI_DAILY_SHARE overrides it (0 to 1). */
+export const DEFAULT_AI_DAILY_SHARE = 1 / 3;
+export function aiDailyShare(): number {
+  const n = parseBudget(process.env.AI_DAILY_SHARE);
+  return n !== null && n > 0 && n <= 1 ? n : DEFAULT_AI_DAILY_SHARE;
+}
+export const DAILY_LIMIT_MESSAGE = "You've used today's AI allowance. It frees up over the next 24 hours, and everything else in the app keeps working.";
+
 export const ALLOWANCE_UNAVAILABLE_MESSAGE = "AI features aren't available right now. Nothing else in the app is affected.";
 export const TRIAL_AI_UNAVAILABLE_MESSAGE = "AI features aren't available on free trials right now. Your trial, your subscription and everything else in the app are unaffected.";
 
@@ -231,17 +266,51 @@ export type AllowanceResult =
   | { ok: true; enforced: boolean; kind: MemberAllowanceKind; remainingUsd: number | null }
   | { ok: false; reason: "reached"; kind: MemberAllowanceKind; resetsAt: string | null; message: string }
   | { ok: false; reason: "upgrade"; kind: "free"; message: string }
-  | { ok: false; reason: "unavailable"; kind: MemberAllowanceKind; message: string };
+  | { ok: false; reason: "unavailable"; kind: MemberAllowanceKind; message: string }
+  | { ok: false; reason: "paused"; kind: MemberAllowanceKind; message: string };
 
 // The cheap pre-check each route makes so a member over their allowance gets a clear answer before any work. It is NOT the guarantee: the atomic reservation is.
 export function checkAiAllowance(userId: string, nowMs: number = Date.now()): AllowanceResult {
   const kind = allowanceKindFor(userId, nowMs);
+  if (isAiPausedFor(userId)) return { ok: false, reason: "paused", kind, message: AI_PAUSED_MESSAGE };
   if (!aiAllowanceEnforced()) return { ok: true, enforced: false, kind, remainingUsd: null };
   const budget = aiAllowanceBudgets()[kind];
   if (budget === null) return { ok: false, reason: "unavailable", kind, message: ALLOWANCE_UNAVAILABLE_MESSAGE };
   if (kind === "free" && budget === 0) return { ok: false, reason: "upgrade", kind, message: UPGRADE_MESSAGE };
 
-  const spent = aiSpendUsd(findAiUsageLogsByUserId(userId), userId, kind, windowMsFor(kind), nowMs);
+  const logs = findAiUsageLogsByUserId(userId);
+  const spent = aiSpendUsd(logs, userId, kind, windowMsFor(kind), nowMs);
+  if (spent < budget && aiSpendUsd(logs, userId, kind, 24 * 60 * 60 * 1000, nowMs) >= budget * aiDailyShare()) {
+    return { ok: false, reason: "reached", kind, resetsAt: new Date(nowMs + 24 * 60 * 60 * 1000).toISOString(), message: DAILY_LIMIT_MESSAGE };
+  }
   if (spent < budget) return { ok: true, enforced: true, kind, remainingUsd: budget - spent };
   return { ok: false, reason: "reached", kind, resetsAt: resetsAtFor(userId, kind, budget, 0, nowMs), message: allowanceMessage(kind, resetsAtFor(userId, kind, budget, 0, nowMs)) };
+}
+
+/** A member's AI allowance as staff see it, in EUROS (converted at the budgets' own rate, so it matches the settings). */
+export interface MemberAllowanceStatus {
+  kind: MemberAllowanceKind;
+  paused: boolean;
+  /** Null when allowances are not enforced or this group's budget is not set. */
+  budgetEur: number | null;
+  /** Spent in this group's window (30 days, or the whole trial). */
+  spentEur: number;
+  dailyCapEur: number | null;
+  spentTodayEur: number;
+}
+
+export function memberAllowanceStatus(userId: string, nowMs: number = Date.now()): MemberAllowanceStatus {
+  const kind = allowanceKindFor(userId, nowMs);
+  const rate = aiUsdPerEur();
+  const budget = aiAllowanceEnforced() ? aiAllowanceBudgets()[kind] : null;
+  const logs = findAiUsageLogsByUserId(userId);
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    kind,
+    paused: isAiPausedFor(userId),
+    budgetEur: budget === null ? null : round(budget / rate),
+    spentEur: round(aiSpendUsd(logs, userId, kind, windowMsFor(kind), nowMs) / rate),
+    dailyCapEur: budget === null ? null : round((budget * aiDailyShare()) / rate),
+    spentTodayEur: round(aiSpendUsd(logs, userId, kind, 24 * 60 * 60 * 1000, nowMs) / rate),
+  };
 }

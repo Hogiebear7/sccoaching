@@ -13,7 +13,7 @@ import {
   findWorkoutSessionsByUserId,
 } from "./db";
 import { classStartMs } from "@/lib/class-time";
-import { memberPhaseEstimate } from "./cycle-phase-data";
+import { memberPhaseEstimateForViewer } from "./cycle-phase-data";
 import { estimatePregnancy } from "./pregnancy";
 import { isPeriodLapsed, SUBSCRIPTION_STATUS_LABEL } from "./membership-status";
 import { readinessDelta, readinessSeries, weeklyTrainingSummary } from "./progress";
@@ -108,7 +108,7 @@ export function getDashboardData(userId: string | undefined): DashboardData | nu
       ? findCycleSettingsByUserId(user.id)
       : undefined;
   const phaseEstimate = cycleSettings
-    ? memberPhaseEstimate(user.id, cycleSettings)
+    ? memberPhaseEstimateForViewer(user.id, cycleSettings)
     : null;
 
   const pregnancyStatus = profile?.cycleTrackingEligible ? findPregnancyStatusByUserId(user.id) : undefined;

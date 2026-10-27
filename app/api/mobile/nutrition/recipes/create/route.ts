@@ -2,8 +2,10 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById, saveRecipe, type RecipeIngredientEntry, type RecipeRecord } from "@/lib/db";
+import { findRecipesByUserId, findUserById, saveRecipe, type RecipeIngredientEntry, type RecipeRecord } from "@/lib/db";
+import { FREE_SAVED_MEAL_LIMIT } from "@/lib/member-access";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireUnderFreeLimit } from "@/lib/member-access-response";
 
 const MAX_INGREDIENTS = 60;
 
@@ -27,6 +29,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const overLimit = requireUnderFreeLimit(user.id, "unlimitedSavedMeals", findRecipesByUserId(user.id).length, FREE_SAVED_MEAL_LIMIT, "saved recipes");
+  if (overLimit) return overLimit;
 
   let body: unknown;
   try {

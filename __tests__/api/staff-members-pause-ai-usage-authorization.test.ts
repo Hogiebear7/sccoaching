@@ -40,6 +40,8 @@ vi.mock("@/lib/db", () => ({
 
 const { mockStaffCanViewMemberData } = vi.hoisted(() => ({ mockStaffCanViewMemberData: vi.fn() }));
 vi.mock("@/lib/member-tier-wall", () => ({ staffCanViewMemberData: mockStaffCanViewMemberData }));
+// The allowance status reads the digital entitlement store, which the db mock above does not model; its numbers are tested in the AI allowance tests.
+vi.mock("@/lib/ai-allowance", () => ({ memberAllowanceStatus: () => ({ kind: "free", paused: false, budgetEur: 0, spentEur: 0, dailyCapEur: 0, spentTodayEur: 0 }) }));
 
 const billing = vi.hoisted(() => ({ pauseProviderSubscription: vi.fn(), resumeProviderSubscription: vi.fn() }));
 vi.mock("@/lib/billing", () => billing);
@@ -257,13 +259,22 @@ describe("GET /members/[userId]/ai-usage — same-gym authorized controls", () =
     expect((await aiUsage(A_MEMBER.id, OPERATOR.id)).status).toBe(200);
   });
 
-  it("a same-gym member who has not reached the Membership tier is walled (existing behaviour); logs are not read", async () => {
+  it("a same-gym member who has not reached the Membership tier is walled for a coach; logs are not read", async () => {
+    mockStaffCanViewMemberData.mockReturnValue(false);
+
+    const res = await aiUsage(A_MEMBER.id, A_COACH.id);
+
+    expect(res.status).toBe(403);
+    expect(h.findAiUsageLogsByUserId).not.toHaveBeenCalled();
+  });
+
+  it("staff who manage access (members.grantTier) see a walled member's AI COST, so heavy use can be spotted and paused", async () => {
     mockStaffCanViewMemberData.mockReturnValue(false);
 
     const res = await aiUsage(A_MEMBER.id, A_ADMIN.id);
 
-    expect(res.status).toBe(403);
-    expect(h.findAiUsageLogsByUserId).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.allowance).toMatchObject({ paused: false });
   });
 });
 

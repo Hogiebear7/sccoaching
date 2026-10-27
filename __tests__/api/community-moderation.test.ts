@@ -24,6 +24,11 @@ type Who = { id: string; cookie: string };
 function member(email: string, name: string, gym: string | null = null): Who {
   const u = fx.db.createUserWithRole(email, "x", "member", gym);
   fx.db.saveProfile({ userId: u.id, fullName: name, createdAt: T, updatedAt: T } as never);
+  // The App subscription (a staff grant), so the leaderboard, a subscription feature, is reachable; this file tests blocking and moderation, not plans.
+  fx.db.saveDigitalEntitlement({
+    id: fx.db.digitalEntitlementId("staff_grant", u.id), userId: u.id, source: "staff_grant", status: "active", productId: null, billingOptionId: null, storeRefHash: null,
+    environment: null, currentPeriodEnd: null, autoRenewing: false, trial: false, grantedByUserId: null, note: null, revokedAt: null, createdAt: T, updatedAt: T,
+  } as never);
   return { id: u.id, cookie: fx.cookie(u.id) };
 }
 function workout(userId: string, id: string, extra: Record<string, unknown> = {}) {

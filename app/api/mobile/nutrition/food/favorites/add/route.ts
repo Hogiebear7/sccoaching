@@ -2,8 +2,10 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { createFoodFavorite, findUserById, type FoodFavoriteRecord, type MealType } from "@/lib/db";
+import { createFoodFavorite, findFoodFavoritesByUserId, findUserById, type FoodFavoriteRecord, type MealType } from "@/lib/db";
+import { FREE_SAVED_MEAL_LIMIT } from "@/lib/member-access";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireUnderFreeLimit } from "@/lib/member-access-response";
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
@@ -14,6 +16,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const overLimit = requireUnderFreeLimit(user.id, "unlimitedSavedMeals", findFoodFavoritesByUserId(user.id).length, FREE_SAVED_MEAL_LIMIT, "saved meals");
+  if (overLimit) return overLimit;
 
   let body: unknown;
   try {

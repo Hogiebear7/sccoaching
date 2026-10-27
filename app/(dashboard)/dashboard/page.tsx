@@ -14,7 +14,7 @@ import {
   findUserById,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
-import { memberPhaseEstimate } from "@/lib/cycle-phase-data";
+import { memberPhaseEstimateForViewer } from "@/lib/cycle-phase-data";
 import {
   isPeriodLapsed,
   SUBSCRIPTION_STATUS_LABEL,
@@ -114,7 +114,7 @@ export default async function DashboardPage() {
       ? findCycleSettingsByUserId(user.id)
       : undefined;
   const phaseEstimate = cycleSettings
-    ? memberPhaseEstimate(cycleSettings.userId, cycleSettings)
+    ? memberPhaseEstimateForViewer(cycleSettings.userId, cycleSettings)
     : null;
 
   // Readiness module data — all from the member's own logs.

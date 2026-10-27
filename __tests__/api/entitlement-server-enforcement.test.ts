@@ -69,10 +69,15 @@ const GATED: { feature: string; run: (m: { cookie: string; workoutId: string }) 
   { feature: "workoutGenerate", run: async (m) => (await import("@/app/api/mobile/programs/generate/route")).POST(call("POST", "/api/mobile/programs/generate", m.cookie, {})) },
   { feature: "trackerImport", run: async (m) => (await import("@/app/api/mobile/tracker-import/scan/route")).POST(call("POST", "/api/mobile/tracker-import/scan", m.cookie, { imageBase64: "AAAA" })) },
   { feature: "workoutReview", run: async (m) => (await import("@/app/api/mobile/workout-review/[id]/route")).GET(call("GET", "/x", m.cookie), { params: Promise.resolve({ id: m.workoutId }) }) },
-  { feature: "foodSearch", run: async (m) => (await import("@/app/api/mobile/nutrition/food/search/route")).GET(call("GET", "/api/mobile/nutrition/food/search?q=oats", m.cookie)) },
   { feature: "gymProfiles", run: async (m) => (await import("@/app/api/mobile/gym-profiles/route")).GET(call("GET", "/api/mobile/gym-profiles", m.cookie)) },
-  { feature: "notifications (push)", run: async (m) => (await import("@/app/api/profile/push-notifications/route")).POST(call("POST", "/api/profile/push-notifications", m.cookie, { pushNotificationsEnabled: true })) },
-  { feature: "notifications (email)", run: async (m) => (await import("@/app/api/profile/email-notifications/route")).POST(call("POST", "/api/profile/email-notifications", m.cookie, { emailNotificationsEnabled: true })) },
+  { feature: "programmes", run: async (m) => (await import("@/app/api/mobile/programs/save/route")).POST(call("POST", "/api/mobile/programs/save", m.cookie, {})) },
+  { feature: "weeklyPlanner", run: async (m) => (await import("@/app/api/mobile/weekly-training/route")).GET(call("GET", "/api/mobile/weekly-training", m.cookie)) },
+  { feature: "weeklyPlanner (sync)", run: async (m) => (await import("@/app/api/mobile/programs/sync-weekly-schedule/route")).POST(call("POST", "/api/mobile/programs/sync-weekly-schedule", m.cookie, {})) },
+  { feature: "calorieTargets", run: async (m) => (await import("@/app/api/mobile/nutrition/target/route")).GET(call("GET", "/api/mobile/nutrition/target", m.cookie)) },
+  { feature: "calorieTargets (week)", run: async (m) => (await import("@/app/api/mobile/nutrition/targets/week/route")).GET(call("GET", "/api/mobile/nutrition/targets/week", m.cookie)) },
+  { feature: "calorieTargets (web)", run: async (m) => (await import("@/app/api/nutrition/target/route")).GET(call("GET", "/api/nutrition/target", m.cookie)) },
+  { feature: "communityLeaderboards", run: async (m) => (await import("@/app/api/mobile/community/leaderboard/route")).GET(call("GET", "/api/mobile/community/leaderboard", m.cookie)) },
+  { feature: "communityLeaderboards (highlight)", run: async (m) => (await import("@/app/api/mobile/community/highlight/route")).GET(call("GET", "/api/mobile/community/highlight", m.cookie)) },
   { feature: "nutritionMoreTools (meal suggestions)", run: async (m) => (await import("@/app/api/mobile/nutrition/meal-suggest/route")).POST(call("POST", "/api/mobile/nutrition/meal-suggest", m.cookie, {})) },
 ];
 
@@ -122,11 +127,82 @@ describe("lib/member-access.ts feature list is fully accounted for", () => {
     const block = src.slice(src.indexOf("const FEATURE_REQUIRES"), src.indexOf("export function hasAccess"));
     const features = [...block.matchAll(/^\s+(\w+):\s*"/gm)].map((m) => m[1]);
     expect(features.length).toBeGreaterThan(0);
-    // unlimitedCustomFoods is a COUNT limit enforced in the create route (tested in the custom-food tests); nutritionMoreTools is enforced for the one cost-bearing tool
-    // (meal suggestions). The sports drink calculator, weekly training schedule and shopping list are own-data tools with no provider cost and are hidden, not blocked,
-    // for Free: an owner decision, listed in the handover.
+    // Not a plain 403, each with its own test below: the Free features (open to everyone), the two Free COUNT limits (saved workouts and meals),
+    // fullHistory (a date filter) and cyclePhaseGuidance (the guidance fields are emptied). coachMessaging is the messages/send test above.
     const tested = new Set(GATED.map((g) => g.feature.split(" ")[0]));
-    const clientOnly = new Set(["unlimitedCustomFoods"]);
+    const clientOnly = new Set([
+      "foodSearch",
+      "unlimitedCustomFoods",
+      "notifications",
+      "unlimitedSavedWorkouts",
+      "unlimitedSavedMeals",
+      "fullHistory",
+      "cyclePhaseGuidance",
+      "coachMessaging",
+    ]);
     expect(features.filter((f) => !tested.has(f) && !clientOnly.has(f))).toEqual([]);
+  });
+});
+
+describe("Free features stay open to a member with no plan (owner decisions 2026-10-27)", () => {
+  it("food search and both notification switches are not refused", async () => {
+    const m = await member("free-open@example.test", "free");
+    const search = await (await import("@/app/api/mobile/nutrition/food/search/route")).GET(call("GET", "/api/mobile/nutrition/food/search?q=oats", m.cookie));
+    expect(search.status, await search.clone().text()).not.toBe(403);
+    const push = await (await import("@/app/api/profile/push-notifications/route")).POST(call("POST", "/api/profile/push-notifications", m.cookie, { pushNotificationsEnabled: true }));
+    expect(push.status, await push.clone().text()).not.toBe(403);
+    const email = await (await import("@/app/api/profile/email-notifications/route")).POST(call("POST", "/api/profile/email-notifications", m.cookie, { emailNotificationsEnabled: true }));
+    expect(email.status, await email.clone().text()).not.toBe(403);
+  });
+});
+
+describe("Free-tier count limits are enforced on the server", () => {
+  const template = { name: "Push day", exercises: [{ name: "Bench Press", sets: 3, reps: 8 }] };
+
+  it("a Free member can save 3 workouts; the 4th is refused with the upgrade code; a subscriber is not limited", async () => {
+    const { POST } = await import("@/app/api/mobile/workout-templates/create/route");
+    const free = await member("free-templates@example.test", "free");
+    for (let i = 0; i < 3; i++) {
+      const res = await POST(call("POST", "/api/mobile/workout-templates/create", free.cookie, { ...template, name: `Day ${i}` }));
+      expect(res.status, await res.clone().text()).toBeLessThan(300);
+    }
+    const fourth = await POST(call("POST", "/api/mobile/workout-templates/create", free.cookie, template));
+    expect(fourth.status).toBe(403);
+    expect((await fourth.json()).code).toBe("upgrade_required");
+
+    const sub = await member("sub-templates@example.test", "app_subscription");
+    for (let i = 0; i < 4; i++) {
+      const res = await POST(call("POST", "/api/mobile/workout-templates/create", sub.cookie, { ...template, name: `Day ${i}` }));
+      expect(res.status, await res.clone().text()).toBeLessThan(300);
+    }
+  });
+
+  it("a Free member can save 5 meals (favourites); the 6th is refused", async () => {
+    const { POST } = await import("@/app/api/mobile/nutrition/food/favorites/add/route");
+    const free = await member("free-meals@example.test", "free");
+    const t = "2026-10-01T00:00:00.000Z";
+    for (let i = 0; i < 5; i++) {
+      fx.db.createFoodFavorite({ id: `fav-${i}`, userId: free.id, name: `Meal ${i}`, createdAt: t } as never);
+    }
+    const sixth = await POST(call("POST", "/api/mobile/nutrition/food/favorites/add", free.cookie, { name: "Meal 6" }));
+    expect(sixth.status).toBe(403);
+    expect((await sixth.json()).code).toBe("upgrade_required");
+  });
+});
+
+describe("Free history covers the last 7 days; nothing is deleted", () => {
+  it("the workout list holds only recent sessions for Free, and everything for a subscriber", async () => {
+    const { GET } = await import("@/app/api/mobile/workouts/route");
+    const today = new Date().toISOString().slice(0, 10);
+    for (const who of ["free", "app_subscription"] as const) {
+      const m = await member(`history-${who}@example.test`, who);
+      const t = new Date().toISOString();
+      fx.db.saveWorkoutSession({ id: `recent-${who}`, userId: m.id, date: today, title: "Today", exercises: [], runs: [], createdAt: t, updatedAt: t } as never);
+      const res = await GET(call("GET", "/api/mobile/workouts", m.cookie));
+      const ids = ((await res.json()).data.sessions as { id: string }[]).map((x) => x.id);
+      expect(ids).toContain(`recent-${who}`);
+      // The member() helper logs a session dated 2026-10-01: older than 7 days for Free.
+      expect(ids.includes(m.workoutId)).toBe(who === "app_subscription");
+    }
   });
 });

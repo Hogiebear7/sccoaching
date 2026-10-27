@@ -17,6 +17,7 @@ import { sameGym, sameGymAsStaff } from "@/lib/gym-scope";
 import { computeLeaderboard, type LeaderboardMemberInput } from "@/lib/leaderboard";
 import { hiddenFromViewer } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireFeature } from "@/lib/member-access-response";
 
 // GET /api/mobile/community/highlight
 // The ONE thing the Home screen's compact Community module shows — never a
@@ -33,6 +34,9 @@ export async function GET(request: NextRequest) {
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const locked = requireFeature(me.id, "communityLeaderboards");
+  if (locked) return locked;
 
   // Same defense-in-depth gym check as the main feed/wins routes.
   const hidden = hiddenFromViewer(me.id);

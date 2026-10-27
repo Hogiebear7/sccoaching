@@ -5,6 +5,7 @@ import { findTrainingProgramById, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { TrainingDayOfWeek, TrainingTimeOfDay } from "@/lib/profile-schema";
 import { syncProgrammeToWeeklyTraining } from "@/lib/programme-weekly-sync";
+import { requireFeature } from "@/lib/member-access-response";
 
 const TIME_OF_DAY_VALUES: TrainingTimeOfDay[] = ["morning", "afternoon", "evening"];
 
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const locked = requireFeature(user.id, "weeklyPlanner");
+  if (locked) return locked;
 
   let body: unknown;
   try {
