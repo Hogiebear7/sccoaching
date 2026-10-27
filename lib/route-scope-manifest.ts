@@ -201,6 +201,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "mobile/workout-templates/update", scope: "self" },
   { route: "mobile/workouts", scope: "self" },
   { route: "mobile/workouts/[id]/visibility", scope: "self" },
+  { route: "mobile/workouts/[id]/wearable", scope: "self" },
   { route: "notifications", scope: "self" },
   { route: "notifications/[id]/read", scope: "self" },
   { route: "notifications/read-all", scope: "self" },

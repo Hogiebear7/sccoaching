@@ -11,6 +11,7 @@ import { computeGoalTimeline, goalTimelineAdjustKcal as kcalFromWeeklyRate } fro
 import { resolveCurrentBodyFatPct } from "./body-fat";
 import { resolveCurrentWeightKg } from "./body-weight";
 import { cyclePauseFor, estimatePhase } from "./cycle-phase";
+import { workoutExtraForDay, workoutExtraLine } from "./workout-calories";
 import { learningPauseFor, nutritionStageFor, stageAdjustment, type StageAdjustment } from "./pregnancy-nutrition";
 import {
   findBodyFatLogsByUserId,
@@ -202,6 +203,8 @@ export interface ResolvedNutritionTarget {
   nutritionStage?: "pregnant" | "postpartum" | "breastfeeding" | null;
   /** Extra kcal a day that stage adds. */
   stageExtraKcal?: number;
+  /** Extra kcal today for training logged beyond the plan. */
+  workoutExtraKcal?: number;
 }
 
 const NO_WEEK_FIELDS = {
@@ -491,6 +494,8 @@ export function buildWeeklyRationale(input: {
   stageLine?: string | null;
   /** Planned training included in an estimated burn. */
   training?: TrainingBurn | null;
+  /** Today's extra for training logged beyond the plan. */
+  workoutLine?: string | null;
 }): string[] {
   const lines: string[] = [];
 
@@ -542,6 +547,7 @@ export function buildWeeklyRationale(input: {
     lines.push(`Your weekly budget follows your training${who} — today is a "${input.fuelDayLabel}", ${relative}.`);
   }
 
+  if (input.workoutLine) lines.push(input.workoutLine);
   if (input.lutealToday) {
     lines.push("Includes +120 kcal for the luteal phase of your cycle, taken from your other days this week.");
   }
@@ -563,7 +569,19 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
   const plan = weekPlanFor(ctx, weekStart, bodyWeightKg);
   const index = daysBetweenISO(weekStart, dateISO);
   const band = plan.fuelBands[index];
-  const calories = plan.dayKcal[index];
+  // Training logged beyond the plan raises this day only; the rest of the
+  // week keeps its share (lib/workout-calories.ts). Only when the burn came
+  // from the activity level + planned training: without an activity level
+  // the fuel-band estimate already rises with logged load, so adding it
+  // here too would count it twice.
+  const activeSessions = activeWeeklySessions(ctx.sessions, dateISO).filter((s) => s.activityType !== "rest");
+  const extra = !ctx.activityLevel ? { extraKcal: 0, watchKcal: null } : workoutExtraForDay(
+    ctx.workoutSessions.filter((w) => w.date === dateISO),
+    activeSessions.filter((s) => s.dayOfWeek === weekdayOf(dateISO)),
+    bodyWeightKg,
+    activeSessions.length === 0 && (ctx.trainingDaysPerWeek ?? 0) > 0
+  );
+  const calories = plan.dayKcal[index] + extra.extraKcal;
   const macros = macrosForCalorieTarget(calories, bodyWeightKg, band);
 
   return {
@@ -596,6 +614,7 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
       lutealToday: plan.lutealDays[index],
       stageLine: plan.stage?.line ?? null,
       training: plan.training,
+      workoutLine: workoutExtraLine(extra),
     }),
     setByMember: false,
     weekStart,
@@ -611,6 +630,7 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
     distributionSource: plan.distributionSource,
     nutritionStage: plan.stage?.kind ?? null,
     stageExtraKcal: plan.stage?.extraKcal ?? 0,
+    workoutExtraKcal: extra.extraKcal,
   };
 }
 

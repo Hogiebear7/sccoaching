@@ -183,6 +183,14 @@ export function formatWorkoutReviewContext(data: WorkoutReviewData): string {
     ].filter(Boolean);
     lines.push(`Cardio: ${kind}${parts.length ? ` (${parts.join(", ")})` : ""}.`);
   }
+  if (session.avgHr != null || session.maxHr != null || session.wearableCalories != null) {
+    const watchParts = [
+      session.avgHr != null ? `average HR ${session.avgHr}` : null,
+      session.maxHr != null ? `max HR ${session.maxHr}` : null,
+      session.wearableCalories != null ? `${session.wearableCalories} kcal (watch estimate; these usually run high)` : null,
+    ].filter(Boolean);
+    lines.push(`From the member's watch: ${watchParts.join(", ")}.`);
+  }
   lines.push(
     session.sessionRpe != null
       ? `Session RPE (member-reported, 1-10): ${session.sessionRpe}.`

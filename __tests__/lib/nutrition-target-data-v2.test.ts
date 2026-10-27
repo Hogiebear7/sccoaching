@@ -245,3 +245,20 @@ describe("v2 resolver: pregnancy and breastfeeding", () => {
     expect(target.nutritionStage).toBe("postpartum");
   });
 });
+
+describe("v2 resolver: logged training beyond the plan", () => {
+  it("raises only that day, by half of the watch's number", () => {
+    // 2026-10-27 is a Tuesday with no planned session in SCHEDULE.
+    h.findProfileByUserId.mockReturnValue({ ...PROFILE, activityLevel: "light" });
+    const before = getResolvedNutritionTargetsForWeek(USER, TODAY, TODAY)!;
+    h.findWorkoutSessionsByUserId.mockReturnValue([
+      { id: "w1", userId: USER, date: "2026-10-27", title: "Stairs", durationMins: 30, notes: null, exercises: [], runs: [], sessionRpe: 6, wearableCalories: 300, createdAt: "x", updatedAt: "x" },
+    ]);
+    const after = getResolvedNutritionTargetsForWeek(USER, TODAY, TODAY)!;
+    const tue = after.days.find((d) => d.date === "2026-10-27")!;
+    expect(tue.workoutExtraKcal).toBe(150);
+    expect(tue.calories! - before.days.find((d) => d.date === "2026-10-27")!.calories!).toBe(150);
+    expect((tue.rationale ?? []).join(" ")).toMatch(/half of the 300 kcal your watch reported/);
+    expect(after.days.find((d) => d.date === "2026-10-29")!.calories).toBe(before.days.find((d) => d.date === "2026-10-29")!.calories);
+  });
+});

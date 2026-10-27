@@ -204,6 +204,12 @@ export interface WorkoutSessionRecord {
   /** Set when staff remove this session from Community after a member report. Unlike isPrivate the owner cannot turn it back on: the
       visibility route refuses while this is set. The session stays in the owner's own history. */
   communityRemovedAt?: string | null;
+  /** What the member's watch reported (POST .../wearable). Half of the
+      calories count towards that day's target; heart rate is for the
+      review only. */
+  wearableCalories?: number | null;
+  avgHr?: number | null;
+  maxHr?: number | null;
   createdAt: string;
   updatedAt: string;
 }
