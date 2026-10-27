@@ -12,59 +12,68 @@ const T1 = "fake-play-token-lifecycle-1";
 const T2 = "fake-play-token-lifecycle-2";
 const DAY = 86_400_000;
 
-const sub = (userId = fx.memberA.id) => fx.db.findSubscriptionByUserId(userId);
+const ent = (userId = fx.memberA.id) => fx.db.findDigitalEntitlement(userId, "google_play");
 const purchase = (token = T1) => fx.db.findGooglePlayPurchaseByToken(token);
 const eventTypes = () => fx.db.findIapEvents().map((e) => e.type);
-const tier = async (userId = fx.memberA.id) => (await import("@/lib/membership-entitlement")).resolveMemberTierForUser(userId);
+const access = async (userId = fx.memberA.id) => (await import("@/lib/membership-entitlement")).resolveMemberAccessForUser(userId);
+// "app_subscription" / "free" are kept as the readable names for "has / has not got the digital features".
+const tier = async (userId = fx.memberA.id) => ((await access(userId)).digital ? "app_subscription" : "free");
 
 beforeEach(async () => {
   fx = await createPlayFixture();
 });
 afterEach(() => fx.cleanup());
 
-describe("claim over an existing Membership (owner default D1)", () => {
-  it.each(["active", "past_due", "paused"] as const)("rejects a claim while a %s Membership exists: no purchase row, no acknowledgement, no entitlement, nothing booked", async (status) => {
+describe("a gym Membership is a separate product (owner decision D1)", () => {
+  it.each(["active", "past_due", "paused"] as const)("a %s gym Membership neither blocks the claim nor is changed by it", async (status) => {
     fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, status });
-    const before = sub();
+    const before = fx.db.findSubscriptionByUserId(fx.memberA.id);
 
     const res = await fx.claim(fx.memberA.id, T1);
 
-    expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ success: false, code: "membership_active", message: expect.stringMatching(/^You already have an active gym Membership/) });
-    expect(purchase()).toBeUndefined(); // the token stays unbound: no pending intent
-    expect(fx.adapter.ackCalls).toEqual([]); // not acknowledged: Google refunds it itself
-    expect(sub()).toEqual(before);
-    expect(fx.db.findAllRevenueEvents()).toEqual([]);
-    expect(eventTypes()).toEqual(["claim_rejected_conflict"]);
+    expect(res.status).toBe(200);
+    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toEqual(before);
+    expect(ent()).toMatchObject({ source: "google_play", status: "active", storeRefHash: fx.db.hashPurchaseToken(T1) });
+    expect(await access()).toMatchObject({ digital: true, gymMembership: status !== "paused" });
   });
 
-  it("allows the claim once the Membership is no longer active, and preserves its history", async () => {
-    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, status: "canceled" });
-    expect((await fx.claim(fx.memberA.id, T1)).status).toBe(200);
-    expect(sub()).toMatchObject({ packageId: fx.ids.appPackage, provider: "google_play", status: "active", createdAt: expect.any(String) });
+  it("a gym Membership on its own grants NONE of the digital features", async () => {
+    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, status: "active" });
+    expect(await access()).toEqual({ digital: false, gymMembership: true });
   });
 
-  it.each([
-    ["pending", { status: "pending" as const }],
-    ["lapsed", { status: "active" as const, currentPeriodEnd: "2026-01-01T00:00:00.000Z" }],
-  ])("allows the claim over a %s Membership", async (_label, over) => {
-    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, ...over });
-    expect((await fx.claim(fx.memberA.id, T1)).status).toBe(200);
+  it("the digital plan on its own grants no gym Membership", async () => {
+    await fx.claim(fx.memberA.id, T1);
+    expect(await access()).toEqual({ digital: true, gymMembership: false });
+    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toBeUndefined();
   });
 
   it("refuses a second Play subscription on an account that already has a live one, without binding the new token", async () => {
     await fx.claim(fx.memberA.id, T1);
     const res = await fx.claim(fx.memberA.id, T2);
     expect(res.status).toBe(409);
-    expect((await res.json()).code).toBe("play_billing_active");
+    expect((await res.json()).code).toBe("subscription_already_active");
     expect(purchase(T2)).toBeUndefined();
-    expect(sub()?.providerSubscriptionId).toBe(T1);
+    expect(ent()?.storeRefHash).toBe(fx.db.hashPurchaseToken(T1));
   });
 
-  it("replaces a MANUAL App Subscription with the Play-billed one (one row, no overlap)", async () => {
-    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.appPackage, status: "active", provider: "none" });
+  it("a complimentary staff grant is a separate row: it does not block a purchase and survives the purchase ending", async () => {
+    const { grantStaffDigitalEntitlement } = await import("@/lib/digital-entitlement");
+    grantStaffDigitalEntitlement({ userId: fx.memberA.id, grantedByUserId: fx.adminA.id });
     expect((await fx.claim(fx.memberA.id, T1)).status).toBe(200);
-    expect(sub()).toMatchObject({ provider: "google_play", providerSubscriptionId: T1 });
+    expect(fx.db.findDigitalEntitlement(fx.memberA.id, "staff_grant")?.status).toBe("active");
+
+    fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_EXPIRED", expiryTimeMillis: Date.now() - 1000 });
+    await fx.rtdn(fx.subscriptionEvent(T1, 13));
+    expect(ent()?.status).toBe("expired");
+    expect(await tier()).toBe("app_subscription"); // the grant still holds
+  });
+
+  it("a legacy complimentary row on the app-only package is not overwritten by a purchase", async () => {
+    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.appPackage, status: "active", provider: "none" });
+    const before = fx.db.findSubscriptionByUserId(fx.memberA.id);
+    expect((await fx.claim(fx.memberA.id, T1)).status).toBe(200);
+    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toEqual(before);
   });
 });
 
@@ -82,16 +91,14 @@ describe("purchase context", () => {
     expect((await fx.context(undefined)).status).toBe(401);
   });
 
-  it("is refused for a member with an active Membership, so no purchase intent starts", async () => {
+  it("is available to a member with an active gym Membership (a separate product)", async () => {
     fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, status: "active" });
-    const res = await fx.context(fx.memberA.id);
-    expect(res.status).toBe(409);
-    expect((await res.json()).code).toBe("membership_active");
+    expect((await fx.context(fx.memberA.id)).status).toBe(200);
   });
 
   it("is refused while a Play subscription is live", async () => {
     await fx.claim(fx.memberA.id, T1);
-    expect((await (await fx.context(fx.memberA.id)).json()).code).toBe("play_billing_active");
+    expect((await (await fx.context(fx.memberA.id)).json()).code).toBe("subscription_already_active");
   });
 
   it("is refused when Google Play is not configured", async () => {
@@ -138,7 +145,7 @@ describe("kill switch (owner default D7): default off, gates new claims, never l
     const res = await fx.rtdn(fx.subscriptionEvent(T1, 13));
 
     expect(res.status).toBe(200);
-    expect(sub()?.status).toBe("canceled");
+    expect(ent()?.status).toBe("expired");
     expect(await tier()).toBe("free");
   });
 });
@@ -151,7 +158,7 @@ describe("no entitlement before server verification (owner default D5)", () => {
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ success: false, code: "provider_unavailable", message: "Google Play couldn't be reached. Try again shortly." });
     expect(purchase()).toBeUndefined();
-    expect(sub()).toBeUndefined();
+    expect(ent()).toBeUndefined();
     expect(await tier()).toBe("free");
   });
 
@@ -240,14 +247,14 @@ describe("lifecycle states via notification (state is re-fetched, never trusted 
   it("grace period keeps access (past_due)", async () => {
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_IN_GRACE_PERIOD" });
     await fx.rtdn(fx.subscriptionEvent(T1, 6));
-    expect(sub()?.status).toBe("past_due");
+    expect(ent()?.status).toBe("in_grace_period");
     expect(await tier()).toBe("app_subscription");
   });
 
   it("account hold removes access", async () => {
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_ON_HOLD" });
     await fx.rtdn(fx.subscriptionEvent(T1, 5));
-    expect(sub()?.status).toBe("canceled");
+    expect(ent()?.status).toBe("on_hold");
     expect(await tier()).toBe("free");
     expect(eventTypes()).toContain("entitlement_expired");
   });
@@ -255,14 +262,14 @@ describe("lifecycle states via notification (state is re-fetched, never trusted 
   it("a pause keeps the row paused", async () => {
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_PAUSED" });
     await fx.rtdn(fx.subscriptionEvent(T1, 10));
-    expect(sub()?.status).toBe("paused");
+    expect(ent()?.status).toBe("paused");
   });
 
   it("ordinary cancellation keeps access to the paid expiry (owner default D5)", async () => {
     const expiry = Date.now() + 10 * DAY;
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_CANCELED", autoRenewing: false, expiryTimeMillis: expiry });
     await fx.rtdn(fx.subscriptionEvent(T1, 3));
-    expect(sub()).toMatchObject({ status: "active", currentPeriodEnd: new Date(expiry).toISOString() });
+    expect(ent()).toMatchObject({ status: "canceled", currentPeriodEnd: new Date(expiry).toISOString() });
     expect(await tier()).toBe("app_subscription");
     expect(purchase()?.status).toBe("canceled");
   });
@@ -270,7 +277,7 @@ describe("lifecycle states via notification (state is re-fetched, never trusted 
   it("expiry ends access", async () => {
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_EXPIRED", expiryTimeMillis: Date.now() - 1000 });
     await fx.rtdn(fx.subscriptionEvent(T1, 13));
-    expect(sub()?.status).toBe("canceled");
+    expect(ent()?.status).toBe("expired");
     expect(await tier()).toBe("free");
   });
 
@@ -279,15 +286,15 @@ describe("lifecycle states via notification (state is re-fetched, never trusted 
     fx.adapter.setSnapshot(T1, { orderId: "GPA.renew-2", expiryTimeMillis: expiry });
     await fx.rtdn(fx.subscriptionEvent(T1, 2));
     await fx.rtdn(fx.subscriptionEvent(T1, 2));
-    expect(sub()?.currentPeriodEnd).toBe(new Date(expiry).toISOString());
+    expect(ent()?.currentPeriodEnd).toBe(new Date(expiry).toISOString());
     expect(fx.db.findAllRevenueEvents().filter((e) => e.providerRef === "GPA.renew-2")).toHaveLength(1);
   });
 
   it("an ambiguous or pending provider state records the purchase but does not touch entitlement", async () => {
-    const before = sub();
+    const before = ent();
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_PENDING" });
     await fx.rtdn(fx.subscriptionEvent(T1, 4));
-    expect(sub()?.status).toBe(before?.status);
+    expect(ent()?.status).toBe(before?.status);
   });
 });
 
@@ -300,7 +307,7 @@ describe("refund and revocation (voided purchases)", () => {
     // Even if Google still reports the state as active, a voided current order ends access.
     const res = await fx.rtdn(fx.voidedEvent(T1, "GPA.cur"));
     expect(res.status).toBe(200);
-    expect(sub()?.status).toBe("canceled");
+    expect(ent()?.status).toBe("revoked");
     expect(await tier()).toBe("free");
     expect(purchase()).toMatchObject({ revocationReason: "voided", revokedAt: expect.any(String) });
     expect(eventTypes()).toContain("entitlement_revoked");
@@ -312,7 +319,7 @@ describe("refund and revocation (voided purchases)", () => {
     await fx.rtdn(fx.subscriptionEvent(T1, 2));
     await fx.verify(fx.memberA.id, { purchaseToken: T1 });
     expect(await tier()).toBe("free");
-    expect(sub()?.status).toBe("canceled");
+    expect(ent()?.status).toBe("revoked");
   });
 
   it("a voided PRIOR order leaves the current period alone", async () => {
@@ -367,11 +374,11 @@ describe("notification idempotency and ordering", () => {
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_EXPIRED", expiryTimeMillis: Date.now() - 1000 });
     await new Promise((r) => setTimeout(r, 5));
     await fx.rtdn(fx.subscriptionEvent(T1, 13), { messageId: "fast" });
-    expect(sub()?.status).toBe("canceled");
+    expect(ent()?.status).toBe("expired");
 
     gate.release(); // A now returns the OLD "active" answer.
     await slow;
-    expect(sub()?.status).toBe("canceled");
+    expect(ent()?.status).toBe("expired");
     expect(await tier()).toBe("free");
     expect(eventTypes()).toContain("notification_stale");
   });
@@ -385,7 +392,7 @@ describe("notification idempotency and ordering", () => {
 
     const second = await fx.rtdn(fx.subscriptionEvent(T1, 6), { messageId: "retry-1" });
     expect(second.status).toBe(200);
-    expect(sub()?.status).toBe("past_due");
+    expect(ent()?.status).toBe("in_grace_period");
     expect(fx.db.findIapNotification("retry-1")).toMatchObject({ outcome: "applied", attempts: 2 });
   });
 
@@ -420,20 +427,20 @@ describe("notification idempotency and ordering", () => {
   });
 });
 
-describe("stale tokens cannot rewrite the subscription row", () => {
+describe("stale tokens cannot rewrite the entitlement row", () => {
   it("a notification for an OLD token does not overwrite the row now billed through a NEWER token", async () => {
     await fx.claim(fx.memberA.id, T1);
     // The first subscription ends, and the member buys again (a resubscribe: a fresh, unlinked token).
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_EXPIRED", expiryTimeMillis: Date.now() - 1000 });
     await fx.rtdn(fx.subscriptionEvent(T1, 13));
     expect((await fx.claim(fx.memberA.id, T2, { orderId: "GPA.new" })).status).toBe(200);
-    expect(sub()?.providerSubscriptionId).toBe(T2);
+    expect(ent()?.storeRefHash).toBe(fx.db.hashPurchaseToken(T2));
 
     // A late, replayed event for the old token arrives, and the provider (wrongly or not) says "active".
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_ACTIVE", expiryTimeMillis: Date.now() + 30 * DAY });
     await fx.rtdn(fx.subscriptionEvent(T1, 2));
 
-    expect(sub()).toMatchObject({ providerSubscriptionId: T2, status: "active" });
+    expect(ent()).toMatchObject({ storeRefHash: fx.db.hashPurchaseToken(T2), status: "active" });
   });
 
   it("an expiry notification for an old token never cancels a NEWER live subscription", async () => {
@@ -442,29 +449,30 @@ describe("stale tokens cannot rewrite the subscription row", () => {
     await fx.rtdn(fx.subscriptionEvent(T1, 13));
     await fx.claim(fx.memberA.id, T2);
     await fx.rtdn(fx.subscriptionEvent(T1, 13), { messageId: "late-old-expiry" });
-    expect(sub()).toMatchObject({ providerSubscriptionId: T2, status: "active" });
+    expect(ent()).toMatchObject({ storeRefHash: fx.db.hashPurchaseToken(T2), status: "active" });
     expect(await tier()).toBe("app_subscription");
   });
 
-  it("a notification for an old token cannot overwrite an active gym Membership bought afterwards", async () => {
+  it("a notification for an old token never touches a gym Membership bought afterwards", async () => {
     await fx.claim(fx.memberA.id, T1);
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_EXPIRED", expiryTimeMillis: Date.now() - 1000 });
     await fx.rtdn(fx.subscriptionEvent(T1, 13));
     fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, status: "active" });
-    const before = sub();
+    const before = fx.db.findSubscriptionByUserId(fx.memberA.id);
 
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_ACTIVE", expiryTimeMillis: Date.now() + 30 * DAY });
     await fx.rtdn(fx.subscriptionEvent(T1, 2), { messageId: "old-token-resurrection" });
 
-    expect(sub()).toEqual(before);
-    expect(await tier()).toBe("membership");
+    // The old purchase is genuinely active again at Google, so the digital entitlement follows it; the gym Membership row is untouched.
+    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toEqual(before);
+    expect(await access()).toMatchObject({ gymMembership: true });
   });
 
   it("a direct successor token (linkedPurchaseToken) takes over the row", async () => {
     await fx.claim(fx.memberA.id, T1);
     const res = await fx.claim(fx.memberA.id, T2, { linkedPurchaseToken: T1, orderId: "GPA.upgrade" });
     expect(res.status).toBe(200);
-    expect(sub()?.providerSubscriptionId).toBe(T2);
+    expect(ent()?.storeRefHash).toBe(fx.db.hashPurchaseToken(T2));
   });
 });
 
@@ -477,7 +485,7 @@ describe("reconciliation (a lost notification must not leave access running past
     const summary = await reconcileGooglePlayPurchases({ nowMs: Date.now() + 2 * DAY });
 
     expect(summary).toMatchObject({ considered: 1, processed: 1, failed: 0 });
-    expect(sub()?.status).toBe("canceled");
+    expect(ent()?.status).toBe("expired");
     expect(eventTypes()).toContain("reconciliation_run");
   });
 
@@ -499,7 +507,7 @@ describe("reconciliation (a lost notification must not leave access running past
 
   it("the member's tier ends at the paid expiry even before reconciliation runs", async () => {
     await fx.claim(fx.memberA.id, T1);
-    fx.db.saveSubscription({ ...sub()!, currentPeriodEnd: new Date(Date.now() - 3_600_000).toISOString() });
+    fx.db.saveDigitalEntitlement({ ...ent()!, currentPeriodEnd: new Date(Date.now() - 3_600_000).toISOString() });
     expect(await tier()).toBe("free");
   });
 });
@@ -508,11 +516,11 @@ describe("tenant isolation and audit", () => {
   it("a notification changes only the token owner's row, never another gym's member", async () => {
     await fx.claim(fx.memberA.id, T1);
     await fx.claim(fx.memberB.id, T2);
-    const bBefore = sub(fx.memberB.id);
+    const bBefore = ent(fx.memberB.id);
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_EXPIRED", expiryTimeMillis: Date.now() - 1000 });
     await fx.rtdn(fx.subscriptionEvent(T1, 13));
-    expect(sub(fx.memberA.id)?.status).toBe("canceled");
-    expect(sub(fx.memberB.id)).toEqual(bBefore);
+    expect(ent(fx.memberA.id)?.status).toBe("expired");
+    expect(ent(fx.memberB.id)).toEqual(bBefore);
   });
 
   it("the audit log never contains a raw purchase token, a binding value or a provider message", async () => {

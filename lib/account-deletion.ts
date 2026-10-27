@@ -29,7 +29,7 @@ export const PAYMENT_IN_PROGRESS_MESSAGE =
   "A payment for your membership is still in progress. Wait for it to finish or expire, or ask your gym to cancel it, then delete your account.";
 
 export const GOOGLE_PLAY_ACTIVE_MESSAGE =
-  "You have an active Google Play subscription. It can only be cancelled in Google Play. Cancel it there, wait until it has ended, then delete your account.";
+  "You have an active App Subscription bought through Google Play or the App Store. It can only be cancelled there, and deleting your account does not cancel it. Cancel it in the store, wait until it has ended, then delete your account.";
 
 const LIVE_PAID_STATUSES = new Set<SubscriptionRecord["status"]>(["active", "past_due", "paused"]);
 

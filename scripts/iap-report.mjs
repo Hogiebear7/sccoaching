@@ -59,4 +59,29 @@ print("Notifications", { processed: notifications.length - incomplete, "not comp
 
 const subs = (db.subscriptions ?? []).filter((s) => s.provider === "google_play");
 print("Google Play-billed subscription rows by status", tally(subs, "status"));
+
+// ── App Store and the digital entitlement store (counts only, never an id, a token or an account) ──────────────────────────────
+const appPurchases = db.appStorePurchases ?? [];
+const entitlements = db.digitalEntitlements ?? [];
+console.log("\nApp Store digital-plan report");
+console.log(`  purchases: ${appPurchases.length}   entitlement rows: ${entitlements.length}`);
+print("App Store purchases by status", tally(appPurchases, "status"));
+print("App Store purchases by environment", tally(appPurchases, "environment"));
+print("App Store needs attention", {
+  "revoked": appPurchases.filter((p) => p.revokedAt).length,
+  "marked active but past expiry": appPurchases.filter((p) => p.status === "active" && typeof p.expiresDateMillis === "number" && p.expiresDateMillis < now && !p.revokedAt).length,
+  "never reconciled or snapshot over 24h old": appPurchases.filter((p) => !p.revokedAt && p.status !== "expired" && p.status !== "revoked" && (!p.lastSnapshotAt || now - new Date(p.lastSnapshotAt).getTime() > 24 * 3600 * 1000)).length,
+  "sandbox purchases": appPurchases.filter((p) => p.environment === "sandbox").length,
+});
+print("Digital entitlements by source", tally(entitlements, "source"));
+print("Digital entitlements by status", tally(entitlements, "status"));
+const liveNow = (e) => {
+  if (e.revokedAt) return false;
+  const end = e.currentPeriodEnd ? new Date(e.currentPeriodEnd).getTime() : null;
+  if (e.source === "staff_grant") return e.status === "active" && (end === null || end > now);
+  if (e.status === "active" || e.status === "canceled") return end !== null && end + 10 * 60 * 1000 > now;
+  if (e.status === "in_grace_period") return end !== null && end + 30 * 24 * 3600 * 1000 > now;
+  return false;
+};
+print("Digital entitlements granting access right now", tally(entitlements.filter(liveNow), "source"));
 console.log("\nNothing was written.\n");

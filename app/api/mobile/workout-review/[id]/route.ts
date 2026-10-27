@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { AI_UNAVAILABLE_CODE, AI_UNAVAILABLE_MESSAGE } from "@/lib/ai-stream";
 import type { NextRequest } from "next/server";
 
 import { findUserById, findWorkoutSessionById, updateWorkoutSession } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
-import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { generateWorkoutReview } from "@/lib/ai";
 import { hasAiConsent } from "@/lib/ai-consent";
@@ -22,8 +24,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
 
-  if (!hasAccess(resolveMemberTierForUser(user.id), "workoutReview")) {
-    return NextResponse.json({ success: false, message: "Workout review needs App Subscription or above." }, { status: 403 });
+  if (!hasAccess(resolveMemberAccessForUser(user.id), "workoutReview")) {
+    return NextResponse.json({ success: false, message: "Workout review needs the App Subscription." }, { status: 403 });
   }
 
   const { id } = await params;
@@ -39,7 +41,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // A review already generated and stored is shown. A new one is only requested from the AI provider if this member has allowed it; the comparison below is always returned.
   const aiConsentRequired = !reviewText && !hasAiConsent(user.id);
   if (!reviewText && !aiConsentRequired) {
-    reviewText = await generateWorkoutReview(reviewData);
+    // A bounded AI allowance, checked before anything is sent to the provider (lib/ai-allowance.ts). A review that is already stored is never blocked by it.
+    const allowanceRefusal = aiAllowanceRefusal(user.id);
+    if (allowanceRefusal) return allowanceRefusal;
+    try {
+      reviewText = await generateWorkoutReview(reviewData);
+    } catch (err) {
+      const refused = aiFailureResponse(err);
+      if (refused) return refused;
+      console.error("Workout review failed:", err);
+      return NextResponse.json({ success: false, code: AI_UNAVAILABLE_CODE, message: AI_UNAVAILABLE_MESSAGE }, { status: 502 });
+    }
     // The AI call above can take seconds: set only the review fields on the session as it is NOW, so an edit made meanwhile is not overwritten.
     updateWorkoutSession(session.id, () => ({ reviewText, reviewGeneratedAt: new Date().toISOString() }));
   }

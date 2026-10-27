@@ -1,5 +1,11 @@
 # Google Play App Subscription: server contract (2026-10-07)
 
+> **Superseded in part (2026-10-16).** Owner decision D1 made the digital plan a separate product from a gym Membership. The Google Play service now writes a
+> digital entitlement (`digitalEntitlements`), never the member's `SubscriptionRecord`, and the Membership-versus-App-Subscription conflict rules described below no
+> longer exist (a Membership neither blocks nor is replaced by a purchase). The claim, binding, acknowledgement, notification, reconciliation and kill-switch behaviour
+> below is unchanged. Current contract: `docs/digital-subscription-contract-2026-10.md`. Failure codes `membership_active`, `play_billing_active` and
+> `app_subscription_active` are retired; the codes are now `subscription_already_active` and `other_store_active`.
+
 **Status:** implemented and tested against a **fake provider adapter** and a temporary datastore in PR 4
 (`feat/google-play-provider-and-lifecycle`, stacked on PR 3 and PR 2). **Nothing here has been run against Google.**
 Every Google-specific behaviour is listed in section 9 as requiring real-provider verification.

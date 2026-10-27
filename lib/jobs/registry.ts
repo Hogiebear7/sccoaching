@@ -8,6 +8,7 @@ import { notifyLowPassBalanceJob } from "./notify-low-pass-balance";
 import { notifyLapsedMembershipsJob } from "./notify-lapsed-memberships";
 import { notifyPregnancyGoalResumeJob } from "./notify-pregnancy-goal-resume";
 import { processWaitlistOffersJob } from "./process-waitlist-offers";
+import { reconcileAppStorePurchasesJob } from "./reconcile-app-store-purchases";
 import { reconcileGooglePlayPurchasesJob } from "./reconcile-google-play-purchases";
 import { retryGooglePlayAcknowledgementsJob } from "./retry-google-play-acknowledgements";
 import { purgeExpiredResetTokensJob } from "./purge-expired-reset-tokens";
@@ -29,6 +30,7 @@ import type { JobDefinition } from "./types";
 export const ALL_JOBS: JobDefinition[] = [
   expireStaleCheckoutsJob,
   reconcileGooglePlayPurchasesJob,
+  reconcileAppStorePurchasesJob,
   retryGooglePlayAcknowledgementsJob,
   notifyLapsedMembershipsJob,
   dropLapsedManualMembershipsJob,

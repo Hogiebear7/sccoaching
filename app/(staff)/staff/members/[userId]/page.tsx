@@ -1,4 +1,5 @@
-import { resolveMemberTier, resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
+import { describeDigitalPlan } from "@/lib/digital-entitlement";
+import { resolveMemberAccessForUser, resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { sameGym } from "@/lib/gym-scope";
 import { can, STAFF_ROLE_LABEL, type StaffRole } from "@/lib/permissions";
@@ -13,6 +14,7 @@ import {
   findCoachNoteByUserId,
   findCyclePrivacyByUserId,
   findCycleSettingsByUserId,
+  findDigitalEntitlementsByUserId,
   findMembershipPackages,
   findMessagesByMemberId,
   findPregnancyStatusByUserId,
@@ -257,7 +259,11 @@ export default async function StaffMemberDetailPage({
           and its API routes (subscription / extra-sessions) enforce the same
           members.billing capability server-side. */}
       {canGrantTier ? (
-        <ChangeTierPanel memberId={user.id} currentTier={resolveMemberTier(subscription)} />
+        <ChangeTierPanel
+          memberId={user.id}
+          access={resolveMemberAccessForUser(user.id)}
+          digitalPlan={describeDigitalPlan(findDigitalEntitlementsByUserId(user.id))}
+        />
       ) : null}
 
       {canEditBilling ? (

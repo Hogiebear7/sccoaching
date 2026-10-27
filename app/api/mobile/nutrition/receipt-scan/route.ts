@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { extractReceiptItems, isAiConfigured } from "@/lib/ai";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { findUserById } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
@@ -51,6 +52,10 @@ export async function POST(request: NextRequest) {
   const consentRequired = requireAiConsent(user.id);
   if (consentRequired) return consentRequired;
 
+  // Each AI call is metered against the member's allowance (lib/ai-allowance.ts); this is the friendly early answer, before any work is done.
+  const allowanceRefusal = aiAllowanceRefusal(user.id);
+  if (allowanceRefusal) return allowanceRefusal;
+
   const rate = checkRateLimit(`ai-receipt-scan:${user.id}`, SCAN_RATE_LIMIT, SCAN_RATE_WINDOW_MS);
   if (!rate.allowed) {
     return NextResponse.json(
@@ -87,6 +92,8 @@ export async function POST(request: NextRequest) {
     const items = await extractReceiptItems({ imageDataUrl: cleanImage, userId: user.id });
     return NextResponse.json({ success: true, configured: true, items });
   } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
     console.error("Receipt scan failed:", err);
     return NextResponse.json(
       { success: false, configured: true, message: "Couldn't read that receipt right now. Please try again." },

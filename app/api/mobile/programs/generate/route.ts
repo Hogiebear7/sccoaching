@@ -18,7 +18,8 @@ import {
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
 import { hasAccess } from "@/lib/member-access";
-import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
+import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import {
   pickExercisesForDay,
@@ -164,12 +165,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, configured: false, message: "Not signed in." }, { status: 401 });
   }
 
-  if (!hasAccess(resolveMemberTierForUser(user.id), "workoutGenerate")) {
+  if (!hasAccess(resolveMemberAccessForUser(user.id), "workoutGenerate")) {
     return NextResponse.json(
-      { success: false, configured: true, message: "Programme generation needs App Subscription or above." },
+      { success: false, configured: true, message: "Programme generation needs the App Subscription." },
       { status: 403 }
     );
   }
+
+  // A bounded AI allowance, checked before anything is sent to the provider (lib/ai-allowance.ts).
+  const allowanceRefusal = aiAllowanceRefusal(user.id);
+  if (allowanceRefusal) return allowanceRefusal;
 
   if (!isAiConfigured()) {
     return NextResponse.json(
@@ -392,6 +397,8 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
     console.error(`[programs/generate] generation failed for user ${user.id}:`, err);
     return NextResponse.json(
       { success: false, configured: true, message: "Couldn't generate a programme right now. Please try again." },

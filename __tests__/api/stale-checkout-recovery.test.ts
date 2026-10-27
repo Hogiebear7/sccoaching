@@ -15,7 +15,6 @@ let fx: PlayFixture;
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const FUTURE = () => new Date(Date.now() + 30 * DAY).toISOString();
-const PAST = () => new Date(Date.now() - 2 * DAY).toISOString();
 const STALE = () => new Date(Date.now() - 2 * HOUR).toISOString();
 const PLAY_TOKEN = "fake-play-token-sc-1";
 const STRIPE_SECRET = "whsec_test_only_not_a_real_secret";
@@ -202,82 +201,22 @@ describe("a late payment after cleanup is reconciled, not lost", () => {
   });
 });
 
-describe("a late payment can never overwrite a live Play entitlement", () => {
-  /** Stripe pending checkout -> Play claim takes the row over -> cleanup parks the displaced checkout. */
-  async function playTakesOverPendingCheckout() {
-    stalePending("cs_displaced_1");
-    // Make the checkout still look pending-but-recent so the takeover parks it into the pending fields.
-    fx.db.saveSubscription({ ...row(), updatedAt: new Date().toISOString() });
+describe("a late gym-Membership payment and a digital plan are independent (owner decision D1)", () => {
+  it("a Play purchase made while a Stripe checkout is pending leaves the pending checkout alone, and the late payment still applies", async () => {
+    stalePending("cs_pending_1");
+    const pendingBefore = row();
     const res = await fx.claim(fx.memberA.id, PLAY_TOKEN, { expiryTimeMillis: Date.now() + 30 * DAY });
     expect(res.status).toBe(200);
-    expect(row()).toMatchObject({ provider: "google_play", status: "active", providerSubscriptionId: PLAY_TOKEN, providerSetupOrderId: null });
-    expect(row().pendingSetupOrderId).toBe("cs_displaced_1");
-    fx.db.saveSubscription({ ...row(), pendingStartedAt: STALE() });
-    await runCleanup();
-    expect(row().abandonedCheckouts).toEqual([expect.objectContaining({ sessionId: "cs_displaced_1", reason: "replaced_by_play" })]);
-    expect(row().pendingSetupOrderId).toBeNull();
-  }
+    // The digital plan never writes the gym subscription row.
+    expect(row()).toEqual(pendingBefore);
+    expect(fx.db.findDigitalEntitlement(fx.memberA.id, "google_play")).toMatchObject({ status: "active" });
 
-  it("refuses the late completion, preserves the Play row and token, and records a manual-recovery audit event", async () => {
-    await playTakesOverPendingCheckout();
-    const before = row();
-    const purchaseBefore = fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN);
+    await completed("cs_pending_1", "sub_late_with_play");
 
-    const res = await completed("cs_displaced_1", "sub_late_over_play");
-
-    expect(res.status).toBe(200);
-    expect((await res.json()).message).toBe("Not applied: another provider's subscription is already active.");
-    expect(row()).toEqual(before);
-    expect(row()).toMatchObject({ provider: "google_play", providerSubscriptionId: PLAY_TOKEN, status: "active" });
-    expect(fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN)).toEqual(purchaseBefore);
-    expect(lateEvents().map((e) => e.detail)).toEqual([{ outcome: "conflict_manual_recovery", existingProvider: "google_play" }]);
-    expect(conflictEvents()).toHaveLength(1);
-    // The parked checkout stays UNSETTLED so staff can still see and resolve it.
-    expect(row().abandonedCheckouts?.[0].settledAt ?? null).toBeNull();
-  });
-
-  it("never puts the session id, the incoming subscription or any secret in the audit events", async () => {
-    await playTakesOverPendingCheckout();
-    await completed("cs_displaced_1", "sub_SECRET_REFERENCE_9");
-    const everything = JSON.stringify(lateEvents()) + JSON.stringify(conflictEvents());
-    for (const forbidden of ["cs_displaced_1", "sub_SECRET_REFERENCE_9", "cus_late_1", STRIPE_SECRET, PLAY_TOKEN]) expect(everything).not.toContain(forbidden);
-  });
-
-  it("applies the late completion once the Play entitlement has genuinely ended (paid-through date passed)", async () => {
-    await playTakesOverPendingCheckout();
-    fx.db.saveSubscription({ ...row(), status: "inactive", currentPeriodEnd: PAST() });
-
-    await completed("cs_displaced_1", "sub_late_after_play");
-
-    expect(row()).toMatchObject({ provider: "stripe", status: "active", providerSubscriptionId: "sub_late_after_play", packageId: fx.ids.membershipPackage });
-    expect(lateEvents().map((e) => e.detail)).toEqual([{ outcome: "applied" }]);
-    // The historical Play purchase record and its token binding are preserved.
+    expect(row()).toMatchObject({ provider: "stripe", status: "active", providerSubscriptionId: "sub_late_with_play", packageId: fx.ids.membershipPackage });
+    // Both products are now live, separately.
+    expect((await import("@/lib/membership-entitlement")).resolveMemberAccessForUser(fx.memberA.id)).toEqual({ digital: true, gymMembership: true });
     expect(fx.db.findGooglePlayPurchaseByToken(PLAY_TOKEN)).toBeDefined();
-  });
-
-  it("a Play claim that displaces a cleanup-flipped (inactive) Stripe checkout parks it rather than dropping the reference", async () => {
-    stalePending("cs_inactive_1");
-    await runCleanup();
-    expect(row().status).toBe("inactive");
-
-    const res = await fx.claim(fx.memberA.id, PLAY_TOKEN, { expiryTimeMillis: Date.now() + 30 * DAY });
-    expect(res.status).toBe(200);
-    expect(row()).toMatchObject({ provider: "google_play", providerSetupOrderId: null });
-    expect(row().abandonedCheckouts).toEqual([expect.objectContaining({ sessionId: "cs_inactive_1", reason: "replaced_by_play" })]);
-
-    // A late payment while Play is live is refused with the manual-recovery audit event.
-    const before = row();
-    await completed("cs_inactive_1", "sub_x");
-    expect(row()).toEqual(before);
-    expect(lateEvents().map((e) => e.detail)).toEqual([{ outcome: "conflict_manual_recovery", existingProvider: "google_play" }]);
-  });
-
-  it("repeated refused deliveries (different event ids) never change the row", async () => {
-    await playTakesOverPendingCheckout();
-    const before = row();
-    await completed("cs_displaced_1", "sub_a");
-    await completed("cs_displaced_1", "sub_b");
-    expect(row()).toEqual(before);
   });
 });
 

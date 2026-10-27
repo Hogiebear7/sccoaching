@@ -25,7 +25,8 @@ import {
   findWeeklyTrainingScheduleByUserId,
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
-import { recordAiUsageFromResponse } from "@/lib/ai-usage";
+import { configuredAiModel } from "@/lib/ai-model";
+import { meteredCreate, meteredStream } from "@/lib/ai-metering";
 import { formatWorkoutReviewContext, type WorkoutReviewData } from "@/lib/workout-review";
 import type { SplitMode } from "@/lib/programme-exercise-picker";
 
@@ -36,8 +37,12 @@ export function isAiConfigured(): boolean {
 export const AI_NOT_CONFIGURED_MESSAGE =
   "AI assistant is not configured yet. An Anthropic API key is required to enable this.";
 
-// Env-overridable so the model can be bumped without a code change.
-const COACH_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-4-8";
+// Env-overridable so the model can be bumped without a code change (lib/ai-model.ts). It must be a model lib/ai-usage.ts has a price for.
+const COACH_MODEL = configuredAiModel();
+
+// The most a member chat reply may produce, thinking included. It is also what the allowance reserves for a chat call (lib/ai-metering.ts), so it is a
+// cost bound as much as a length bound: the replies are short by prompt, and 4,000 leaves room for adaptive thinking.
+const CHAT_MAX_OUTPUT_TOKENS = 4000;
 
 // Shared across every prompt that gives training/coaching advice (not the
 // pure OCR/extraction ones, which have nothing to attach it to). The
@@ -111,9 +116,9 @@ export function createCoachChatStream(request: CoachChatRequest) {
 
   const client = getClient();
 
-  const stream = client.messages.stream({
+  const stream = meteredStream(client, { userId: request.userId, feature: "coach_chat" }, {
     model: COACH_MODEL,
-    max_tokens: 8000,
+    max_tokens: CHAT_MAX_OUTPUT_TOKENS,
     thinking: { type: "adaptive" },
     output_config: { effort: "medium" },
     system: [
@@ -133,10 +138,6 @@ export function createCoachChatStream(request: CoachChatRequest) {
       role: turn.role,
       content: turn.content,
     })),
-  });
-
-  stream.on("finalMessage", (message) => {
-    recordAiUsageFromResponse({ userId: request.userId, feature: "coach_chat", model: COACH_MODEL, usage: message.usage });
   });
 
   return stream;
@@ -200,9 +201,9 @@ export function createNutritionCoachChatStream(request: NutritionCoachChatReques
 
   const client = getClient();
 
-  const stream = client.messages.stream({
+  const stream = meteredStream(client, { userId: request.userId, feature: "nutrition_coach_chat" }, {
     model: COACH_MODEL,
-    max_tokens: 8000,
+    max_tokens: CHAT_MAX_OUTPUT_TOKENS,
     thinking: { type: "adaptive" },
     output_config: { effort: "medium" },
     system: [
@@ -222,22 +223,13 @@ export function createNutritionCoachChatStream(request: NutritionCoachChatReques
     })),
   });
 
-  stream.on("finalMessage", (message) => {
-    recordAiUsageFromResponse({
-      userId: request.userId,
-      feature: "nutrition_coach_chat",
-      model: COACH_MODEL,
-      usage: message.usage,
-    });
-  });
-
   return stream;
 }
 
 export interface CoachSummaryContext {
   memberId: string;
   /** The coach/admin generating this summary — AI cost is billed to them,
-      not the member being summarized (see recordAiUsageFromResponse below):
+      not the member being summarized (see lib/ai-metering.ts):
       this is a staff action, not something the member incurred. */
   staffUserId: string;
 }
@@ -300,7 +292,7 @@ export async function generateCoachSummary(
 
   const client = getClient();
 
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: context.staffUserId, feature: "staff_member_summary" }, {
     model: COACH_MODEL,
     max_tokens: 1000,
     thinking: { type: "adaptive" },
@@ -310,12 +302,6 @@ export async function generateCoachSummary(
       { type: "text", text: `Member data (current, from the app's records):\n\n${memberContext}` },
     ],
     messages: [{ role: "user", content: "Summarize this member for their coach." }],
-  });
-  recordAiUsageFromResponse({
-    userId: context.staffUserId,
-    feature: "staff_member_summary",
-    model: COACH_MODEL,
-    usage: message.usage,
   });
 
   const text = textFromMessage(message).trim();
@@ -338,7 +324,7 @@ export async function draftReply(context: DraftReplyContext): Promise<string> {
 
   const client = getClient();
 
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: context.staffUserId, feature: "staff_draft_reply" }, {
     model: COACH_MODEL,
     max_tokens: 1000,
     thinking: { type: "adaptive" },
@@ -353,12 +339,6 @@ export async function draftReply(context: DraftReplyContext): Promise<string> {
         content: `Member's latest message:\n\n${context.latestMemberMessage?.trim() || "(no message yet)"}`,
       },
     ],
-  });
-  recordAiUsageFromResponse({
-    userId: context.staffUserId,
-    feature: "staff_draft_reply",
-    model: COACH_MODEL,
-    usage: message.usage,
   });
 
   const text = textFromMessage(message).trim();
@@ -413,7 +393,7 @@ export async function generateExerciseContent(input: {
 
   const client = getClient();
 
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: null, feature: "exercise_content" }, {
     model: COACH_MODEL,
     max_tokens: 3000,
     thinking: { type: "adaptive" },
@@ -429,7 +409,6 @@ Category: ${input.sectionLabel}`,
   });
   // Not member-specific — writes to the shared exercise library, so there's
   // no member to attribute the cost to.
-  recordAiUsageFromResponse({ userId: null, feature: "exercise_content", model: COACH_MODEL, usage: message.usage });
 
   return parseExerciseContentResponse(textFromMessage(message));
 }
@@ -559,7 +538,7 @@ export async function generateMealSuggestions(request: MealSuggestRequest): Prom
   );
   content.push({ type: "text", text: instructionParts.join("\n\n") });
 
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: request.userId, feature: "meal_suggestions" }, {
     model: COACH_MODEL,
     max_tokens: 2000,
     thinking: { type: "adaptive" },
@@ -570,7 +549,6 @@ export async function generateMealSuggestions(request: MealSuggestRequest): Prom
     ],
     messages: [{ role: "user", content }],
   });
-  recordAiUsageFromResponse({ userId: request.userId, feature: "meal_suggestions", model: COACH_MODEL, usage: message.usage });
 
   return parseMealSuggestions(textFromMessage(message));
 }
@@ -670,7 +648,7 @@ export async function identifyFoodPhoto(request: FoodPhotoIdentifyRequest): Prom
   // "medium" effort (not "low") — reading a label or distinguishing plate
   // contents is a harder perceptual task than the other "low"-effort calls
   // in this file, which are mostly short text interpretation.
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: request.userId, feature: "food_photo_scan" }, {
     model: COACH_MODEL,
     max_tokens: 2000,
     thinking: { type: "adaptive" },
@@ -678,7 +656,6 @@ export async function identifyFoodPhoto(request: FoodPhotoIdentifyRequest): Prom
     system: [{ type: "text", text: FOOD_PHOTO_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
   });
-  recordAiUsageFromResponse({ userId: request.userId, feature: "food_photo_scan", model: COACH_MODEL, usage: message.usage });
 
   return parseIdentifiedFoodItems(textFromMessage(message));
 }
@@ -730,7 +707,7 @@ export async function interpretFoodDescription(request: FoodDescriptionRequest):
   }
 
   const client = getClient();
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: request.userId, feature: "food_description" }, {
     model: COACH_MODEL,
     max_tokens: 1500,
     thinking: { type: "adaptive" },
@@ -741,7 +718,6 @@ export async function interpretFoodDescription(request: FoodDescriptionRequest):
     ],
     messages: [{ role: "user", content: instructionParts.join("\n\n") }],
   });
-  recordAiUsageFromResponse({ userId: request.userId, feature: "food_description", model: COACH_MODEL, usage: message.usage });
 
   // Text can never read a printed label, so every result reads as "estimate"
   // regardless of what the model itself might reply — parseIdentifiedFoodItems
@@ -853,7 +829,7 @@ export async function extractReceiptItems(request: ReceiptExtractRequest): Promi
   ];
 
   const client = getClient();
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: request.userId, feature: "receipt_scan" }, {
     model: COACH_MODEL,
     max_tokens: 2000,
     thinking: { type: "adaptive" },
@@ -861,7 +837,6 @@ export async function extractReceiptItems(request: ReceiptExtractRequest): Promi
     system: [{ type: "text", text: RECEIPT_EXTRACT_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
   });
-  recordAiUsageFromResponse({ userId: request.userId, feature: "receipt_scan", model: COACH_MODEL, usage: message.usage });
 
   return parseReceiptLineItems(textFromMessage(message));
 }
@@ -889,7 +864,7 @@ export async function generateWorkoutReview(data: WorkoutReviewData): Promise<st
   const client = getClient();
   const sessionContext = formatWorkoutReviewContext(data);
 
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: data.session.userId, feature: "workout_review" }, {
     model: COACH_MODEL,
     max_tokens: 1000,
     thinking: { type: "adaptive" },
@@ -899,12 +874,6 @@ export async function generateWorkoutReview(data: WorkoutReviewData): Promise<st
       { type: "text", text: `Session data:\n\n${sessionContext}` },
     ],
     messages: [{ role: "user", content: "Write my review for this session." }],
-  });
-  recordAiUsageFromResponse({
-    userId: data.session.userId,
-    feature: "workout_review",
-    model: COACH_MODEL,
-    usage: message.usage,
   });
 
   const text = textFromMessage(message).trim();
@@ -1018,7 +987,7 @@ export async function extractTrackerStats(request: TrackerImportRequest): Promis
   ];
 
   const client = getClient();
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: request.userId, feature: "tracker_import" }, {
     model: COACH_MODEL,
     max_tokens: 500,
     thinking: { type: "adaptive" },
@@ -1026,7 +995,6 @@ export async function extractTrackerStats(request: TrackerImportRequest): Promis
     system: [{ type: "text", text: TRACKER_IMPORT_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
   });
-  recordAiUsageFromResponse({ userId: request.userId, feature: "tracker_import", model: COACH_MODEL, usage: message.usage });
 
   return parseTrackerStatsExtraction(textFromMessage(message));
 }
@@ -1402,19 +1370,13 @@ export async function generateProgrammeSkeleton(request: ProgrammeSkeletonReques
         { type: "text" as const, text: `Valid body parts:\n\n${request.validBodyParts.join(", ")}` },
       ];
 
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: request.userId, feature: "programme_generation" }, {
     model: COACH_MODEL,
     max_tokens: 2000,
     thinking: { type: "adaptive" },
     output_config: { effort: "low" },
     system,
     messages: [{ role: "user", content: instruction }],
-  });
-  recordAiUsageFromResponse({
-    userId: request.userId,
-    feature: "programme_generation",
-    model: COACH_MODEL,
-    usage: message.usage,
   });
 
   return parseProgrammeSkeleton(
@@ -1562,7 +1524,7 @@ export async function generateProgrammeCheckIn(
   const fullContext = refreshEligible
     ? `Cycle data:\n\n${contextText}\n\nRefresh eligible: yes — it's been long enough that a fresh set of exercises (same muscle groups) is worth offering.`
     : `Cycle data:\n\n${contextText}`;
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId, feature: "programme_checkin" }, {
     model: COACH_MODEL,
     max_tokens: 1200,
     thinking: { type: "adaptive" },
@@ -1570,7 +1532,6 @@ export async function generateProgrammeCheckIn(
     system: [{ type: "text", text: PROGRAMME_CHECKIN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: fullContext }],
   });
-  recordAiUsageFromResponse({ userId, feature: "programme_checkin", model: COACH_MODEL, usage: message.usage });
 
   return parseProgrammeCheckIn(textFromMessage(message), currentTotalWeeks, refreshEligible);
 }
@@ -1666,19 +1627,13 @@ Member's reason: ${input.reason?.trim() || "No reason given — they'd just like
 Candidates:
 ${candidateList}`;
 
-  const message = await client.messages.create({
+  const message = await meteredCreate(client, { userId: input.userId, feature: "exercise_alternatives" }, {
     model: COACH_MODEL,
     max_tokens: 1000,
     thinking: { type: "adaptive" },
     output_config: { effort: "low" },
     system: EXERCISE_ALTERNATIVES_SYSTEM_PROMPT,
     messages: [{ role: "user", content: contextText }],
-  });
-  recordAiUsageFromResponse({
-    userId: input.userId,
-    feature: "exercise_alternatives",
-    model: COACH_MODEL,
-    usage: message.usage,
   });
 
   return parseExerciseAlternatives(textFromMessage(message), new Set(input.candidates.map((c) => c.id)));

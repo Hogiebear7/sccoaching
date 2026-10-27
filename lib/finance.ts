@@ -46,7 +46,8 @@ export function buildFinanceLedgerLines(): FinanceLine[] {
   const renewals: FinanceLine[] = findAllRevenueEvents().map((e) => ({
     id: e.id,
     kind: "income",
-    status: "cleared",
+    // An unverified store row (amount received not established) is "pending": visible for reconciliation, never counted as income (computeTotals counts cleared only).
+    status: e.evidence === "unverified" ? "pending" : "cleared",
     date: e.receivedAt,
     currency: e.currency,
     grossCents: e.amountCents,
@@ -59,7 +60,7 @@ export function buildFinanceLedgerLines(): FinanceLine[] {
     memberId: e.userId,
     packageName: e.packageId ? (findMembershipPackageById(e.packageId)?.name ?? null) : null,
     reference: e.providerRef,
-    notes: null,
+    notes: e.evidence === "unverified" ? `UNVERIFIED, not counted as income. ${e.unverifiedReason ?? "Amount received not established."}` : null,
     ageBracket: ageBracketForUser(e.userId),
     origin: "revenue_event",
   }));

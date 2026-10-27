@@ -44,11 +44,14 @@ const h = vi.hoisted(() => ({
   findMembershipPackageById: vi.fn(),
   findSubscriptionByUserId: vi.fn(),
   saveSubscription: vi.fn(),
+  findDigitalEntitlement: vi.fn(),
+  grantStaffDigitalEntitlement: vi.fn(),
   cancelProviderSubscription: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
 vi.mock("@/lib/billing", () => ({ cancelProviderSubscription: h.cancelProviderSubscription }));
-vi.mock("@/lib/membership-entitlement", () => ({ resolveMemberTier: () => "membership" }));
+vi.mock("@/lib/membership-entitlement", () => ({ resolveMemberAccessForUser: () => ({ digital: false, gymMembership: true }) }));
+vi.mock("@/lib/digital-entitlement", () => ({ grantStaffDigitalEntitlement: h.grantStaffDigitalEntitlement, revokeStaffDigitalEntitlement: vi.fn() }));
 
 type U = { id: string; email: string; role: string; gymId: string | null };
 const user = (id: string, role: string, gymId: string | null): U => ({ id, email: `${id}@x.test`, role, gymId });
@@ -211,13 +214,14 @@ describe.each([
     expect(h.redeemInvite).not.toHaveBeenCalled();
   });
 
-  it("app_subscription invite still resolves the platform-wide app-only package, independent of the inviter's gym", async () => {
+  it("app_subscription invite grants COMPLIMENTARY digital access (no subscription row), independent of the inviter's gym", async () => {
     h.findInviteByToken.mockReturnValue(invite(STAFF_B.id, { tier: "app_subscription" }));
 
     await signup({ ...VALID_PAYLOAD, inviteToken: "tok" });
 
     expect(createdGymIds()).toEqual(["gym-b"]);
-    expect(savedPackageIds()).toEqual(["pkg-app"]);
+    expect(savedPackageIds()).toEqual([]);
+    expect(h.grantStaffDigitalEntitlement).toHaveBeenCalledTimes(1);
   });
 
   it("ignores a client-supplied gymId / packageId in the signup body — the inviter's gym always wins", async () => {

@@ -28,6 +28,7 @@ const {
 }));
 
 vi.mock("@/lib/db", () => ({
+  appendIapEvent: vi.fn(),
   findMembershipBillingOptionById: mockFindOption,
   findMembershipCategoryById: mockFindCategory,
   findMembershipPackageById: mockFindPackage,
@@ -318,13 +319,14 @@ describe("POST /api/membership/checkout — cross-scope switch guard", () => {
     expect(mockSaveSubscription).not.toHaveBeenCalled();
   });
 
-  it("3. gym-owned current subscription -> App Subscription: rejected", async () => {
+  it("3. gym-owned current subscription -> App Subscription: rejected (the digital plan is never sold on the website)", async () => {
     mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-app"));
     mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-gym-a" }));
 
     const res = await call({ billingOptionId: "opt_target" }, cookie());
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "app_plan_not_assignable" });
     expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
     expect(mockSaveSubscription).not.toHaveBeenCalled();
   });
@@ -340,14 +342,15 @@ describe("POST /api/membership/checkout — cross-scope switch guard", () => {
     expect(mockSaveSubscription).not.toHaveBeenCalled();
   });
 
-  it("5. App Subscription current subscription -> a different App Subscription billing option: allowed (same scope preserved)", async () => {
+  it("5. App Subscription current subscription -> a different App Subscription billing option: rejected too (no web purchase of the digital plan at all, owner decision D3)", async () => {
     mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-app"));
     mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-app", billingOptionId: "opt_current_app" }));
 
     const res = await call({ billingOptionId: "opt_target" }, cookie());
 
-    expect(res.status).toBe(200);
-    expect(mockCreateCatalogCheckout).toHaveBeenCalled();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "app_plan_not_assignable" });
+    expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
   });
 
   it("6. current subscription's package can no longer be resolved: rejected, fails closed rather than guessing", async () => {
@@ -376,7 +379,7 @@ describe("POST /api/membership/checkout — cross-scope switch guard", () => {
       cookie()
     );
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(409);
     expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
   });
 
@@ -407,9 +410,9 @@ describe("POST /api/membership/checkout — cross-scope switch guard", () => {
     expect(mockCreateCatalogCheckout).not.toHaveBeenCalled();
   });
 
-  it("12. the rejection message matches the existing generic, non-enumerating response exactly — no existence signal leaked", async () => {
-    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-app"));
-    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-gym-a" }));
+  it("12. a cross-scope switch to a GYM package from a legacy digital row still answers the existing generic, non-enumerating response", async () => {
+    mockFindOption.mockReturnValue(optionFor("opt_target", "pkg-gym-a"));
+    mockFindSubByUser.mockReturnValue(activeSub({ packageId: "pkg-app" }));
 
     const res = await call({ billingOptionId: "opt_target" }, cookie());
     const body = await res.json();
@@ -514,15 +517,16 @@ describe("POST /api/membership/checkout — gym ownership", () => {
     expectNoMutation();
   });
 
-  it("keeps the global exception: a visible app_only package is reachable by a member of another gym", async () => {
+  it("a visible app_only package is refused for every member, whichever gym they are in (owner decision D3: no web purchase of the digital plan)", async () => {
     mockFindOption.mockReturnValue({ ...RECURRING, packageId: "pkg_app" });
     mockFindPackage.mockReturnValue(APP_ONLY_PKG);
     mockFindCategory.mockReturnValue(GYM_B_CATEGORY);
 
     const res = await call({ billingOptionId: "opt_rec" }, cookie());
 
-    expect(res.status).toBe(200);
-    expect(mockSaveSubscription).toHaveBeenCalled();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "app_plan_not_assignable" });
+    expectNoMutation();
   });
 
   it("still applies the existing visibility rule to app_only packages (the seeded App Subscription is visible: false, so checkout cannot reach it)", async () => {
@@ -632,16 +636,16 @@ describe("POST /api/membership/checkout — ownerGym persisted on the purchase",
     expect(mockSavePurchase.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: null });
   });
 
-  it("stamps the global App Subscription one-time purchase with { scope: 'platform' }, regardless of the member's own gym", async () => {
+  it("a one-time purchase of the app-only package is refused and persists nothing", async () => {
     const appOnlyPkg = { ...PKG, id: "pkg_app", deliveryChannel: "app_only" as const };
     mockFindOption.mockReturnValue({ ...ONE_TIME, packageId: "pkg_app" });
     mockFindPackage.mockReturnValue(appOnlyPkg);
-    mockFindCategory.mockReturnValue({ id: "c1", gymId: "gym-b" }); // category's own gym is irrelevant here
-    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" }); // member is in a DIFFERENT gym
+    mockFindCategory.mockReturnValue({ id: "c1", gymId: "gym-b" });
+    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" });
 
     const res = await call({ billingOptionId: "opt_one" }, cookie());
-    expect(res.status).toBe(200);
-    expect(mockSavePurchase.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+    expect(res.status).toBe(409);
+    expect(mockSavePurchase).not.toHaveBeenCalled();
   });
 
   it("never persists a purchase for a denied cross-gym request — no ownerGym to leak", async () => {
@@ -679,18 +683,6 @@ describe("POST /api/membership/checkout — ownerGym persisted on the subscripti
     const res = await call({ billingOptionId: "opt_rec" }, cookie());
     expect(res.status).toBe(200);
     expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-a" });
-  });
-
-  it("the global App Subscription option stamps { scope: 'platform' }", async () => {
-    const appOnlyPkg = { ...PKG, id: "pkg_app", deliveryChannel: "app_only" as const };
-    mockFindOption.mockReturnValue({ ...RECURRING, packageId: "pkg_app" });
-    mockFindPackage.mockReturnValue(appOnlyPkg);
-    mockFindCategory.mockReturnValue({ id: "c1", gymId: "gym-b" });
-    mockFindUserById.mockReturnValue({ ...MEMBER, gymId: "gym-a" });
-
-    const res = await call({ billingOptionId: "opt_rec" }, cookie());
-    expect(res.status).toBe(200);
-    expect(mockSaveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
   });
 
   it("resubscribing after cancellation preserves the ORIGINAL ownerGym, never re-derived from the current checkout", async () => {

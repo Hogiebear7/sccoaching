@@ -14,8 +14,13 @@ const T1 = "e2e-fake-token-1";
 const T2 = "e2e-fake-token-2";
 const DAY = 86_400_000;
 
-const sub = (userId = fx.memberA.id) => fx.db.findSubscriptionByUserId(userId);
-const tier = async (userId = fx.memberA.id) => (await import("@/lib/membership-entitlement")).resolveMemberTierForUser(userId);
+const ent = (userId = fx.memberA.id) => fx.db.findDigitalEntitlement(userId, "google_play");
+const access = async (userId = fx.memberA.id) => (await import("@/lib/membership-entitlement")).resolveMemberAccessForUser(userId);
+// "app_subscription" / "free" name "has / has not got the digital features"; "membership" is a gym Membership with no digital access.
+const tier = async (userId = fx.memberA.id) => {
+  const a = await access(userId);
+  return a.digital ? "app_subscription" : a.gymMembership ? "membership" : "free";
+};
 const types = () => fx.db.findIapEvents().map((e) => e.type);
 
 async function staffTier(memberId: string, actorId: string, tierName: string) {
@@ -52,7 +57,7 @@ describe("journey 1: buy, renew, cancel, expire, rebuy, refund", () => {
     const renewedUntil = Date.now() + 60 * DAY;
     fx.adapter.setSnapshot(T1, { orderId: "GPA.2", expiryTimeMillis: renewedUntil });
     await fx.rtdn(fx.subscriptionEvent(T1, 2));
-    expect(sub()?.currentPeriodEnd).toBe(new Date(renewedUntil).toISOString());
+    expect(ent()?.currentPeriodEnd).toBe(new Date(renewedUntil).toISOString());
     expect(fx.db.findAllRevenueEvents().map((e) => e.providerRef).sort()).toEqual(["GPA.1", "GPA.2"]);
 
     // The member cancels in Google Play: access continues to the paid expiry.
@@ -69,7 +74,7 @@ describe("journey 1: buy, renew, cancel, expire, rebuy, refund", () => {
 
     // They subscribe again later with a brand-new token.
     expect((await fx.claim(fx.memberA.id, T2, { orderId: "GPA.3" })).status).toBe(200);
-    expect(sub()?.providerSubscriptionId).toBe(T2);
+    expect(ent()?.storeRefHash).toBe(fx.db.hashPurchaseToken(T2));
     expect(await tier()).toBe("app_subscription");
 
     // Google refunds the new purchase: access ends at once and stays ended.
@@ -87,38 +92,38 @@ describe("journey 1: buy, renew, cancel, expire, rebuy, refund", () => {
   });
 });
 
-describe("journey 2: Membership and App Subscription never overlap, in either direction", () => {
-  it("blocks each side while the other is live, and lets the second in only after the first has ended", async () => {
-    // A live Google Play subscription: staff cannot replace it with a Membership.
+describe("journey 2: a gym Membership and the digital plan are separate and never block each other", () => {
+  it("lets each come and go independently, in either order", async () => {
+    // A live Google Play subscription: staff can still grant a gym Membership, and it changes nothing about the digital plan.
     await fx.claim(fx.memberA.id, T1);
-    expect((await (await staffTier(fx.memberA.id, fx.adminA.id, "membership")).json()).code).toBe("play_billing_active");
-    expect((await staffTier(fx.memberA.id, fx.adminA.id, "free")).status).toBe(409);
-    expect(await tier()).toBe("app_subscription");
+    const digitalBefore = ent();
+    expect((await staffTier(fx.memberA.id, fx.adminA.id, "membership")).status).toBe(200);
+    expect(ent()).toEqual(digitalBefore);
+    expect(await access()).toEqual({ digital: true, gymMembership: true });
 
-    // It ends in Google Play. Now staff can grant the Membership.
+    // Staff ending the Membership leaves the paid plan, and staff cannot end the paid plan at all.
+    expect((await staffTier(fx.memberA.id, fx.adminA.id, "free")).status).toBe(200);
+    expect((await staffTier(fx.memberA.id, fx.adminA.id, "digital_revoke")).status).toBe(200);
+    expect(ent()).toEqual(digitalBefore);
+    expect(await access()).toEqual({ digital: true, gymMembership: false });
+
+    // It ends in Google Play. The member has nothing; a Membership alone gives no digital access.
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_EXPIRED", expiryTimeMillis: Date.now() - 1000 });
     await fx.rtdn(fx.subscriptionEvent(T1, 13));
+    expect(await access()).toEqual({ digital: false, gymMembership: false });
     expect((await staffTier(fx.memberA.id, fx.adminA.id, "membership")).status).toBe(200);
     expect(await tier()).toBe("membership");
 
-    // With a live Membership the member cannot even start a purchase, and a token that reaches the server is refused.
-    expect((await fx.context(fx.memberA.id)).status).toBe(409);
-    const refused = await fx.claim(fx.memberA.id, T2);
-    expect((await refused.json()).code).toBe("membership_active");
-    expect(fx.db.findGooglePlayPurchaseByToken(T2)).toBeUndefined();
-    expect(fx.adapter.acknowledged.has(T2)).toBe(false);
-    expect(await tier()).toBe("membership");
-
-    // A late notification for the old token cannot knock the Membership off.
-    fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_ACTIVE", expiryTimeMillis: Date.now() + 30 * DAY });
-    await fx.rtdn(fx.subscriptionEvent(T1, 2));
-    expect(await tier()).toBe("membership");
-
-    // Once the Membership ends the member may subscribe.
-    fx.setSubscription(fx.memberA.id, { packageId: fx.ids.membershipPackage, status: "canceled" });
+    // With a live Membership the member can still start and complete a purchase.
     expect((await fx.context(fx.memberA.id)).status).toBe(200);
     expect((await fx.claim(fx.memberA.id, T2)).status).toBe(200);
-    expect(await tier()).toBe("app_subscription");
+    expect(await access()).toEqual({ digital: true, gymMembership: true });
+
+    // A late notification for the old token cannot knock the new plan or the Membership off.
+    fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_ACTIVE", expiryTimeMillis: Date.now() + 30 * DAY });
+    await fx.rtdn(fx.subscriptionEvent(T1, 2));
+    expect(ent()?.storeRefHash).toBe(fx.db.hashPurchaseToken(T2));
+    expect(await access()).toEqual({ digital: true, gymMembership: true });
   });
 });
 
@@ -130,20 +135,21 @@ describe("journey 3: two gyms, one platform-wide product", () => {
     expect(await tier(fx.memberB.id)).toBe("app_subscription");
 
     // Gym B's admin can neither see nor change gym A's member, and the answer is the ordinary 404.
-    const before = sub(fx.memberA.id);
-    for (const t of ["free", "membership", "app_subscription"]) {
+    const before = ent(fx.memberA.id);
+    for (const t of ["free", "membership", "app_subscription", "digital_revoke"]) {
       const res = await staffTier(fx.memberA.id, fx.adminB.id, t);
       expect(res.status).toBe(404);
       expect(await res.json()).toEqual({ success: false, message: "Member not found." });
     }
-    expect(sub(fx.memberA.id)).toEqual(before);
+    expect(ent(fx.memberA.id)).toEqual(before);
+    expect(fx.db.findDigitalEntitlement(fx.memberA.id, "staff_grant")).toBeUndefined();
 
     // A's token expires: only A changes.
-    const bBefore = sub(fx.memberB.id);
+    const bBefore = ent(fx.memberB.id);
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_EXPIRED", expiryTimeMillis: Date.now() - 1000 });
     await fx.rtdn(fx.subscriptionEvent(T1, 13));
     expect(await tier(fx.memberA.id)).toBe("free");
-    expect(sub(fx.memberB.id)).toEqual(bBefore);
+    expect(ent(fx.memberB.id)).toEqual(bBefore);
 
     // B cannot claim A's token even with a perfectly valid binding of their own.
     fx.adapter.setSnapshot(T1, { state: "SUBSCRIPTION_STATE_ACTIVE", accountBinding: fx.bindingFor(fx.memberB.id), expiryTimeMillis: Date.now() + 30 * DAY });

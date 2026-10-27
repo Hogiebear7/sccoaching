@@ -2,18 +2,18 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { sameGym } from "@/lib/gym-scope";
-import type { MemberTier } from "@/lib/member-access";
 import { can } from "@/lib/permissions";
-import { grantMemberTier } from "@/lib/tier-grant";
+import { grantMemberTier, revokeDigitalGrant, type GrantTier } from "@/lib/tier-grant";
 import { loadTenantUser, resolveTenantRequest } from "@/lib/tenant-request";
 
-const TIER_VALUES: MemberTier[] = ["free", "app_subscription", "membership"];
-
-// Friendlier wrapper over POST .../subscription — that route takes a raw
-// packageId + status; this one takes the tier a staff member actually thinks
-// in (see lib/member-access.ts) and resolves it to the right package
-// internally, so staff pick a tier from a dropdown, not a package from the
-// full catalog.
+// The two independent things staff can set (owner decision D1; see lib/member-access.ts):
+//   membership        — the paid gym Membership (resolved to the member's gym's default package, or packageId)
+//   free              — end the gym Membership
+//   app_subscription  — grant COMPLIMENTARY digital access (never a paid subscription; shown as complimentary)
+//   digital_revoke    — withdraw a complimentary digital grant
+// A paid store subscription (Google Play / App Store) is never created, changed or ended here: only the store can do that.
+const ACTIONS = ["free", "app_subscription", "membership", "digital_revoke"] as const;
+type Action = (typeof ACTIONS)[number];
 export async function POST(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   // The tenant is derived from the authenticated account here, at the first line, and never from the request.
   const tenant = resolveTenantRequest(request, { unauthenticatedMessage: "You must be signed in to manage memberships." });
@@ -40,25 +40,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { tier, packageId } = (body ?? {}) as Record<string, unknown>;
 
-  if (typeof tier !== "string" || !TIER_VALUES.includes(tier as MemberTier)) {
+  if (typeof tier !== "string" || !ACTIONS.includes(tier as Action)) {
     return NextResponse.json({ success: false, message: "A valid tier is required." }, { status: 400 });
   }
 
-  const result = await grantMemberTier(member.id, tier as MemberTier, {
-    packageId: typeof packageId === "string" && packageId.trim() ? packageId.trim() : undefined,
-  });
+  const result =
+    tier === "digital_revoke"
+      ? revokeDigitalGrant(member.id)
+      : await grantMemberTier(member.id, tier as GrantTier, {
+          packageId: typeof packageId === "string" && packageId.trim() ? packageId.trim() : undefined,
+          grantedByUserId: staffUser.id,
+        });
 
   if (!result.ok) {
-    // A refused conflict (replacing a live entitlement of the other kind, or a live Google Play
-    // subscription) is a state conflict, not a bad request. The code is the stable contract.
-    if (result.code) {
-      return NextResponse.json({ success: false, code: result.code, message: result.message }, { status: 409 });
-    }
-    return NextResponse.json({ success: false, message: result.message }, { status: result.message.includes("hasn't been set up") || result.message.includes("No Membership-tier") ? 500 : 400 });
+    return NextResponse.json({ success: false, message: result.message }, { status: result.message.includes("No Membership-tier package") ? 500 : 400 });
   }
 
   return NextResponse.json(
-    { success: true, message: result.message, warning: result.warning ?? null, data: { tier: result.tier } },
+    { success: true, message: result.message, warning: result.warning ?? null, data: { access: result.access } },
     { status: 200 }
   );
 }

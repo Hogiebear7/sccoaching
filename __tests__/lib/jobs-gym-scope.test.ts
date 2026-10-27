@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   createNotification: vi.fn(),
   findAllSubscriptions: vi.fn(),
   findAnyStaffUser: vi.fn(),
+  findMembershipPackageById: vi.fn(),
   findProfileByUserId: vi.fn(),
   findStaffUsers: vi.fn(),
   findUserById: vi.fn(),

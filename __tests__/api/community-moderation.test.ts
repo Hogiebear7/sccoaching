@@ -241,3 +241,72 @@ describe("community routes apply the moderation helpers", () => {
     expect(missing).toEqual(["app/api/mobile/community/comments/[id]/report/route.ts", "app/api/mobile/community/comments/[id]/route.ts"]);
   });
 });
+
+// ── moderation authorization and tenant isolation (workout reports) ─────────────────────────────────
+const pageCookie = vi.hoisted(() => ({ current: "" }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (name === "session" ? { value: pageCookie.current.replace(/^session=/, "") } : undefined) }),
+}));
+vi.mock("next/navigation", () => ({
+  redirect: (url: string) => {
+    throw new Error(`REDIRECT:${url}`);
+  },
+}));
+
+describe("moderation authorization and gym isolation", () => {
+  async function reportedWorkout() {
+    const a = member("a@example.test", "Alice");
+    const b = member("b@example.test", "Bob");
+    workout(b.id, "wb", { title: "Bob's session" });
+    await api.reportWorkout(a, "wb", "abusive");
+    return { a, b, report: fx.db.findAllCommentReports()[0] };
+  }
+  const reportsOnPage = async (cookie: string) => {
+    pageCookie.current = cookie;
+    const { default: Page } = await import("@/app/(staff)/staff/community-reports/page");
+    const element = (await Page()) as { props: { reports: { id: string; targetType?: string; workoutTitle: string | null; reporterName: string }[] } };
+    return element.props.reports;
+  };
+
+  it("a plain member cannot resolve or dismiss a report (403), and nothing changes", async () => {
+    const { a, report } = await reportedWorkout();
+    expect((await api.resolve(a.cookie, report.id, "resolve")).status).toBe(403);
+    expect((await api.resolve(a.cookie, report.id, "dismiss")).status).toBe(403);
+    expect((await api.resolve("", report.id, "resolve")).status).toBe(401);
+    expect(fx.db.findAllCommentReports()[0].status).toBe("open");
+    expect(fx.db.findWorkoutSessionById("wb")!.communityRemovedAt ?? null).toBeNull();
+  });
+
+  it("a coach in the same gym can moderate it; the report records who", async () => {
+    const { report } = await reportedWorkout();
+    const coach = fx.db.createUserWithRole("coach-a@example.test", "x", "coach", null);
+    expect((await api.resolve(fx.cookie(coach.id), report.id, "resolve")).status).toBe(200);
+    expect(fx.db.findAllCommentReports()[0]).toMatchObject({ status: "resolved", resolvedByStaffId: coach.id });
+  });
+
+  it("staff of ANOTHER gym neither see the report in their queue nor can resolve it; their own gym's staff do see it", async () => {
+    const { report } = await reportedWorkout();
+    const other = await reportsOnPage(fx.cookie(fx.adminB.id));
+    expect(other.map((r) => r.id)).not.toContain(report.id);
+    const own = await reportsOnPage(fx.cookie(fx.adminA.id));
+    expect(own.map((r) => r.id)).toContain(report.id);
+    expect(own.find((r) => r.id === report.id)).toMatchObject({ targetType: "workout", workoutTitle: "Bob's session" });
+    expect((await api.resolve(fx.cookie(fx.adminB.id), report.id, "resolve")).status).toBe(404);
+    expect((await api.resolve(fx.cookie(fx.adminB.id), report.id, "dismiss")).status).toBe(404);
+  });
+
+  it("a report about a workout that no longer exists cannot be verified, so it is hidden from staff and unresolvable (fail closed)", async () => {
+    const { report } = await reportedWorkout();
+    fx.db.deleteWorkoutSession?.("wb");
+    const own = await reportsOnPage(fx.cookie(fx.adminA.id));
+    expect(own.map((r) => r.id)).not.toContain(report.id);
+    expect((await api.resolve(fx.cookie(fx.adminA.id), report.id, "resolve")).status).toBe(404);
+  });
+
+  it("a plain member cannot open the moderation page", async () => {
+    const a = member("pm@example.test", "Plain");
+    pageCookie.current = a.cookie;
+    const { default: Page } = await import("@/app/(staff)/staff/community-reports/page");
+    await expect(Page()).rejects.toThrow(/REDIRECT/);
+  });
+});

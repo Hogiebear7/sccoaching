@@ -4,6 +4,8 @@ import type { NextRequest } from "next/server";
 import { findMessagesByMemberId, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { draftReply, isAiConfigured } from "@/lib/ai";
+import { aiFailureResponse } from "@/lib/ai-allowance-response";
+import { AI_UNAVAILABLE_CODE, AI_UNAVAILABLE_MESSAGE } from "@/lib/ai-stream";
 import { requireAiConsentForMember } from "@/lib/ai-consent";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -76,7 +78,15 @@ export async function POST(request: NextRequest) {
   );
   const latestMemberMessage = memberMessages[memberMessages.length - 1]?.body ?? null;
 
-  const draft = await draftReply({ memberId: member.id, latestMemberMessage, staffUserId: staffUser.id });
+  let draft: string;
+  try {
+    draft = await draftReply({ memberId: member.id, latestMemberMessage, staffUserId: staffUser.id });
+  } catch (err) {
+    const refused = aiFailureResponse(err);
+    if (refused) return refused;
+    console.error("Draft reply failed:", err);
+    return NextResponse.json({ success: false, code: AI_UNAVAILABLE_CODE, message: AI_UNAVAILABLE_MESSAGE }, { status: 502 });
+  }
 
   return NextResponse.json(
     { success: true, configured: isAiConfigured(), draft },

@@ -43,6 +43,15 @@ beforeEach(() => {
       iapEvents: [{ type: "purchase_claimed", userId: "secret-user-id" }, { type: "purchase_claimed", userId: "x" }, { type: "entitlement_revoked", userId: "x" }],
       iapNotifications: [{ messageId: "secret-message", processedAt: "2026-02-01T00:00:00.000Z", outcome: "applied" }, { messageId: "m2", processedAt: null, outcome: null }],
       subscriptions: [{ userId: "secret-user-id", provider: "google_play", status: "active" }, { userId: "y", provider: "none", status: "active" }],
+      appStorePurchases: [
+        { id: "ap1", userId: "secret-user-id", originalTransactionId: "secret-otx", originalTransactionIdHash: "secret-otx-hash", status: "active", environment: "production", expiresDateMillis: Date.now() + 86_400_000, lastSnapshotAt: new Date().toISOString() },
+        { id: "ap2", userId: "z", originalTransactionId: "secret-otx-2", status: "active", environment: "sandbox", expiresDateMillis: Date.now() - 86_400_000 },
+      ],
+      digitalEntitlements: [
+        { id: "e1", userId: "secret-user-id", source: "app_store", status: "active", currentPeriodEnd: new Date(Date.now() + 86_400_000).toISOString(), storeRefHash: "secret-ref-hash" },
+        { id: "e2", userId: "z", source: "staff_grant", status: "active", currentPeriodEnd: null, storeRefHash: null },
+        { id: "e3", userId: "w", source: "google_play", status: "expired", currentPeriodEnd: "2026-01-01T00:00:00.000Z" },
+      ],
     })
   );
 });
@@ -62,9 +71,18 @@ describe("iap-report script", () => {
     expect(r.out).toMatch(/Google Play-billed subscription rows by status[\s\S]*active\s+1/);
   });
 
+  it("reports the App Store and digital entitlement counts", () => {
+    const out = run().out;
+    expect(out).toMatch(/App Store digital-plan report/);
+    expect(out).toMatch(/purchases: 2\s+entitlement rows: 3/);
+    expect(out).toMatch(/sandbox purchases\s+1/);
+    expect(out).toMatch(/marked active but past expiry\s+1/);
+    expect(out).toMatch(/Digital entitlements granting access right now[\s\S]*app_store\s+1[\s\S]*staff_grant\s+1/);
+  });
+
   it("never prints an identifier, token, hash or order id", () => {
     const out = run().out;
-    for (const secret of ["secret-user-id", "secret-purchase-token", "secret-hash", "GPA.secret-order", "secret-message"]) expect(out).not.toContain(secret);
+    for (const secret of ["secret-user-id", "secret-purchase-token", "secret-hash", "GPA.secret-order", "secret-message", "secret-otx", "secret-ref-hash"]) expect(out).not.toContain(secret);
   });
 
   it("never writes", () => {

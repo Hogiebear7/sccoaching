@@ -162,8 +162,8 @@ describe("the adoption document tells the truth too", () => {
     const listed = [...table.matchAll(/^\| `([^`]+)` \|/gm)].map((m) => m[1]).sort();
     const flagged = ROUTE_SCOPE_MANIFEST.filter((e) => e.runtimeTenantContext).map((e) => e.route).sort();
     expect(listed).toEqual(flagged);
-    expect(doc).toContain(`Seven routes derive their tenant`);
-    expect(flagged).toHaveLength(7);
+    expect(doc).toContain(`Ten routes derive their tenant`);
+    expect(flagged).toHaveLength(10);
   });
 });
 
@@ -174,6 +174,9 @@ describe("the manifest tells the truth about which routes use the runtime contex
       [
         "admin/membership/activate",
         "membership/checkout",
+        "mobile/billing/app-store/purchase-context",
+        "mobile/billing/app-store/verify",
+        "mobile/billing/catalog",
         "mobile/billing/google-play/purchase-context",
         "mobile/billing/google-play/verify",
         "staff/members/[userId]/subscription",

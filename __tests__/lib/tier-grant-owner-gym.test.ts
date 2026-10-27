@@ -13,11 +13,14 @@ const h = vi.hoisted(() => ({
   findSubscriptionByUserId: vi.fn(),
   findUserById: vi.fn(),
   saveSubscription: vi.fn(),
+  findDigitalEntitlement: vi.fn(),
+  grantStaffDigitalEntitlement: vi.fn(),
   cancelProviderSubscription: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
 vi.mock("@/lib/billing", () => ({ cancelProviderSubscription: h.cancelProviderSubscription }));
-vi.mock("@/lib/membership-entitlement", () => ({ resolveMemberTier: () => "membership" }));
+vi.mock("@/lib/membership-entitlement", () => ({ resolveMemberAccessForUser: () => ({ digital: false, gymMembership: true }) }));
+vi.mock("@/lib/digital-entitlement", () => ({ grantStaffDigitalEntitlement: h.grantStaffDigitalEntitlement, revokeStaffDigitalEntitlement: vi.fn() }));
 
 import { grantMemberTier } from "@/lib/tier-grant";
 
@@ -55,9 +58,10 @@ describe("grantMemberTier — ownerGym", () => {
     expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: null });
   });
 
-  it("a brand-new app_subscription grant is stamped { scope: 'platform' }", async () => {
+  it("an app_subscription grant is a complimentary digital entitlement: it writes NO subscription row, so no ownerGym is stamped", async () => {
     await grantMemberTier(MEMBER_B.id, "app_subscription");
-    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "platform" });
+    expect(h.saveSubscription).not.toHaveBeenCalled();
+    expect(h.grantStaffDigitalEntitlement).toHaveBeenCalledWith(expect.objectContaining({ userId: MEMBER_B.id }));
   });
 
   it("an explicit packageId grant is stamped from that package's own category", async () => {
@@ -68,15 +72,12 @@ describe("grantMemberTier — ownerGym", () => {
   // A cross-kind tier change over a LIVE entitlement is now refused (lib/iap/entitlement-conflict.ts,
   // covered in __tests__/api/iap-membership-conflict.test.ts). These cases therefore start from an
   // ENDED entitlement (status "canceled"), which is the only way a cross-kind change still happens.
-  it("preserves the EXISTING row's ownerGym across a tier change — membership -> app_subscription", async () => {
+  it("granting complimentary digital access leaves the member's Membership row untouched", async () => {
     h.findSubscriptionByUserId.mockReturnValue({
-      userId: MEMBER_B.id, packageId: "pkg-b", status: "canceled", ownerGym: { scope: "gym", gymId: "gym-b" },
+      userId: MEMBER_B.id, packageId: "pkg-b", status: "active", ownerGym: { scope: "gym", gymId: "gym-b" },
     });
     await grantMemberTier(MEMBER_B.id, "app_subscription");
-    // Stays "gym"/"gym-b" — NOT recomputed to "platform" — because ownerGym
-    // is immutable historical provenance, not a live reflection of the
-    // current package. See lib/db.ts's documented open question on this.
-    expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "gym", gymId: "gym-b" });
+    expect(h.saveSubscription).not.toHaveBeenCalled();
   });
 
   it("preserves the EXISTING row's ownerGym across a tier change — app_subscription -> membership", async () => {
@@ -99,8 +100,8 @@ describe("grantMemberTier — ownerGym", () => {
     h.findSubscriptionByUserId.mockReturnValue({
       userId: MEMBER_B.id, packageId: "pkg-b", status: "canceled", ownerGym: undefined,
     });
-    await grantMemberTier(MEMBER_B.id, "app_subscription");
-    // NOT recomputed to "platform" from the new tier, and NOT left as a bare
+    await grantMemberTier(MEMBER_B.id, "membership", { packageId: "pkg-b" });
+    // NOT recomputed from the new package, and NOT left as a bare
     // undefined either — an existing row always gets an explicit scope.
     expect(h.saveSubscription.mock.calls[0][0].ownerGym).toEqual({ scope: "unresolved" });
   });

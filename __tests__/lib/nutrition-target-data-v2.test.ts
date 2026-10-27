@@ -19,7 +19,13 @@ const h = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => h);
 
 const { mockTier } = vi.hoisted(() => ({ mockTier: vi.fn() }));
-vi.mock("@/lib/membership-entitlement", () => ({ resolveMemberTierForUser: mockTier }));
+// The resolver asks for the member's access; the tests still say which tier they mean.
+vi.mock("@/lib/membership-entitlement", () => ({
+  resolveMemberAccessForUser: (id: string) => {
+    const tier = mockTier(id);
+    return { digital: tier === "app_subscription", gymMembership: tier === "membership" };
+  },
+}));
 
 import { getResolvedNutritionTarget, getResolvedNutritionTargetsForWeek } from "@/lib/nutrition-target-data";
 

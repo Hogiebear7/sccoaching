@@ -38,16 +38,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "isPrivate must be a boolean." }, { status: 400 });
   }
 
-  // A workout staff removed from Community after a report stays removed: it can be kept private but not shared again.
-  if (workout.communityRemovedAt && isPrivate === false) {
+  // The body was awaited after the workout was read: set only the flag, on the workout as it is NOW. A workout staff removed from Community after a report stays
+  // removed: it can be kept private but not shared again (checked against the current row, not the one read earlier).
+  let removedByStaff = false;
+  updateWorkoutSession(workout.id, (current) => {
+    if (current.communityRemovedAt && isPrivate === false) {
+      removedByStaff = true;
+      return null;
+    }
+    return { isPrivate, updatedAt: new Date().toISOString() };
+  });
+  if (removedByStaff) {
     return NextResponse.json(
       { success: false, message: "A coach removed this workout from Community after a report, so it can't be shared again." },
       { status: 403 }
     );
   }
-
-  // The body was awaited after the workout was read: set only the flag, on the workout as it is NOW.
-  updateWorkoutSession(workout.id, () => ({ isPrivate, updatedAt: new Date().toISOString() }));
 
   return NextResponse.json({ success: true, message: "Saved." });
 }

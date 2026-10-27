@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
-import { resolveMemberTierForUser } from "@/lib/membership-entitlement";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 export async function POST(request: NextRequest) {
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (pushNotificationsEnabled && !hasAccess(resolveMemberTierForUser(user.id), "notifications")) {
+  if (pushNotificationsEnabled && !hasAccess(resolveMemberAccessForUser(user.id), "notifications")) {
     return NextResponse.json(
-      { error: "Push notifications need App Subscription or above." },
+      { error: "Push notifications need the App Subscription." },
       { status: 403 }
     );
   }

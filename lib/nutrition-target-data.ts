@@ -31,8 +31,8 @@ import {
   type WorkoutSessionRecord,
 } from "./db";
 import { exertionFromDayLoad, fuelBandForLoad, weightedThreeDayLoad, type Exertion, type FuelBand, type FuelDay } from "./nutrition";
-import { isMembershipTier } from "./member-access";
-import { resolveMemberTierForUser } from "./membership-entitlement";
+import { hasGymMembership } from "./member-access";
+import { resolveMemberAccessForUser } from "./membership-entitlement";
 import {
   defaultPaceForGoal,
   distributeWeek,
@@ -703,7 +703,7 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
     paceSetting: profile.goalPacePctPerWeek ?? null,
     memberDistribution: profile.calorieDistribution ?? null,
     activityLevel: profile.activityLevel ?? null,
-    isMembershipTier: isMembershipTier(resolveMemberTierForUser(userId)),
+    isMembershipTier: hasGymMembership(resolveMemberAccessForUser(userId)),
     recoveryLogs,
     sessions: schedule?.sessions ?? [],
     workoutSessions,

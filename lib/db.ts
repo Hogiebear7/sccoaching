@@ -932,7 +932,7 @@ export interface MembershipPlanRecord {
 // — see lib/providers/google-play.ts. Unlike stripe/revolut, the app never
 // creates a google_play checkout itself; the purchase happens natively in
 // the Play Store UI and this app only verifies + records it afterwards.
-export type BillingProvider = "none" | "stripe" | "revolut" | "google_play";
+export type BillingProvider = "none" | "stripe" | "revolut" | "google_play" | "app_store";
 
 // "pending" = a checkout was created with the provider but payment hasn't
 // been confirmed yet (webhook hasn't fired). Only a provider webhook (or a
@@ -1177,6 +1177,10 @@ export interface MembershipBillingOptionRecord {
       model allows several base plans — e.g. monthly/annual — per product
       id), null if not applicable. */
   googlePlayBasePlanId?: string | null;
+  /** App Store Connect subscription product id this option maps to. Each billing period is its own App Store product, so the
+      mapping is one to one. Null for options not sold through the App Store. Never invented: set from the owner's
+      App Store Connect setup (scripts/seed-app-subscription-package.mjs reads it from the environment). */
+  appStoreProductId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1243,6 +1247,10 @@ export interface GooglePlayPurchaseRecord {
   /** The provider-side time of the newest snapshot applied to this purchase.
       A snapshot older than this is stale and must not overwrite newer state. */
   lastSnapshotAt?: string | null;
+  /** True while the current period is a Google free trial (zero charge). From offerPhase when Google reported it; otherwise INFERRED (see googleTrialEvidence). */
+  freeTrial?: boolean;
+  /** The current offer phase as Google reported it (SubscriptionPurchaseLineItem.offerPhase), or null when Google did not say. The authority for "was this period a trial". */
+  offerPhase?: GoogleOfferPhase | null;
   /** Set when Google refunded, voided or revoked the purchase. */
   revokedAt?: string | null;
   revocationReason?: GooglePlayRevocationReason | null;
@@ -1256,6 +1264,85 @@ export interface GooglePlayPurchaseRecord {
 
 export type GooglePlayAcknowledgementState = "pending" | "acknowledged" | "failed" | "not_required";
 export type GooglePlayRevocationReason = "refunded" | "voided" | "revoked";
+
+// ── Digital (App-only) entitlements ──
+//
+// What a member may use of the DIGITAL features (AI chat, workout generation, food search, tracker import ...). This is a
+// separate store from SubscriptionRecord on purpose: a gym Membership and the App-only digital plan are different products
+// (owner decision D1, 2026-10-15). One row per (user, source), so a paid store subscription and a complimentary staff grant
+// never overwrite each other. Access is decided by lib/digital-entitlement.ts, never by reading status alone.
+export type DigitalEntitlementSource = "google_play" | "app_store" | "staff_grant";
+export type DigitalEntitlementStatus =
+  | "active"
+  | "canceled" // will not renew; access continues to currentPeriodEnd
+  | "in_grace_period" // store is retrying payment but still grants access
+  | "on_hold" // payment failed, no access (Google account hold / Apple billing retry without grace)
+  | "paused"
+  | "expired"
+  | "revoked"; // refunded or revoked by the store, or a staff grant withdrawn
+
+export interface DigitalEntitlementRecord {
+  /** `${source}:${userId}`. */
+  id: string;
+  userId: string;
+  source: DigitalEntitlementSource;
+  status: DigitalEntitlementStatus;
+  /** The store's product id. Null for a staff grant. */
+  productId: string | null;
+  billingOptionId: string | null;
+  /** sha256 hex of the store's subscription reference (Google purchase token, Apple original transaction id) that this row is
+      currently billed through. The raw value stays in the purchase record. Null for a staff grant. */
+  storeRefHash: string | null;
+  environment: "production" | "sandbox" | null;
+  /** Paid-through time for a store subscription; optional end for a staff grant (null = until withdrawn). */
+  currentPeriodEnd: string | null;
+  autoRenewing: boolean;
+  /** True while the current period is a zero-charge store free trial. A trial grants access like a paid period, is never booked as revenue, and ends
+      with the trial (or converts: the next period arrives with this false). Absent on rows written before trials existed. */
+  trial?: boolean;
+  /** Staff grant only: who granted it and why. A free-text note, never member health or payment data. */
+  grantedByUserId: string | null;
+  note: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// A verified App Store (StoreKit 2) subscription. One row per ORIGINAL transaction id, which Apple keeps constant across
+// every renewal of one subscription, so renewals update this row and a re-subscribe after expiry makes a new one.
+// History is kept. Ownership follows the same first-valid-binding-wins rule as GooglePlayPurchaseRecord, using the
+// appAccountToken the app set at purchase time (a UUID derived from the account by a server secret).
+export type AppStoreSubscriptionStatus = "active" | "in_grace_period" | "billing_retry" | "expired" | "revoked";
+
+export interface AppStorePurchaseRecord {
+  id: string;
+  userId: string;
+  originalTransactionId: string;
+  /** sha256 hex of originalTransactionId, used by audit rows. */
+  originalTransactionIdHash: string;
+  /** The latest transaction id seen, kept for support. */
+  latestTransactionId: string | null;
+  productId: string;
+  environment: "production" | "sandbox";
+  /** The appAccountToken Apple echoed back. An opaque derived UUID, never the account id. */
+  appAccountToken: string | null;
+  status: AppStoreSubscriptionStatus;
+  autoRenewing: boolean;
+  purchaseDateMillis: number | null;
+  expiresDateMillis: number | null;
+  /** True when the latest transaction is an Apple free trial (zero charge). */
+  freeTrial?: boolean;
+  /** Set when Apple refunded or revoked the purchase. A revoked purchase stays revoked. */
+  revokedAt?: string | null;
+  revocationReason?: "refunded" | "revoked" | null;
+  /** The issue time of the newest provider answer applied. An older answer is dropped. */
+  lastSnapshotAt?: string | null;
+  boundAt: string;
+  /** See GooglePlayPurchaseRecord.anonymizedAt. */
+  anonymizedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // ── App Subscription audit log and notification dedupe ──
 //
@@ -1284,13 +1371,19 @@ export type IapEventType =
   | "provider_conflict_rejected"
   /** A late Stripe checkout completion arrived after the cleanup job (or a Play takeover) had moved its checkout out of the
       pending fields. detail.outcome is "applied" or "conflict_manual_recovery". Never carries the session id or any payload. */
-  | "late_checkout_recovery";
+  | "late_checkout_recovery"
+  /** A store purchase was refused because it was made in an environment this deployment does not accept (for example sandbox). */
+  | "claim_rejected_environment"
+  /** A signed store notification failed signature or chain verification. Never carries the payload. */
+  | "notification_rejected"
+  /** Staff granted or withdrew a complimentary digital entitlement. */
+  | "staff_grant_changed";
 
 export interface IapEventRecord {
   id: string;
   at: string;
   /** The provider whose event or claim this row is about. Not necessarily the provider that holds the entitlement. */
-  provider: "google_play" | "stripe" | "revolut";
+  provider: "google_play" | "app_store" | "stripe" | "revolut" | "staff";
   type: IapEventType;
   /** Opaque account id, or null when the event has no resolvable account. */
   userId: string | null;
@@ -1661,6 +1754,13 @@ export interface AiRedirectEventRecord {
 // capped or dropped.
 export type RevenueSource = "membership_renewal";
 
+export type GoogleOfferPhase = "free_trial" | "introductory_price" | "base_price" | "proration";
+
+// What backs a revenue row. "store_reported": the amount and currency come from a signed store transaction that charged them. "unverified": a
+// subscription state or an order exists, but the amount actually received (after the member's local price, tax and any intro price) is not established,
+// so the row is a placeholder to RECONCILE against the store's sales report. An unverified row is never counted as income (lib/finance.ts).
+export type RevenueEvidence = "store_reported" | "unverified";
+
 export interface RevenueEventRecord {
   id: string;
   userId: string;
@@ -1675,6 +1775,10 @@ export interface RevenueEventRecord {
   providerRef: string;
   source: RevenueSource;
   receivedAt: string;
+  /** Absent on rows written before this existed and on Stripe/Revolut rows, which are charges the provider itself reported. */
+  evidence?: RevenueEvidence;
+  /** Why a row is unverified, for the person reconciling it. */
+  unverifiedReason?: string;
   /** Immutable historical provenance — see MoneyRecordOwnerGym (lib/gym-scope.ts's
       builders / lib/db.ts's own comment on SubscriptionRecord.ownerGym).
       Stamped EXACTLY ONCE, at the moment this row is created, then never
@@ -1717,6 +1821,34 @@ export type AiFeature =
   | "programme_checkin"
   | "exercise_alternatives";
 
+// Which allowance a call counts against (lib/ai-allowance.ts). Tagged on the usage row when the call is made, so trial use can never count toward the
+// paid allowance, a trial's total can never be replenished, and complimentary use is never mistaken for paid.
+// "staff" is not a member group: it is the one shared pool for the staff-run AI features (coach summary, reply draft, exercise content), across all staff.
+export type AiAllowanceKind = "free" | "trial" | "paid" | "complimentary" | "staff";
+
+// A cost held for a call that has been started but not yet settled. See reserveAiBudget.
+export interface AiReservationRecord {
+  id: string;
+  userId: string | null;
+  feature: AiFeature;
+  kind: AiAllowanceKind;
+  /** The conservative MAXIMUM this one call could cost, from its bounded input and output sizes. */
+  reservedUsd: number;
+  createdAt: string;
+  /** An abandoned reservation (the process died mid-call) stops holding budget at this time. */
+  expiresAt: string;
+}
+
+// A claim on trial capacity, taken BEFORE our purchase flow starts (purchase-context with the trial intent) and held for a short time. It counts as one full trial
+// allowance against the trial pool and the ceiling until the member's trial entitlement exists (then the entitlement carries the claim) or the slot expires
+// (an abandoned checkout). See reserveTrialSlot.
+export interface AiTrialSlotRecord {
+  id: string;
+  userId: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface AiUsageLogRecord {
   id: string;
   /** Who this usage is attributed to — a member's own AI feature use is
@@ -1747,6 +1879,14 @@ export interface AiUsageLogRecord {
       ground-truth figure. Converted to EUR only at display time, so a
       later FX-rate change never rewrites already-logged history. */
   costUsd: number;
+  /** Which allowance this call counted against. Absent on rows written before allowances existed. */
+  allowanceKind?: AiAllowanceKind;
+  /** True when costUsd is a conservative ESTIMATE (the call's outcome was unknown: a timeout, an abort, an abandoned reservation, or a billing component this
+      app does not recognise), not the provider's exact reported usage. */
+  estimated?: boolean;
+  /** Set on the charge recorded for a reservation that expired unsettled (its process died, or it overran). Counted at the reserved MAXIMUM, because the provider
+      may still have completed; a late settle for the same reservation replaces it with the real usage (settleAiReservation). */
+  abandonedReservationId?: string;
   createdAt: string;
 }
 
@@ -2045,6 +2185,8 @@ interface Database {
   membershipBillingOptions: MembershipBillingOptionRecord[];
   subscriptions: SubscriptionRecord[];
   googlePlayPurchases: GooglePlayPurchaseRecord[];
+  appStorePurchases: AppStorePurchaseRecord[];
+  digitalEntitlements: DigitalEntitlementRecord[];
   iapEvents: IapEventRecord[];
   iapNotifications: IapNotificationRecord[];
   purchases: PurchaseRecord[];
@@ -2060,6 +2202,8 @@ interface Database {
   aiRedirectEvents: AiRedirectEventRecord[];
   revenueEvents: RevenueEventRecord[];
   aiUsageLogs: AiUsageLogRecord[];
+  aiReservations: AiReservationRecord[];
+  aiTrialSlots: AiTrialSlotRecord[];
   financeLedgerEntries: FinanceLedgerEntryRecord[];
   cycleSettings: CycleSettingsRecord[];
   cyclePrivacyPreferences: CyclePrivacyPreferencesRecord[];
@@ -2186,6 +2330,8 @@ function normalizeDatabase(raw: string | null): Database {
       membershipBillingOptions: [],
       subscriptions: [],
       googlePlayPurchases: [],
+      appStorePurchases: [],
+      digitalEntitlements: [],
       iapEvents: [],
       iapNotifications: [],
       purchases: [],
@@ -2201,6 +2347,8 @@ function normalizeDatabase(raw: string | null): Database {
       aiRedirectEvents: [],
       revenueEvents: [],
       aiUsageLogs: [],
+      aiReservations: [],
+      aiTrialSlots: [],
       financeLedgerEntries: [],
       cycleSettings: [],
       cyclePrivacyPreferences: [],
@@ -2349,6 +2497,7 @@ function normalizeDatabase(raw: string | null): Database {
       currency: o.currency ?? "eur",
       googlePlaySubscriptionId: o.googlePlaySubscriptionId ?? null,
       googlePlayBasePlanId: o.googlePlayBasePlanId ?? null,
+      appStoreProductId: o.appStoreProductId ?? null,
     })),
     subscriptions: (parsed.subscriptions ?? []).map((s) => ({
       ...s,
@@ -2358,6 +2507,8 @@ function normalizeDatabase(raw: string | null): Database {
       periodLapsedNotifiedAt: s.periodLapsedNotifiedAt ?? null,
     })),
     googlePlayPurchases: parsed.googlePlayPurchases ?? [],
+    appStorePurchases: parsed.appStorePurchases ?? [],
+    digitalEntitlements: parsed.digitalEntitlements ?? [],
     iapEvents: parsed.iapEvents ?? [],
     iapNotifications: parsed.iapNotifications ?? [],
     purchases: (parsed.purchases ?? []).map((p) => ({
@@ -2390,6 +2541,8 @@ function normalizeDatabase(raw: string | null): Database {
     aiRedirectEvents: parsed.aiRedirectEvents ?? [],
     revenueEvents: parsed.revenueEvents ?? [],
     aiUsageLogs: parsed.aiUsageLogs ?? [],
+    aiReservations: parsed.aiReservations ?? [],
+    aiTrialSlots: parsed.aiTrialSlots ?? [],
     financeLedgerEntries: parsed.financeLedgerEntries ?? [],
     cycleSettings: parsed.cycleSettings ?? [],
     cyclePrivacyPreferences: parsed.cyclePrivacyPreferences ?? [],
@@ -2630,7 +2783,11 @@ const MEMBER_OWNED_COLLECTIONS = [
   "recipes", "shoppingListItems", "foodFavorites",
   // Bug reports carry free text and screenshots the member wrote, so they go with the account.
   "bugReports",
-  // googlePlayPurchases is deliberately NOT here: purchase records are anonymised, never deleted (see deleteUserAndOwnedRecords).
+  // Derived access state: removed with the account. The store purchase records below are what keep a token owned.
+  "digitalEntitlements",
+  "aiReservations",
+  "aiTrialSlots",
+  // googlePlayPurchases and appStorePurchases are deliberately NOT here: purchase records are anonymised, never deleted (see deleteUserAndOwnedRecords).
 ] as const;
 
 // The protected-entitlement test used by hard deletion. Looks at BOTH the member's purchase records and their subscription row,
@@ -2641,6 +2798,15 @@ function findProtectedPlayEntitlementInDb(db: Database, userId: string, nowMs: n
     if (p.status === "active" || p.status === "in_grace_period" || p.status === "paused") return p.status;
     // Cancelled in Google Play but still inside the paid period: access (and Google's billing record) continue to the expiry.
     if (p.status === "canceled" && p.expiryTimeMillis !== null && p.expiryTimeMillis > nowMs) return "canceled_until_expiry";
+  }
+  // An App Store subscription that is still paid for, auto-renewing or cancelled-until-expiry, or in a retry state.
+  for (const p of db.appStorePurchases) {
+    if (p.userId !== userId || p.revokedAt) continue;
+    if (p.status === "in_grace_period" || p.status === "billing_retry") return p.status;
+    if (p.status === "active") {
+      if (p.autoRenewing) return "active";
+      if (p.expiresDateMillis !== null && p.expiresDateMillis > nowMs) return "canceled_until_expiry";
+    }
   }
   const sub = db.subscriptions.find((s) => s.userId === userId);
   if (sub?.provider === "google_play" && (sub.status === "active" || sub.status === "past_due" || sub.status === "paused")) {
@@ -2684,6 +2850,14 @@ export function deleteUserAndOwnedRecords(userId: string): Record<string, number
     return { ...p, userId: owner, anonymizedAt: anonymisedAt, updatedAt: anonymisedAt };
   });
   if (anonymised > 0) summary.googlePlayPurchasesAnonymised = anonymised;
+
+  let appStoreAnonymised = 0;
+  db.appStorePurchases = db.appStorePurchases.map((p) => {
+    if (p.userId !== userId) return p;
+    appStoreAnonymised++;
+    return { ...p, userId: owner, anonymizedAt: anonymisedAt, updatedAt: anonymisedAt };
+  });
+  if (appStoreAnonymised > 0) summary.appStorePurchasesAnonymised = appStoreAnonymised;
 
   const before = db.users.length;
   db.users = db.users.filter((u) => u.id !== userId);
@@ -3740,6 +3914,8 @@ export type ApplyGooglePlaySnapshotResult =
 // Only the lifecycle fields below can be written here: ownership (userId, purchaseToken,
 // boundAt) is deliberately unreachable from this function.
 const GOOGLE_PLAY_SNAPSHOT_KEYS = [
+  "freeTrial",
+  "offerPhase",
   "productId",
   "basePlanId",
   "orderId",
@@ -3836,6 +4012,148 @@ export function recordGooglePlayAcknowledgement(
 // Every purchase row, oldest first. For background jobs, which must filter themselves.
 export function findAllGooglePlayPurchases(): GooglePlayPurchaseRecord[] {
   return [...readDb().googlePlayPurchases].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+
+// ── Digital entitlements ──
+
+export function findDigitalEntitlementsByUserId(userId: string): DigitalEntitlementRecord[] {
+  return readDb().digitalEntitlements.filter((e) => e.userId === userId);
+}
+
+export function findDigitalEntitlement(userId: string, source: DigitalEntitlementSource): DigitalEntitlementRecord | undefined {
+  return readDb().digitalEntitlements.find((e) => e.userId === userId && e.source === source);
+}
+
+export function findAllDigitalEntitlements(): DigitalEntitlementRecord[] {
+  return [...readDb().digitalEntitlements];
+}
+
+export function digitalEntitlementId(source: DigitalEntitlementSource, userId: string): string {
+  return `${source}:${userId}`;
+}
+
+// Upsert by (user, source). Synchronous; callers that decide from a read must do so in the same synchronous section.
+export function saveDigitalEntitlement(row: DigitalEntitlementRecord): DigitalEntitlementRecord {
+  const db = readDb();
+  const index = db.digitalEntitlements.findIndex((e) => e.id === row.id);
+  if (index === -1) db.digitalEntitlements.push(row);
+  else db.digitalEntitlements[index] = row;
+  writeDb(db);
+  return row;
+}
+
+// ── App Store purchases ──
+
+export function findAppStorePurchaseByOriginalTransactionId(originalTransactionId: string): AppStorePurchaseRecord | undefined {
+  return readDb().appStorePurchases.find((p) => p.originalTransactionId === originalTransactionId);
+}
+
+export function findAppStorePurchasesByUserId(userId: string): AppStorePurchaseRecord[] {
+  return readDb()
+    .appStorePurchases.filter((p) => p.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findAllAppStorePurchases(): AppStorePurchaseRecord[] {
+  return [...readDb().appStorePurchases].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export type ClaimAppStorePurchaseInput = Omit<
+  AppStorePurchaseRecord,
+  "id" | "userId" | "createdAt" | "updatedAt" | "originalTransactionIdHash" | "boundAt"
+>;
+
+export type ClaimAppStorePurchaseResult =
+  | { status: "claimed"; purchase: AppStorePurchaseRecord }
+  | { status: "existing"; purchase: AppStorePurchaseRecord }
+  | { status: "owned_by_other" };
+
+// FIRST VALID BINDING WINS, exactly as claimGooglePlayPurchase: check and insert in one synchronous step. An original
+// transaction owned by another account is never reassigned. The caller has verified the account binding BEFORE calling.
+export function claimAppStorePurchase(input: ClaimAppStorePurchaseInput, userId: string): ClaimAppStorePurchaseResult {
+  const db = readDb();
+  const existing = db.appStorePurchases.find((p) => p.originalTransactionId === input.originalTransactionId);
+  const at = new Date().toISOString();
+
+  if (existing) {
+    if (existing.userId === userId) return { status: "existing", purchase: existing };
+    db.iapEvents.push(
+      buildIapEvent({ provider: "app_store", type: "claim_rejected_owner", userId, purchaseToken: input.originalTransactionId, actor: "user", at })
+    );
+    writeDb(db);
+    return { status: "owned_by_other" };
+  }
+
+  const purchase: AppStorePurchaseRecord = {
+    ...input,
+    id: randomUUID(),
+    userId,
+    originalTransactionIdHash: hashPurchaseToken(input.originalTransactionId),
+    boundAt: at,
+    createdAt: at,
+    updatedAt: at,
+  };
+  db.appStorePurchases.push(purchase);
+  db.iapEvents.push(
+    buildIapEvent({ provider: "app_store", type: "purchase_claimed", userId, purchaseToken: input.originalTransactionId, actor: "user", at })
+  );
+  writeDb(db);
+  return { status: "claimed", purchase };
+}
+
+const APP_STORE_SNAPSHOT_KEYS = [
+  "freeTrial",
+  "latestTransactionId",
+  "productId",
+  "environment",
+  "status",
+  "autoRenewing",
+  "purchaseDateMillis",
+  "expiresDateMillis",
+  "revokedAt",
+  "revocationReason",
+] as const;
+
+export type AppStoreSnapshotFields = Partial<Pick<AppStorePurchaseRecord, (typeof APP_STORE_SNAPSHOT_KEYS)[number]>>;
+
+export type ApplyAppStoreSnapshotResult =
+  | { status: "applied"; purchase: AppStorePurchaseRecord }
+  | { status: "stale" }
+  | { status: "unknown_purchase" };
+
+// Snapshot ordering, as applyGooglePlayPurchaseSnapshot: an answer issued earlier than the newest applied is stale and changes
+// nothing but an audit event. Only lifecycle keys are writable; ownership (userId, originalTransactionId, appAccountToken,
+// boundAt) is unreachable from here.
+export function applyAppStoreSnapshot(originalTransactionId: string, fields: AppStoreSnapshotFields, snapshotAt: string): ApplyAppStoreSnapshotResult {
+  const db = readDb();
+  const index = db.appStorePurchases.findIndex((p) => p.originalTransactionId === originalTransactionId);
+  if (index === -1) return { status: "unknown_purchase" };
+
+  const current = db.appStorePurchases[index];
+  if (current.lastSnapshotAt && current.lastSnapshotAt > snapshotAt) {
+    db.iapEvents.push(
+      buildIapEvent({
+        provider: "app_store",
+        type: "notification_stale",
+        userId: current.userId,
+        purchaseToken: originalTransactionId,
+        actor: "provider",
+        detail: { snapshotAt, newestApplied: current.lastSnapshotAt },
+      })
+    );
+    writeDb(db);
+    return { status: "stale" };
+  }
+
+  const allowed: Partial<AppStorePurchaseRecord> = {};
+  for (const key of APP_STORE_SNAPSHOT_KEYS) {
+    if (key in fields) (allowed as Record<string, unknown>)[key] = (fields as Record<string, unknown>)[key];
+  }
+  const next: AppStorePurchaseRecord = { ...current, ...allowed, lastSnapshotAt: snapshotAt, updatedAt: new Date().toISOString() };
+  db.appStorePurchases[index] = next;
+  writeDb(db);
+  return { status: "applied", purchase: next };
 }
 
 const IAP_NOTIFICATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -4575,6 +4893,276 @@ export function createAiUsageLog(log: AiUsageLogRecord): void {
   const db = readDb();
   db.aiUsageLogs.push(log);
   writeDb(db);
+}
+
+// What a member has spent against one allowance. A trial's total is for the whole trial (windowMs null): nothing replenishes it. The others are a rolling window.
+// A row with no tag (written before allowances existed) counts toward every allowance except the trial's.
+export function aiSpendUsd(logs: readonly AiUsageLogRecord[], userId: string, kind: AiAllowanceKind, windowMs: number | null, nowMs: number): number {
+  const since = windowMs === null ? -Infinity : nowMs - windowMs;
+  let total = 0;
+  for (const l of logs) {
+    if (l.userId !== userId) continue;
+    if (l.allowanceKind !== kind && !(l.allowanceKind === undefined && kind !== "trial")) continue;
+    if (new Date(l.createdAt).getTime() < since) continue;
+    total += l.costUsd;
+  }
+  return total;
+}
+
+// The shared pool for one kind (the staff features): every user's use of that kind counts together.
+export function aiPoolSpendUsd(logs: readonly AiUsageLogRecord[], kind: AiAllowanceKind, windowMs: number | null, nowMs: number): number {
+  const since = windowMs === null ? -Infinity : nowMs - windowMs;
+  let total = 0;
+  for (const l of logs) {
+    if (l.allowanceKind !== kind) continue;
+    if (new Date(l.createdAt).getTime() < since) continue;
+    total += l.costUsd;
+  }
+  return total;
+}
+
+// "budget": the member's own cap (or the staff pool); "pool": this kind's shared class pool; "ceiling": the app-wide emergency ceiling, counting the paid
+// pool's unused remainder when the caller is not a paid subscriber.
+export type ReserveAiBudgetResult = { ok: true; id: string } | { ok: false; limit: "budget" | "pool" | "ceiling"; spentUsd: number; heldUsd: number };
+
+const AI_POOL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Spent (rolling window) plus currently held, for a set of kinds, across ALL users. The one measure the class pools, the paid reserve and the ceiling share.
+function aiClassTotalsUsd(
+  logs: readonly AiUsageLogRecord[],
+  holds: readonly AiReservationRecord[],
+  kinds: readonly AiAllowanceKind[] | null,
+  nowMs: number,
+  windowMs: number = AI_POOL_WINDOW_MS
+): { spentUsd: number; heldUsd: number } {
+  const since = nowMs - windowMs;
+  const inKinds = (k: AiAllowanceKind | undefined) => kinds === null || (k !== undefined && kinds.includes(k));
+  const spentUsd = logs.filter((l) => inKinds(l.allowanceKind) && new Date(l.createdAt).getTime() >= since).reduce((s, l) => s + l.costUsd, 0);
+  const heldUsd = holds.filter((r) => inKinds(r.kind)).reduce((s, r) => s + r.reservedUsd, 0);
+  return { spentUsd, heldUsd };
+}
+
+export interface TrialHeadroomConfig {
+  /** One trial's whole AI allowance (AI_ALLOWANCE_TRIAL_USD). */
+  perTrialUsd: number;
+  trialPoolUsd: number;
+  paidPoolUsd: number;
+  ceilingUsd: number;
+  /** Whether a digital entitlement is live right now (lib/digital-entitlement.ts isDigitalEntitlementLive): passed in so this module does not import it. */
+  isLiveEntitlement: (e: DigitalEntitlementRecord, nowMs: number) => boolean;
+}
+
+export type TrialHeadroom = { ok: true } | { ok: false; reason: "pool_full" | "ceiling_reached" };
+
+// Whether ONE MORE full trial allowance fits, counting everything already owed: what each live trial is still entitled to, and every live slot of someone who does
+// not yet hold a trial. Pure over a datastore snapshot, so reserveTrialSlot can run it inside its one atomic turn.
+function trialHeadroomIn(
+  db: Pick<Database, "aiUsageLogs" | "aiReservations" | "aiTrialSlots" | "digitalEntitlements">,
+  cfg: TrialHeadroomConfig,
+  nowMs: number,
+  forUserId: string | null
+): TrialHeadroom {
+  const live = db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() > nowMs);
+  const expired = db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() <= nowMs).map(abandonedCharge);
+  const logs = [...db.aiUsageLogs, ...expired];
+
+  const trialUsers = new Set<string>();
+  let committed = 0;
+  for (const e of db.digitalEntitlements) {
+    if (e.trial !== true || e.source === "staff_grant" || !cfg.isLiveEntitlement(e, nowMs) || trialUsers.has(e.userId)) continue;
+    trialUsers.add(e.userId);
+    committed += Math.max(0, cfg.perTrialUsd - aiSpendUsd(logs, e.userId, "trial", null, nowMs));
+  }
+  const slotUsers = new Set<string>();
+  for (const s of db.aiTrialSlots) {
+    if (new Date(s.expiresAt).getTime() <= nowMs || s.userId === forUserId || trialUsers.has(s.userId) || slotUsers.has(s.userId)) continue;
+    slotUsers.add(s.userId);
+    committed += cfg.perTrialUsd;
+  }
+
+  const trialClass = aiClassTotalsUsd(logs, live, ["trial", "free"], nowMs);
+  if (cfg.trialPoolUsd - trialClass.spentUsd - trialClass.heldUsd - committed + 1e-9 < cfg.perTrialUsd) return { ok: false, reason: "pool_full" };
+  const all = aiClassTotalsUsd(logs, live, null, nowMs);
+  const paid = aiClassTotalsUsd(logs, live, ["paid"], nowMs);
+  const paidRemainder = Math.max(0, cfg.paidPoolUsd - paid.spentUsd - paid.heldUsd);
+  if (cfg.ceilingUsd - all.spentUsd - all.heldUsd - paidRemainder - committed + 1e-9 < cfg.perTrialUsd) return { ok: false, reason: "ceiling_reached" };
+  return { ok: true };
+}
+
+/** Advisory: could one more trial be honoured right now? (The catalog uses this; reserveTrialSlot is the guarantee.) */
+export function aiTrialHeadroom(cfg: TrialHeadroomConfig, nowMs: number = Date.now()): TrialHeadroom {
+  return trialHeadroomIn(readDb(), cfg, nowMs, null);
+}
+
+export type ReserveTrialSlotResult = { ok: true; slotId: string; expiresAt: string } | { ok: false; reason: "pool_full" | "ceiling_reached" };
+
+// ATOMIC, across processes, and the datastore lock is held only for this one synchronous turn (no store or network call happens inside it; the member's store
+// sheet opens AFTERWARDS). Two simultaneous starts cannot both be granted the last place. Idempotent per member: asking again while a live slot exists returns
+// it. An abandoned checkout needs no cleanup: the slot simply expires.
+export function reserveTrialSlot(input: TrialHeadroomConfig & { userId: string; ttlMs: number; nowMs?: number }): ReserveTrialSlotResult {
+  const now = input.nowMs ?? Date.now();
+  const db = readDb();
+  const mine = db.aiTrialSlots.find((s) => s.userId === input.userId && new Date(s.expiresAt).getTime() > now);
+  if (mine) return { ok: true, slotId: mine.id, expiresAt: mine.expiresAt };
+
+  const headroom = trialHeadroomIn(db, input, now, input.userId);
+  if (!headroom.ok) return headroom;
+
+  const slot: AiTrialSlotRecord = { id: randomUUID(), userId: input.userId, createdAt: new Date(now).toISOString(), expiresAt: new Date(now + input.ttlMs).toISOString() };
+  db.aiTrialSlots = [...db.aiTrialSlots.filter((s) => new Date(s.expiresAt).getTime() > now && s.userId !== input.userId), slot];
+  writeDb(db);
+  return { ok: true, slotId: slot.id, expiresAt: slot.expiresAt };
+}
+
+// Advisory view of the shared capacity (NOT a reservation): what each class has used over the rolling 30 days, holds included. Used to say whether a new trial
+// could be honoured, and in diagnostics.
+export function aiCapacitySnapshot(nowMs: number = Date.now()): {
+  trialClass: { spentUsd: number; heldUsd: number };
+  paid: { spentUsd: number; heldUsd: number };
+  all: { spentUsd: number; heldUsd: number };
+} {
+  const db = readDb();
+  const live = db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() > nowMs);
+  // Expired holds count as spent at their reserved maximum, exactly as reserveAiBudget will charge them.
+  const logs = [...db.aiUsageLogs, ...db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() <= nowMs).map(abandonedCharge)];
+  return {
+    trialClass: aiClassTotalsUsd(logs, live, ["trial", "free"], nowMs),
+    paid: aiClassTotalsUsd(logs, live, ["paid"], nowMs),
+    all: aiClassTotalsUsd(logs, live, null, nowMs),
+  };
+}
+
+// A reservation that expired without being settled. The provider may still have completed that call, so it is charged at its reserved MAXIMUM (never released
+// as if nothing happened), flagged as an estimate, and corrected by a late settle if one arrives.
+function abandonedCharge(r: AiReservationRecord): AiUsageLogRecord {
+  return {
+    id: `abandoned:${r.id}`,
+    userId: r.userId,
+    feature: r.feature,
+    model: "unknown (abandoned reservation)",
+    inputTokens: 0,
+    cacheWriteTokens: 0,
+    cacheReadTokens: 0,
+    outputTokens: 0,
+    costUsd: r.reservedUsd,
+    allowanceKind: r.kind,
+    estimated: true,
+    abandonedReservationId: r.id,
+    createdAt: r.createdAt,
+  };
+}
+
+// ATOMIC, across processes: the check of what is spent and held and the insertion of the new hold are ONE datastore turn (one read, one write, no await between,
+// the lock held for that turn only). Two requests, in one process or many, can never both be granted the same remaining budget. No network call happens
+// inside it: the provider is called AFTER this returns and BEFORE settleAiReservation, with nothing held.
+export function reserveAiBudget(input: {
+  userId: string | null;
+  feature: AiFeature;
+  kind: AiAllowanceKind;
+  reserveUsd: number;
+  budgetUsd: number;
+  windowMs: number | null;
+  /** True for a shared pool (the staff features): every user's use of this kind counts together against the one budget. */
+  pool?: boolean;
+  /** A shared pool for a CLASS of kinds (all users together, rolling 30 days): e.g. trial+free, paid, complimentary. Null/absent: none. */
+  classPool?: { kinds: readonly AiAllowanceKind[]; usd: number } | null;
+  /** The paid subscribers' pool. When set and this call is not a paid call, the pool's UNUSED remainder is kept out of reach: it is counted against the ceiling,
+      so trials, staff, complimentary and free use can never consume capacity allocated to paid subscribers. Null/absent: no reserve. */
+  protectPaidPoolUsd?: number | null;
+  /** An app-wide EMERGENCY ceiling on ALL AI spending (every user, every kind) over ceilingWindowMs. Null/absent: none. Reaching it stops AI for everyone. */
+  ceilingUsd?: number | null;
+  ceilingWindowMs?: number;
+  ttlMs: number;
+  nowMs?: number;
+}): ReserveAiBudgetResult {
+  const now = input.nowMs ?? Date.now();
+  const db = readDb();
+  // Holds past their time limit are not released: each becomes a charge at its reserved maximum (see abandonedCharge), so a slow or lost call can never
+  // free budget the provider may still bill.
+  const live: AiReservationRecord[] = [];
+  let changed = false;
+  for (const r of db.aiReservations) {
+    if (new Date(r.expiresAt).getTime() > now) live.push(r);
+    else {
+      db.aiUsageLogs.push(abandonedCharge(r));
+      changed = true;
+    }
+  }
+  db.aiReservations = live;
+
+  const spentUsd = input.pool
+    ? aiPoolSpendUsd(db.aiUsageLogs, input.kind, input.windowMs, now)
+    : aiSpendUsd(db.aiUsageLogs, input.userId ?? "", input.kind, input.windowMs, now);
+  const heldUsd = live.filter((r) => r.kind === input.kind && (input.pool || r.userId === input.userId)).reduce((s, r) => s + r.reservedUsd, 0);
+
+  if (spentUsd + heldUsd + input.reserveUsd > input.budgetUsd + 1e-9) {
+    if (changed) writeDb(db);
+    return { ok: false, limit: "budget", spentUsd, heldUsd };
+  }
+
+  if (input.classPool) {
+    const c = aiClassTotalsUsd(db.aiUsageLogs, live, input.classPool.kinds, now);
+    if (c.spentUsd + c.heldUsd + input.reserveUsd > input.classPool.usd + 1e-9) {
+      if (changed) writeDb(db);
+      return { ok: false, limit: "pool", spentUsd: c.spentUsd, heldUsd: c.heldUsd };
+    }
+  }
+
+  if (input.ceilingUsd !== undefined && input.ceilingUsd !== null) {
+    const all = aiClassTotalsUsd(db.aiUsageLogs, live, null, now, input.ceilingWindowMs ?? AI_POOL_WINDOW_MS);
+    let paidReserve = 0;
+    if (input.protectPaidPoolUsd !== undefined && input.protectPaidPoolUsd !== null && input.kind !== "paid") {
+      const paid = aiClassTotalsUsd(db.aiUsageLogs, live, ["paid"], now);
+      paidReserve = Math.max(0, input.protectPaidPoolUsd - paid.spentUsd - paid.heldUsd);
+    }
+    if (all.spentUsd + all.heldUsd + paidReserve + input.reserveUsd > input.ceilingUsd + 1e-9) {
+      if (changed) writeDb(db);
+      return { ok: false, limit: "ceiling", spentUsd: all.spentUsd, heldUsd: all.heldUsd };
+    }
+  }
+
+  const id = randomUUID();
+  live.push({
+    id,
+    userId: input.userId,
+    feature: input.feature,
+    kind: input.kind,
+    reservedUsd: input.reserveUsd,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + input.ttlMs).toISOString(),
+  });
+  db.aiReservations = live;
+  writeDb(db);
+  return { ok: true, id };
+}
+
+// Ends a hold and, in the SAME write, records what the call really cost (or an estimate when its outcome is unknown). Passing no log releases the hold with
+// nothing recorded (the provider answered with an error, so nothing was billed). Safe to call twice.
+// LATE settle: if the hold already expired it was charged at its reserved maximum (abandonedCharge); the real usage then REPLACES that charge (a call that
+// finishes late is corrected to what it really cost; one the provider rejected is removed). Safe to call twice.
+export function settleAiReservation(reservationId: string | null, log: AiUsageLogRecord | null): void {
+  const db = readDb();
+  let hadHold = false;
+  if (reservationId) {
+    const before = db.aiReservations.length;
+    db.aiReservations = db.aiReservations.filter((r) => r.id !== reservationId);
+    hadHold = db.aiReservations.length !== before;
+  }
+  const abandoned = reservationId && !hadHold ? db.aiUsageLogs.findIndex((l) => l.abandonedReservationId === reservationId) : -1;
+  if (abandoned >= 0) {
+    if (log) db.aiUsageLogs[abandoned] = log;
+    else db.aiUsageLogs.splice(abandoned, 1);
+  } else if (log) {
+    db.aiUsageLogs.push(log);
+  } else if (!hadHold) {
+    return;
+  }
+  writeDb(db);
+}
+
+// The holds currently recorded (live and not yet pruned). For tests and diagnostics.
+export function listAiReservations(): AiReservationRecord[] {
+  return readDb().aiReservations;
 }
 
 export function findAiUsageLogsByUserId(userId: string): AiUsageLogRecord[] {

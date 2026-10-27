@@ -76,8 +76,8 @@ describe("bulk-tier: same-gym authorized controls", () => {
       { userId: A_MEMBER_2.id, ok: true, message: "Updated." },
     ]);
     expect(mockGrantMemberTier).toHaveBeenCalledTimes(2);
-    expect(mockGrantMemberTier).toHaveBeenNthCalledWith(1, A_MEMBER_1.id, "membership");
-    expect(mockGrantMemberTier).toHaveBeenNthCalledWith(2, A_MEMBER_2.id, "membership");
+    expect(mockGrantMemberTier).toHaveBeenNthCalledWith(1, A_MEMBER_1.id, "membership", { grantedByUserId: A_ADMIN.id });
+    expect(mockGrantMemberTier).toHaveBeenNthCalledWith(2, A_MEMBER_2.id, "membership", { grantedByUserId: A_ADMIN.id });
   });
 
   it("works inside a second tenant as well (Tenant B admin, Tenant B member)", async () => {

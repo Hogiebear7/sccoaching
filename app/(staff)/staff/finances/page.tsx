@@ -1,23 +1,24 @@
-import { findAllAiUsageLogs, findSubscriptionByUserId, findUserById, getFinanceSettings } from "@/lib/db";
+import { findAllAiUsageLogs, findUserById, getFinanceSettings } from "@/lib/db";
 import { buildFinanceLedgerLines } from "@/lib/finance";
 import type { AiUsageCohort } from "@/lib/finance-shared";
-import { resolveMemberTier } from "@/lib/membership-entitlement";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { isStaffRole } from "@/lib/permissions";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { FinancesView } from "./FinancesView";
 
 // Which cohort an AiUsageLogRecord's cost counts against, for the Finances
 // page's cohort breakdown — a staff account (no subscription of its own)
-// resolves to "staff" before ever reaching resolveMemberTier, which would
-// otherwise misread it as "free".
+// resolves to "staff" before ever reaching resolveMemberAccessForUser, which
+// would otherwise misread it as "free". Digital access wins over a gym Membership: the AI cost is incurred by the digital
+// entitlement.
 function cohortForUserId(userId: string | null): AiUsageCohort {
   if (!userId) return "unattributed";
   const user = findUserById(userId);
   if (!user) return "unattributed";
   if (isStaffRole(user.role)) return "staff";
-  const tier = resolveMemberTier(findSubscriptionByUserId(userId));
-  if (tier === "membership") return "membership";
-  if (tier === "app_subscription") return "app_subscription";
+  const access = resolveMemberAccessForUser(userId);
+  if (access.digital) return "app_subscription";
+  if (access.gymMembership) return "membership";
   return "free";
 }
 

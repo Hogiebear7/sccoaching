@@ -43,8 +43,8 @@ describe("RTDN webhook — obfuscatedExternalAccountId preserved, never client-t
     expect(res.status).toBe(200);
     expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)).toMatchObject({ obfuscatedExternalAccountId: binding, userId: fx.memberA.id, status: "expired" });
     // The notification carries no account identity, so the change lands on the PERSISTED owner and nobody else.
-    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toMatchObject({ status: "canceled", provider: "google_play" });
-    expect(fx.db.findSubscriptionByUserId(fx.memberB.id)).toBeUndefined();
+    expect(fx.db.findDigitalEntitlement(fx.memberA.id, "google_play")).toMatchObject({ status: "expired" });
+    expect(fx.db.findDigitalEntitlementsByUserId(fx.memberB.id)).toEqual([]);
   });
 
   it("12. a notification for a token with no persisted owner is ignored, not used to bind a new account", async () => {

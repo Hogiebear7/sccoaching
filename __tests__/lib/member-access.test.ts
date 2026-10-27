@@ -1,19 +1,37 @@
 import { describe, expect, it } from "vitest";
 
-import { hasAccess, isMembershipTier } from "@/lib/member-access";
+import { hasAccess, hasGymMembership, NO_ACCESS, type MemberAccess, type MemberFeature } from "@/lib/member-access";
 
-describe("isMembershipTier", () => {
-  it("is true only for membership tier", () => {
-    expect(isMembershipTier("membership")).toBe(true);
-    expect(isMembershipTier("app_subscription")).toBe(false);
-    expect(isMembershipTier("free")).toBe(false);
+const FEATURES: MemberFeature[] = [
+  "workoutGenerate",
+  "trackerImport",
+  "workoutReview",
+  "foodSearch",
+  "unlimitedCustomFoods",
+  "nutritionMoreTools",
+  "gymProfiles",
+  "notifications",
+  "aiCoachChat",
+  "aiNutritionCoachChat",
+];
+
+describe("hasAccess: every gated feature is a DIGITAL feature (owner decision D1)", () => {
+  it.each(FEATURES)("%s follows the digital flag and ignores the gym Membership", (feature) => {
+    expect(hasAccess({ digital: true, gymMembership: false }, feature)).toBe(true);
+    expect(hasAccess({ digital: true, gymMembership: true }, feature)).toBe(true);
+    expect(hasAccess({ digital: false, gymMembership: true }, feature)).toBe(false);
+    expect(hasAccess(NO_ACCESS, feature)).toBe(false);
   });
+});
 
-  it("stays a strictly narrower gate than hasAccess's app_subscription+ features", () => {
-    // hasAccess treats app_subscription and membership as equal for every
-    // existing feature — isMembershipTier deliberately doesn't, so an
-    // app_subscription member can still have a feature while failing this.
-    expect(hasAccess("app_subscription", "aiCoachChat")).toBe(true);
-    expect(isMembershipTier("app_subscription")).toBe(false);
+describe("hasGymMembership", () => {
+  it("is true only when the gym Membership flag is set, whatever the digital flag says", () => {
+    const cases: [MemberAccess, boolean][] = [
+      [{ digital: false, gymMembership: true }, true],
+      [{ digital: true, gymMembership: true }, true],
+      [{ digital: true, gymMembership: false }, false],
+      [NO_ACCESS, false],
+    ];
+    for (const [access, expected] of cases) expect(hasGymMembership(access)).toBe(expected);
   });
 });

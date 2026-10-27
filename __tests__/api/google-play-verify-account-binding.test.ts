@@ -41,7 +41,7 @@ describe("POST /api/mobile/billing/google-play/verify — account binding (first
 
     expect(res.status).toBe(200);
     expect(fx.db.findGooglePlayPurchaseByToken(TOKEN)).toMatchObject({ userId: fx.memberA.id, obfuscatedExternalAccountId: binding });
-    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toMatchObject({ provider: "google_play", providerSubscriptionId: TOKEN, status: "active", packageId: fx.ids.appPackage });
+    expect(fx.db.findDigitalEntitlement(fx.memberA.id, "google_play")).toMatchObject({ status: "active", storeRefHash: fx.db.hashPurchaseToken(TOKEN), billingOptionId: fx.ids.appOption });
   });
 
   it("2. mismatched binding is rejected", async () => {
@@ -81,7 +81,7 @@ describe("POST /api/mobile/billing/google-play/verify — account binding (first
     fx.adapter.setSnapshot(TOKEN, { accountBinding: null }); // a "restore purchases" replay may carry none
     const res = await fx.verify(fx.memberA.id, { purchaseToken: TOKEN });
     expect(res.status).toBe(200);
-    expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toMatchObject({ provider: "google_play", status: "active" });
+    expect(fx.db.findDigitalEntitlement(fx.memberA.id, "google_play")).toMatchObject({ status: "active" });
   });
 
   it("7. a token owned by another user is rejected before binding is ever considered", async () => {

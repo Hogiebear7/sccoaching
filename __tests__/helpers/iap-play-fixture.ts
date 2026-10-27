@@ -29,7 +29,7 @@ export interface PlayFixture extends IapFixture {
   claim: (userId: string, token: string, over?: Partial<import("@/lib/iap/adapter").ProviderSubscriptionSnapshot>) => Promise<Response>;
 }
 
-const ENV_KEYS = ["GOOGLE_PLAY_IAP_ENABLED", "GOOGLE_PLAY_IAP_ENVIRONMENT", "GOOGLE_PLAY_RTDN_TOKEN"] as const;
+const ENV_KEYS = ["GOOGLE_PLAY_IAP_ENABLED", "GOOGLE_PLAY_IAP_ENVIRONMENT", "GOOGLE_PLAY_RTDN_TOKEN", "AI_ALLOWANCE_PAID_USD", "AI_ALLOWANCE_TRIAL_USD", "AI_ALLOWANCE_FREE_USD", "AI_ALLOWANCE_COMPLIMENTARY_USD", "AI_STAFF_USD", "AI_APP_CEILING_USD", "AI_TRIAL_POOL_USD", "AI_PAID_POOL_USD", "AI_COMPLIMENTARY_POOL_USD"] as const;
 
 export async function createPlayFixture(options: { enabled?: boolean } = {}): Promise<PlayFixture> {
   const base = await createFixture();
@@ -43,6 +43,16 @@ export async function createPlayFixture(options: { enabled?: boolean } = {}): Pr
     delete process.env.GOOGLE_PLAY_IAP_ENVIRONMENT;
   }
   process.env.GOOGLE_PLAY_RTDN_TOKEN = RTDN_SECRET;
+  // A purchase can only start when the AI allowance budgets are set; these are TEST values, not a proposal.
+  process.env.AI_ALLOWANCE_PAID_USD = "1";
+  process.env.AI_ALLOWANCE_TRIAL_USD = "0.25";
+  process.env.AI_ALLOWANCE_FREE_USD = "0.1";
+  process.env.AI_ALLOWANCE_COMPLIMENTARY_USD = "0.5";
+  process.env.AI_STAFF_USD = "5";
+  process.env.AI_TRIAL_POOL_USD = "5";
+  process.env.AI_PAID_POOL_USD = "20";
+  process.env.AI_COMPLIMENTARY_POOL_USD = "5";
+  process.env.AI_APP_CEILING_USD = "50";
 
   const { setPlayAdapterForTesting } = await import("@/lib/iap/adapter");
   const { FakePlayAdapter } = await import("@/lib/iap/fake-adapter");

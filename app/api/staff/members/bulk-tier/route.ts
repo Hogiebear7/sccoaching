@@ -2,19 +2,19 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { sameGymAsStaff } from "@/lib/gym-scope";
-import type { MemberTier } from "@/lib/member-access";
 import { can } from "@/lib/permissions";
-import { grantMemberTier } from "@/lib/tier-grant";
+import { grantMemberTier, revokeDigitalGrant, type GrantTier } from "@/lib/tier-grant";
 import { loadTenantUser, resolveTenantRequest } from "@/lib/tenant-request";
 
-const TIER_VALUES: MemberTier[] = ["free", "app_subscription", "membership"];
+// Same four actions as POST .../[userId]/tier: gym Membership (membership / free) and COMPLIMENTARY digital access
+// (app_subscription / digital_revoke) are independent. See that route for the meaning of each.
+const ACTIONS = ["free", "app_subscription", "membership", "digital_revoke"] as const;
+type Action = (typeof ACTIONS)[number];
 
 export interface BulkTierResult {
   userId: string;
   ok: boolean;
   message: string;
-  /** Present when this member was skipped because the grant would replace a live entitlement. */
-  code?: string;
 }
 
 // Bulk sibling of POST .../[userId]/tier — same underlying grantMemberTier()
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
   const { userIds, tier } = (body ?? {}) as Record<string, unknown>;
 
-  if (typeof tier !== "string" || !TIER_VALUES.includes(tier as MemberTier)) {
+  if (typeof tier !== "string" || !ACTIONS.includes(tier as Action)) {
     return NextResponse.json({ success: false, message: "A valid tier is required." }, { status: 400 });
   }
 
@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const result = await grantMemberTier(member.id, tier as MemberTier);
-    results.push({ userId, ok: result.ok, message: result.warning ?? result.message, ...(result.code ? { code: result.code } : {}) });
+    const result = tier === "digital_revoke" ? revokeDigitalGrant(member.id) : await grantMemberTier(member.id, tier as GrantTier, { grantedByUserId: staffUser.id });
+    results.push({ userId, ok: result.ok, message: result.warning ?? result.message });
   }
 
   return NextResponse.json({ success: true, data: { results } }, { status: 200 });
