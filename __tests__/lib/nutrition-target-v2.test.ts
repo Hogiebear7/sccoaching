@@ -8,6 +8,7 @@ import {
   formulaExpenditureKcal,
   isCompleteDay,
   learnExpenditure,
+  trainingBurnKcal,
   minimumDailyAverageKcal,
   mondayOf,
   paceAdjustKcal,
@@ -318,5 +319,20 @@ describe("worked example from the plan (tester-like profile)", () => {
     const training = distributeWeek({ weekBudgetKcal: budget.weekBudgetKcal, distribution: "training", fuelDays: plan, dayFloorKcal: 1200 });
     expect(even[0]).toBe(1650);
     expect([training[0], training[1]]).toEqual([1750, 1575]);
+  });
+});
+
+describe("trainingBurnKcal", () => {
+  const session = (intensity: "light" | "moderate" | "heavy" | null, mins: number | null, activityType = "gym") =>
+    ({ id: "s", dayOfWeek: 1, label: "Gym", activityType, timeOfDay: null, intensity, estimatedDurationMins: mins, notes: null, recurring: true, weekOf: null, sourceBookingId: null, sourceProgramId: null }) as never;
+
+  it("adds planned training on top of the outside-training activity level", () => {
+    // Three moderate hours at 77 kg: 3 x 4 net METs x 77 kg = 924 kcal a week, 132 a day.
+    expect(trainingBurnKcal([session("moderate", 60), session("moderate", 60), session(null, null)], 77, null)).toEqual({ kcalPerDay: 132, sessionsPerWeek: 3 });
+  });
+
+  it("ignores rest entries and falls back to sign-up training days without a plan", () => {
+    expect(trainingBurnKcal([session("light", 30, "rest")], 77, 3)).toEqual({ kcalPerDay: 132, sessionsPerWeek: 3 });
+    expect(trainingBurnKcal([], 77, null)).toEqual({ kcalPerDay: 0, sessionsPerWeek: 0 });
   });
 });

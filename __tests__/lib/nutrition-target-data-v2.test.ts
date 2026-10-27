@@ -204,10 +204,13 @@ describe("v2 resolver", () => {
   it("a stated activity level sets the starting burn", () => {
     h.findProfileByUserId.mockReturnValue({ ...PROFILE, activityLevel: "light" });
     const target = getResolvedNutritionTarget(USER, TODAY, TODAY)!;
-    // Resting 1,320 x 1.375 = 1,815; Moderate loss -330 -> 1,485.
-    expect(target.expenditureKcal).toBe(1815);
-    expect(target.dailyAverageKcal).toBe(1485);
+    // Resting 1,320 x 1.375 = 1,815, plus three planned moderate hours at
+    // 60 kg (3 x 4 net METs x 60 kg = 720 a week, 103 a day) = 1,918;
+    // Moderate loss -330 -> 1,588.
+    expect(target.expenditureKcal).toBe(1918);
+    expect(target.dailyAverageKcal).toBe(1588);
     expect(target.rationale!.join(" ")).toContain("how active you said you are");
+    expect(target.rationale!.join(" ")).toContain("about 103 kcal a day for your training (3 sessions a week)");
   });
 
   it("macros always add up to the day's calories within rounding", () => {

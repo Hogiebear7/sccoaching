@@ -760,6 +760,43 @@ export function activityExpenditureKcal(restingBurnKcal: number, level: Activity
   return Math.round(restingBurnKcal * ACTIVITY_FACTOR[level]);
 }
 
+// The activity question is about life OUTSIDE training (desk job, walking),
+// and its factors are the textbook ones for people who don't exercise, so
+// planned training is added on top. Net MET (gross minus the resting 1 MET
+// already in the resting burn) x bodyweight x hours, per planned session.
+const TRAINING_NET_MET: Record<TrainingIntensity, number> = { light: 2.5, moderate: 4, heavy: 5.5 };
+const DEFAULT_SESSION_MINS = 60;
+
+export interface TrainingBurn {
+  /** Average extra kcal a day from the week's planned training. */
+  kcalPerDay: number;
+  sessionsPerWeek: number;
+}
+
+/**
+ * Planned training from the member's weekly plan; when they have no plan,
+ * the training days a week they gave at sign-up, as moderate hour-long
+ * sessions. Rest entries count for nothing.
+ */
+export function trainingBurnKcal(
+  sessions: WeeklyTrainingSession[],
+  bodyWeightKg: number,
+  fallbackDaysPerWeek: number | null
+): TrainingBurn {
+  const training = sessions.filter((s) => s.activityType !== "rest");
+  if (training.length > 0) {
+    const weekly = training.reduce(
+      (sum, s) =>
+        sum + TRAINING_NET_MET[s.intensity ?? "moderate"] * bodyWeightKg * ((s.estimatedDurationMins ?? DEFAULT_SESSION_MINS) / 60),
+      0
+    );
+    return { kcalPerDay: Math.round(weekly / 7), sessionsPerWeek: training.length };
+  }
+  const days = Math.max(0, Math.min(7, Math.round(fallbackDaysPerWeek ?? 0)));
+  const weekly = days * TRAINING_NET_MET.moderate * bodyWeightKg * (DEFAULT_SESSION_MINS / 60);
+  return { kcalPerDay: Math.round(weekly / 7), sessionsPerWeek: days };
+}
+
 // ─── Goal pace ──────────────────────────────────────────────────────────
 
 /** Offered paces, % of bodyweight per week. */

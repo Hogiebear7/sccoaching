@@ -45,6 +45,8 @@ import {
   resolveDistribution,
   restingKcal,
   activityExpenditureKcal,
+  trainingBurnKcal,
+  type TrainingBurn,
   SEX_FLOOR_KCAL,
   weeklyBudget,
   type CalorieDistribution,
@@ -314,6 +316,8 @@ interface ResolveContext {
   /** The member's pregnancy record, if any. Pregnancy pauses the luteal
       shift (see cyclePauseFor). Optional so older callers still compile. */
   pregnancy?: import("./profile-schema").PregnancyStatusRecord | null;
+  /** Training days a week from sign-up, used when there's no weekly plan. */
+  trainingDaysPerWeek?: number | null;
   /** Post-menopause switches the luteal shift off. */
   menopauseStage?: import("./profile-schema").MenopauseStage | null;
   /** From the member's goal weight/body-fat + target date (see buildContext
@@ -336,6 +340,8 @@ interface ResolvedWeekPlan {
   distributionSource: DistributionSource;
   /** Pregnancy / after-birth / breastfeeding change in force this week. */
   stage: StageAdjustment | null;
+  /** Planned training added to the starting burn (activity-level path only). */
+  training: TrainingBurn | null;
 }
 
 const SPLIT_DAY_FOR_EXERTION: Record<Exertion, FuelDay> = {
@@ -400,8 +406,11 @@ function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: numbe
   const resting = restingKcal(bodyWeightKg, ctx.gender, ctx.dateOfBirth, weekStart, ctx.heightCm);
   // A member-stated activity level sets the starting burn; without one, the
   // week's fuel days do (the original cold-start heuristic).
+  const training = ctx.activityLevel
+    ? trainingBurnKcal(activeWeeklySessions(ctx.sessions, weekStart), bodyWeightKg, ctx.trainingDaysPerWeek ?? null)
+    : null;
   const formulaKcal = ctx.activityLevel
-    ? activityExpenditureKcal(resting, ctx.activityLevel)
+    ? activityExpenditureKcal(resting, ctx.activityLevel) + (training?.kcalPerDay ?? 0)
     : formulaExpenditureKcal(bodyWeightKg, ctx.gender, ctx.dateOfBirth, weekStart, ctx.heightCm, fuelBands.map((b) => b.day));
   const expenditure = learnExpenditure({
     formulaKcal,
@@ -453,6 +462,7 @@ function weekPlanFor(ctx: ResolveContext, weekStart: string, bodyWeightKg: numbe
     distribution,
     distributionSource,
     stage,
+    training,
   };
   ctx.weekCache.set(weekStart, plan);
   return plan;
@@ -479,6 +489,8 @@ export function buildWeeklyRationale(input: {
   lutealToday: boolean;
   /** The pregnancy / after-birth / breastfeeding line, when one applies. */
   stageLine?: string | null;
+  /** Planned training included in an estimated burn. */
+  training?: TrainingBurn | null;
 }): string[] {
   const lines: string[] = [];
 
@@ -489,6 +501,14 @@ export function buildWeeklyRationale(input: {
           input.usedHeightAndAge ? ", height and age" : ""
         } and ${input.activityLabel ?? "weekly training"}. Log complete food days and weigh in a few times a week, and after about two weeks it learns your real burn (${input.completeDaysLast14} of the last 14 days counted).`
   );
+
+  if (input.expenditureSource === "formula" && input.training && input.training.kcalPerDay > 0) {
+    lines.push(
+      `That burn includes about ${input.training.kcalPerDay} kcal a day for your training (${input.training.sessionsPerWeek} session${
+        input.training.sessionsPerWeek === 1 ? "" : "s"
+      } a week).`
+    );
+  }
 
   const kgPerWeek = Math.round(Math.abs(input.pacePctPerWeek / 100) * input.bodyWeightKg * 100) / 100;
   if (input.stageLine && input.pacePctPerWeek === 0) {
@@ -575,6 +595,7 @@ function resolveTargetForDate(ctx: ResolveContext, dateISO: string): ResolvedNut
       dailyAverageKcal: plan.budget.dailyAverageKcal,
       lutealToday: plan.lutealDays[index],
       stageLine: plan.stage?.line ?? null,
+      training: plan.training,
     }),
     setByMember: false,
     weekStart,
@@ -683,6 +704,7 @@ function buildContext(userId: string, todayISO: string, tomorrowOverride?: Exert
     goalTimelineAdjustKcal,
     pregnancy: findPregnancyStatusByUserId(userId) ?? null,
     menopauseStage: profile.menopauseStage ?? null,
+    trainingDaysPerWeek: profile.trainingDaysPerWeek ?? null,
     weekCache: new Map(),
   };
 }
