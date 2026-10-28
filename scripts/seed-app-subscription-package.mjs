@@ -61,14 +61,14 @@ const GOOGLE_PLAY_PRODUCT_ID = process.env.GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID ?
 
 const APPLE_PRODUCT_IDS = {
   monthly: process.env.APP_STORE_PRODUCT_ID_MONTHLY?.trim() || null,
-  annual: process.env.APP_STORE_PRODUCT_ID_ANNUAL?.trim() || null,
+  yearly: process.env.APP_STORE_PRODUCT_ID_ANNUAL?.trim() || null,
 };
 
-// Owner decisions 2026-10-27: monthly €11.99 and yearly €99.99, each with a 7-day free trial set up in the stores; the 6-month plan is deferred.
+// Owner decisions 2026-10-28: monthly €12.99 and yearly €119.99 (Google base plans "monthly" and "yearly"; "annual" was set up with the wrong billing period and retired), each with a 7-day free trial set up in the stores; the 6-month plan is deferred.
 // An earlier "semiannual" option already in a datastore is left as it is: the store has no such base plan, so the app never offers it.
 const PLANS = [
-  { basePlanId: "monthly", name: "App Subscription — Monthly", intervalUnit: "month", intervalCount: 1, amountCents: 1199, sortOrder: 0 },
-  { basePlanId: "annual", name: "App Subscription — Yearly", intervalUnit: "year", intervalCount: 1, amountCents: 9999, sortOrder: 1 },
+  { basePlanId: "monthly", name: "App Subscription — Monthly", intervalUnit: "month", intervalCount: 1, amountCents: 1299, sortOrder: 0 },
+  { basePlanId: "yearly", name: "App Subscription — Yearly", intervalUnit: "year", intervalCount: 1, amountCents: 11999, sortOrder: 1 },
 ];
 
 if (!existsSync(DB_PATH)) {
