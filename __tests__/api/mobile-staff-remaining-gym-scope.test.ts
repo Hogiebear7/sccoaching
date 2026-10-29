@@ -41,11 +41,12 @@ vi.mock("@/lib/db", () => h);
 const { mockStaffCanViewMemberData } = vi.hoisted(() => ({ mockStaffCanViewMemberData: vi.fn() }));
 vi.mock("@/lib/member-tier-wall", () => ({ staffCanViewMemberData: mockStaffCanViewMemberData }));
 
-const { mockGetStaffMembersData, mockGetStaffMemberDetail } = vi.hoisted(() => ({
+const { mockGetStaffMembersData, mockGetStaffMemberDetail, mockGetStaffMemberWalledSummary } = vi.hoisted(() => ({
+  mockGetStaffMemberWalledSummary: vi.fn(),
   mockGetStaffMembersData: vi.fn(),
   mockGetStaffMemberDetail: vi.fn(),
 }));
-vi.mock("@/lib/staff-members-data", () => ({ getStaffMembersData: mockGetStaffMembersData, getStaffMemberDetail: mockGetStaffMemberDetail }));
+vi.mock("@/lib/staff-members-data", () => ({ getStaffMembersData: mockGetStaffMembersData, getStaffMemberDetail: mockGetStaffMemberDetail, getStaffMemberWalledSummary: mockGetStaffMemberWalledSummary }));
 
 const { mockGetStaffTrainingPrograms, mockArchiveOtherActivePrograms, mockParseProgramDays } = vi.hoisted(() => ({
   mockGetStaffTrainingPrograms: vi.fn(),
@@ -124,12 +125,15 @@ describe("GET /api/mobile/staff/members/[userId] — gym-scoped detail", () => {
     expect(mockGetStaffMemberDetail).not.toHaveBeenCalled();
   });
 
-  it("a same-gym member without the Membership tier is walled before detail is fetched", async () => {
+  it("a same-gym member without the Membership tier gets only the walled summary: the full detail is never fetched", async () => {
     mockStaffCanViewMemberData.mockReturnValue(false);
+    mockGetStaffMemberWalledSummary.mockReturnValue({ userId: A_MEMBER.id, walled: true });
 
     const res = await call(A_MEMBER.id, A_COACH.id);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({ userId: A_MEMBER.id, walled: true });
+    expect(mockGetStaffMemberWalledSummary).toHaveBeenCalledWith(A_MEMBER.id);
     expect(mockGetStaffMemberDetail).not.toHaveBeenCalled();
   });
 });

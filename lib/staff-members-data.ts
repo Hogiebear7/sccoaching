@@ -94,6 +94,49 @@ export interface StaffMemberDetail extends StaffMemberSummary {
   upcomingBookings: StaffMemberBookingSummary[];
   pastBookings: StaffMemberBookingSummary[];
   weeklyTrainingSchedule: WeeklyTrainingScheduleRecord | null;
+  /** True for a member without a gym Membership: only the summary fields are filled; their training, health and contact data stay private. */
+  walled?: boolean;
+}
+
+/**
+ * What staff may see of a member who holds no gym Membership (the member-data wall, lib/member-tier-wall.ts): who they are and what they
+ * hold, nothing they have logged or told us. Same shape as the full detail, with every private field empty, so the app's staff screen can
+ * show the account and its access controls (the website shows the same on its walled member page). Older app builds simply see blanks.
+ */
+export function getStaffMemberWalledSummary(userId: string): StaffMemberDetail | null {
+  const member = findUserById(userId);
+  if (!member) return null;
+  const profile = findProfileByUserId(member.id);
+  const sub = findSubscriptionByUserId(member.id);
+  const plan = resolveSubscriptionEntitlement(sub);
+  return {
+    userId: member.id,
+    email: member.email,
+    fullName: profile?.fullName ?? null,
+    phone: null,
+    joinedAt: member.createdAt,
+    archivedAt: member.archivedAt ?? null,
+    currentPlanName: plan?.name ?? null,
+    currentStatus: sub?.status ?? null,
+    dateOfBirth: null,
+    primaryGoal: "",
+    sportPlayed: null,
+    emergencyContactName: null,
+    emergencyContactPhone: null,
+    emergencyContact2Name: null,
+    emergencyContact2Phone: null,
+    currentPeriodEnd: sub?.currentPeriodEnd ?? null,
+    totalSessionsLogged: 0,
+    totalBookings: 0,
+    lastSessionDate: null,
+    coachNotes: null,
+    latestReadinessScore: null,
+    personalBests: [],
+    upcomingBookings: [],
+    pastBookings: [],
+    weeklyTrainingSchedule: null,
+    walled: true,
+  };
 }
 
 export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {

@@ -43,6 +43,14 @@ vi.mock("@/lib/member-tier-wall", () => ({ staffCanViewMemberData: mockStaffCanV
 // The allowance status reads the digital entitlement store, which the db mock above does not model; its numbers are tested in the AI allowance tests.
 vi.mock("@/lib/ai-allowance", () => ({ memberAllowanceStatus: () => ({ kind: "free", paused: false, budgetEur: 0, spentEur: 0, dailyCapEur: 0, spentTodayEur: 0 }) }));
 
+// The manager extras on the ai-usage reply (canManage, the gym Membership, grantable packages) read the entitlement and catalog stores, which the db mock
+// above does not model; the access rules themselves are tested in the membership-entitlement and tier-grant tests.
+vi.mock("@/lib/membership-entitlement", () => ({
+  resolveMemberAccessForUser: () => ({ digital: false, gymMembership: false }),
+  resolveSubscriptionEntitlement: () => null,
+}));
+vi.mock("@/lib/tier-grant", () => ({ grantableGymPackages: () => [] }));
+
 const billing = vi.hoisted(() => ({ pauseProviderSubscription: vi.fn(), resumeProviderSubscription: vi.fn() }));
 vi.mock("@/lib/billing", () => billing);
 
@@ -246,8 +254,10 @@ describe("GET /members/[userId]/ai-usage — same-gym authorized controls", () =
     expect(h.findAiUsageLogsByUserId).toHaveBeenCalledWith(A_MEMBER.id);
   });
 
-  it("a coach (members.view) may read within its own gym", async () => {
-    expect((await aiUsage(A_MEMBER.id, A_COACH.id)).status).toBe(200);
+  it("a coach (members.view) may read within its own gym, and is told it may not manage access (no packages or Membership sent)", async () => {
+    const res = await aiUsage(A_MEMBER.id, A_COACH.id);
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toMatchObject({ canManage: false, gymMembership: null, gymPackages: [] });
   });
 
   it("works inside a second tenant", async () => {
@@ -274,7 +284,11 @@ describe("GET /members/[userId]/ai-usage — same-gym authorized controls", () =
     const res = await aiUsage(A_MEMBER.id, A_ADMIN.id);
 
     expect(res.status).toBe(200);
-    expect((await res.json()).data.allowance).toMatchObject({ paused: false });
+    const data = (await res.json()).data;
+    expect(data.allowance).toMatchObject({ paused: false });
+    // The app's staff card follows this flag rather than a role list of its own.
+    expect(data.canManage).toBe(true);
+    expect(data.gymMembership).toMatchObject({ active: false });
   });
 });
 

@@ -38,6 +38,13 @@ function packageInMemberGym(pkg: MembershipPackageRecord, member: Pick<StoredUse
   return !!category && sameGym(member, category);
 }
 
+/** The visible gym packages staff can grant a Membership on for this member (never the App Subscription), in catalog order. */
+export function grantableGymPackages(member: Pick<StoredUser, "gymId">): MembershipPackageRecord[] {
+  return findMembershipPackages()
+    .filter((p) => p.visible && p.deliveryChannel !== "app_only" && packageInMemberGym(p, member))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
 function defaultMembershipPackage(member: Pick<StoredUser, "gymId">): MembershipPackageRecord | undefined {
   return findMembershipPackages()
     .filter((p) => p.deliveryChannel !== "app_only" && packageInMemberGym(p, member))

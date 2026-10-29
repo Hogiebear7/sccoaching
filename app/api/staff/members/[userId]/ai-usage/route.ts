@@ -3,11 +3,15 @@ import type { NextRequest } from "next/server";
 
 import { memberAllowanceStatus } from "@/lib/ai-allowance";
 import { AI_USAGE_RANGES, summarizeAiUsage, type AiUsageRange } from "@/lib/ai-usage";
-import { findAiUsageLogsByUserId, findUserById } from "@/lib/db";
+import { describePackageAllowance } from "@/lib/catalog";
+import { findAiUsageLogsByUserId, findSubscriptionByUserId, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
+import { hasGymMembership } from "@/lib/member-access";
+import { resolveMemberAccessForUser, resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { grantableGymPackages } from "@/lib/tier-grant";
 
 const VALID_RANGES = new Set(AI_USAGE_RANGES.map((r) => r.value));
 
@@ -55,5 +59,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const logs = findAiUsageLogsByUserId(member.id);
   const summary = summarizeAiUsage(logs, range);
 
-  return NextResponse.json({ success: true, data: { ...summary, allowance: memberAllowanceStatus(member.id) } });
+  // For the app's staff card (owner request 2026-10-29): whether THIS staff member may change the member's access (decided here, by the server's
+  // own permission, not by a role list in the app), and for those who may, the member's gym Membership and the packages it can be granted on.
+  const canManage = member.role === "member" && can(staffUser.role, "members.grantTier");
+  const sub = canManage ? findSubscriptionByUserId(member.id) : undefined;
+  const gymMembership = canManage
+    ? {
+        active: hasGymMembership(resolveMemberAccessForUser(member.id)),
+        planName: resolveSubscriptionEntitlement(sub)?.name ?? null,
+        packageId: sub?.packageId ?? null,
+        status: sub?.status ?? null,
+        currentPeriodEnd: sub?.currentPeriodEnd ?? null,
+      }
+    : null;
+  const gymPackages = canManage
+    ? grantableGymPackages(member).map((p) => ({ id: p.id, name: p.name, allowance: describePackageAllowance(p) }))
+    : [];
+
+  return NextResponse.json({
+    success: true,
+    data: { ...summary, allowance: memberAllowanceStatus(member.id), canManage, gymMembership, gymPackages },
+  });
 }

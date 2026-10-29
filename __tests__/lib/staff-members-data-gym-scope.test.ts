@@ -69,3 +69,24 @@ describe("getStaffMembersData — gym-scoped before any lookup", () => {
     expect(h.findSubscriptionByUserId).not.toHaveBeenCalled();
   });
 });
+
+describe("getStaffMemberWalledSummary — a member without a gym Membership", () => {
+  it("shows who they are and what they hold, and nothing they have logged or told us", async () => {
+    const { getStaffMemberWalledSummary } = await import("@/lib/staff-members-data");
+    h.findUserById.mockReturnValue(A1);
+    h.findProfileByUserId.mockReturnValue({
+      fullName: "Walled Member", phone: "0831234567", dateOfBirth: "1990-01-01", emergencyContactName: "Next of kin", emergencyContactPhone: "0870000000",
+    });
+    h.findSubscriptionByUserId.mockReturnValue({ userId: A1.id, status: "canceled", currentPeriodEnd: "2026-10-01T00:00:00.000Z" });
+
+    const s = getStaffMemberWalledSummary(A1.id)!;
+
+    expect(s).toMatchObject({ userId: A1.id, email: A1.email, fullName: "Walled Member", currentStatus: "canceled", walled: true });
+    expect([s.phone, s.dateOfBirth, s.emergencyContactName, s.emergencyContactPhone, s.coachNotes, s.weeklyTrainingSchedule]).toEqual([null, null, null, null, null, null]);
+    expect([s.totalSessionsLogged, s.personalBests.length, s.upcomingBookings.length, s.pastBookings.length]).toEqual([0, 0, 0, 0]);
+    expect(h.findWorkoutSessionsByUserId).not.toHaveBeenCalled();
+    expect(h.findBookingsByUserId).not.toHaveBeenCalled();
+    expect(h.findCoachNoteByUserId).not.toHaveBeenCalled();
+  });
+});
+

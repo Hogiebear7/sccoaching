@@ -53,10 +53,13 @@ vi.mock("@/lib/member-tier-wall", () => ({ staffCanViewMemberData: mockStaffCanV
 vi.mock("@/lib/ai-allowance", () => ({ memberAllowanceStatus: () => ({ kind: "free", paused: false, budgetEur: 0, spentEur: 0, dailyCapEur: 0, spentTodayEur: 0 }) }));
 
 const { mockGrantMemberTier } = vi.hoisted(() => ({ mockGrantMemberTier: vi.fn() }));
-vi.mock("@/lib/tier-grant", () => ({ grantMemberTier: mockGrantMemberTier }));
+vi.mock("@/lib/tier-grant", () => ({ grantMemberTier: mockGrantMemberTier, grantableGymPackages: () => [] }));
 
 const { mockResolveSubscriptionEntitlement } = vi.hoisted(() => ({ mockResolveSubscriptionEntitlement: vi.fn() }));
-vi.mock("@/lib/membership-entitlement", () => ({ resolveSubscriptionEntitlement: mockResolveSubscriptionEntitlement }));
+vi.mock("@/lib/membership-entitlement", () => ({
+  resolveSubscriptionEntitlement: mockResolveSubscriptionEntitlement,
+  resolveMemberAccessForUser: () => ({ digital: false, gymMembership: true }),
+}));
 
 const { mockRemainingSessions } = vi.hoisted(() => ({ mockRemainingSessions: vi.fn() }));
 vi.mock("@/lib/scheduling-status", () => ({ remainingSessions: mockRemainingSessions }));

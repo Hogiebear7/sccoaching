@@ -6,7 +6,7 @@ import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
-import { getStaffMemberDetail } from "@/lib/staff-members-data";
+import { getStaffMemberDetail, getStaffMemberWalledSummary } from "@/lib/staff-members-data";
 
 export async function GET(
   request: NextRequest,
@@ -27,11 +27,12 @@ export async function GET(
   if (!target || !sameGym(staffUser, target)) {
     return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
   }
+  // A member without a gym Membership: their data stays behind the wall, but staff still see who they are and what they hold, so access can be
+  // granted from the app (the website's walled member page does the same). Previously a 403, which left the app's staff screen empty.
   if (!staffCanViewMemberData(userId)) {
-    return NextResponse.json(
-      { success: false, message: "This member's data isn't available until they hold a Membership-tier subscription." },
-      { status: 403 }
-    );
+    const summary = getStaffMemberWalledSummary(userId);
+    if (!summary) return NextResponse.json({ success: false, message: "Member not found." }, { status: 404 });
+    return NextResponse.json({ success: true, data: summary });
   }
   const data = getStaffMemberDetail(userId);
   if (!data) {
