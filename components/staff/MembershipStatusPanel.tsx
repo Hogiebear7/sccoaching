@@ -74,6 +74,15 @@ export function MembershipStatusPanel({
   const [status, setStatus] = useState<SubscriptionStatus>(
     currentStatus && currentStatus !== "paused" ? currentStatus : "inactive"
   );
+  // The selects start from the member's saved Membership, and must follow it when it changes elsewhere on the page (e.g. "Grant gym
+  // Membership" in the panel above, then a refresh). Otherwise the status select kept the old value ("Canceled" beside an Active badge),
+  // and pressing Update would quietly undo the grant. React's "adjust state when a prop changes" pattern: no effect, no extra render pass.
+  const [seenSaved, setSeenSaved] = useState({ currentStatus, currentPackageId });
+  if (seenSaved.currentStatus !== currentStatus || seenSaved.currentPackageId !== currentPackageId) {
+    setSeenSaved({ currentStatus, currentPackageId });
+    setStatus(currentStatus && currentStatus !== "paused" ? currentStatus : "inactive");
+    if (currentPackageId && packages.some((p) => p.id === currentPackageId)) setPackageId(currentPackageId);
+  }
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
