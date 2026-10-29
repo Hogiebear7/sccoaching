@@ -116,6 +116,8 @@ export function buildMembersSheet(staff: Actor, range: ExportRange, now: Date = 
     const lastClass = attended.map((b) => b.date).filter((d) => d <= today).sort().at(-1) ?? null;
     const lastSession = findWorkoutSessionsByUserId(m.id).map((s) => s.date).sort().at(-1) ?? null;
     return {
+      // Not a column: kept on the row so the staff overview can link each at-risk member to their page.
+      userId: m.id,
       name: profile?.fullName ?? null,
       email: m.email,
       // Contact details are the member's own data: like the rest of it, only for members who hold a gym Membership.

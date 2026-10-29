@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import type { StaffToday } from "@/lib/staff-today";
+import { TodaySection } from "./TodaySection";
+
 import type {
   ClassCategoryRecord,
   JobRunRecord,
@@ -49,6 +52,7 @@ export function OperationsView({
   classTypes,
   emailSettings,
   readinessAlertSettings,
+  today,
 }: {
   members: MemberOperationalSummary[];
   classes: ClassPressureSummary[];
@@ -58,6 +62,8 @@ export function OperationsView({
   classTypes: ClassTypeRow[];
   emailSettings: TransactionalEmailSettings;
   readinessAlertSettings: ReadinessAlertSettings;
+  /** "This month" figures and the At-risk list (lib/staff-today.ts). */
+  today: StaffToday;
 }) {
   const router = useRouter();
   const [isRunning, setIsRunning] = useState(false);
@@ -131,6 +137,8 @@ export function OperationsView({
           Membership state, session usage, readiness, and class pressure at a glance.
         </p>
       </div>
+
+      <TodaySection today={today} />
 
       {/* Summary stats */}
       <div className="grid gap-4 sm:grid-cols-3">
