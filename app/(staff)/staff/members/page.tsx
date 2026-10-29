@@ -5,10 +5,13 @@ import { can } from "@/lib/permissions";
 import { requireStaffPage } from "@/lib/staff-auth";
 import {
   findMembersAndStaff,
+  findMembershipPackageById,
+  findStaffMemberStars,
   findMembershipPackages,
   findProfileByUserId,
   findSubscriptionByUserId,
 } from "@/lib/db";
+import { memberListGroup } from "@/lib/member-list-group";
 import { remainingSessions } from "@/lib/scheduling-status";
 import { MembersActivationView } from "./MembersActivationView";
 
@@ -25,6 +28,7 @@ export default async function StaffMembersPage() {
   // (not findMembers) so every staff account's own AI usage is reachable
   // from this same list — see lib/db.ts's comment on that function.
   const members = findMembersAndStaff().filter((m) => sameGym(staffUser, m));
+  const starred = new Set(findStaffMemberStars().map((s) => s.userId));
 
   const rows = members.map((member) => {
     const profile = findProfileByUserId(member.id);
@@ -47,6 +51,9 @@ export default async function StaffMembersPage() {
       currentStatus: isStaffRow ? null : (sub?.status ?? null),
       currentPeriodEnd: isStaffRow ? null : (sub?.currentPeriodEnd ?? null),
       currentRemainingSessions: isStaffRow ? null : (plan && sub ? remainingSessions(plan, sub) : null),
+      // Staff rows are always listed; for members the group decides whether they show by default (lib/member-list-group.ts).
+      membershipGroup: isStaffRow ? null : memberListGroup(sub, findMembershipPackageById),
+      starred: !isStaffRow && starred.has(member.id),
     };
   });
 

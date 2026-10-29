@@ -43,6 +43,8 @@ vi.mock("next/navigation", () => ({ redirect: mockRedirect }));
 
 const h = vi.hoisted(() => ({
   findUserById: vi.fn(),
+  findStaffMemberStars: vi.fn(() => []),
+  findMembershipPackageById: vi.fn(),
   findMessageThreadSummaries: vi.fn(),
   findProfileByUserId: vi.fn(),
   findMembersAndStaff: vi.fn(),

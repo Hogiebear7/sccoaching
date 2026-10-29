@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
   findClassById: vi.fn(),
   findCoachNoteByUserId: vi.fn(),
   findMembers: vi.fn(),
+  findMembershipPackageById: vi.fn(),
+  findStaffMemberStars: vi.fn((): { userId: string; starredByStaffId: string; starredAt: string }[] => []),
   findProfileByUserId: vi.fn(),
   findRecoveryLogsByUserId: vi.fn(),
   findSubscriptionByUserId: vi.fn(),
@@ -19,7 +21,7 @@ const h = vi.hoisted(() => ({
   findWorkoutSessionsByUserId: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
-vi.mock("@/lib/membership-entitlement", () => ({ resolveSubscriptionEntitlement: () => null }));
+vi.mock("@/lib/membership-entitlement", () => ({ resolveSubscriptionEntitlement: () => null, resolveMemberAccessForUser: () => ({ digital: false, gymMembership: true }) }));
 
 const member = (id: string, gymId: string | null) => ({
   id,
@@ -87,6 +89,28 @@ describe("getStaffMemberWalledSummary — a member without a gym Membership", ()
     expect(h.findWorkoutSessionsByUserId).not.toHaveBeenCalled();
     expect(h.findBookingsByUserId).not.toHaveBeenCalled();
     expect(h.findCoachNoteByUserId).not.toHaveBeenCalled();
+  });
+});
+
+describe("getStaffMembersData — groups, stars and the phone number", () => {
+  it("each row carries its list group and star, and a member without a gym Membership has no phone number in the list", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/membership-entitlement", () => ({
+      resolveSubscriptionEntitlement: () => null,
+      resolveMemberAccessForUser: (id: string) => ({ digital: false, gymMembership: id === "member-a1" }),
+    }));
+    const { getStaffMembersData } = await import("@/lib/staff-members-data");
+    h.findMembershipPackageById.mockReturnValue({ deliveryChannel: "in_person" });
+    h.findSubscriptionByUserId.mockImplementation((id: string) => (id === "member-a1" ? { userId: id, packageId: "p", status: "active" } : undefined));
+    h.findStaffMemberStars.mockReturnValue([{ userId: "member-a2", starredByStaffId: "s", starredAt: "now" }]);
+
+    const rows = getStaffMembersData({ gymId: null });
+
+    expect(rows.map((r) => [r.userId, r.membershipGroup, r.starred, r.phone])).toEqual([
+      ["member-a1", "current", false, "123"],
+      ["member-a2", "none", true, null],
+    ]);
+    vi.doUnmock("@/lib/membership-entitlement");
   });
 });
 

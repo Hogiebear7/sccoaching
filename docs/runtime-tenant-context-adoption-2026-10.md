@@ -1,6 +1,6 @@
 # Runtime tenant context: adoption status (2026-10-07)
 
-**Status:** partially adopted. **This is not a full migration.** Eleven routes derive their tenant through
+**Status:** partially adopted. **This is not a full migration.** Twelve routes derive their tenant through
 `lib/tenant-request.ts` at runtime. The other 221 routes still rely on the existing `sameGym` family of checks, which are
 tested route by route but are not funnelled through one boundary.
 
@@ -37,6 +37,7 @@ route's one 404 never confirms that a guessed id exists elsewhere.
 | `staff/members/bulk-tier` | tenant-staff | session, then `loadTenantUser` for every target |
 | `staff/members/[userId]/subscription` | tenant-staff | session, then `loadTenantUser` for the target |
 | `staff/members/[userId]/ai-pause` | tenant-staff | session, then `loadTenantUser` for the target (added 2026-10-27) |
+| `staff/members/[userId]/star` | tenant-staff | session, then `loadTenantUser` for the target (added 2026-10-29) |
 | `admin/membership/activate` | tenant-staff | session, then `loadTenantUser` for the target |
 | `membership/checkout` | self-tenant-checked | session, then `inTenant` for the catalogue ownership check |
 <!-- converted:end -->

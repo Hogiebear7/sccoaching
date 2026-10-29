@@ -3,6 +3,8 @@ import {
   findClassById,
   findCoachNoteByUserId,
   findMembers,
+  findMembershipPackageById,
+  findStaffMemberStars,
   findProfileByUserId,
   findRecoveryLogsByUserId,
   findSubscriptionByUserId,
@@ -12,7 +14,9 @@ import {
 } from "./db";
 import { sameGym } from "./gym-scope";
 import { classStartMs } from "@/lib/class-time";
-import { resolveSubscriptionEntitlement } from "./membership-entitlement";
+import { memberListGroup, type MemberListGroup } from "./member-list-group";
+import { hasGymMembership } from "./member-access";
+import { resolveMemberAccessForUser, resolveSubscriptionEntitlement } from "./membership-entitlement";
 import type { WeeklyTrainingScheduleRecord } from "./profile-schema";
 import {
   computePersonalBests,
@@ -29,6 +33,10 @@ export interface StaffMemberSummary {
   archivedAt: string | null;
   currentPlanName: string | null;
   currentStatus: string | null;
+  /** Which list group the member is in: current, paused, past or none (lib/member-list-group.ts). */
+  membershipGroup: MemberListGroup;
+  /** Starred by the gym's staff, to find a member easily (usually one without a gym Membership). */
+  starred: boolean;
 }
 
 // Mobile-first staff member list: everything needed to search and identify
@@ -43,19 +51,24 @@ export interface StaffMemberSummary {
 // Only caller: the mobile staff members route.
 export function getStaffMembersData(staff: { gymId?: string | null }): StaffMemberSummary[] {
   const ownMembers = findMembers().filter((member) => sameGym(staff, member));
+  const starred = new Set(findStaffMemberStars().map((s) => s.userId));
   return ownMembers.map((member) => {
     const profile = findProfileByUserId(member.id);
     const sub = findSubscriptionByUserId(member.id);
     const plan = resolveSubscriptionEntitlement(sub);
+    // The phone number is the member's own data: like the rest of it, staff only see it while the member holds a gym Membership.
+    const walled = !hasGymMembership(resolveMemberAccessForUser(member.id));
     return {
       userId: member.id,
       email: member.email,
       fullName: profile?.fullName ?? null,
-      phone: profile?.phone ?? null,
+      phone: walled ? null : profile?.phone ?? null,
       joinedAt: member.createdAt,
       archivedAt: member.archivedAt ?? null,
       currentPlanName: plan?.name ?? null,
       currentStatus: sub?.status ?? null,
+      membershipGroup: memberListGroup(sub, findMembershipPackageById),
+      starred: starred.has(member.id),
     };
   });
 }
@@ -118,6 +131,8 @@ export function getStaffMemberWalledSummary(userId: string): StaffMemberDetail |
     archivedAt: member.archivedAt ?? null,
     currentPlanName: plan?.name ?? null,
     currentStatus: sub?.status ?? null,
+    membershipGroup: memberListGroup(sub, findMembershipPackageById),
+    starred: findStaffMemberStars().some((st) => st.userId === member.id),
     dateOfBirth: null,
     primaryGoal: "",
     sportPlayed: null,
@@ -198,6 +213,8 @@ export function getStaffMemberDetail(userId: string): StaffMemberDetail | null {
     archivedAt: member.archivedAt ?? null,
     currentPlanName: plan?.name ?? null,
     currentStatus: sub?.status ?? null,
+    membershipGroup: memberListGroup(sub, findMembershipPackageById),
+    starred: findStaffMemberStars().some((st) => st.userId === member.id),
     dateOfBirth: profile?.dateOfBirth ?? null,
     primaryGoal: profile?.primaryGoal ?? "General Health",
     sportPlayed: profile?.sportPlayed ?? null,

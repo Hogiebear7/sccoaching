@@ -902,6 +902,14 @@ export interface CoachNoteRecord {
   updatedAt: string;
 }
 
+// A member staff have starred so they are easy to find in the member lists, typically someone without a gym Membership (who is hidden by
+// default). One row per member, shared by the gym's staff; removing the star deletes the row. Owner request 2026-10-29.
+export interface StaffMemberStarRecord {
+  userId: string;
+  starredByStaffId: string;
+  starredAt: string;
+}
+
 export type BillingInterval = "monthly" | "quarterly" | "annual";
 
 // The internal, plan-shaped ENTITLEMENT view a subscription resolves to.
@@ -2181,6 +2189,7 @@ interface Database {
   noShows: NoShowRecord[];
   attendanceWatchlist: WatchlistEntryRecord[];
   coachNotes: CoachNoteRecord[];
+  staffMemberStars: StaffMemberStarRecord[];
   membershipCategories: MembershipCategoryRecord[];
   membershipPackages: MembershipPackageRecord[];
   gyms: GymRecord[];
@@ -2326,6 +2335,7 @@ function normalizeDatabase(raw: string | null): Database {
       noShows: [],
       attendanceWatchlist: [],
       coachNotes: [],
+      staffMemberStars: [],
       membershipCategories: [],
       membershipPackages: [],
       gyms: [],
@@ -2481,6 +2491,7 @@ function normalizeDatabase(raw: string | null): Database {
     noShows: parsed.noShows ?? [],
     attendanceWatchlist: parsed.attendanceWatchlist ?? [],
     coachNotes: parsed.coachNotes ?? [],
+    staffMemberStars: parsed.staffMemberStars ?? [],
     membershipCategories: (parsed.membershipCategories ?? []).map((c) => ({
       ...c,
       gymId: c.gymId ?? null,
@@ -2781,7 +2792,7 @@ const MEMBER_OWNED_COLLECTIONS = [
   "workoutSessions", "aiMessages", "bodyWeightLogs", "bodyFatLogs", "bookings", "noShows",
   "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
-  "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "weeklyTrainingSchedules",
+  "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "staffMemberStars", "weeklyTrainingSchedules",
   "nutritionTargets", "nutritionDayStatuses", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
   "recipes", "shoppingListItems", "foodFavorites",
   // Bug reports carry free text and screenshots the member wrote, so they go with the account.
@@ -3705,6 +3716,20 @@ export function saveCoachNote(note: CoachNoteRecord) {
     db.coachNotes[index] = note;
   }
 
+  writeDb(db);
+}
+
+export function findStaffMemberStars(): StaffMemberStarRecord[] {
+  return readDb().staffMemberStars;
+}
+
+/** Stars or unstars a member. Read and write in one turn, so concurrent stars cannot lose each other. */
+export function setStaffMemberStar(userId: string, starred: boolean, staffUserId: string): void {
+  const db = readDb();
+  const index = db.staffMemberStars.findIndex((s) => s.userId === userId);
+  if (starred && index === -1) db.staffMemberStars.push({ userId, starredByStaffId: staffUserId, starredAt: new Date().toISOString() });
+  else if (!starred && index !== -1) db.staffMemberStars.splice(index, 1);
+  else return;
   writeDb(db);
 }
 

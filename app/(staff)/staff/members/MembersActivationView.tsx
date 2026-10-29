@@ -29,7 +29,27 @@ export type MemberRow = {
   currentStatus: SubscriptionStatus | null;
   currentPeriodEnd: string | null;
   currentRemainingSessions: number | null;
+  /** Members only (null for staff rows): which list group they are in (lib/member-list-group.ts). */
+  membershipGroup: "current" | "paused" | "past" | "none" | null;
+  starred: boolean;
 };
+
+// Which members the list shows (owner request 2026-10-29). By default only the gym's own members (current and paused); the rest are a filter
+// away, starred members have their own view, and a search always looks through everyone. Staff accounts are always listed.
+type GroupFilter = "current" | "past" | "none" | "starred" | "all";
+const GROUP_FILTER_LABEL: Record<GroupFilter, string> = {
+  current: "Current & paused",
+  past: "Past members",
+  none: "Non-members",
+  starred: "Starred",
+  all: "Everyone",
+};
+function inGroupFilter(row: MemberRow, filter: GroupFilter): boolean {
+  if (row.role !== "member" || filter === "all") return true;
+  if (filter === "starred") return row.starred;
+  if (filter === "current") return row.membershipGroup === "current" || row.membershipGroup === "paused";
+  return row.membershipGroup === filter;
+}
 
 type SortOrder = "name-asc" | "name-desc" | "joined-desc" | "joined-asc";
 type ExpiryFilter = "all" | "expiring-30" | "expired" | "no-expiry";
@@ -103,6 +123,7 @@ export function MembersActivationView({
   const [expiryFilter, setExpiryFilter] = useState<ExpiryFilter>("all");
   const [planFilter, setPlanFilter] = useState<string>("all");
   const [showArchived, setShowArchived] = useState(false);
+  const [groupFilter, setGroupFilter] = useState<GroupFilter>("current");
   const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -134,7 +155,8 @@ export function MembersActivationView({
       if (row.role !== "member" && (expiryFilter !== "all" || planFilter !== "all")) return false;
       if (!matchesExpiry(row, expiryFilter)) return false;
       if (planFilter !== "all" && row.currentPlanName !== planFilter) return false;
-      if (!query) return true;
+      // A search looks through everyone; without one, the group filter decides.
+      if (!query) return inGroupFilter(row, groupFilter);
       // First name, last name, or email — a plain substring match covers all
       // three without needing to split names.
       return (
@@ -155,7 +177,7 @@ export function MembersActivationView({
           return a.joinedAt.localeCompare(b.joinedAt);
       }
     });
-  }, [rows, search, sortOrder, expiryFilter, planFilter, showArchived]);
+  }, [rows, search, sortOrder, expiryFilter, planFilter, showArchived, groupFilter]);
 
   const selectableVisibleIds = useMemo(
     () => visibleRows.filter((row) => row.role === "member").map((row) => row.userId),
@@ -221,7 +243,7 @@ export function MembersActivationView({
 
   // Reset back to page 1 whenever the underlying result set could have
   // shifted out from under the current page (new search, filter, or size).
-  const resultsKey = `${search}|${sortOrder}|${expiryFilter}|${planFilter}|${showArchived}|${pageSize}`;
+  const resultsKey = `${search}|${sortOrder}|${expiryFilter}|${planFilter}|${showArchived}|${groupFilter}|${pageSize}`;
   const [lastResultsKey, setLastResultsKey] = useState(resultsKey);
   if (resultsKey !== lastResultsKey) {
     setLastResultsKey(resultsKey);
@@ -293,6 +315,18 @@ export function MembersActivationView({
             aria-label="Search members by name or email"
             className="min-w-[180px] flex-1 input-field px-3 py-2 text-sm"
           />
+          <select
+            value={groupFilter}
+            onChange={(e) => setGroupFilter(e.target.value as GroupFilter)}
+            aria-label="Which members to show"
+            className="input-field px-3 py-2 text-sm"
+          >
+            {(Object.keys(GROUP_FILTER_LABEL) as GroupFilter[]).map((value) => (
+              <option key={value} value={value}>
+                {GROUP_FILTER_LABEL[value]}
+              </option>
+            ))}
+          </select>
           <select
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value as SortOrder)}
@@ -420,7 +454,9 @@ export function MembersActivationView({
         <p className="text-sm text-muted-foreground">No member accounts yet.</p>
       ) : visibleRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No members match the current search and filters.
+          {search.trim()
+            ? "No members match the current search and filters."
+            : `No members in "${GROUP_FILTER_LABEL[groupFilter]}". Search by name or email to find anyone.`}
         </p>
       ) : (
         <div className="space-y-3">
@@ -497,6 +533,28 @@ function MemberCard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [isStarring, setIsStarring] = useState(false);
+
+  async function toggleStar() {
+    setIsStarring(true);
+    try {
+      const res = await fetch(`/api/staff/members/${row.userId}/star`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ starred: !row.starred }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.message ?? "Could not change the star. Please try again.");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsStarring(false);
+    }
+  }
 
   const periodLapsed =
     row.currentStatus !== null &&
@@ -554,6 +612,19 @@ function MemberCard({
               aria-label={`Select ${row.fullName ?? row.email} for bulk tier grant`}
               className="mt-1 h-4 w-4 shrink-0 accent-primary"
             />
+          ) : null}
+          {row.role === "member" ? (
+            <button
+              type="button"
+              onClick={toggleStar}
+              disabled={isStarring}
+              aria-pressed={row.starred}
+              aria-label={row.starred ? `Remove the star from ${row.fullName ?? row.email}` : `Star ${row.fullName ?? row.email}`}
+              title={row.starred ? "Starred" : "Star to find them easily"}
+              className={`-mt-0.5 shrink-0 text-lg leading-none transition disabled:opacity-50 ${row.starred ? "text-gold" : "text-muted-foreground/50 hover:text-gold"}`}
+            >
+              {row.starred ? "★" : "☆"}
+            </button>
           ) : null}
           <div className="min-w-0">
           <p className="truncate text-sm font-semibold">

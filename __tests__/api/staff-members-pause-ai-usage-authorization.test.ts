@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   findSubscriptionByUserId: vi.fn(),
   saveSubscription: vi.fn(),
   findAiUsageLogsByUserId: vi.fn(),
+  setStaffMemberStar: vi.fn(),
 }));
 // updateSubscription is the real helper's contract: change the row as it is NOW. The mock applies the patch to the row the test arranged and records the merged row through saveSubscription, so the assertions below still see the final record.
 vi.mock("@/lib/db", () => ({
@@ -375,3 +376,37 @@ describe("GET /members/[userId]/ai-usage — wrong role, no session, archived an
     }
   });
 });
+
+describe("POST /members/[userId]/star — any same-gym staff who can view members (owner request 2026-10-29)", () => {
+  async function star(targetId: string, body: unknown, as?: string) {
+    const { POST } = await import("@/app/api/staff/members/[userId]/star/route");
+    return POST(new NextRequest(`http://localhost/api/staff/members/${targetId}/star`, { method: "POST", headers: headers(as), body: JSON.stringify(body) }), {
+      params: Promise.resolve({ userId: targetId }),
+    });
+  }
+
+  it("a coach stars and unstars a member of their own gym", async () => {
+    expect((await star(A_MEMBER.id, { starred: true }, A_COACH.id)).status).toBe(200);
+    expect(h.setStaffMemberStar).toHaveBeenLastCalledWith(A_MEMBER.id, true, A_COACH.id);
+    expect((await star(A_MEMBER.id, { starred: false }, A_COACH.id)).status).toBe(200);
+    expect(h.setStaffMemberStar).toHaveBeenLastCalledWith(A_MEMBER.id, false, A_COACH.id);
+  });
+
+  it("another gym's member reads as not found, and nothing is written", async () => {
+    expect((await star(B_MEMBER.id, { starred: true }, A_COACH.id)).status).toBe(404);
+    expect(h.setStaffMemberStar).not.toHaveBeenCalled();
+  });
+
+  it("a member cannot star, nobody signed in cannot star, and a staff account cannot be starred", async () => {
+    expect((await star(A_MEMBER.id, { starred: true }, A_MEMBER_PLAIN.id)).status).toBe(403);
+    expect((await star(A_MEMBER.id, { starred: true })).status).toBe(401);
+    expect((await star(A_COACH.id, { starred: true }, A_ADMIN.id)).status).toBe(404);
+    expect(h.setStaffMemberStar).not.toHaveBeenCalled();
+  });
+
+  it("starred must be true or false", async () => {
+    expect((await star(A_MEMBER.id, { starred: "yes" }, A_COACH.id)).status).toBe(400);
+    expect(h.setStaffMemberStar).not.toHaveBeenCalled();
+  });
+});
+
