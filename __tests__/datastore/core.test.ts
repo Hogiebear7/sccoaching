@@ -124,6 +124,15 @@ describe("no stale snapshot can overwrite newer data", () => {
     await endTurn();
   });
 
+  it("a metadata-only touch between reading and writing (the production scanner) does not block the commit", async () => {
+    await commit(["base"]);
+    const { text, epoch } = core.readInTurn(db, { allowNew: true });
+    fs.chmodSync(db, 0o600); // ctime moves, content does not
+    core.writeInTurn(db, JSON.stringify({ items: JSON.parse(text!).items.concat("mine") }), epoch);
+    await endTurn();
+    expect(content().items).toEqual(["base", "mine"]);
+  });
+
   it("refuses to commit if the lock was taken away from this process", async () => {
     const { epoch } = core.readInTurn(db, { allowNew: true });
     fs.unlinkSync(lockPath());
@@ -353,13 +362,20 @@ describe("a writer that does not take the lock is DETECTED (an old build run aga
     expect(core._foreignWriteCount()).toBe(before + 1);
   });
 
-  it("a change of metadata alone (ctime, as a scanner tagging the file does) is not reported", async () => {
-    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  it("a change of metadata alone (ctime, as a scanner tagging the file does) changes nothing: not reported, and the identity stays the same", async () => {
+    const warn = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     await commit(["a"]);
-    const parts = core._identityOf(db).split(":");
+    const identity = core._identityOf(db);
+    // Exactly device, inode, creation time, size and mtime: no ctime (some filesystems, Windows among them, do not move ctime on chmod, so this is checked directly).
+    const st = fs.statSync(db, { bigint: true });
+    expect(identity).toBe(`${st.dev}:${st.ino}:${st.birthtimeNs}:${st.size}:${st.mtimeNs}`);
     const before = core._foreignWriteCount();
-    core._noteForeignWrite(db, [...parts.slice(0, 5), String(BigInt(parts[5]) + BigInt(900000000))].join(":"));
+    fs.chmodSync(db, 0o600); // a metadata-only change moves ctime and nothing else
+    expect(core._identityOf(db)).toBe(identity);
+    core.readInTurn(db, { allowNew: true });
+    await endTurn();
     expect(core._foreignWriteCount()).toBe(before);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("the identity carries the file's creation time", async () => {
