@@ -12,9 +12,9 @@ vi.mock("@/lib/db", () => ({
   findUserByEmail: mockFindUserByEmail,
 }));
 
-async function callLogin(body: unknown) {
-  const { POST } = await import("@/app/api/auth/login/route");
-  const request = new Request("http://localhost/api/auth/login", {
+async function callLogin(body: unknown, route: "web" | "mobile" = "web") {
+  const { POST } = route === "web" ? await import("@/app/api/auth/login/route") : await import("@/app/api/mobile/auth/login/route");
+  const request = new Request(route === "web" ? "http://localhost/api/auth/login" : "http://localhost/api/mobile/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -117,5 +117,40 @@ describe("POST /api/auth/login", () => {
     // A different email is unaffected.
     const other = await callLogin({ email: "someone-else@example.com", password: "guess" });
     expect(other.status).toBe(401);
+  });
+
+  // Only failed sign-ins count towards the lockout (owner request 2026-10-29): signing in on several devices must never lock a member out.
+  describe.each(["web", "mobile"] as const)("lockout counts only failed sign-ins (%s)", (route) => {
+    const member = () => ({
+      id: "user-1",
+      email: "athlete@example.com",
+      passwordHash: hashPassword("correct-horse-battery-staple"),
+      createdAt: "now",
+      updatedAt: "now",
+    });
+
+    it("many correct sign-ins in a row are never locked out", async () => {
+      mockFindUserByEmail.mockReturnValue(member());
+      for (let i = 0; i < 8; i++) {
+        const res = await callLogin({ email: "athlete@example.com", password: "correct-horse-battery-staple" }, route);
+        expect(res.status).toBe(200);
+      }
+    });
+
+    it("a correct sign-in resets the count of earlier wrong passwords", async () => {
+      mockFindUserByEmail.mockReturnValue(member());
+      for (let i = 0; i < 4; i++) expect((await callLogin({ email: "athlete@example.com", password: "wrong" }, route)).status).toBe(401);
+      expect((await callLogin({ email: "athlete@example.com", password: "correct-horse-battery-staple" }, route)).status).toBe(200);
+      for (let i = 0; i < 4; i++) expect((await callLogin({ email: "athlete@example.com", password: "wrong" }, route)).status).toBe(401);
+      expect((await callLogin({ email: "athlete@example.com", password: "wrong" }, route)).status).toBe(401);
+      expect((await callLogin({ email: "athlete@example.com", password: "wrong" }, route)).status).toBe(429);
+    });
+
+    it("during a lockout the correct password is still refused", async () => {
+      mockFindUserByEmail.mockReturnValue(member());
+      for (let i = 0; i < 5; i++) await callLogin({ email: "athlete@example.com", password: "wrong" }, route);
+      const res = await callLogin({ email: "athlete@example.com", password: "correct-horse-battery-staple" }, route);
+      expect(res.status).toBe(429);
+    });
   });
 });

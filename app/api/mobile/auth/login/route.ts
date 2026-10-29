@@ -4,7 +4,7 @@ import { findUserByEmail } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { isStaffRole } from "@/lib/permissions";
 import { MEMBER_SESSION_LIFETIME_MS, STAFF_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 
 // Same credential/rate-limit rules as the web login route (app/api/auth/
 // login/route.ts) — this just returns the token in the JSON body instead
@@ -30,7 +30,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const rate = checkRateLimit(`login:${email.trim().toLowerCase()}`, LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_MS);
+  const rateKey = `login:${email.trim().toLowerCase()}`;
+  const rate = checkRateLimit(rateKey, LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_MS);
   if (!rate.allowed) {
     return NextResponse.json(
       { success: false, message: "Too many attempts. Try again shortly, or reset your password." },
@@ -50,6 +51,9 @@ export async function POST(request: Request) {
       { status: 403 }
     );
   }
+
+  // Only failed sign-ins count towards the lockout: a correct one clears this email's count.
+  clearRateLimit(rateKey);
 
   // Staff/admin also log in through this endpoint (that's how the
   // /api/mobile/staff/* routes get authenticated) — pick the lifetime from

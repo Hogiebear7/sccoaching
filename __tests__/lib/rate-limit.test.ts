@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { checkRateLimit, resetRateLimits } from "@/lib/rate-limit";
+import { checkRateLimit, clearRateLimit, resetRateLimits } from "@/lib/rate-limit";
 
 describe("checkRateLimit", () => {
   beforeEach(() => {
@@ -41,5 +41,20 @@ describe("checkRateLimit", () => {
     }
     expect(checkRateLimit("user-1", 3, 60_000, t0 + 1).allowed).toBe(false);
     expect(checkRateLimit("user-2", 3, 60_000, t0 + 1).allowed).toBe(true);
+  });
+
+  it("clearRateLimit forgets one key's events and leaves other keys alone", () => {
+    const t0 = 1_000_000;
+    for (let i = 0; i < 3; i++) {
+      checkRateLimit("user-1", 3, 60_000, t0);
+      checkRateLimit("user-2", 3, 60_000, t0);
+    }
+    clearRateLimit("user-1");
+    expect(checkRateLimit("user-1", 3, 60_000, t0 + 1).allowed).toBe(true);
+    expect(checkRateLimit("user-2", 3, 60_000, t0 + 1).allowed).toBe(false);
+  });
+
+  it("clearRateLimit on an unknown key is harmless", () => {
+    expect(() => clearRateLimit("never-seen")).not.toThrow();
   });
 });

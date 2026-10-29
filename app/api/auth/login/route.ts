@@ -4,7 +4,7 @@ import { findUserByEmail } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { isStaffRole } from "@/lib/permissions";
 import { MEMBER_SESSION_LIFETIME_MS, STAFF_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 
 // Keyed by the submitted email (not IP) — the goal is stopping credential
 // stuffing / brute force against one account, regardless of how many
@@ -33,7 +33,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const rate = checkRateLimit(`login:${email.trim().toLowerCase()}`, LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_MS);
+  const rateKey = `login:${email.trim().toLowerCase()}`;
+  const rate = checkRateLimit(rateKey, LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_MS);
   if (!rate.allowed) {
     return NextResponse.json(
       { success: false, message: "Too many attempts. Try again shortly, or reset your password." },
@@ -58,6 +59,9 @@ export async function POST(request: Request) {
       { status: 403 }
     );
   }
+
+  // Only failed sign-ins count towards the lockout: a correct one clears this email's count.
+  clearRateLimit(rateKey);
 
   const response = NextResponse.json(
     { success: true, message: "Logged in." },

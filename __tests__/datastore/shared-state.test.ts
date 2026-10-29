@@ -40,6 +40,14 @@ describe("shared rate limiter", () => {
     expect(/allowed=(\d+)/.exec(again.out)?.[1]).toBe("0"); // the earlier process's counts are still there
   }, 60_000);
 
+  it("clearing a key in one process clears it for every process (a correct sign-in resets the shared login count)", async () => {
+    expect(/allowed=(\d+)/.exec((await run("limiter-worker.mts", ["login:a@example.test", "3", "5"])).out)?.[1]).toBe("3");
+    expect(/allowed=(\d+)/.exec((await run("limiter-worker.mts", ["login:b@example.test", "3", "5"])).out)?.[1]).toBe("3");
+    expect((await run("limiter-worker.mts", ["login:a@example.test", "0", "0", "clear"])).out).toContain("cleared");
+    expect(/allowed=(\d+)/.exec((await run("limiter-worker.mts", ["login:a@example.test", "3", "5"])).out)?.[1]).toBe("3");
+    expect(/allowed=(\d+)/.exec((await run("limiter-worker.mts", ["login:b@example.test", "3", "5"])).out)?.[1]).toBe("0");
+  }, 60_000);
+
   it("falls back to the process's own counters, instead of failing the request, when the shared file cannot be used", async () => {
     fs.mkdirSync(path.join(dir, "rate-limits.json")); // a directory where the counters file should be
     const r = await run("limiter-worker.mts", ["k", "2", "5"]);

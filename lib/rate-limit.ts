@@ -70,28 +70,56 @@ function sharedMode(): boolean {
 const SHARED_FILE_VERSION = 1;
 const sharedFile = () => path.join(dataDirectory(), "rate-limits.json");
 
+// Read and write the shared counters file. Call only while holding its lock.
+function readShared(file: string): Map<string, WindowState> {
+  const store = new Map<string, WindowState>();
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (raw?.v === SHARED_FILE_VERSION && raw.buckets && typeof raw.buckets === "object") {
+      for (const [k, v] of Object.entries(raw.buckets as Record<string, { t?: unknown; w?: unknown }>)) {
+        if (Array.isArray(v?.t) && typeof v?.w === "number") store.set(k, { timestamps: v.t.filter((n): n is number => typeof n === "number"), windowMs: v.w });
+      }
+    }
+  } catch {
+    // missing or unreadable counters start empty: rate-limit state is disposable
+  }
+  return store;
+}
+
+function writeShared(file: string, store: Map<string, WindowState>): void {
+  const out: Record<string, { t: number[]; w: number }> = {};
+  for (const [k, v] of store) out[k] = { t: v.timestamps, w: v.windowMs };
+  replaceFileAtomically(file, JSON.stringify({ v: SHARED_FILE_VERSION, buckets: out }));
+}
+
 function checkShared(key: string, limit: number, windowMs: number, now: number): RateLimitResult {
   const file = sharedFile();
   return withFileLock(file, () => {
-    const store = new Map<string, WindowState>();
-    try {
-      const raw = JSON.parse(fs.readFileSync(file, "utf8"));
-      if (raw?.v === SHARED_FILE_VERSION && raw.buckets && typeof raw.buckets === "object") {
-        for (const [k, v] of Object.entries(raw.buckets as Record<string, { t?: unknown; w?: unknown }>)) {
-          if (Array.isArray(v?.t) && typeof v?.w === "number") store.set(k, { timestamps: v.t.filter((n): n is number => typeof n === "number"), windowMs: v.w });
-        }
-      }
-    } catch {
-      // missing or unreadable counters start empty: rate-limit state is disposable
-    }
+    const store = readShared(file);
     const result = decide(store, key, limit, windowMs, now, true);
-    if (result.allowed) {
-      const out: Record<string, { t: number[]; w: number }> = {};
-      for (const [k, v] of store) out[k] = { t: v.timestamps, w: v.windowMs };
-      replaceFileAtomically(file, JSON.stringify({ v: SHARED_FILE_VERSION, buckets: out }));
-    }
+    if (result.allowed) writeShared(file, store);
     return result;
   });
+}
+
+/**
+ * Forgets every counted event for a key, in both stores. Login calls it after a correct password, so only failed sign-ins build up towards the lockout
+ * (a member signing in on a phone, a tablet and the website is never locked out). A locked-out key is still refused by checkRateLimit before the password is
+ * checked, so this never lets a guesser through.
+ */
+export function clearRateLimit(key: string): void {
+  const bucketKey = boundedKey(key);
+  buckets.delete(bucketKey);
+  if (!sharedMode()) return;
+  try {
+    const file = sharedFile();
+    withFileLock(file, () => {
+      const store = readShared(file);
+      if (store.delete(bucketKey)) writeShared(file, store);
+    });
+  } catch (e) {
+    console.error("[rate-limit] shared counters unavailable, could not clear a key:", e instanceof Error ? e.message : e);
+  }
 }
 
 export function checkRateLimit(
