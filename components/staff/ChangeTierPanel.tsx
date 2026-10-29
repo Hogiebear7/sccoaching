@@ -43,6 +43,9 @@ export function ChangeTierPanel({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  // Optional, for complimentary digital access only: an end date (the grant runs through that day) and a note for the audit trail.
+  const [endsOn, setEndsOn] = useState("");
+  const [note, setNote] = useState("");
 
   const legacyComp = access.digital && !digitalPlan;
   const hasComplimentary = digitalPlan?.source === "staff_grant" || legacyComp;
@@ -56,7 +59,9 @@ export function ChangeTierPanel({
       const res = await fetch(`/api/staff/members/${memberId}/tier`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier: action }),
+        body: JSON.stringify(
+          action === "app_subscription" ? { tier: action, endsOn: endsOn || null, note: note.trim() || null } : { tier: action }
+        ),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -64,6 +69,10 @@ export function ChangeTierPanel({
         return;
       }
       setSuccessMessage(data?.message ?? "Access updated.");
+      if (action === "app_subscription") {
+        setEndsOn("");
+        setNote("");
+      }
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
@@ -129,14 +138,42 @@ export function ChangeTierPanel({
           ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             {!hasComplimentary ? (
-              <button
-                type="button"
-                onClick={() => send("app_subscription")}
-                disabled={pending !== null}
-                className="btn-primary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {pending === "app_subscription" ? "Saving…" : "Grant complimentary digital access"}
-              </button>
+              <div className="flex w-full flex-col gap-2">
+                <label className="text-xs text-muted-foreground">
+                  End date (optional)
+                  <input
+                    type="date"
+                    value={endsOn}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setEndsOn(e.target.value)}
+                    disabled={pending !== null}
+                    className="mt-1 block w-full input-field px-3 py-1.5 text-xs"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Note (optional)
+                  <input
+                    type="text"
+                    value={note}
+                    maxLength={200}
+                    placeholder="e.g. Gym member"
+                    onChange={(e) => setNote(e.target.value)}
+                    disabled={pending !== null}
+                    className="mt-1 block w-full input-field px-3 py-1.5 text-xs"
+                  />
+                </label>
+                <p className="text-xs text-muted-foreground">Leave the end date empty for access until staff withdraw it.</p>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => send("app_subscription")}
+                    disabled={pending !== null}
+                    className="btn-primary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {pending === "app_subscription" ? "Saving…" : "Grant complimentary digital access"}
+                  </button>
+                </div>
+              </div>
             ) : digitalPlan?.source === "staff_grant" || legacyComp ? (
               <button
                 type="button"
