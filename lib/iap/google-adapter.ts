@@ -42,8 +42,8 @@ export const googlePlayAdapter: PlayAdapter = {
     };
   },
 
-  async acknowledge(purchaseToken) {
-    const result = await acknowledgeGooglePlaySubscription(purchaseToken);
+  async acknowledge(productId, purchaseToken) {
+    const result = await acknowledgeGooglePlaySubscription(productId, purchaseToken);
     return result.ok ? { ok: true } : { ok: false, code: result.code, retryable: isRetryableProviderError(result.code) };
   },
 

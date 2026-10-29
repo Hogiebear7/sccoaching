@@ -86,7 +86,7 @@ describe("verifyGooglePlaySubscriptionPurchase failures", () => {
     delete process.env.GOOGLE_PLAY_PACKAGE_NAME;
     const { verifyGooglePlaySubscriptionPurchase, acknowledgeGooglePlaySubscription } = await load();
     expect(await verifyGooglePlaySubscriptionPurchase("fake-token")).toMatchObject({ ok: false, code: "not_configured" });
-    expect(await acknowledgeGooglePlaySubscription("fake-token")).toMatchObject({ ok: false, code: "not_configured" });
+    expect(await acknowledgeGooglePlaySubscription("app_subscription_tier2", "fake-token")).toMatchObject({ ok: false, code: "not_configured" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -101,16 +101,26 @@ describe("verifyGooglePlaySubscriptionPurchase failures", () => {
 });
 
 describe("acknowledgeGooglePlaySubscription", () => {
+  it("posts to purchases.subscriptions with the product id and token (subscriptionsv2 has no acknowledge, and answers 404)", async () => {
+    const { acknowledgeGooglePlaySubscription } = await load();
+    fetchMock.mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(text("", 200));
+    expect(await acknowledgeGooglePlaySubscription("app_subscription_tier2", "tok/en")).toEqual({ ok: true });
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toMatch(/\/androidpublisher\/v3\/applications\/[^/]+\/purchases\/subscriptions\/app_subscription_tier2\/tokens\/tok%2Fen:acknowledge$/);
+    expect(url).not.toContain("subscriptionsv2");
+    expect(init.method).toBe("POST");
+  });
+
   it("treats Google's 'already acknowledged' 400 as success", async () => {
     const { acknowledgeGooglePlaySubscription } = await load();
     fetchMock.mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(text("The subscription purchase is already acknowledged.", 400));
-    expect(await acknowledgeGooglePlaySubscription("fake-token")).toEqual({ ok: true });
+    expect(await acknowledgeGooglePlaySubscription("app_subscription_tier2", "fake-token")).toEqual({ ok: true });
   });
 
   it("returns a code, not text, for any other failure", async () => {
     const { acknowledgeGooglePlaySubscription } = await load();
     fetchMock.mockResolvedValueOnce(tokenOk()).mockResolvedValueOnce(text(SECRET_PROVIDER_TEXT, 500));
-    const result = await acknowledgeGooglePlaySubscription("fake-token");
+    const result = await acknowledgeGooglePlaySubscription("app_subscription_tier2", "fake-token");
     expect(result).toEqual({ ok: false, code: "server_error", status: 500 });
   });
 });

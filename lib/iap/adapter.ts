@@ -64,7 +64,8 @@ export interface PlayAdapter {
   /** The Android application id this adapter serves, used to ignore notifications for another app. */
   expectedPackageName(): string | null;
   fetchSubscription(purchaseToken: string): Promise<{ ok: true; snapshot: ProviderSubscriptionSnapshot } | AdapterFailure>;
-  acknowledge(purchaseToken: string): Promise<{ ok: true } | AdapterFailure>;
+  /** Google addresses acknowledgement by the subscription's product id as well as the token. */
+  acknowledge(productId: string, purchaseToken: string): Promise<{ ok: true } | AdapterFailure>;
   mapState(state: string, expiryTimeMillis: number | null): MappedState;
 }
 

@@ -263,7 +263,7 @@ async function acknowledgeIfNeeded(adapter: PlayAdapter, token: string): Promise
   if (!purchase || purchase.acknowledged || purchase.revokedAt) return !!purchase?.acknowledged;
   if (!isEntitling(digitalStatusOfPlayStatus(purchase.status))) return false;
 
-  const result = await adapter.acknowledge(token);
+  const result = await adapter.acknowledge(purchase.productId, token);
   recordGooglePlayAcknowledgement(token, result.ok ? { ok: true } : { ok: false, code: result.code });
   return result.ok;
 }
@@ -562,7 +562,7 @@ export async function retryGooglePlayAcknowledgements(
 
   const summary: JobSummary = { considered: due.length, processed: 0, failed: 0 };
   for (const purchase of due) {
-    const result = await adapter.acknowledge(purchase.purchaseToken);
+    const result = await adapter.acknowledge(purchase.productId, purchase.purchaseToken);
     recordGooglePlayAcknowledgement(purchase.purchaseToken, result.ok ? { ok: true } : { ok: false, code: result.code }, new Date(nowMs).toISOString());
     if (result.ok) summary.processed++;
     else summary.failed++;

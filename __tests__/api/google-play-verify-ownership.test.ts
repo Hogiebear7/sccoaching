@@ -73,6 +73,7 @@ describe("POST /api/mobile/billing/google-play/verify — token ownership", () =
     expect(await res.json()).toEqual({ success: false, code: "owned_by_other", message: "This purchase is already linked to another account." });
     expect(fx.adapter.fetchCalls.length).toBe(calls);
     expect(fx.adapter.ackCalls.filter((t) => t === TOKEN)).toHaveLength(1); // only the rightful claim's acknowledgement
+    expect(fx.adapter.ackProductIds).toEqual(fx.adapter.ackCalls.map(() => "app_subscription")); // acknowledged under the purchase's own product id
     expect(fx.db.findSubscriptionByUserId(fx.memberB.id)).toBeUndefined();
     expect(fx.db.findSubscriptionByUserId(fx.memberA.id)).toEqual(subBefore);
     expect(revenue()).toHaveLength(revenueBefore);

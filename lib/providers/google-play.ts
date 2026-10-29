@@ -330,11 +330,18 @@ export function mapGooglePlaySubscriptionState(
 }
 
 // Google auto-refunds a subscription purchase not acknowledged (by any
-// method — client or server) within 3 days. Called once, right after a
-// fresh purchase verifies successfully — safe to call again (Google returns
-// an error for an already-acknowledged purchase, which this treats as
-// success rather than a failure, since the end state is what matters).
+// method — client or server) within 3 days (about 5 minutes for licence
+// testers). Called once, right after a fresh purchase verifies successfully —
+// safe to call again (Google returns an error for an already-acknowledged
+// purchase, which this treats as success rather than a failure, since the end
+// state is what matters).
+//
+// Acknowledgement exists only on the purchases.subscriptions resource, which
+// is addressed by product id AND token. subscriptionsv2 (used to read a
+// purchase above) has no acknowledge method: posting there answers 404, and
+// every purchase was refunded (found in the first live test, 2026-10-29).
 export async function acknowledgeGooglePlaySubscription(
+  productId: string,
   purchaseToken: string
 ): Promise<{ ok: true } | { ok: false; code: GooglePlayErrorCode; status: number }> {
   const packageName = getPackageName();
@@ -342,7 +349,7 @@ export async function acknowledgeGooglePlaySubscription(
 
   const encodedToken = encodeURIComponent(purchaseToken);
   const result = await androidPublisherFetch(
-    `/applications/${encodeURIComponent(packageName)}/purchases/subscriptionsv2/tokens/${encodedToken}:acknowledge`,
+    `/applications/${encodeURIComponent(packageName)}/purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodedToken}:acknowledge`,
     { method: "POST" }
   );
 

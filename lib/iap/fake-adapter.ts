@@ -50,6 +50,8 @@ export class FakePlayAdapter implements PlayAdapter {
 
   readonly fetchCalls: string[] = [];
   readonly ackCalls: string[] = [];
+  /** The product id passed with each acknowledgement, in call order. */
+  readonly ackProductIds: string[] = [];
   /** Tokens the provider has been told to acknowledge successfully. */
   readonly acknowledged = new Set<string>();
 
@@ -101,8 +103,9 @@ export class FakePlayAdapter implements PlayAdapter {
     return { ok: true as const, snapshot: { ...captured } };
   }
 
-  async acknowledge(token: string) {
+  async acknowledge(productId: string, token: string) {
     this.ackCalls.push(token);
+    this.ackProductIds.push(productId);
     const failure = this.ackFailures.shift();
     if (failure) return fail(failure);
     this.acknowledged.add(token);
