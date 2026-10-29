@@ -44,10 +44,9 @@ import {
 } from "@/lib/workouts";
 import { MessagesThread } from "@/components/messages/MessagesThread";
 import { AiUsagePanel } from "@/components/staff/AiUsagePanel";
-import { ChangeTierPanel } from "@/components/staff/ChangeTierPanel";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
 import { MemberAccountPanel } from "@/components/staff/MemberAccountPanel";
-import { MembershipStatusPanel } from "@/components/staff/MembershipStatusPanel";
+import { MembershipAccessPanel } from "@/components/staff/MembershipAccessPanel";
 import { WorkoutHistoryPanel } from "@/components/staff/WorkoutHistoryPanel";
 import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
 import { DietaryRequirementsSummary } from "@/components/profile/DietaryRequirementsSummary";
@@ -255,21 +254,15 @@ export default async function StaffMemberDetailPage({
 
       {!walled ? <AiUsagePanel memberId={user.id} /> : null}
 
-      {/* Membership + billing is admin-only. A coach never sees this panel,
-          and its API routes (subscription / extra-sessions) enforce the same
-          members.billing capability server-side. */}
-      {canGrantTier ? (
-        <ChangeTierPanel
+      {/* Membership & access is admin-only. A coach never sees this panel, and its API routes (tier / pause / subscription /
+          extra-sessions) enforce the same capabilities server-side: granting needs members.grantTier, the rest members.billing. */}
+      {canGrantTier || canEditBilling ? (
+        <MembershipAccessPanel
           memberId={user.id}
+          canGrant={canGrantTier}
+          canEditBilling={canEditBilling}
           access={resolveMemberAccessForUser(user.id)}
           digitalPlan={describeDigitalPlan(findDigitalEntitlementsByUserId(user.id))}
-          gymMembershipEndsAt={subscription?.currentPeriodEnd ?? null}
-        />
-      ) : null}
-
-      {canEditBilling ? (
-        <MembershipStatusPanel
-          memberId={user.id}
           packages={packages}
           currentPackageId={subscription?.packageId ?? null}
           currentPlanName={subscriptionPlan?.name ?? null}
@@ -278,11 +271,7 @@ export default async function StaffMemberDetailPage({
           currentUpdatedAt={subscription?.updatedAt ?? null}
           currentPeriodEnd={subscription?.currentPeriodEnd ?? null}
           currentPausedUntil={subscription?.pausedUntil ?? null}
-          passBalance={
-            subscriptionPlan && subscription
-              ? classPassBalance(subscriptionPlan, subscription)
-              : null
-          }
+          passBalance={subscriptionPlan && subscription ? classPassBalance(subscriptionPlan, subscription) : null}
           purchasedPasses={purchasedPassBalance(user.id)}
           passLedger={findPassLedgerByUserId(user.id)
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

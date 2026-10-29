@@ -13,7 +13,7 @@ const TIER_LABEL: Record<InvitableTier, string> = {
 // Staff-facing entry point for granting a tier before someone has an account
 // (or without hunting them down in the member list) — sends an email with a
 // one-time redemption link (see app/invite/page.tsx). For an existing member
-// already in this list, ChangeTierPanel on their detail page is the faster
+// already in this list, the Membership & access panel on their detail page is the faster
 // path since it applies instantly with no email round-trip.
 export function InvitePanel() {
   const [email, setEmail] = useState("");
