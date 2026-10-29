@@ -2,42 +2,51 @@
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
-// Real in-app screenshots, one per bottom-tab screen — member-provided,
-// status bar already cropped off. Order matches the app's own tab bar
-// (Home, Schedule, Workouts, Recovery, Nutrition) so the grid reads as a
-// tour of the app rather than an arbitrary selection. A 3-column grid with
-// 5 items naturally lays out 3 on top, 2 underneath — no horizontal scroll,
-// so there's nothing for the last card to get clipped by.
+// Real in-app screenshots, the same screens (and wording) as the Play Store and App Store listings (sc-coaching-mobile/store-assets/2026-10),
+// captured from the demo member so no real member's data appears. Seven screens: 4 + 3 on a wide screen, 3 + 3 + 1 at tablet width, 2 per
+// row on a phone. No horizontal scroll, so nothing can be clipped. Updated 2026-10-29 (owner request: match the store images, add cycle tracking).
 const APP_SCREENS: { src: string; alt: string; label: string; description: string }[] = [
   {
     src: "/marketing/app/home.jpg",
-    alt: "App home screen showing next session, readiness score, and today's nutrition prompt",
+    alt: "App home screen showing this week's readiness, today's score, the next class and recovery",
     label: "Home",
-    description: "Your day at a glance — next session, readiness score, and today's nutrition target.",
+    description: "Your day at a glance: readiness, your next class and recovery in one place.",
   },
   {
     src: "/marketing/app/schedule.jpg",
-    alt: "App schedule screen showing a monthly class calendar with a booked session",
+    alt: "App schedule screen showing the gym's classes with spaces to book",
     label: "Schedule",
-    description: "Browse classes, book your spot, and manage upcoming sessions from a simple calendar.",
+    description: "Book classes in seconds: see what's on at the gym and grab your spot.",
   },
   {
     src: "/marketing/app/workouts.jpg",
-    alt: "App workouts screen showing today's logged session and weekly training stats",
-    label: "Workouts",
-    description: "Log every session, track sets and volume, and see your training stats for the week.",
-  },
-  {
-    src: "/marketing/app/recovery.jpg",
-    alt: "App recovery screen showing a readiness score and a daily check-in form",
-    label: "Recovery",
-    description: "Log how you're feeling and get a readiness score that adapts your training to match.",
+    alt: "App training screen showing logged sessions and lifts over time",
+    label: "Train",
+    description: "Every set, every PB: log your sessions and watch your lifts climb week by week.",
   },
   {
     src: "/marketing/app/nutrition.jpg",
-    alt: "App nutrition screen showing today's calorie and macro progress and hydration tracking",
+    alt: "App nutrition screen showing today's calories and macros against the target",
     label: "Nutrition",
-    description: "Track calories, macros, and hydration against a target that adjusts with your training load.",
+    description: "Calories that fit your training: a daily target that learns your real burn from your logs.",
+  },
+  {
+    src: "/marketing/app/recovery.jpg",
+    alt: "App recovery screen showing a readiness score and a daily check-in",
+    label: "Recovery",
+    description: "Train when you're ready: quick daily check-ins turn into a readiness score.",
+  },
+  {
+    src: "/marketing/app/community.jpg",
+    alt: "App community screen showing members' shared sessions and personal bests",
+    label: "Community",
+    description: "Train together: share sessions, celebrate PBs and climb the leaderboard.",
+  },
+  {
+    src: "/marketing/app/cycle.jpg",
+    alt: "App cycle tracking screen showing the current phase with training and recovery guidance",
+    label: "Cycle",
+    description: "Guidance for your cycle: phase-aware training and recovery tips, private to you.",
   },
 ];
 
@@ -51,9 +60,8 @@ type AppScreen = (typeof APP_SCREENS)[number];
 function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void }) {
   return (
     // 2-up under sm: (percentage-based, so it scales with a narrow phone
-    // viewport); a fixed 220px at sm: and up, matching the container's own
-    // max-w-[708px] cap exactly (3 x 220 + 2 x 24 gap) so a 4th item never
-    // has room to squeeze into the first row on a wide screen.
+    // viewport); a fixed 220px at sm: and up, matching the row widths set in
+    // AppScreensGrid (3 per row at tablet width, 4 from lg:).
     <div className="w-[calc(50%-12px)] max-w-[220px] sm:w-[220px]">
       <button
         type="button"
@@ -62,7 +70,7 @@ function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void 
         aria-label={`Open a larger view of the ${screen.label} screen`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- real static screenshots, not a next/image-worthy asset */}
-        <img src={screen.src} alt={screen.alt} width={862} height={1924} className="block h-auto w-full" loading="lazy" />
+        <img src={screen.src} alt={screen.alt} width={862} height={1873} className="block h-auto w-full" loading="lazy" />
         <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
           <p className="text-xs leading-relaxed text-zinc-100">{screen.description}</p>
         </div>
@@ -125,7 +133,7 @@ function ScreenLightbox({ screen, onClose }: { screen: AppScreen; onClose: () =>
       >
         <div className="overflow-hidden rounded-[28px] border border-white/[0.14] bg-black shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={screen.src} alt={screen.alt} width={862} height={1924} className="block h-auto w-full" />
+          <img src={screen.src} alt={screen.alt} width={862} height={1873} className="block h-auto w-full" />
         </div>
         <div className="mt-5 flex items-start justify-between gap-4">
           <div>
@@ -153,13 +161,9 @@ function AppScreensGrid() {
 
   return (
     <>
-      {/* max-w-[708px] = exactly 3 items at 220px + 2 gaps at 24px (gap-6) —
-          on a wide desktop viewport, percentage-based item widths alone
-          don't force a 3-per-row wrap once each item hits its own
-          max-w-[220px] cap (there's room left over for a 4th), so the row
-          itself has to be capped to leave no room for that. Unconstrained
-          below sm: since two-up already fits comfortably on a phone width. */}
-      <div className="mx-auto flex flex-wrap justify-center gap-6 sm:max-w-[708px]">
+      {/* The row width decides how many screens sit side by side (each is 220px from sm:, gap-6 = 24px): 708px = 3 per row at tablet
+          width, 952px = 4 per row from lg: (7 screens read as 4 + 3). Unconstrained below sm:, where two-up already fits a phone. */}
+      <div className="mx-auto flex flex-wrap justify-center gap-6 sm:max-w-[708px] lg:max-w-[952px]">
         {APP_SCREENS.map((screen, i) => (
           <PhoneFrame key={screen.label} screen={screen} onOpen={() => setOpenIndex(i)} />
         ))}
