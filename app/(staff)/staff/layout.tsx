@@ -61,6 +61,7 @@ const navSections: StaffNavSection[] = [
       { label: "Memberships & Pricing", href: "/staff/catalog",   capability: NAV_CAPABILITY["/staff/catalog"] },
       { label: "Finances",              href: "/staff/finances",  capability: NAV_CAPABILITY["/staff/finances"] },
       { label: "Reports",               href: "/staff/reports",   capability: NAV_CAPABILITY["/staff/reports"] },
+      { label: "Exports",               href: "/staff/exports",   capability: NAV_CAPABILITY["/staff/exports"] },
     ],
   },
   {
