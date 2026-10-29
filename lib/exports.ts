@@ -46,10 +46,11 @@ export interface ExportSheet {
 export const EXPORT_SHEET_KEYS = ["summary", "members", "memberships", "classes", "bookings", "app-access"] as const;
 export type ExportSheetKey = (typeof EXPORT_SHEET_KEYS)[number];
 
-export const EXPORT_RANGES = ["30d", "90d", "12m", "all"] as const;
+export const EXPORT_RANGES = ["30d", "last-month", "90d", "12m", "all"] as const;
 export type ExportRange = (typeof EXPORT_RANGES)[number];
 export const EXPORT_RANGE_LABEL: Record<ExportRange, string> = {
   "30d": "Last 30 days",
+  "last-month": "Last month",
   "90d": "Last 90 days",
   "12m": "Last 12 months",
   all: "All time",
@@ -72,14 +73,25 @@ const SOURCE_LABEL: Record<string, string> = { google_play: "Google Play", app_s
 
 const day = (iso: string | null | undefined): string | null => (iso ? iso.slice(0, 10) : null);
 
-/** The earliest date (YYYY-MM-DD) a range covers, or null for all time. */
-export function rangeStart(range: ExportRange, now: Date = new Date()): string | null {
-  if (range === "all") return null;
+/** The first and last dates (YYYY-MM-DD) a range covers; start is null for all time. "last-month" is the previous calendar month. */
+export function rangeBounds(range: ExportRange, now: Date = new Date()): { start: string | null; end: string } {
+  const today = now.toISOString().slice(0, 10);
+  if (range === "all") return { start: null, end: today };
+  if (range === "last-month") {
+    const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+    return { start: first.toISOString().slice(0, 10), end: last.toISOString().slice(0, 10) };
+  }
   const d = new Date(now);
   if (range === "30d") d.setUTCDate(d.getUTCDate() - 30);
   else if (range === "90d") d.setUTCDate(d.getUTCDate() - 90);
   else d.setUTCFullYear(d.getUTCFullYear() - 1);
-  return d.toISOString().slice(0, 10);
+  return { start: d.toISOString().slice(0, 10), end: today };
+}
+
+/** The earliest date (YYYY-MM-DD) a range covers, or null for all time. */
+export function rangeStart(range: ExportRange, now: Date = new Date()): string | null {
+  return rangeBounds(range, now).start;
 }
 const inRange = (date: string | null | undefined, start: string | null, today: string) => !!date && (!start || date >= start) && date <= today;
 
@@ -94,7 +106,7 @@ function ownClasses(staff: Actor) {
 }
 
 export function buildMembersSheet(staff: Actor, range: ExportRange, now: Date = new Date()): ExportSheet {
-  const start = rangeStart(range, now);
+  const { start, end } = rangeBounds(range, now);
   const today = now.toISOString().slice(0, 10);
   const stars = new Set(findStaffMemberStars().map((s) => s.userId));
   const classDates = new Map(ownClasses(staff).map((c) => [c.id, c.date]));
@@ -128,7 +140,7 @@ export function buildMembersSheet(staff: Actor, range: ExportRange, now: Date = 
       status: sub?.status ?? null,
       periodEnd: day(sub?.currentPeriodEnd),
       appAccess: digital ? `${SOURCE_LABEL[digital.source] ?? digital.source}${digital.trial ? " (trial)" : ""}` : "None",
-      classesAttended: attended.filter((b) => inRange(b.date, start, today)).length,
+      classesAttended: attended.filter((b) => inRange(b.date, start, end)).length,
       lastClass,
       lastSession,
       starred: stars.has(m.id) ? "Yes" : "",
@@ -194,8 +206,7 @@ export function buildMembershipsSheet(staff: Actor): ExportSheet {
 }
 
 export function buildClassesSheet(staff: Actor, range: ExportRange, now: Date = new Date()): ExportSheet {
-  const start = rangeStart(range, now);
-  const today = now.toISOString().slice(0, 10);
+  const { start, end } = rangeBounds(range, now);
   const categories = findClassCategories();
   const deleted = findDeletedCategoryLabels();
   const noShowsByClass = new Map<string, number>();
@@ -208,7 +219,7 @@ export function buildClassesSheet(staff: Actor, range: ExportRange, now: Date = 
     bookingsByClass.set(b.classId, t);
   }
   const rows = ownClasses(staff)
-    .filter((c) => inRange(c.date, start, today))
+    .filter((c) => inRange(c.date, start, end))
     .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
     .map((c) => {
       const t = bookingsByClass.get(c.id) ?? { booked: 0, attended: 0 };
@@ -245,9 +256,8 @@ export function buildClassesSheet(staff: Actor, range: ExportRange, now: Date = 
 }
 
 export function buildBookingsSheet(staff: Actor, range: ExportRange, now: Date = new Date()): ExportSheet {
-  const start = rangeStart(range, now);
-  const today = now.toISOString().slice(0, 10);
-  const classes = new Map(ownClasses(staff).filter((c) => inRange(c.date, start, today)).map((c) => [c.id, c]));
+  const { start, end } = rangeBounds(range, now);
+  const classes = new Map(ownClasses(staff).filter((c) => inRange(c.date, start, end)).map((c) => [c.id, c]));
   const noShows = new Set(findAllNoShows().map((n) => `${n.classId}:${n.userId}`));
   const rows = findAllBookings()
     .filter((b) => classes.has(b.classId))
@@ -284,13 +294,12 @@ export function buildBookingsSheet(staff: Actor, range: ExportRange, now: Date =
 }
 
 export function buildAppAccessSheet(staff: Actor, range: ExportRange, now: Date = new Date()): ExportSheet {
-  const start = rangeStart(range, now);
-  const today = now.toISOString().slice(0, 10);
+  const { start, end } = rangeBounds(range, now);
   const members = ownMembers(staff);
   const ids = new Set(members.map((m) => m.id));
   const ai = new Map<string, { calls: number; usd: number }>();
   for (const log of findAllAiUsageLogs()) {
-    if (!log.userId || !ids.has(log.userId) || !inRange(day(log.createdAt), start, today)) continue;
+    if (!log.userId || !ids.has(log.userId) || !inRange(day(log.createdAt), start, end)) continue;
     const t = ai.get(log.userId) ?? { calls: 0, usd: 0 };
     t.calls++;
     t.usd += log.costUsd;
@@ -337,15 +346,14 @@ export function buildSummarySheet(
   parts: { members: ExportSheet; classes: ExportSheet; appAccess: ExportSheet },
   now: Date = new Date()
 ): ExportSheet {
-  const start = rangeStart(range, now);
-  const today = now.toISOString().slice(0, 10);
+  const { start, end } = rangeBounds(range, now);
   const count = (pred: (r: Record<string, ExportCell>) => boolean) => parts.members.rows.filter(pred).length;
   const current = count((r) => r.group === "Current");
   const paused = count((r) => r.group === "Paused");
-  const joined = count((r) => inRange(r.joined as string | null, start, today));
+  const joined = count((r) => inRange(r.joined as string | null, start, end));
   const ended = ownMembers(staff).filter((m) => {
     const sub = findSubscriptionByUserId(m.id);
-    return memberListGroup(sub, findMembershipPackageById) === "past" && inRange(day(sub?.updatedAt), start, today);
+    return memberListGroup(sub, findMembershipPackageById) === "past" && inRange(day(sub?.updatedAt), start, end);
   }).length;
   const classRows = parts.classes.rows;
   const attended = classRows.reduce((n, r) => n + Number(r.attended ?? 0), 0);
@@ -362,7 +370,7 @@ export function buildSummarySheet(
     return (now.getTime() - new Date(`${last}T00:00:00Z`).getTime()) / 86_400_000 > 14;
   }).length;
   const rows: Record<string, ExportCell>[] = [
-    { measure: "Period", value: EXPORT_RANGE_LABEL[range], note: start ? `${start} to ${today}` : `up to ${today}` },
+    { measure: "Period", value: EXPORT_RANGE_LABEL[range], note: start ? `${start} to ${end}` : `up to ${end}` },
     { measure: "Current gym members", value: current, note: "Active or past due today" },
     { measure: "Paused gym members", value: paused, note: "Today" },
     { measure: "New sign-ups", value: joined, note: "Accounts created in the period" },

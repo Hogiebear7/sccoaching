@@ -28,7 +28,7 @@ vi.mock("@/lib/membership-entitlement", () => ({
 }));
 vi.mock("@/lib/scheduling-status", () => ({ classCategoryLabel: () => "Strength" }));
 
-import { buildMasterWorkbook, buildMembersSheet, rangeStart } from "@/lib/exports";
+import { buildMasterWorkbook, buildMembersSheet, rangeBounds, rangeStart } from "@/lib/exports";
 import { safeText, toCsv, toXlsx } from "@/lib/exports-format";
 
 const NOW = new Date("2026-10-29T12:00:00.000Z");
@@ -94,6 +94,13 @@ describe("exports: scope, privacy and period", () => {
     expect(rangeStart("30d", NOW)).toBe("2026-09-29");
     expect(rangeStart("12m", NOW)).toBe("2025-10-29");
     expect(rangeStart("all", NOW)).toBeNull();
+  });
+
+  it("last month is the previous calendar month, and the sheets count only what falls inside it", () => {
+    expect(rangeBounds("last-month", NOW)).toEqual({ start: "2026-09-01", end: "2026-09-30" });
+    expect(rangeBounds("last-month", new Date("2026-03-01T08:00:00.000Z"))).toEqual({ start: "2026-02-01", end: "2026-02-28" });
+    const sheets = buildMasterWorkbook({ gymId: null }, "last-month", NOW);
+    expect(sheets.find((s) => s.key === "classes")!.rows).toHaveLength(0); // the October class is after last month
   });
 });
 

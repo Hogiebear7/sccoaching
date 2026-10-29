@@ -1725,7 +1725,9 @@ export type NotificationType =
   // a weight goal, the goal resuming after the birth).
   | "nutrition_update"
   // To the owner (admin managers): AI spending has passed 50% or 80% of the emergency ceiling.
-  | "ai_spend_alert";
+  | "ai_spend_alert"
+  // To gym managers in the first week of a month: last month's master workbook is ready (lib/jobs/monthly-report-email.ts).
+  | "monthly_report";
 
 export interface NotificationRecord {
   id: string;

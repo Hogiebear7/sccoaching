@@ -5,8 +5,6 @@
 // files every text value is stored as a text cell, which a spreadsheet never runs as a formula, so it is written exactly as it is (a phone
 // number like +353… stays readable). Real numbers are written as numbers.
 
-import ExcelJS from "exceljs";
-
 import type { ExportCell, ExportColumn, ExportSheet } from "@/lib/exports";
 
 const FORMULA_START = /^[=+\-@\t\r]/;
@@ -41,6 +39,9 @@ const NUM_FMT: Partial<Record<NonNullable<ExportColumn["kind"]>, string>> = {
 
 /** Several sheets as one Excel workbook: bold frozen header row, filters on, sensible widths, numbers stored as numbers. */
 export async function toXlsx(sheets: ExportSheet[], meta: { title: string }): Promise<Buffer> {
+  // Loaded only when a workbook is actually written: exceljs is large, and the job registry (which every job run and many tests import)
+  // reaches this module through the monthly report job.
+  const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "S&C Performance Coaching";
   workbook.title = meta.title;

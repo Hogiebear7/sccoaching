@@ -47,11 +47,11 @@ billing-affecting action confirms; every table paginates; works at phone width.
 
 ## Slices
 
-- **S1 (now): Exports.** A Reports & exports page with sheets for Members, Memberships, Classes, Bookings and App access & AI, as
+- **S1 (done 2026-10-29): Exports.** A Reports & exports page with sheets for Members, Memberships, Classes, Bookings and App access & AI, as
   CSV or Excel, plus the master workbook (all sheets and a Summary). Gym-scoped, admin only (reports.view). Spreadsheet-formula
   injection guarded. Tests.
-- **S2: Today dashboard** with the KPI tiles and the At risk list.
+- **S2 (done 2026-10-29): Today figures and At risk**, at the top of the staff Overview: six figures for the month so far, each against the same days last month, and the At-risk list.
 - **S3: Shared table component** (search, chips, sort, paginate, "export this view"), then rebuild Members and Attendance on it.
 - **S4: The app's staff area** gets Today and At risk.
-- **S5: Monthly master workbook by email** to the owner on the 1st (uses the existing job runner and email sender).
+- **S5 (done 2026-10-29): Monthly master workbook by email.** In the first week of each month, every admin manager (and platform operator) gets last month's workbook for their gym, with the summary in the email and an in-app notice. Exports also gained a "Last month" period.
 - **S6: Audit trail view** of staff changes (grants, pauses, overrides), exportable.
