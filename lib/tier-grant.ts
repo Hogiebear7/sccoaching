@@ -69,7 +69,7 @@ export async function grantMemberTier(
     /** Staff grant: the staff member's user id, for the audit trail. Null for an invite redemption. */
     grantedByUserId?: string | null;
     note?: string | null;
-    /** Complimentary app access only: when it ends (ISO). Null or absent = until withdrawn. */
+    /** When the grant ends (ISO): complimentary app access, or a staff-granted gym Membership. Null or absent = until withdrawn. */
     endsAt?: string | null;
   }
 ): Promise<GrantTierResult> {
@@ -157,7 +157,13 @@ export async function grantMemberTier(
     providerCustomerId: base?.providerCustomerId ?? null,
     providerSubscriptionId: base?.providerSubscriptionId ?? null,
     providerSetupOrderId: base?.providerSetupOrderId ?? null,
-    currentPeriodEnd: base?.currentPeriodEnd ?? null,
+    // A gym Membership grant may carry an end date (owner request 2026-10-29); the existing lapse handling then applies (booking blocked once it passes, the
+    // member warned that day, the Membership ended 3 days later). A FRESH grant without one is open-ended: it must not inherit the end of an earlier,
+    // lapsed period, or the new Membership would count as lapsed the moment it was given.
+    currentPeriodEnd:
+      tier === "membership"
+        ? options?.endsAt ?? (isEnteringFreshActivePeriod ? null : base?.currentPeriodEnd ?? null)
+        : base?.currentPeriodEnd ?? null,
     lastWebhookEventAt: base?.lastWebhookEventAt ?? null,
     sessionsUsedThisPeriod: isEnteringFreshActivePeriod ? 0 : base?.sessionsUsedThisPeriod ?? 0,
     extraSessionGrants: isEnteringFreshActivePeriod ? [] : base?.extraSessionGrants ?? [],

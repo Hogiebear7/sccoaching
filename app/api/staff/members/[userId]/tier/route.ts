@@ -39,7 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const { tier, packageId, endsOn, note } = (body ?? {}) as Record<string, unknown>;
-  // Complimentary app access may end on a date (YYYY-MM-DD, through the end of that day, UTC) and carry a short note for the audit trail.
+  // Complimentary app access and a staff-granted gym Membership may end on a date (YYYY-MM-DD, through the end of that day, UTC). A note goes on the audit trail.
   let endsAt: string | null = null;
   if (endsOn !== undefined && endsOn !== null && endsOn !== "") {
     if (typeof endsOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(endsOn) || Number.isNaN(Date.parse(`${endsOn}T23:59:59Z`))) {

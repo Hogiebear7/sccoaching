@@ -34,10 +34,13 @@ export function ChangeTierPanel({
   memberId,
   access,
   digitalPlan,
+  gymMembershipEndsAt = null,
 }: {
   memberId: string;
   access: MemberAccess;
   digitalPlan: DigitalPlanSummary | null;
+  /** The gym Membership's end date, when it has one (a staff grant with an end date, or a manual period). */
+  gymMembershipEndsAt?: string | null;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,9 @@ export function ChangeTierPanel({
   // Optional, for complimentary digital access only: an end date (the grant runs through that day) and a note for the audit trail.
   const [endsOn, setEndsOn] = useState("");
   const [note, setNote] = useState("");
+  // Optional end date for a staff-granted gym Membership. Empty = until staff end it.
+  const [gymEndsOn, setGymEndsOn] = useState("");
+  const today = new Date().toISOString().slice(0, 10);
 
   const legacyComp = access.digital && !digitalPlan;
   const hasComplimentary = digitalPlan?.source === "staff_grant" || legacyComp;
@@ -60,7 +66,11 @@ export function ChangeTierPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          action === "app_subscription" ? { tier: action, endsOn: endsOn || null, note: note.trim() || null } : { tier: action }
+          action === "app_subscription"
+            ? { tier: action, endsOn: endsOn || null, note: note.trim() || null }
+            : action === "membership"
+              ? { tier: action, endsOn: gymEndsOn || null }
+              : { tier: action }
         ),
       });
       const data = await res.json().catch(() => null);
@@ -73,6 +83,7 @@ export function ChangeTierPanel({
         setEndsOn("");
         setNote("");
       }
+      if (action === "membership") setGymEndsOn("");
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
@@ -94,18 +105,38 @@ export function ChangeTierPanel({
             Gym membership
           </h4>
           <p className="mt-1 text-xs text-muted-foreground">
-            {access.gymMembership ? "Active — classes, passes and coach messaging." : "None."}
+            {access.gymMembership
+              ? gymMembershipEndsAt && formatDate(gymMembershipEndsAt)
+                ? `Active until ${formatDate(gymMembershipEndsAt)} — classes, passes and coach messaging.`
+                : "Active — classes, passes and coach messaging."
+              : "None."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {!access.gymMembership ? (
-              <button
-                type="button"
-                onClick={() => send("membership")}
-                disabled={pending !== null}
-                className="btn-primary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {pending === "membership" ? "Saving…" : "Grant gym Membership"}
-              </button>
+              <div className="flex w-full flex-col gap-2">
+                <label className="text-xs text-muted-foreground">
+                  End date (optional)
+                  <input
+                    type="date"
+                    value={gymEndsOn}
+                    min={today}
+                    onChange={(e) => setGymEndsOn(e.target.value)}
+                    disabled={pending !== null}
+                    className="mt-1 block w-full input-field px-3 py-1.5 text-xs"
+                  />
+                </label>
+                <p className="text-xs text-muted-foreground">Leave it empty for a Membership that runs until staff end it.</p>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => send("membership")}
+                    disabled={pending !== null}
+                    className="btn-primary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {pending === "membership" ? "Saving…" : "Grant gym Membership"}
+                  </button>
+                </div>
+              </div>
             ) : (
               <button
                 type="button"
@@ -144,7 +175,7 @@ export function ChangeTierPanel({
                   <input
                     type="date"
                     value={endsOn}
-                    min={new Date().toISOString().slice(0, 10)}
+                    min={today}
                     onChange={(e) => setEndsOn(e.target.value)}
                     disabled={pending !== null}
                     className="mt-1 block w-full input-field px-3 py-1.5 text-xs"

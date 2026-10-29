@@ -263,6 +263,7 @@ export default async function StaffMemberDetailPage({
           memberId={user.id}
           access={resolveMemberAccessForUser(user.id)}
           digitalPlan={describeDigitalPlan(findDigitalEntitlementsByUserId(user.id))}
+          gymMembershipEndsAt={subscription?.currentPeriodEnd ?? null}
         />
       ) : null}
 
