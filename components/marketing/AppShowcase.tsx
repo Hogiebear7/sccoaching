@@ -2,48 +2,50 @@
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
+// Images are served with a one-year browser cache, so a new set always goes in a new folder (here 2026-10/): reusing a filename would leave
+// returning visitors on the old pictures.
 // Real in-app screenshots, the same screens (and wording) as the Play Store and App Store listings (sc-coaching-mobile/store-assets/2026-10),
 // captured from the demo member so no real member's data appears. Seven screens: 4 + 3 on a wide screen, 3 + 3 + 1 at tablet width, 2 per
 // row on a phone. No horizontal scroll, so nothing can be clipped. Updated 2026-10-29 (owner request: match the store images, add cycle tracking).
 const APP_SCREENS: { src: string; alt: string; label: string; description: string }[] = [
   {
-    src: "/marketing/app/home.jpg",
+    src: "/marketing/app/2026-10/home.jpg",
     alt: "App home screen showing this week's readiness, today's score, the next class and recovery",
     label: "Home",
     description: "Your day at a glance: readiness, your next class and recovery in one place.",
   },
   {
-    src: "/marketing/app/schedule.jpg",
+    src: "/marketing/app/2026-10/schedule.jpg",
     alt: "App schedule screen showing the gym's classes with spaces to book",
     label: "Schedule",
     description: "Book classes in seconds: see what's on at the gym and grab your spot.",
   },
   {
-    src: "/marketing/app/workouts.jpg",
+    src: "/marketing/app/2026-10/workouts.jpg",
     alt: "App training screen showing logged sessions and lifts over time",
     label: "Train",
     description: "Every set, every PB: log your sessions and watch your lifts climb week by week.",
   },
   {
-    src: "/marketing/app/nutrition.jpg",
+    src: "/marketing/app/2026-10/nutrition.jpg",
     alt: "App nutrition screen showing today's calories and macros against the target",
     label: "Nutrition",
     description: "Calories that fit your training: a daily target that learns your real burn from your logs.",
   },
   {
-    src: "/marketing/app/recovery.jpg",
+    src: "/marketing/app/2026-10/recovery.jpg",
     alt: "App recovery screen showing a readiness score and a daily check-in",
     label: "Recovery",
     description: "Train when you're ready: quick daily check-ins turn into a readiness score.",
   },
   {
-    src: "/marketing/app/community.jpg",
+    src: "/marketing/app/2026-10/community.jpg",
     alt: "App community screen showing members' shared sessions and personal bests",
     label: "Community",
     description: "Train together: share sessions, celebrate PBs and climb the leaderboard.",
   },
   {
-    src: "/marketing/app/cycle.jpg",
+    src: "/marketing/app/2026-10/cycle.jpg",
     alt: "App cycle tracking screen showing the current phase with training and recovery guidance",
     label: "Cycle",
     description: "Guidance for your cycle: phase-aware training and recovery tips, private to you.",
