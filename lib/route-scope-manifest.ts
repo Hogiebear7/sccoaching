@@ -176,6 +176,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "mobile/recovery", scope: "self" },
   { route: "mobile/schedule", scope: "self" },
   { route: "mobile/staff/business", scope: "tenant-staff", capabilities: ["finance.view", "reports.view"], evidence: ["getStaffBusinessData"] },
+  { route: "mobile/staff/today", scope: "tenant-staff", capabilities: ["operations.view"], evidence: ["gymId: staffUser.gymId"] },
   { route: "mobile/staff/class-categories", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGym("] },
   { route: "mobile/staff/classes", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["getStaffClassesData"] },
   { route: "mobile/staff/classes/[classId]/workout", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff", "sameGym("] },
