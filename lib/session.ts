@@ -16,6 +16,9 @@ interface SignedPayload extends SessionPayload {
 
 export const MEMBER_SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 export const STAFF_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000;
+// The mobile app's sign-in, members and staff alike (owner decision 2026-10-30): 7 days, renewed every time the app checks in
+// (app/api/mobile/auth/me), so it only runs out after 7 days of not using the app. The website keeps the lifetimes above.
+export const MOBILE_SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 function getSessionSecret(): string {
   const secret = getConfiguredSessionSecret();

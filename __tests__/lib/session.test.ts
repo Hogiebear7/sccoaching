@@ -20,6 +20,7 @@ import { hashPassword } from "@/lib/password";
 import { resetRateLimits } from "@/lib/rate-limit";
 import {
   MEMBER_SESSION_LIFETIME_MS,
+  MOBILE_SESSION_LIFETIME_MS,
   STAFF_SESSION_LIFETIME_MS,
   signSession,
   verifySession,
@@ -344,7 +345,7 @@ describe("POST /api/mobile/auth/login lifetime classification", () => {
     expect((payload.exp as number) - (payload.iat as number)).toBe(MEMBER_SESSION_LIFETIME_MS);
   });
 
-  it("issues a staff-lifetime token for a coach/admin/admin_manager user", async () => {
+  it("issues the same 7-day app token to staff (owner decision 2026-10-30: renewed on every check-in)", async () => {
     h.findUserByEmail.mockReturnValue({
       id: "coach-1",
       email: "coach@example.com",
@@ -356,7 +357,24 @@ describe("POST /api/mobile/auth/login lifetime classification", () => {
     const res = await callMobileLogin({ email: "coach@example.com", password: "correct-horse-battery-staple" });
     const data = await res.json();
     const payload = decodeToken(data.token);
-    expect((payload.exp as number) - (payload.iat as number)).toBe(STAFF_SESSION_LIFETIME_MS);
+    expect((payload.exp as number) - (payload.iat as number)).toBe(MOBILE_SESSION_LIFETIME_MS);
+  });
+});
+
+describe("GET /api/mobile/auth/me renews the app sign-in", () => {
+  it("hands back a fresh 7-day token for a valid session, and nothing for an invalid one", async () => {
+    h.findUserById.mockReturnValue({ id: "member-1", email: "member@example.com", role: "member", archivedAt: null });
+    const { GET } = await import("@/app/api/mobile/auth/me/route");
+    const old = signSession({ userId: "member-1" }, MOBILE_SESSION_LIFETIME_MS);
+    const ok = await GET(new NextRequest("http://localhost/api/mobile/auth/me", { headers: { Authorization: `Bearer ${old}` } }));
+    const data = await ok.json();
+    expect(ok.status).toBe(200);
+    const payload = decodeToken(data.token);
+    expect((payload.exp as number) - (payload.iat as number)).toBe(MOBILE_SESSION_LIFETIME_MS);
+
+    const bad = await GET(new NextRequest("http://localhost/api/mobile/auth/me", { headers: { Authorization: "Bearer not-a-token" } }));
+    expect(bad.status).toBe(401);
+    expect((await bad.json()).token).toBeUndefined();
   });
 });
 
