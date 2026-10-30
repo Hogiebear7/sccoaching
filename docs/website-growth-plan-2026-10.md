@@ -11,6 +11,18 @@ churn-prevention, paywall and onboarding skills) against the live site at `sandc
 - An FAQ page with FAQ structured data.
 - Real app screenshots (now the same seven as the store listings) and a contact form.
 
+## Status (2026-10-30)
+
+- **Done:** 1 (HealthClub structured data, from the facts the site already states), 4 (store badges link to each listing once
+  `NEXT_PUBLIC_APP_STORE_LISTING_LIVE` / `NEXT_PUBLIC_PLAY_LISTING_LIVE` are set to `true` at build), 5 (the App Subscription price in the app
+  section and the FAQ, and that it is separate from a gym Membership), 7 (`/llms.txt`, and the app FAQ corrected to the current plans).
+- **Already in place:** 10. Google Analytics 4 is built in, consent-gated, and off until `NEXT_PUBLIC_ANALYTICS_ENABLED=true` and
+  `NEXT_PUBLIC_GA_MEASUREMENT_ID` are set. Check the privacy policy covers it with the solicitor before switching it on.
+- **Owner's step:** 2 (Google Business Profile). Once it exists, send the street address, Eircode and opening hours and they go into the
+  structured data, matching the profile exactly; and the review link for item 3.
+- **Needs an owner decision before building:** 3 (the Google review link, and which moments prompt: a personal best, a 4-week streak, the
+  10th class), 6 (what the first-visit offer is, if any), 8 (the referral reward), 9 (the win-back offer and timing).
+
 ## Highest value, in order
 
 1. **Local business structured data on the home page.** There is no `HealthClub` / `LocalBusiness` JSON-LD: name, address in Navan,

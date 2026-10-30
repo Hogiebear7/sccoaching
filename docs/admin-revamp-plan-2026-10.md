@@ -51,7 +51,7 @@ billing-affecting action confirms; every table paginates; works at phone width.
   CSV or Excel, plus the master workbook (all sheets and a Summary). Gym-scoped, admin only (reports.view). Spreadsheet-formula
   injection guarded. Tests.
 - **S2 (done 2026-10-29): Today figures and At risk**, at the top of the staff Overview: six figures for the month so far, each against the same days last month, and the At-risk list.
-- **S3: Shared table component** (search, chips, sort, paginate, "export this view"), then rebuild Members and Attendance on it.
-- **S4: The app's staff area** gets Today and At risk.
+- **S3 (done 2026-10-30): Shared table component** (`components/staff/DataTable.tsx`: search, chips, sort, pages, "Export this view" as CSV). Attendance is rebuilt on it (last 30 days, all time, last class; "No class in 14 days" and "Never attended" filters). Members already had search, filters, sorting and pages, so it gained "Export this view" rather than a rebuild.
+- **S4 (done 2026-10-30): The app's staff area** gets Today and At risk: a card at the top of the staff Classes screen (`/api/mobile/staff/today`, the same numbers as the website). Admins and up; hidden for coaches. Needs the next app build.
 - **S5 (done 2026-10-29): Monthly master workbook by email.** In the first week of each month, every admin manager (and platform operator) gets last month's workbook for their gym, with the summary in the email and an in-app notice. Exports also gained a "Last month" period.
-- **S6: Audit trail view** of staff changes (grants, pauses, overrides), exportable.
+- **S6 (done 2026-10-30): Staff changes.** Every staff change to a member is recorded (free App Subscription and gym Membership grants and withdrawals, single and bulk; AI pause and resume; membership pause, resume and status overrides; extra classes; archive, restore, delete) with who, to whom and when. A Staff changes page (`/staff/changes`, admin) and a "Staff changes" sheet in the exports and the master workbook. Changes made before this date were not recorded.
