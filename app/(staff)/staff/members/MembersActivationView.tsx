@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import { InvitePanel } from "@/components/staff/InvitePanel";
 import { describePackageAllowance } from "@/lib/catalog";
+import { csvText, downloadCsv } from "@/lib/csv";
 import type { MembershipPackageRecord, SubscriptionStatus } from "@/lib/db";
 import {
   formatMembershipDate,
@@ -185,6 +186,28 @@ export function MembersActivationView({
   );
   const allVisibleSelected =
     selectableVisibleIds.length > 0 && selectableVisibleIds.every((id) => selectedIds.has(id));
+
+  // "Export this view": exactly the members the current search, group, plan and expiry filters show (every page), as CSV.
+  function exportView() {
+    const groupLabel: Record<string, string> = { current: "Current", paused: "Paused", past: "Past member", none: "Non-member" };
+    downloadCsv(
+      `sc-members-${new Date().toISOString().slice(0, 10)}.csv`,
+      csvText(
+        ["Name", "Email", "Group", "Plan", "Status", "Ends", "Joined", "Archived", "Starred"],
+        visibleRows.map((r) => [
+          r.fullName,
+          r.email,
+          r.membershipGroup ? groupLabel[r.membershipGroup] ?? r.membershipGroup : null,
+          r.currentPlanName,
+          r.currentStatus,
+          r.currentPeriodEnd?.slice(0, 10) ?? null,
+          r.joinedAt.slice(0, 10),
+          r.archivedAt ? r.archivedAt.slice(0, 10) : null,
+          r.starred ? "Yes" : null,
+        ])
+      )
+    );
+  }
 
   function toggleSelected(userId: string) {
     setSelectedIds((prev) => {
@@ -460,6 +483,11 @@ export function MembersActivationView({
         </p>
       ) : (
         <div className="space-y-3">
+          <div className="flex justify-end">
+            <button type="button" onClick={exportView} className="text-xs font-semibold text-gold transition hover:text-gold/80">
+              Export this view ({visibleRows.length} member{visibleRows.length === 1 ? "" : "s"}, CSV)
+            </button>
+          </div>
           {pagedRows.map((row) => (
             <MemberCard
               key={row.userId}

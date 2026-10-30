@@ -4,12 +4,47 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { DataTable, type DataTableColumn } from "@/components/staff/DataTable";
+
 type LeaderboardRow = {
   userId: string;
   name: string;
   email: string;
   classesAttended: number;
+  last30Days: number;
+  lastAttended: string | null;
 };
+
+const DAY_MS = 86_400_000;
+const daysSince = (date: string | null) => (date ? Math.floor((Date.now() - new Date(`${date}T00:00:00Z`).getTime()) / DAY_MS) : null);
+
+const COLUMNS: DataTableColumn<LeaderboardRow>[] = [
+  {
+    key: "name",
+    header: "Member",
+    value: (r) => r.name,
+    render: (r) => (
+      <Link href={`/staff/members/${r.userId}`} className="text-gold transition hover:text-gold/80">
+        {r.name}
+      </Link>
+    ),
+  },
+  { key: "email", header: "Email", value: (r) => r.email },
+  { key: "last30", header: "Last 30 days", value: (r) => r.last30Days, numeric: true },
+  { key: "total", header: "All time", value: (r) => r.classesAttended, numeric: true },
+  {
+    key: "last",
+    header: "Last class",
+    value: (r) => r.lastAttended,
+    render: (r) => (r.lastAttended ? new Date(`${r.lastAttended}T00:00:00Z`).toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" }) : "Never"),
+  },
+];
+
+const CHIPS = [
+  { key: "all", label: "Everyone", match: () => true },
+  { key: "quiet", label: "No class in 14 days", match: (r: LeaderboardRow) => (daysSince(r.lastAttended) ?? Infinity) > 14 },
+  { key: "never", label: "Never attended", match: (r: LeaderboardRow) => r.classesAttended === 0 },
+];
 
 type WatchlistRow = {
   id: string;
@@ -117,30 +152,21 @@ export function AttendanceView({
         )}
       </div>
 
-      {/* Leaderboard */}
+      {/* Attendance by member */}
       <div className="panel p-5">
-        <h3 className="text-base font-semibold">Leaderboard</h3>
-        <p className="mt-1 text-xs text-muted-foreground">All-time classes attended, most to least.</p>
-
-        {leaderboard.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">No members yet.</p>
-        ) : (
-          <ol className="mt-4 space-y-1">
-            {leaderboard.map((row, i) => (
-              <li key={row.userId} className="flex items-center justify-between gap-3 border-b border-border/50 py-2 text-sm last:border-b-0">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="w-6 shrink-0 text-right text-xs text-muted-foreground tabular-nums">{i + 1}</span>
-                  <Link href={`/staff/members/${row.userId}`} className="truncate text-gold transition hover:text-gold/80">
-                    {row.name}
-                  </Link>
-                </div>
-                <span className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
-                  {row.classesAttended} class{row.classesAttended === 1 ? "" : "es"}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
+        <h3 className="text-base font-semibold">Attendance by member</h3>
+        <p className="mt-1 mb-4 text-xs text-muted-foreground">Classes attended, last 30 days and all time. Sort any column; export exactly what you see.</p>
+        <DataTable
+          rows={leaderboard}
+          columns={COLUMNS}
+          rowKey={(r) => r.userId}
+          searchText={(r) => `${r.name} ${r.email}`}
+          searchPlaceholder="Search members"
+          chips={CHIPS}
+          defaultSort={{ key: "last30", dir: "desc" }}
+          exportName="sc-attendance"
+          empty="No members match."
+        />
       </div>
     </div>
   );

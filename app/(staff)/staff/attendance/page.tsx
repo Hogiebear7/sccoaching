@@ -5,6 +5,21 @@ import { requireStaffPage } from "@/lib/staff-auth";
 import { can } from "@/lib/permissions";
 import { AttendanceView } from "./AttendanceView";
 
+// Classes attended per member: all time, in the last 30 days, and the date of the latest.
+function attendanceByMember(bookings: ReturnType<typeof findAllBookings>) {
+  const since30 = Date.now() - 30 * 86_400_000;
+  const attended = new Map<string, { total: number; last30: number; last: string | null }>();
+  for (const booking of bookings) {
+    if (booking.attendedAt === null) continue;
+    const t = attended.get(booking.userId) ?? { total: 0, last30: 0, last: null };
+    t.total++;
+    if (new Date(booking.attendedAt).getTime() >= since30) t.last30++;
+    if (!t.last || booking.attendedAt > t.last) t.last = booking.attendedAt;
+    attended.set(booking.userId, t);
+  }
+  return attended;
+}
+
 export default async function StaffAttendancePage() {
   const staffUser = await requireStaffPage("members.view");
   const canManageWatchlist = can(staffUser.role, "classes.manage");
@@ -15,11 +30,7 @@ export default async function StaffAttendancePage() {
   const activeMembers = allMembers.filter((m) => !m.archivedAt && staffCanViewMemberData(m.id));
   const bookings = findAllBookings();
 
-  const attendedCounts = new Map<string, number>();
-  for (const booking of bookings) {
-    if (booking.attendedAt === null) continue;
-    attendedCounts.set(booking.userId, (attendedCounts.get(booking.userId) ?? 0) + 1);
-  }
+  const attended = attendanceByMember(bookings);
 
   const leaderboard = activeMembers
     .map((member) => {
@@ -28,7 +39,9 @@ export default async function StaffAttendancePage() {
         userId: member.id,
         name: profile?.fullName ?? member.email,
         email: member.email,
-        classesAttended: attendedCounts.get(member.id) ?? 0,
+        classesAttended: attended.get(member.id)?.total ?? 0,
+        last30Days: attended.get(member.id)?.last30 ?? 0,
+        lastAttended: attended.get(member.id)?.last?.slice(0, 10) ?? null,
       };
     })
     .sort((a, b) => b.classesAttended - a.classesAttended || a.name.localeCompare(b.name));

@@ -5,13 +5,10 @@
 // files every text value is stored as a text cell, which a spreadsheet never runs as a formula, so it is written exactly as it is (a phone
 // number like +353… stays readable). Real numbers are written as numbers.
 
+import { safeText } from "@/lib/csv";
 import type { ExportCell, ExportColumn, ExportSheet } from "@/lib/exports";
 
-const FORMULA_START = /^[=+\-@\t\r]/;
-
-export function safeText(value: string): string {
-  return FORMULA_START.test(value) ? `'${value}` : value;
-}
+export { safeText };
 
 function csvCell(value: ExportCell, column: ExportColumn): string {
   if (value === null || value === undefined) return "";
