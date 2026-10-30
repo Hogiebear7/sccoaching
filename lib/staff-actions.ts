@@ -27,7 +27,12 @@ export function recordStaffAction(
   type: StaffActionType,
   detail: StaffActionRecord["detail"] = {}
 ): void {
-  appendStaffAction({ gymId: member.gymId ?? null, staffUserId: staff.id, memberUserId: member.id, type, detail });
+  // Never fails the staff member's change, which has already been saved.
+  try {
+    appendStaffAction({ gymId: member.gymId ?? null, staffUserId: staff.id, memberUserId: member.id, type, detail });
+  } catch (error) {
+    console.error("[staff-actions] could not record", type, error);
+  }
 }
 
 export interface StaffActionRow {

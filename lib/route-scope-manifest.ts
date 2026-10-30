@@ -281,6 +281,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/messages/unread-count", scope: "tenant-staff", capabilities: ["members.view"], evidence: ["sameGym("] },
   { route: "staff/settings/emails", scope: "global-shared", capabilities: ["operations.view"], note: "Singleton platform email toggles." },
   { route: "staff/settings/finance", scope: "platform", capabilities: ["finance.view"] },
+  { route: "staff/store-status", scope: "platform", capabilities: ["finance.view"], note: "Yes/no view of which store purchase settings are present; never returns a value." },
   { route: "staff/settings/readiness-alert", scope: "global-shared", capabilities: ["operations.view"], note: "Singleton readiness-alert settings." },
   { route: "staff/staff-users", scope: "tenant-staff", capabilities: ["staffUsers.manage"], evidence: ["sameGym(", "protectedOperatorTarget"] },
   { route: "staff/staff-users/archive", scope: "tenant-staff", capabilities: ["staffUsers.manage"], evidence: ["sameGym(", "protectedOperatorTarget"] },

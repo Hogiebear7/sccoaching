@@ -141,10 +141,17 @@ export function getDigitalPlanCatalog(): DigitalPlanCatalogEntry[] {
 export type AppStoreContextResult = { ok: true; data: { appAccountToken: string; environment: string } } | ServiceFailure;
 
 export function getAppStorePurchaseContext(userId: string, adapter: AppStoreAdapter = getAppStoreAdapter(), options: { trial?: boolean } = {}): AppStoreContextResult {
-  if (appStoreIapDisabledReason()) return fail(503, "iap_disabled", MESSAGES.disabled);
-  if (!adapter.isConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
+  // A refusal here is a setup problem, not the member's: record which one (codes only) so it shows in the logs and the audit rows.
+  const refuse = (code: "iap_disabled" | "not_configured", reason: string) => {
+    console.warn(`[app-store] purchase context refused: ${reason}`);
+    appendIapEvent({ provider: "app_store", type: "claim_rejected_disabled", userId, actor: "user", detail: { reason, source: "purchase_context" } });
+    return fail(503, code, code === "iap_disabled" ? MESSAGES.disabled : MESSAGES.notConfigured);
+  };
+  const disabled = appStoreIapDisabledReason();
+  if (disabled) return refuse("iap_disabled", disabled);
+  if (!adapter.isConfigured()) return refuse("not_configured", "app_store_settings_incomplete");
   // Never start a sale whose AI cost is uncapped: all four allowance budgets must be set (lib/ai-allowance.ts).
-  if (!aiAllowanceConfigured()) return fail(503, "not_configured", MESSAGES.notConfigured);
+  if (!aiAllowanceConfigured()) return refuse("not_configured", "ai_allowances_unset");
 
   const live = liveStoreEntitlement(userId);
   if (live) {
@@ -154,7 +161,10 @@ export function getAppStorePurchaseContext(userId: string, adapter: AppStoreAdap
   }
 
   const token = appStoreAccountToken(userId);
-  if (!token) return fail(503, "binding_unavailable", MESSAGES.notConfigured);
+  if (!token) {
+    console.warn("[app-store] purchase context refused: account binding secret unset");
+    return fail(503, "binding_unavailable", MESSAGES.notConfigured);
+  }
   // The app is about to start a FREE TRIAL: claim its AI capacity now, atomically, before the store sheet opens (see lib/iap/service.ts getPurchaseContext).
   if (options.trial && !reserveTrialStart(userId).ok) return fail(409, "trial_unavailable", TRIALS_UNAVAILABLE_MESSAGE);
   return { ok: true, data: { appAccountToken: token, environment: appStoreIapEnvironment() ?? "unset" } };
