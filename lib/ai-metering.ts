@@ -32,10 +32,10 @@ import {
   AI_ALLOWANCE_UNAVAILABLE_CODE,
   AI_UPGRADE_CODE,
   UPGRADE_MESSAGE,
-  aiAllowanceBudgets,
   aiAllowanceEnforced,
   aiPoolBudgets,
   allowanceKindFor,
+  memberBudgetUsd,
   allowanceMessage,
   resetsAtFor,
   windowMsFor,
@@ -191,7 +191,7 @@ export function beginAiCall(input: BeginInput, nowMs: number = Date.now()): AiCa
       throw new AiAllowanceError(AI_ALLOWANCE_UNAVAILABLE_CODE, kind, ALLOWANCE_UNAVAILABLE_MESSAGE);
     }
     const pools = aiPoolBudgets();
-    const budget = memberCall ? aiAllowanceBudgets()[kind as Exclude<AiAllowanceKind, "staff">] : pools.staff;
+    const budget = memberCall ? memberBudgetUsd(userId, kind as Exclude<AiAllowanceKind, "staff">) : pools.staff;
     // A member on a live free trial is NOT held to the shared trial pool. The pool decides whether a NEW trial may start (reserveTrialStart), but a trial the store has
     // confirmed is honoured up to the member's own trial allowance, wherever it was started (including outside our purchase flow, which we cannot control). It is
     // still bounded by that per-member cap, the emergency ceiling and the paid reserve, so it can never take capacity allocated to paid subscribers.

@@ -63,6 +63,13 @@ export function isPlatformOperator(role: string | null | undefined): boolean {
   return role === PLATFORM_OPERATOR_ROLE;
 }
 
+// Owner decision 2026-10-30: admin managers and the platform operator hold every member feature without a plan, and get a larger AI
+// allowance (OWNER_AI_ALLOWANCE_MULTIPLIER) because they demonstrate the AI features to members on their own accounts.
+export function hasOwnerAccess(role: string | null | undefined): boolean {
+  return rank(role) >= ROLE_RANK.admin_manager;
+}
+export const OWNER_AI_ALLOWANCE_MULTIPLIER = 1.5;
+
 // Every gated action in the staff area. Keep this list the single enumeration
 // of capabilities; add a new one here and map it below.
 export type Capability =

@@ -3,6 +3,7 @@ import {
   findMembershipBillingOptionById,
   findMembershipPackageById,
   findSubscriptionByUserId,
+  findUserById,
   type BillingInterval,
   type DigitalEntitlementRecord,
   type MembershipBillingOptionRecord,
@@ -12,6 +13,7 @@ import {
 } from "./db";
 import { liveDigitalEntitlements } from "./digital-entitlement";
 import type { MemberAccess } from "./member-access";
+import { hasOwnerAccess } from "./permissions";
 
 // Single resolver for "what is this subscription entitled to?".
 //
@@ -109,6 +111,9 @@ export function computeMemberAccess(
 }
 
 // The shape every /api/mobile/* route and gated web route actually wants (they have a userId, not records in hand).
+// Admin managers and the platform operator hold everything without a plan (lib/permissions.ts hasOwnerAccess).
 export function resolveMemberAccessForUser(userId: string, nowMs: number = Date.now()): MemberAccess {
+  const user = findUserById(userId);
+  if (user && !user.archivedAt && hasOwnerAccess(user.role)) return { gymMembership: true, digital: true };
   return computeMemberAccess(findSubscriptionByUserId(userId), findDigitalEntitlementsByUserId(userId), nowMs);
 }

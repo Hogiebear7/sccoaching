@@ -9,6 +9,7 @@ vi.mock("@/lib/db", () => ({
   findSubscriptionByUserId: mockFindSubscriptionByUserId,
   findMembershipPackageById: mockFindMembershipPackageById,
   findDigitalEntitlementsByUserId: () => [],
+  findUserById: () => undefined,
 }));
 
 describe("staffCanViewMemberData", () => {

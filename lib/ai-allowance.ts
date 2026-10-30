@@ -43,8 +43,9 @@
 
 import { configuredAiModel } from "@/lib/ai-model";
 import { ratesForKnownModel } from "@/lib/ai-usage";
-import { aiSpendUsd, aiTrialHeadroom, findAiUsageLogsByUserId, findDigitalEntitlementsByUserId, findProfileByUserId, reserveTrialSlot, type AiAllowanceKind, type TrialHeadroomConfig } from "@/lib/db";
+import { aiSpendUsd, aiTrialHeadroom, findAiUsageLogsByUserId, findDigitalEntitlementsByUserId, findProfileByUserId, findUserById, reserveTrialSlot, type AiAllowanceKind, type TrialHeadroomConfig } from "@/lib/db";
 import { describeDigitalPlan, isDigitalEntitlementLive, liveDigitalEntitlements, type DigitalPlanSummary } from "@/lib/digital-entitlement";
+import { hasOwnerAccess, OWNER_AI_ALLOWANCE_MULTIPLIER } from "@/lib/permissions";
 
 /** The four groups a MEMBER can be in ("staff" is the shared pool for staff-run features, not a member group). */
 export type MemberAllowanceKind = Exclude<AiAllowanceKind, "staff">;
@@ -203,8 +204,19 @@ export function allowanceKindFor(userId: string, nowMs: number): MemberAllowance
   const live = liveDigitalEntitlements(findDigitalEntitlementsByUserId(userId), nowMs);
   if (live.some((e) => e.source !== "staff_grant" && e.trial !== true)) return "paid";
   if (live.some((e) => e.source !== "staff_grant" && e.trial === true)) return "trial";
-  if (live.length > 0) return "complimentary";
+  if (live.length > 0 || isOwner(userId)) return "complimentary";
   return "free";
+}
+
+function isOwner(userId: string): boolean {
+  const user = findUserById(userId);
+  return !!user && !user.archivedAt && hasOwnerAccess(user.role);
+}
+
+/** This member's budget for their group, in USD: the group's setting, raised by OWNER_AI_ALLOWANCE_MULTIPLIER for admin managers and the platform operator. */
+export function memberBudgetUsd(userId: string, kind: MemberAllowanceKind): number | null {
+  const base = aiAllowanceBudgets()[kind];
+  return base !== null && isOwner(userId) ? base * OWNER_AI_ALLOWANCE_MULTIPLIER : base;
 }
 
 export const ALLOWANCE_COVERS =
@@ -275,7 +287,7 @@ export function checkAiAllowance(userId: string, nowMs: number = Date.now()): Al
   const kind = allowanceKindFor(userId, nowMs);
   if (isAiPausedFor(userId)) return { ok: false, reason: "paused", kind, message: AI_PAUSED_MESSAGE };
   if (!aiAllowanceEnforced()) return { ok: true, enforced: false, kind, remainingUsd: null };
-  const budget = aiAllowanceBudgets()[kind];
+  const budget = memberBudgetUsd(userId, kind);
   if (budget === null) return { ok: false, reason: "unavailable", kind, message: ALLOWANCE_UNAVAILABLE_MESSAGE };
   if (kind === "free" && budget === 0) return { ok: false, reason: "upgrade", kind, message: UPGRADE_MESSAGE };
 
@@ -305,7 +317,7 @@ export interface MemberAllowanceStatus {
 export function memberAllowanceStatus(userId: string, nowMs: number = Date.now()): MemberAllowanceStatus {
   const kind = allowanceKindFor(userId, nowMs);
   const rate = aiUsdPerEur();
-  const budget = aiAllowanceEnforced() ? aiAllowanceBudgets()[kind] : null;
+  const budget = aiAllowanceEnforced() ? memberBudgetUsd(userId, kind) : null;
   const logs = findAiUsageLogsByUserId(userId);
   const round = (n: number) => Math.round(n * 100) / 100;
   return {
