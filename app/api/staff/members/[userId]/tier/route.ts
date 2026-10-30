@@ -5,6 +5,7 @@ import { sameGym } from "@/lib/gym-scope";
 import { can } from "@/lib/permissions";
 import { grantMemberTier, revokeDigitalGrant, type GrantTier } from "@/lib/tier-grant";
 import { loadTenantUser, resolveTenantRequest } from "@/lib/tenant-request";
+import { recordStaffAction } from "@/lib/staff-actions";
 
 // The two independent things staff can set (owner decision D1; see lib/member-access.ts):
 //   membership        — the paid gym Membership (resolved to the member's gym's default package, or packageId)
@@ -69,6 +70,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!result.ok) {
     return NextResponse.json({ success: false, message: result.message }, { status: result.message.includes("No Membership-tier package") ? 500 : 400 });
   }
+
+  const actionType =
+    tier === "digital_revoke" ? "app_access_withdrawn" : tier === "app_subscription" ? "app_access_granted" : tier === "membership" ? "gym_membership_granted" : "gym_membership_ended";
+  recordStaffAction(staffUser, member, actionType, { endsOn: typeof endsOn === "string" && endsOn ? endsOn : null, note: cleanNote });
 
   return NextResponse.json(
     { success: true, message: result.message, warning: result.warning ?? null, data: { access: result.access } },

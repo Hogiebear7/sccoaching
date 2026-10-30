@@ -15,6 +15,7 @@ import { evaluateEntitlementConflict, packageScopeResolver, scopeOfPackage } fro
 import { can } from "@/lib/permissions";
 import { loadTenantUser, resolveTenantRequest } from "@/lib/tenant-request";
 import { cancelProviderSubscription } from "@/lib/billing";
+import { recordStaffAction } from "@/lib/staff-actions";
 
 const STATUS_VALUES: SubscriptionStatus[] = [
   "inactive",
@@ -209,6 +210,7 @@ export async function POST(
   };
 
   saveSubscription(subscription);
+  recordStaffAction(staffUser, member, "membership_status_set", { status: subscription.status });
 
   return NextResponse.json(
     { success: true, message: providerCancelWarning ?? "Membership status updated.", warning: providerCancelWarning },

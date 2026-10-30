@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   findMembershipPackageById: vi.fn(),
   findProfileByUserId: vi.fn(),
   findStaffMemberStars: vi.fn((): { userId: string }[] => []),
+  findStaffActions: vi.fn((): unknown[] => []),
+  appendStaffAction: vi.fn(),
   findSubscriptionByUserId: vi.fn(),
   findUserById: vi.fn(),
   findWorkoutSessionsByUserId: vi.fn(() => []),
@@ -80,7 +82,7 @@ describe("exports: scope, privacy and period", () => {
 
   it("the master workbook: summary first, then every sheet, each filtered to the period and the gym", () => {
     const sheets = buildMasterWorkbook({ gymId: null }, "30d", NOW);
-    expect(sheets.map((s) => s.key)).toEqual(["summary", "members", "memberships", "classes", "bookings", "app-access"]);
+    expect(sheets.map((s) => s.key)).toEqual(["summary", "members", "memberships", "classes", "bookings", "app-access", "staff-changes"]);
     const classes = sheets.find((s) => s.key === "classes")!;
     expect(classes.rows).toHaveLength(1);
     expect(classes.rows[0]).toMatchObject({ booked: 2, attended: 1, fill: 1 / 8, noShows: 1 });
@@ -130,7 +132,7 @@ describe("exports: file formats", () => {
     const buffer = await toXlsx(sheets, { title: "Test" });
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buffer as unknown as ArrayBuffer);
-    expect(wb.worksheets.map((w) => w.name)).toEqual(["Summary", "Members", "Memberships", "Classes", "Bookings", "App access & AI"]);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["Summary", "Members", "Memberships", "Classes", "Bookings", "App access & AI", "Staff changes"]);
     const members = wb.getWorksheet("Members")!;
     expect(members.getRow(1).getCell(1).value).toBe("Name");
     expect(members.getRow(2).getCell(1).value).toBe("=cmd");

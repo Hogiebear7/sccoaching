@@ -4,7 +4,7 @@ import { EXPORT_RANGE_LABEL, EXPORT_RANGES, EXPORT_SHEET_INFO, type ExportRange,
 
 // Server-rendered: every control is a plain link, so the page works without JavaScript and each download is an ordinary file request
 // (the browser keeps the session cookie). See app/api/staff/exports/route.ts.
-const SHEETS: Exclude<ExportSheetKey, "summary">[] = ["members", "memberships", "classes", "bookings", "app-access"];
+const SHEETS: Exclude<ExportSheetKey, "summary">[] = ["members", "memberships", "classes", "bookings", "app-access", "staff-changes"];
 
 const href = (sheet: string, format: "csv" | "xlsx", range: ExportRange) => `/api/staff/exports?sheet=${sheet}&format=${format}&range=${range}`;
 

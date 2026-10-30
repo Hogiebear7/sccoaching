@@ -910,6 +910,38 @@ export interface StaffMemberStarRecord {
   starredAt: string;
 }
 
+// One staff change to a member's access or account (admin revamp S6, docs/admin-revamp-plan-2026-10.md): who did it, to whom, what, and when.
+// Append-only and kept when the member's account is deleted (it is the gym's record of its own staff's actions); it holds opaque account ids and
+// short codes only, never names or free text, so a deleted member reads as "Deleted member". Bounded to the newest STAFF_ACTIONS_MAX rows.
+export type StaffActionType =
+  | "app_access_granted"
+  | "app_access_withdrawn"
+  | "gym_membership_granted"
+  | "gym_membership_ended"
+  | "ai_paused"
+  | "ai_resumed"
+  | "membership_paused"
+  | "membership_resumed"
+  | "membership_status_set"
+  | "extra_sessions_granted"
+  | "member_archived"
+  | "member_restored"
+  | "member_deleted";
+
+export interface StaffActionRecord {
+  id: string;
+  at: string;
+  /** The gym the member belongs to (null = the primary gym), so each gym sees only its own staff's changes. */
+  gymId: string | null;
+  staffUserId: string;
+  memberUserId: string;
+  type: StaffActionType;
+  /** Short primitive facts: a plan name, an end date, a count. */
+  detail: Record<string, string | number | boolean | null>;
+}
+
+export const STAFF_ACTIONS_MAX = 20_000;
+
 export type BillingInterval = "monthly" | "quarterly" | "annual";
 
 // The internal, plan-shaped ENTITLEMENT view a subscription resolves to.
@@ -2192,6 +2224,7 @@ interface Database {
   attendanceWatchlist: WatchlistEntryRecord[];
   coachNotes: CoachNoteRecord[];
   staffMemberStars: StaffMemberStarRecord[];
+  staffActions: StaffActionRecord[];
   membershipCategories: MembershipCategoryRecord[];
   membershipPackages: MembershipPackageRecord[];
   gyms: GymRecord[];
@@ -2338,6 +2371,7 @@ function normalizeDatabase(raw: string | null): Database {
       attendanceWatchlist: [],
       coachNotes: [],
       staffMemberStars: [],
+      staffActions: [],
       membershipCategories: [],
       membershipPackages: [],
       gyms: [],
@@ -2494,6 +2528,7 @@ function normalizeDatabase(raw: string | null): Database {
     attendanceWatchlist: parsed.attendanceWatchlist ?? [],
     coachNotes: parsed.coachNotes ?? [],
     staffMemberStars: parsed.staffMemberStars ?? [],
+    staffActions: parsed.staffActions ?? [],
     membershipCategories: (parsed.membershipCategories ?? []).map((c) => ({
       ...c,
       gymId: c.gymId ?? null,
@@ -3733,6 +3768,24 @@ export function setStaffMemberStar(userId: string, starred: boolean, staffUserId
   else if (!starred && index !== -1) db.staffMemberStars.splice(index, 1);
   else return;
   writeDb(db);
+}
+
+/** Records one staff change. Never throws into the caller's write: the change itself has already happened. */
+export function appendStaffAction(input: Omit<StaffActionRecord, "id" | "at">): void {
+  try {
+    const db = readDb();
+    const detail: StaffActionRecord["detail"] = {};
+    for (const [k, v] of Object.entries(input.detail)) detail[k] = typeof v === "string" ? v.slice(0, 120) : v;
+    db.staffActions.push({ ...input, detail, id: randomUUID(), at: new Date().toISOString() });
+    if (db.staffActions.length > STAFF_ACTIONS_MAX) db.staffActions.splice(0, db.staffActions.length - STAFF_ACTIONS_MAX);
+    writeDb(db);
+  } catch (error) {
+    console.error("[staff-actions] could not record", input.type, error);
+  }
+}
+
+export function findStaffActions(): StaffActionRecord[] {
+  return readDb().staffActions;
 }
 
 export function findSubscriptionByUserId(userId: string): SubscriptionRecord | undefined {

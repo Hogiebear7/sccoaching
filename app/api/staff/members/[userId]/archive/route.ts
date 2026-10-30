@@ -5,6 +5,7 @@ import { findUserById, setUserArchived } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { recordStaffAction } from "@/lib/staff-actions";
 
 // Archive / restore a member account. Archiving blocks sign-in and hides the
 // account from the default staff list; every record (bookings, purchases,
@@ -69,6 +70,7 @@ export async function POST(
   }
 
   setUserArchived(member.id, archived);
+  recordStaffAction(staffUser, member, archived ? "member_archived" : "member_restored");
 
   return NextResponse.json(
     {

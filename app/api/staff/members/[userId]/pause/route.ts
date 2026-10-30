@@ -6,6 +6,7 @@ import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { pauseProviderSubscription, resumeProviderSubscription } from "@/lib/billing";
+import { recordStaffAction } from "@/lib/staff-actions";
 
 const DURATION_DAYS: Record<string, number> = {
   "2w": 14,
@@ -128,6 +129,7 @@ export async function POST(
       );
     }
 
+    recordStaffAction(staffUser, member, "membership_paused", { endsOn: resumesAt.toISOString().slice(0, 10) });
     return NextResponse.json(
       {
         success: true,
@@ -172,6 +174,7 @@ export async function POST(
       );
     }
 
+    recordStaffAction(staffUser, member, "membership_resumed");
     return NextResponse.json(
       { success: true, message: providerWarning ?? "Membership resumed.", warning: providerWarning },
       { status: 200 }

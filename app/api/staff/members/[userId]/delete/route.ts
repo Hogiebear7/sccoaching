@@ -5,6 +5,7 @@ import { appendIapEvent, deleteUserAndOwnedRecords, findUserById } from "@/lib/d
 import { sameGym } from "@/lib/gym-scope";
 import { ACTIVE_SUBSCRIPTION_CODE, ACTIVE_SUBSCRIPTION_MESSAGE, MemberDeletionRefused } from "@/lib/member-deletion-guard";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { recordStaffAction } from "@/lib/staff-actions";
 
 // PERMANENT deletion of an archived member and all of their owned records.
 // Guardrails (defence in depth — enforced here regardless of the UI):
@@ -55,6 +56,7 @@ export async function POST(
     }
     throw error;
   }
+  recordStaffAction(auth.user, target, "member_deleted");
 
   return NextResponse.json(
     { success: true, message: `${target.email} was permanently deleted.`, removed },

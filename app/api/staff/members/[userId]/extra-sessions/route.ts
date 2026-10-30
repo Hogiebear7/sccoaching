@@ -12,6 +12,7 @@ import { sameGym } from "@/lib/gym-scope";
 import { remainingSessions } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { recordStaffAction } from "@/lib/staff-actions";
 
 // Deliberate cap — extra passes are goodwill/correction credits, not a way
 // to hand out a second allowance. Larger entitlements belong on the plan.
@@ -130,6 +131,7 @@ export async function POST(
   };
 
   saveSubscription(updated);
+  recordStaffAction(staffUser, member, "extra_sessions_granted", { classes: amount });
 
   const remaining = remainingSessions(plan, updated);
 

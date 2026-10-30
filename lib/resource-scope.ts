@@ -87,6 +87,7 @@ export const COLLECTION_SCOPE = {
   attendanceWatchlist: user(),
   coachNotes: user("userId", "Staff-written, member-owned; staff access is same-gym only."),
   staffMemberStars: user("userId", "A star staff put on a member to find them in the lists; staff access is same-gym only."),
+  staffActions: gym("Append-only log of staff changes to members (admin revamp S6). gymId is the member's gym; readers filter to their own gym. Kept after a member is deleted: opaque ids and short codes only."),
   membershipCategories: gym(),
   membershipPackages: parent("categoryId", "Tenant is the category's gym, except deliveryChannel app_only (platform-global App Subscription)."),
   gyms: { kind: "gym-direct", owner: "id", note: "The tenant record itself. Moderation is exact-role platform_operator." },

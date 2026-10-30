@@ -5,6 +5,7 @@ import { sameGymAsStaff } from "@/lib/gym-scope";
 import { can } from "@/lib/permissions";
 import { grantMemberTier, revokeDigitalGrant, type GrantTier } from "@/lib/tier-grant";
 import { loadTenantUser, resolveTenantRequest } from "@/lib/tenant-request";
+import { recordStaffAction } from "@/lib/staff-actions";
 
 // Same four actions as POST .../[userId]/tier: gym Membership (membership / free) and COMPLIMENTARY digital access
 // (app_subscription / digital_revoke) are independent. See that route for the meaning of each.
@@ -59,6 +60,10 @@ export async function POST(request: NextRequest) {
     }
 
     const result = tier === "digital_revoke" ? revokeDigitalGrant(member.id) : await grantMemberTier(member.id, tier as GrantTier, { grantedByUserId: staffUser.id });
+    if (result.ok) {
+      const type = tier === "digital_revoke" ? "app_access_withdrawn" : tier === "app_subscription" ? "app_access_granted" : tier === "membership" ? "gym_membership_granted" : "gym_membership_ended";
+      recordStaffAction(staffUser, member, type, { bulk: true });
+    }
     results.push({ userId, ok: result.ok, message: result.warning ?? result.message });
   }
 

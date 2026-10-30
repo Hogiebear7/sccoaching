@@ -27,6 +27,7 @@ import { hasGymMembership } from "@/lib/member-access";
 import { memberListGroup, type MemberListGroup } from "@/lib/member-list-group";
 import { resolveMemberAccessForUser, resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { classCategoryLabel } from "@/lib/scheduling-status";
+import { listStaffActions } from "@/lib/staff-actions";
 
 export type ExportCell = string | number | null;
 export type ExportColumnKind = "text" | "number" | "date" | "percent" | "money";
@@ -43,7 +44,7 @@ export interface ExportSheet {
   rows: Record<string, ExportCell>[];
 }
 
-export const EXPORT_SHEET_KEYS = ["summary", "members", "memberships", "classes", "bookings", "app-access"] as const;
+export const EXPORT_SHEET_KEYS = ["summary", "members", "memberships", "classes", "bookings", "app-access", "staff-changes"] as const;
 export type ExportSheetKey = (typeof EXPORT_SHEET_KEYS)[number];
 
 export const EXPORT_RANGES = ["30d", "last-month", "90d", "12m", "all"] as const;
@@ -64,6 +65,7 @@ export const EXPORT_SHEET_INFO: Record<ExportSheetKey, { title: string; descript
   classes: { title: "Classes", description: "Each class in the period: type, capacity, booked, attended, fill rate and no-shows.", usesRange: true },
   bookings: { title: "Bookings", description: "Every booking in the period: class, member, when it was booked, attended or no-show.", usesRange: true },
   "app-access": { title: "App access & AI", description: "Who has the App Subscription (store or complimentary), until when, and their AI use and cost in the period.", usesRange: true },
+  "staff-changes": { title: "Staff changes", description: "Every change staff made to a member in the period: free access given or withdrawn, memberships, pauses, AI pauses, archives.", usesRange: true },
 };
 
 type Actor = { gymId?: string | null };
@@ -339,6 +341,26 @@ export function buildAppAccessSheet(staff: Actor, range: ExportRange, now: Date 
   };
 }
 
+export function buildStaffChangesSheet(staff: Actor, range: ExportRange, now: Date = new Date()): ExportSheet {
+  const { start, end } = rangeBounds(range, now);
+  const rows = listStaffActions(staff, start, end)
+    .reverse()
+    .map((a) => ({ date: a.at.slice(0, 10), time: a.at.slice(11, 16), staff: a.staff, member: a.member, action: a.action, detail: a.detail }));
+  return {
+    key: "staff-changes",
+    title: EXPORT_SHEET_INFO["staff-changes"].title,
+    columns: [
+      { key: "date", header: "Date", kind: "date" },
+      { key: "time", header: "Time (UTC)", width: 10 },
+      { key: "staff", header: "Staff member", width: 24 },
+      { key: "member", header: "Member", width: 24 },
+      { key: "action", header: "Change", width: 30 },
+      { key: "detail", header: "Details", width: 40 },
+    ],
+    rows,
+  };
+}
+
 /** The headline numbers, built from the other sheets so every figure can be traced back to a row. */
 export function buildSummarySheet(
   staff: Actor,
@@ -408,6 +430,8 @@ export function buildExportSheet(key: ExportSheetKey, staff: Actor, range: Expor
       return buildBookingsSheet(staff, range, now);
     case "app-access":
       return buildAppAccessSheet(staff, range, now);
+    case "staff-changes":
+      return buildStaffChangesSheet(staff, range, now);
     case "summary":
       return buildMasterWorkbook(staff, range, now)[0];
   }
@@ -425,5 +449,6 @@ export function buildMasterWorkbook(staff: Actor, range: ExportRange, now: Date 
     classes,
     buildBookingsSheet(staff, range, now),
     appAccess,
+    buildStaffChangesSheet(staff, range, now),
   ];
 }
