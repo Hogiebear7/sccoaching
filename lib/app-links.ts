@@ -7,6 +7,21 @@
 
 export const PLAY_STORE_APP_ID = "com.sandcperformancecoaching.app";
 
+/** The App Store id from App Store Connect (App Information > Apple ID). Not a secret. */
+export const APP_STORE_APP_ID = "6808795468";
+
+export function appStoreListingUrl(appId: string = APP_STORE_APP_ID): string {
+  return `https://apps.apple.com/app/id${encodeURIComponent(appId)}`;
+}
+
+/** Whether each public listing is live, so the website links to it. Set at build time once each store has published the app. */
+export function storeListingsLive(): { appStore: boolean; googlePlay: boolean } {
+  return {
+    appStore: process.env.NEXT_PUBLIC_APP_STORE_LISTING_LIVE === "true",
+    googlePlay: process.env.NEXT_PUBLIC_PLAY_LISTING_LIVE === "true",
+  };
+}
+
 export function playStoreListingUrl(appId: string = PLAY_STORE_APP_ID): string {
   return `https://play.google.com/store/apps/details?id=${encodeURIComponent(appId)}`;
 }

@@ -2,6 +2,8 @@
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
+import { appStoreListingUrl, playStoreListingUrl, storeListingsLive } from "@/lib/app-links";
+
 // Images are served with a one-year browser cache, so a new set always goes in a new folder (here 2026-10/): reusing a filename would leave
 // returning visitors on the old pictures.
 // Real in-app screenshots, the same screens (and wording) as the Play Store and App Store listings (sc-coaching-mobile/store-assets/2026-10),
@@ -175,16 +177,18 @@ function AppScreensGrid() {
   );
 }
 
-// Store badges are placeholders only — no real listing exists yet (the app
-// hasn't shipped a production build to either store). Deliberately not
-// styled as the official Apple/Google trademarked badge artwork; swap the
-// href (and, if wanted, real badge graphics) in once both listings are live.
+// Store badges: "Coming soon on" until a listing is public, then a link to it (lib/app-links.ts storeListingsLive, set at build time).
+// Deliberately not styled as the official Apple/Google trademarked badge artwork.
 function StoreBadge({ store }: { store: "apple" | "google" }) {
   const label = store === "apple" ? "App Store" : "Google Play";
+  const live = storeListingsLive()[store === "apple" ? "appStore" : "googlePlay"];
+  const Tag = live ? "a" : "span";
   return (
-    <span
-      aria-disabled
-      className="inline-flex items-center gap-2.5 rounded-[3px] border border-white/[0.14] bg-white/[0.03] px-4 py-2.5 text-zinc-400"
+    <Tag
+      {...(live ? { href: store === "apple" ? appStoreListingUrl() : playStoreListingUrl(), rel: "noopener" } : { "aria-disabled": true })}
+      className={`inline-flex items-center gap-2.5 rounded-[3px] border px-4 py-2.5 ${
+        live ? "border-white/[0.24] bg-white/[0.06] text-zinc-100 transition-colors duration-150 hover:border-primary/60" : "border-white/[0.14] bg-white/[0.03] text-zinc-400"
+      }`}
     >
       {store === "apple" ? (
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className="h-5 w-5 flex-shrink-0">
@@ -197,10 +201,10 @@ function StoreBadge({ store }: { store: "apple" | "google" }) {
         </svg>
       )}
       <span className="text-left leading-tight">
-        <span className="block text-xs uppercase tracking-[0.08em] text-zinc-500">Coming soon on</span>
+        <span className="block text-xs uppercase tracking-[0.08em] text-zinc-500">{live ? (store === "apple" ? "Download on the" : "Get it on") : "Coming soon on"}</span>
         <span className="block text-sm font-semibold text-zinc-200">{label}</span>
       </span>
-    </span>
+    </Tag>
   );
 }
 
@@ -214,8 +218,10 @@ export function AppShowcase({ children }: { children?: ReactNode }) {
       {children}
 
       <div className="mt-10 flex flex-col items-start gap-4 border-t border-white/[0.08] pt-8 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-base text-zinc-300">
-          App-only membership — no gym visit required. <span className="text-zinc-300">Launching soon.</span>
+        <p className="max-w-[60ch] text-base leading-relaxed text-zinc-300">
+          Free to download, with workout, meal and check-in logging included. The App Subscription adds the AI coach, adaptive targets and
+          programmes: <span className="font-semibold text-zinc-100">€12.99 a month or €119.99 a year</span>, 7-day free trial. No gym visit
+          needed, and it&apos;s separate from a gym Membership.
         </p>
         <div className="flex flex-wrap gap-3">
           <StoreBadge store="apple" />

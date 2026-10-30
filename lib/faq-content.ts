@@ -72,20 +72,18 @@ const BOOKING_AND_MEMBERSHIP: FaqItem[] = [
   },
 ];
 
-// App-only (Tier 2) questions, scoped to the standalone app subscription in
-// AppShowcase.tsx. Kept apart from the in-person questions because the two
-// products answer similar questions (cost, what's included) differently. No
-// invented pricing or store links, since neither exists yet.
+// App questions, kept apart from the in-person ones because the two products answer similar questions (cost, what's included) differently.
+// Prices follow the paywall plan (docs/paywall-plan-2026-10.md): €12.99/month or €119.99/year, 7-day free trial.
 const THE_APP: FaqItem[] = [
   {
     question: "What's included with the app?",
     answer:
-      "A workout built around your equipment and goals, a coach you can message any time, meal logging from a photo of your plate, and calorie and macro targets that adjust as your training changes, all in one place.",
+      "The App Subscription adds the AI coach and AI nutrition coach, food logging from a photo or a description, daily calorie and macro targets that adapt to your training, programmes and the weekly planner, and your full history and personal bests. Logging workouts, meals and check-ins is free for everyone.",
   },
   {
     question: "How is this different from the in-person membership?",
     answer:
-      "The app-only plan is for training on your own, with no gym visit or class booking involved. If you're already a Semi-Private, Parent & Baby or Over 50s member, the same app (workout tracking, coach messaging and nutrition logging) is already included in your membership.",
+      "They're separate. A gym Membership (Semi-Private, Parent & Baby or Over 50s) covers your classes, booking and messaging your coach in the app. The App Subscription covers the app's digital coaching (the AI coach, targets and programmes) and is for anyone, member or not. A gym Membership doesn't include it, and it doesn't include a gym Membership.",
   },
   {
     question: "Do I need any equipment?",
@@ -98,7 +96,8 @@ const THE_APP: FaqItem[] = [
   },
   {
     question: "When can I download it, and what does it cost?",
-    answer: "Launching soon on the App Store and Google Play. Pricing will be confirmed closer to launch.",
+    answer:
+      "The app is free to download and use for logging, launching soon on the App Store and Google Play. The App Subscription is €12.99 a month or €119.99 a year, with a 7-day free trial, bought in the app through your App Store or Google Play account. Cancel any time in your store settings.",
   },
 ];
 

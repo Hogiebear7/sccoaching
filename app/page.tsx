@@ -7,6 +7,7 @@ import { findUserById } from "@/lib/db";
 import { AUTH_ROUTES, CONTACT_INFO } from "@/lib/content";
 import { HOME_APPROACH, HOME_CONTACT, HOME_HERO, HOME_INCLUDED, HOME_PROGRESS, HOME_PROOF } from "@/lib/homepage-content";
 import { verifySession } from "@/lib/session";
+import { healthClubJsonLd, jsonLdScript } from "@/lib/structured-data";
 import { SiteAnalytics } from "@/components/analytics/SiteAnalytics";
 import { AppFeatureGrid } from "@/components/marketing/AppFeatureGrid";
 import { AppShowcase } from "@/components/marketing/AppShowcase";
@@ -47,6 +48,7 @@ export default async function Root() {
       {/* Ambient — slow navy haze with drifting chalk specks behind the hero */}
       <HeroShader className="pointer-events-none absolute inset-x-0 top-0 h-[820px] [mask-image:linear-gradient(to_bottom,black,transparent_92%)]" />
 
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(healthClubJsonLd()) }} />
       <SiteHeader />
 
       {/* Hero — who we help and the outcome, one primary action, the real
