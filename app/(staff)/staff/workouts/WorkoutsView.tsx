@@ -217,7 +217,6 @@ export function WorkoutsView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="label-caps">Staff</p>
           <h2 className="text-display mt-1 text-[28px] leading-tight">Workouts</h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             Build a library of class workout templates. Load one onto any upcoming class instead of

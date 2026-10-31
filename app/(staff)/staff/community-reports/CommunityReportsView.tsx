@@ -63,7 +63,6 @@ export function CommunityReportsView({ reports }: { reports: ReportRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Community reports</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Comments and shared workouts reported by members on the Community feed. Resolving removes

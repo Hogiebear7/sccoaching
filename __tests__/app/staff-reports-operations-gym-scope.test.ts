@@ -50,6 +50,8 @@ vi.mock("@/app/(staff)/staff/reports/ReportsView", () => ({ ReportsView: () => n
 vi.mock("@/app/(staff)/staff/operations/OperationsView", () => ({ OperationsView: () => null }));
 // The overview's month figures and At-risk list have their own gym-scope test (__tests__/lib/staff-today.test.ts).
 vi.mock("@/lib/staff-today", () => ({ buildStaffToday: () => ({ monthLabel: "", figures: [], atRisk: [] }) }));
+// So do the dashboard's trends and to-dos (__tests__/lib/staff-dashboard.test.ts).
+vi.mock("@/lib/staff-dashboard", () => ({ buildStaffDashboard: () => ({}) }));
 
 // The clock is pinned to a fixed instant, and every date below is derived from it, so this file does not depend on
 // the wall clock. It used to take "today" from the UTC date while lib/class-time.ts reads a class's start time in

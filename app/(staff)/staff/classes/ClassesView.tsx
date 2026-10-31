@@ -490,7 +490,6 @@ export function ClassesView({
 
       {/* Header card */}
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">
           {isEditing ? "Edit class" : "Create a class"}
         </h2>

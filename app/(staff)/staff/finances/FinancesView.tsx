@@ -198,7 +198,6 @@ export function FinancesView({
   return (
     <div className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Finances</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           The business finance ledger — money in, money out, fees, and what&apos;s actually left. Tier 1

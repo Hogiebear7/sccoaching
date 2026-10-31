@@ -69,7 +69,6 @@ export function CatalogView({
   return (
     <div className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Membership catalog</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           This is what members see when they join. It has three levels:

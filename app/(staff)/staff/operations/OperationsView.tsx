@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import type { StaffDashboard } from "@/lib/staff-dashboard";
 import type { StaffToday } from "@/lib/staff-today";
-import { TodaySection } from "./TodaySection";
+import { DashboardSection } from "./DashboardSection";
 
 import type {
   ClassCategoryRecord,
@@ -31,6 +32,14 @@ const RUN_TIMESTAMP_FORMAT = new Intl.DateTimeFormat("en-US", {
   timeZoneName: "short",
 });
 
+type OverviewTab = "dashboard" | "schedule" | "settings";
+
+const OVERVIEW_TABS: { id: OverviewTab; label: string }[] = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "schedule", label: "Schedule" },
+  { id: "settings", label: "Settings & jobs" },
+];
+
 function formatRunTimestamp(isoDate: string): string {
   return RUN_TIMESTAMP_FORMAT.format(new Date(isoDate));
 }
@@ -53,6 +62,7 @@ export function OperationsView({
   emailSettings,
   readinessAlertSettings,
   today,
+  dashboard,
 }: {
   members: MemberOperationalSummary[];
   classes: ClassPressureSummary[];
@@ -64,7 +74,10 @@ export function OperationsView({
   readinessAlertSettings: ReadinessAlertSettings;
   /** "This month" figures and the At-risk list (lib/staff-today.ts). */
   today: StaffToday;
+  /** Trends, today's classes, renewals and to-dos (lib/staff-dashboard.ts). */
+  dashboard: StaffDashboard;
 }) {
+  const [tab, setTab] = useState<OverviewTab>("dashboard");
   const router = useRouter();
   const [isRunning, setIsRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
@@ -129,101 +142,121 @@ export function OperationsView({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <p className="label-caps">Staff</p>
-        <h2 className="text-display mt-1 text-[28px] leading-tight">Staff overview</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Membership state, session usage, readiness, and class pressure at a glance.
-        </p>
-      </div>
-
-      <TodaySection today={today} />
-
-      {/* Summary stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <SummaryStat label="Members" value={String(members.length)} detail="Total member accounts." />
-        <AttentionCard count={attentionCount} breakdown={attentionBreakdown} />
-        <SummaryStat
-          label="Class pressure"
-          value={String(fullClasses.length)}
-          detail={`${fullClasses.length} full · ${waitlistedClasses.length} with a waitlist.`}
-        />
-      </div>
-
-      {/* Background jobs */}
-      <div className="panel p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-lg font-semibold">Background jobs</h3>
+      <div role="tablist" aria-label="Overview sections" className="inline-flex rounded-lg border border-border bg-[#ffffff] p-1">
+        {OVERVIEW_TABS.map((t) => (
           <button
+            key={t.id}
             type="button"
-            onClick={handleRunNow}
-            disabled={isRunning}
-            className="self-start btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
+            role="tab"
+            id={`overview-tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`overview-panel-${t.id}`}
+            onClick={() => setTab(t.id)}
+            className={`min-h-9 rounded-md px-4 text-[14px] font-medium transition-colors ${
+              tab === t.id ? "bg-[#0a1526] text-[#ffffff]" : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            {isRunning ? "Running…" : "Run housekeeping now"}
+            {t.label}
           </button>
+        ))}
+      </div>
+
+      {tab === "dashboard" ? (
+        <div role="tabpanel" id="overview-panel-dashboard" aria-labelledby="overview-tab-dashboard" className="space-y-6">
+          <DashboardSection today={today} dashboard={dashboard} />
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <SummaryStat label="Member accounts" value={String(members.length)} detail="Every member account, any plan." />
+            <AttentionCard count={attentionCount} breakdown={attentionBreakdown} />
+            <SummaryStat
+              label="Class pressure"
+              value={String(fullClasses.length)}
+              detail={`${fullClasses.length} full · ${waitlistedClasses.length} with a waitlist.`}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {tab === "schedule" ? (
+        <div role="tabpanel" id="overview-panel-schedule" aria-labelledby="overview-tab-schedule">
+          <OperationsCalendar classes={classes} categories={categories} deletedLabels={deletedLabels} />
+        </div>
+      ) : null}
+
+      {tab === "settings" ? (
+        <div role="tabpanel" id="overview-panel-settings" aria-labelledby="overview-tab-settings" className="space-y-6">
+        {/* Background jobs */}
+        <div className="panel p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-lg font-semibold">Background jobs</h3>
+            <button
+              type="button"
+              onClick={handleRunNow}
+              disabled={isRunning}
+              className="self-start btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
+            >
+              {isRunning ? "Running…" : "Run housekeeping now"}
+            </button>
+          </div>
+
+          {runError ? (
+            <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {runError}
+            </p>
+          ) : null}
+
+          {runMessage ? (
+            <p className="mt-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
+              {runMessage}
+            </p>
+          ) : null}
+
+          {latestRunPerJob.length === 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              No housekeeping jobs have run yet. See <code>docs/scheduler.md</code> for how to
+              schedule them automatically, or use the button above to run them now.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {latestRunPerJob.map((run) => (
+                <div
+                  key={run.jobName}
+                  className="flex flex-col gap-1 well p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{run.jobName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{run.summary}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        run.status === "success"
+                          ? "bg-primary/15 text-primary"
+                          : "bg-destructive/15 text-destructive"
+                      }`}
+                    >
+                      {run.status === "success" ? "OK" : "Error"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatRunTimestamp(run.startedAt)} · {run.trigger}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {runError ? (
-          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {runError}
-          </p>
-        ) : null}
+        {/* Class types */}
+        <ClassTypesManager classTypes={classTypes} />
 
-        {runMessage ? (
-          <p className="mt-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
-            {runMessage}
-          </p>
-        ) : null}
+        {/* Transactional email toggles */}
+        <EmailSettingsManager settings={emailSettings} />
 
-        {latestRunPerJob.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">
-            No housekeeping jobs have run yet. See <code>docs/scheduler.md</code> for how to
-            schedule them automatically, or use the button above to run them now.
-          </p>
-        ) : (
-          <div className="mt-4 space-y-2">
-            {latestRunPerJob.map((run) => (
-              <div
-                key={run.jobName}
-                className="flex flex-col gap-1 well p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="text-sm font-medium">{run.jobName}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{run.summary}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      run.status === "success"
-                        ? "bg-primary/15 text-primary"
-                        : "bg-destructive/15 text-destructive"
-                    }`}
-                  >
-                    {run.status === "success" ? "OK" : "Error"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatRunTimestamp(run.startedAt)} · {run.trigger}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Class types */}
-      <ClassTypesManager classTypes={classTypes} />
-
-      {/* Transactional email toggles */}
-      <EmailSettingsManager settings={emailSettings} />
-
-      {/* Readiness alert threshold */}
-      <ReadinessAlertSettingsManager settings={readinessAlertSettings} />
-
-      {/* Upcoming classes — condensed month calendar instead of a flat list */}
-      <OperationsCalendar classes={classes} categories={categories} deletedLabels={deletedLabels} />
+        {/* Readiness alert threshold */}
+        <ReadinessAlertSettingsManager settings={readinessAlertSettings} />
+        </div>
+      ) : null}
     </div>
   );
 }

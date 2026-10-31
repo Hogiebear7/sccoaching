@@ -306,7 +306,6 @@ export function ExercisesView({ exercises }: { exercises: ExerciseRecord[] }) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Exercises</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Manage the exercise library. Members see these suggestions when logging workouts.

@@ -8,7 +8,11 @@ import { useEffect, useState } from "react";
 // app/api/staff/messages/unread-count/route.ts for the full explanation.
 // Re-fetches on every route change, which also covers "just marked read by
 // opening a member's thread" since that's itself a navigation.
-export function UnreadMessagesBadge() {
+export function UnreadMessagesBadge({
+  className = "rounded-full bg-blue-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300",
+}: {
+  className?: string;
+} = {}) {
   const pathname = usePathname();
   const [count, setCount] = useState<number | null>(null);
 
@@ -30,8 +34,9 @@ export function UnreadMessagesBadge() {
   if (!count) return null;
 
   return (
-    <span className="rounded-full bg-blue-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300">
+    <span className={className}>
       {count}
+      <span className="sr-only"> unread</span>
     </span>
   );
 }

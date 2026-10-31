@@ -45,7 +45,6 @@ export default async function StaffMessagesPage() {
   return (
     <section className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Messages</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Every member conversation, newest first — open one to read and reply. Opening a

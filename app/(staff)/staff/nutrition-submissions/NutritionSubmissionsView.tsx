@@ -80,7 +80,6 @@ export function NutritionSubmissionsView({ submissions }: { submissions: Submiss
   return (
     <div className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Food submissions</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Members opt in to share a custom food publicly via Open Food Facts. Review the nutrition details and any

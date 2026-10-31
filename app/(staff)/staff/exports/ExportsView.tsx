@@ -29,7 +29,6 @@ export function ExportsView({
   return (
     <div className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Reports &amp; exports</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Download your gym&apos;s figures as spreadsheets. The master workbook has every sheet plus a summary; each sheet also downloads on its

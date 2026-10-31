@@ -48,7 +48,6 @@ export function StaffUsersView({ rows, currentUserId }: { rows: Row[]; currentUs
   return (
     <div className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Staff users</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Create and manage elevated accounts. <span className="font-medium text-foreground">Coach</span> can

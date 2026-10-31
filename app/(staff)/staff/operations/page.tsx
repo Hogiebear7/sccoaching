@@ -10,6 +10,7 @@ import {
 import { sameGym } from "@/lib/gym-scope";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { buildMemberOperationalSummaries, buildUpcomingClassPressureSummaries } from "@/lib/staff-operations";
+import { buildStaffDashboard } from "@/lib/staff-dashboard";
 import { buildStaffToday } from "@/lib/staff-today";
 import { OperationsView } from "./OperationsView";
 
@@ -39,6 +40,9 @@ export default async function StaffOperationsPage() {
     packageCount: countPackagesByEligibleClassType(c.slug),
   }));
 
+  const today = buildStaffToday(staff);
+  const dashboard = buildStaffDashboard(staff, today.atRisk.length);
+
   return (
     <OperationsView
       members={members}
@@ -49,7 +53,8 @@ export default async function StaffOperationsPage() {
       classTypes={classTypes}
       emailSettings={getTransactionalEmailSettings()}
       readinessAlertSettings={getReadinessAlertSettings()}
-      today={buildStaffToday(staff)}
+      today={today}
+      dashboard={dashboard}
     />
   );
 }

@@ -55,3 +55,8 @@ billing-affecting action confirms; every table paginates; works at phone width.
 - **S4 (done 2026-10-30): The app's staff area** gets Today and At risk: a card at the top of the staff Classes screen (`/api/mobile/staff/today`, the same numbers as the website). Admins and up; hidden for coaches. Needs the next app build.
 - **S5 (done 2026-10-29): Monthly master workbook by email.** In the first week of each month, every admin manager (and platform operator) gets last month's workbook for their gym, with the summary in the email and an in-app notice. Exports also gained a "Last month" period.
 - **S6 (done 2026-10-30): Staff changes.** Every staff change to a member is recorded (free App Subscription and gym Membership grants and withdrawals, single and bulk; AI pause and resume; membership pause, resume and status overrides; extra classes; archive, restore, delete) with who, to whom and when. A Staff changes page (`/staff/changes`, admin) and a "Staff changes" sheet in the exports and the master workbook. Changes made before this date were not recorded.
+- **S7 (done 2026-10-31): Admin v2 look and Overview dashboard.** A navy sidebar with icons beside a light workspace, a top bar with
+  Jump to (Ctrl K) and the account menu, and a phone drawer (`components/staff/admin/`). Every staff screen restyled through one scoped
+  token block (`[data-staff-app]`, DESIGN.md "Admin area"). The Overview now opens on a dashboard: to-dos, the month's figures with
+  delta chips, sign-up and check-in trends, membership mix, today's classes, Gone quiet and Renewals coming up
+  (`lib/staff-dashboard.ts`, tested); Schedule and Settings & jobs moved into tabs. Members gained a one-row filter bar and avatars.

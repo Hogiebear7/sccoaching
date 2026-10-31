@@ -121,7 +121,7 @@ export function MessagesThread({
                           }`
                         : `max-w-[80%] rounded-[10px] px-4 py-3 text-sm ${
                             isOwnRole
-                              ? "bg-teal-500 text-black"
+                              ? "bg-[#0a1526] text-[#ffffff]"
                               : "border border-zinc-800 bg-zinc-900 text-zinc-100"
                           }`
                     }
@@ -142,11 +142,18 @@ export function MessagesThread({
                     ) : (
                       <p
                         className={`mt-1 text-xs ${
-                          isOwnRole ? "text-black/60" : "text-zinc-500"
+                          isOwnRole ? "text-[rgb(255_255_255/0.7)]" : "text-zinc-500"
                         }`}
                       >
                         {message.senderRole === "staff" ? "Coach" : "Member"} ·{" "}
-                        {new Date(message.createdAt).toLocaleString()}
+                        {/* A fixed locale and time zone, so the server and the browser print the same text. */}
+                        {new Date(message.createdAt).toLocaleString("en-IE", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          timeZone: "Europe/Dublin",
+                        })}
                       </p>
                     )}
                   </div>

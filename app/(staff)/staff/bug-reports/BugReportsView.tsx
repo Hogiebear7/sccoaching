@@ -48,7 +48,6 @@ export function BugReportsView({ reports }: { reports: ReportRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Bug reports</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Trial-period feedback submitted from Settings. This whole feature — this page, the

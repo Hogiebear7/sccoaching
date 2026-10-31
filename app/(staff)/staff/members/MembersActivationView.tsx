@@ -280,32 +280,21 @@ export function MembersActivationView({
   return (
     <div className="space-y-5">
       <div>
-        <p className="label-caps">Staff</p>
         <h1 className="text-display mt-1 text-[28px] leading-tight">Members</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           {memberCount} member{memberCount === 1 ? "" : "s"}
           {staffCount > 0 ? ` · ${staffCount} staff` : ""} · use the detail link for full profile
           and coach notes.
         </p>
-        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-300">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="mt-px h-3.5 w-3.5 shrink-0"
-          >
-            <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <span>
+        <details className="mt-3 max-w-3xl rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+          <summary className="cursor-pointer font-semibold">How Activate works</summary>
+          <p className="mt-1.5 leading-relaxed">
             Manual override — sets provider to &ldquo;none&rdquo;, resets session count to 0. Use
             for cash payments, comps, or local testing. If the member has a live Stripe
             subscription, it&rsquo;s cancelled automatically as part of this — you&rsquo;ll see a
             warning here if that fails and needs a manual follow-up in Stripe.
-          </span>
-        </div>
+          </p>
+        </details>
       </div>
 
       {canManageBilling ? <InvitePanel /> : null}
@@ -630,15 +619,15 @@ function MemberCard({
 
   return (
     <div className="panel p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-start gap-2.5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
           {selectable ? (
             <input
               type="checkbox"
               checked={selected}
               onChange={onToggleSelect}
               aria-label={`Select ${row.fullName ?? row.email} for bulk tier grant`}
-              className="mt-1 h-4 w-4 shrink-0 accent-primary"
+              className="h-4 w-4 shrink-0 accent-primary"
             />
           ) : null}
           {row.role === "member" ? (
@@ -649,13 +638,27 @@ function MemberCard({
               aria-pressed={row.starred}
               aria-label={row.starred ? `Remove the star from ${row.fullName ?? row.email}` : `Star ${row.fullName ?? row.email}`}
               title={row.starred ? "Starred" : "Star to find them easily"}
-              className={`-mt-0.5 shrink-0 text-lg leading-none transition disabled:opacity-50 ${row.starred ? "text-gold" : "text-muted-foreground/50 hover:text-gold"}`}
+              className={`shrink-0 text-lg leading-none transition disabled:opacity-50 ${row.starred ? "text-gold" : "text-muted-foreground/50 hover:text-gold"}`}
             >
               {row.starred ? "★" : "☆"}
             </button>
           ) : null}
+          <span
+            aria-hidden="true"
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-[13px] font-semibold ${
+              row.role === "member" ? "bg-secondary text-foreground" : "bg-[#0a1526] text-[#c6a15b]"
+            }`}
+          >
+            {(row.fullName ?? row.email)
+              .split(/[\s@.]+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((part) => part[0])
+              .join("")
+              .toUpperCase()}
+          </span>
           <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">
+          <p className="truncate text-[15px] font-semibold">
             {row.fullName ?? row.email}
           </p>
           {row.fullName ? (

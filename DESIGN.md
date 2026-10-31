@@ -293,6 +293,71 @@ recipes until their own pass).
   figures; big figures use `text-headline` (Teko).
 - No emoji as icons.
 
+## Admin area
+
+The staff area (`/staff/*`, "Admin v2", 31 Oct 2026) is a working tool, so it
+trades the marketing navy for a light, high-legibility workspace beside a navy
+sidebar, the shape owners know from gym-management software. Brand stays in
+the frame: navy ink and sidebar, gold for the current page, the brand mark and
+the latest data point.
+
+**Shell** (`components/staff/admin/StaffShell.tsx`)
+- Sidebar: fixed 264px, `#0a1526`, logo + "Admin" tag, nav grouped by job
+  (Operations, Library, Business, Admin) with a line icon per page
+  (`components/staff/admin/icons.tsx`, no icon package). Current page: white
+  text, 8% white fill, 3px gold bar on the left, gold icon. Unread messages show
+  as a gold count pill. Signed-in person (initials avatar, role) at the foot.
+- Below `lg` the sidebar is a drawer behind a menu button (44px targets).
+- Top bar: white, 64px, hairline under it: section + page name, "Jump to…"
+  (Ctrl K / ⌘K: every page the role can open, filtered as you type, arrow keys
+  and Enter), "Member view", and the account menu (name, email, role, Member
+  view, Log out).
+- Nav items are a projection of the permission model (`lib/permissions.ts`);
+  every page still re-checks its own capability on the server.
+
+**Workspace tokens** (`[data-staff-app]` in `app/globals.css`, set on the
+workspace column only, so the navy sidebar is untouched)
+| Token | Value | Use |
+|---|---|---|
+| Page | `#f4f6fa` | Workspace background |
+| Card | `#ffffff`, 1px `#e6eaf1`, 12px radius, 1–3px soft shadow | Every panel |
+| Raised fill | `#f7f9fc` / `#eef2f7` | Wells, table headers, icon tiles, hover |
+| Ink | `#0a1526` / `#3e4c63` / `#5d6a80` | Primary / secondary / tertiary text |
+| Primary action | navy `#0a1526` fill, white text, 8px radius, 40px | One per section |
+| Gold | `#c6a15b` fill; `#8a6a2f` as text on white | Current nav, brand, latest point |
+| Data blue | `#2563eb` (links `#1d4ed8`) | Chart series, text links |
+| Good / watch / bad | `#15803d` on `#e7f6ec` · `#b45309` on `#fdf3e2` · `#b4232b` on `#fdecec` | Deltas, status chips |
+
+The block re-points the shared recipes (`panel`, `well`, `chip`, `btn-primary`,
+`input-field`, `label-caps`, `text-display`, `text-headline`) and turns the
+navy-era white overlays (`bg-white/[…]`, `border-white/…`) into navy tints, so
+every staff screen moved over without per-page rewrites. Type is Inter
+throughout the workspace (titles 28–32px semibold, tight tracking; figures
+tabular); no Teko, no uppercase eyebrows.
+
+**Overview** (`/staff/operations`, `DashboardSection`), top-down the way an
+owner works a day: greeting and date → to-do cards (unread messages, members
+gone quiet, renewals in 30 days, foods to review, open bug reports; gold-tinted
+when there is something to do, each only for roles that can open its page) →
+the month's six figures (icon tile, figure, a coloured delta chip against the
+same days last month) → sign-ups trend (smooth navy line, gold latest point) and
+membership mix ring → weekly check-ins (navy columns, gold this week) and
+today's classes (navy time block, fill bar) → "Gone quiet" and "Renewals coming
+up" lists with initials avatars. Schedule and Settings & jobs sit in tabs so the
+dashboard isn't buried. Charts are hand-drawn SVG (`components/staff/admin/
+charts.tsx`) with a text summary for screen readers.
+
+**Rules**
+- Light workspace only inside `[data-staff-app]`; the website, auth and member
+  app stay navy.
+- One navy primary button per section; secondary actions are white outline
+  buttons or blue text links with a chevron.
+- Status is never colour alone: chips carry words ("Active", "Period ended",
+  "12 days").
+- Filters sit in one wrapping toolbar row; selects size to their content.
+- Long explanations fold into a `<details>` ("How Activate works") instead of
+  a permanent banner.
+
 ## Mapping to the mobile app
 
 | This file | `sc-coaching-mobile/src/constants/theme.ts` |
@@ -306,5 +371,5 @@ recipes until their own pass).
 
 - **Mobile fonts:** the Expo app bundles no custom fonts, so its headings use the phone's serif and body uses the system font. Matching the website needs Teko (and ideally Inter) added via `expo-font`, `Font.display = "Teko"` with uppercase headings, and a new app build.
 - **Space Grotesk** still renders stat values in the app; review whether Teko figures should replace it.
-- **Older surfaces** (staff/admin tools, `/app` and `/admin` prototypes) still use retired styles in places.
+- **Older surfaces:** the `/app` and `/admin` prototypes still use retired styles. Some staff screens still have bespoke markup (long single-column forms on the member page) that the Admin area tokens restyle but don't restructure.
 - **Photography:** only the training-floor photo is S&C's own; the coach and classes are not yet shown.

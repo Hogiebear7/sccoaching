@@ -23,7 +23,6 @@ export default async function StaffChangesPage({ searchParams }: { searchParams:
   return (
     <div className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Staff changes</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Every change staff made to a member: free access given or withdrawn, gym Memberships, pauses, AI pauses, extra classes, archives and

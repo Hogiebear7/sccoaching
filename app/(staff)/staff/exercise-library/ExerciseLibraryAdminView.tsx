@@ -217,7 +217,6 @@ export function ExerciseLibraryAdminView() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Staff"
         title="Exercise Library"
         subtitle="Import a source pack, review what came in, and approve exercises before members can see them in the app."
       />

@@ -65,7 +65,6 @@ export function ReportsView({
   return (
     <div className="space-y-6">
       <div>
-        <p className="label-caps">Staff</p>
         <h2 className="text-display mt-1 text-[28px] leading-tight">Reports</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Membership and class activity — who joined, who started paying, who left, and how classes
