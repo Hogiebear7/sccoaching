@@ -2641,19 +2641,51 @@ function readDb(): Database {
   return db;
 }
 
+// Read-only lookups (every exported function that never calls writeDb) share one parsed copy of the file, re-parsed only when the file on
+// disk changes (its identity: device, inode, birth time, size, modification time). The lock and the identity check still run on every read,
+// so another process's write is picked up on the very next lookup. Without this, every lookup re-read and re-parsed the whole file, and an
+// admin page making hundreds of lookups did so hundreds of times. Writers keep calling readDb() for their own fresh copy, so nothing they
+// change touches the shared one until it is committed. The shared copy must never be changed in place: under test it is deep-frozen, so any
+// code that tries fails loudly there.
+let sharedSnapshot: { identity: string; db: Database } | null = null;
+const FREEZE_SHARED = process.env.NODE_ENV === "test";
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+  }
+  return value;
+}
+
+function readDbShared(): Database {
+  const known = sharedSnapshot?.identity;
+  const { text, epoch, identity, unchanged } = readInTurn(DB_PATH, { allowNew: mayStartNewDatastore() }, known);
+  if (unchanged && sharedSnapshot) {
+    snapshotEpochs.set(sharedSnapshot.db, epoch);
+    return sharedSnapshot.db;
+  }
+  const db = normalizeDatabase(text);
+  snapshotEpochs.set(db, epoch);
+  sharedSnapshot = identity === "absent" ? null : { identity, db: FREEZE_SHARED ? deepFreeze(db) : db };
+  return db;
+}
+
 function writeDb(db: Database) {
   const epoch = snapshotEpochs.get(db);
   if (epoch === undefined) {
     throw new DatastoreError("STALE_SNAPSHOT", "writeDb was given a datastore object that did not come from readDb.");
   }
   const extras = unknownTopLevelKeys.get(db) ?? {};
+  // Whatever happens, the shared copy is no longer trusted: the next read-only lookup re-reads the file.
+  sharedSnapshot = null;
   writeInTurn(DB_PATH, JSON.stringify({ ...db, ...extras }, null, 2), epoch);
 }
 
 // ─── Transactional email toggles (staff-controlled, optional emails only) ──────
 
 export function getTransactionalEmailSettings(): TransactionalEmailSettings {
-  return readDb().emailSettings;
+  return readDbShared().emailSettings;
 }
 
 export function saveTransactionalEmailSettings(settings: TransactionalEmailSettings): void {
@@ -2664,7 +2696,7 @@ export function saveTransactionalEmailSettings(settings: TransactionalEmailSetti
 
 // True unless a staff member has explicitly switched this optional email off.
 export function isTransactionalEmailEnabled(type: TransactionalEmailType): boolean {
-  return readDb().emailSettings[type] !== false;
+  return readDbShared().emailSettings[type] !== false;
 }
 
 function hashToken(token: string): string {
@@ -2672,30 +2704,30 @@ function hashToken(token: string): string {
 }
 
 export function findUserByEmail(email: string): StoredUser | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.users.find((user) => user.email.toLowerCase() === email.toLowerCase());
 }
 
 export function findUserById(id: string): StoredUser | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.users.find((user) => user.id === id);
 }
 
 // Any elevated (staff) user — coach, admin, or admin_manager.
 export function findStaffUsers(): StoredUser[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.users.filter((user) => isStaffRole(user.role));
 }
 
 // Used as the attributed sender for system-generated messages that aren't
 // tied to a specific coach (e.g. a lapsed-membership notice from a job).
 export function findAnyStaffUser(): StoredUser | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.users.find((user) => isStaffRole(user.role));
 }
 
 export function findMembers(): StoredUser[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.users.filter((user) => user.role === "member");
 }
 
@@ -2707,7 +2739,7 @@ export function findMembers(): StoredUser[] {
 // using unchanged — do not fold this into findMembers() or touch its
 // existing callers.
 export function findMembersAndStaff(): StoredUser[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.users.filter((user) => user.role === "member" || isStaffRole(user.role));
 }
 
@@ -2717,7 +2749,7 @@ export function findMembersAndStaff(): StoredUser[] {
 // leaderboard, follow targets), in place of findMembers() specifically
 // within lib/api/mobile/community/**.
 export function findCommunityEligibleUsers(): StoredUser[] {
-  const db = readDb();
+  const db = readDbShared();
   const optedInStaffIds = new Set(
     db.communityPrivacy.filter((p) => p.communityOptIn === true).map((p) => p.userId)
   );
@@ -2733,14 +2765,14 @@ export function isCommunityEligible(user: StoredUser): boolean {
 
 // How many users currently hold a given role.
 export function countUsersByRole(role: UserRole): number {
-  return readDb().users.filter((user) => user.role === role).length;
+  return readDbShared().users.filter((user) => user.role === role).length;
 }
 
 // How many NON-archived users hold a given role — the guard behind "can't
 // remove/demote the last admin_manager" (an archived one can't sign in, so it
 // doesn't count as coverage).
 export function countActiveUsersByRole(role: UserRole): number {
-  return readDb().users.filter((user) => user.role === role && !user.archivedAt).length;
+  return readDbShared().users.filter((user) => user.role === role && !user.archivedAt).length;
 }
 
 export function createUser(email: string, passwordHash: string): StoredUser {
@@ -2868,7 +2900,7 @@ function findProtectedPlayEntitlementInDb(db: Database, userId: string, nowMs: n
 }
 
 export function findProtectedPlayEntitlementForUser(userId: string, nowMs: number = Date.now()): string | null {
-  return findProtectedPlayEntitlementInDb(readDb(), userId, nowMs);
+  return findProtectedPlayEntitlementInDb(readDbShared(), userId, nowMs);
 }
 
 // PERMANENT, irreversible deletion of a user and every record they own. This is
@@ -2983,7 +3015,7 @@ export function updateUserEmail(userId: string, email: string): boolean {
 }
 
 export function findProfileByUserId(userId: string): ProfileRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.profiles.find((profile) => profile.userId === userId);
 }
 
@@ -3001,7 +3033,7 @@ export function saveProfile(profile: ProfileRecord) {
 }
 
 export function findProgrammeByUserId(userId: string): ProgrammeRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.programmes.find((programme) => programme.userId === userId);
 }
 
@@ -3019,17 +3051,17 @@ export function saveProgramme(programme: ProgrammeRecord) {
 }
 
 export function findTrainingProgramById(id: string): TrainingProgramRecord | undefined {
-  return readDb().trainingPrograms.find((p) => p.id === id);
+  return readDbShared().trainingPrograms.find((p) => p.id === id);
 }
 
 export function findTrainingProgramsByUserId(userId: string): TrainingProgramRecord[] {
-  return readDb()
+  return readDbShared()
     .trainingPrograms.filter((p) => p.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findActiveTrainingProgramByUserId(userId: string): TrainingProgramRecord | undefined {
-  return readDb().trainingPrograms.find((p) => p.userId === userId && p.status === "active");
+  return readDbShared().trainingPrograms.find((p) => p.userId === userId && p.status === "active");
 }
 
 // Used only by GET /api/mobile/programs (the "my programme" lookup) so a
@@ -3039,11 +3071,11 @@ export function findActiveTrainingProgramByUserId(userId: string): TrainingProgr
 // sync-weekly-schedule guard) keeps using the strict active-only lookup
 // above, unchanged.
 export function findActiveOrPausedTrainingProgramByUserId(userId: string): TrainingProgramRecord | undefined {
-  return readDb().trainingPrograms.find((p) => p.userId === userId && (p.status === "active" || p.status === "paused"));
+  return readDbShared().trainingPrograms.find((p) => p.userId === userId && (p.status === "active" || p.status === "paused"));
 }
 
 export function findAllTrainingPrograms(): TrainingProgramRecord[] {
-  return [...readDb().trainingPrograms].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return [...readDbShared().trainingPrograms].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function saveTrainingProgram(program: TrainingProgramRecord): void {
@@ -3086,11 +3118,11 @@ export function deleteTrainingProgram(id: string): void {
 }
 
 export function findWorkoutTemplateById(id: string): WorkoutTemplateRecord | undefined {
-  return readDb().workoutTemplates.find((t) => t.id === id);
+  return readDbShared().workoutTemplates.find((t) => t.id === id);
 }
 
 export function findWorkoutTemplatesByUserId(userId: string): WorkoutTemplateRecord[] {
-  return readDb()
+  return readDbShared()
     .workoutTemplates.filter((t) => t.userId === userId)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
@@ -3112,11 +3144,11 @@ export function deleteWorkoutTemplate(id: string): void {
 // ── Saved recipes ────────────────────────────────────────────────────────
 
 export function findRecipeById(id: string): RecipeRecord | undefined {
-  return readDb().recipes.find((r) => r.id === id);
+  return readDbShared().recipes.find((r) => r.id === id);
 }
 
 export function findRecipesByUserId(userId: string): RecipeRecord[] {
-  return readDb()
+  return readDbShared()
     .recipes.filter((r) => r.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -3138,13 +3170,13 @@ export function deleteRecipe(id: string): void {
 // ── Shopping list ────────────────────────────────────────────────────────
 
 export function findShoppingListItemsByUserId(userId: string): ShoppingListItemRecord[] {
-  return readDb()
+  return readDbShared()
     .shoppingListItems.filter((i) => i.userId === userId)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export function findShoppingListItemById(id: string): ShoppingListItemRecord | undefined {
-  return readDb().shoppingListItems.find((i) => i.id === id);
+  return readDbShared().shoppingListItems.find((i) => i.id === id);
 }
 
 // Case-insensitive match on normalizedName (falling back to displayText when
@@ -3154,7 +3186,7 @@ export function findShoppingListItemById(id: string): ShoppingListItemRecord | u
 export function findShoppingListItemByName(userId: string, name: string): ShoppingListItemRecord | undefined {
   const key = name.trim().toLowerCase();
   if (!key) return undefined;
-  return readDb().shoppingListItems.find(
+  return readDbShared().shoppingListItems.find(
     (i) => i.userId === userId && (i.normalizedName ?? i.displayText).trim().toLowerCase() === key
   );
 }
@@ -3176,13 +3208,13 @@ export function deleteShoppingListItem(id: string): void {
 // ── Gym profiles ("Equipment Available") ────────────────────────────────
 
 export function listGymProfilesForUser(userId: string): GymProfileRecord[] {
-  return readDb()
+  return readDbShared()
     .gymProfiles.filter((p) => p.userId === userId)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export function getGymProfileById(userId: string, gymProfileId: string): GymProfileRecord | undefined {
-  return readDb().gymProfiles.find((p) => p.id === gymProfileId && p.userId === userId);
+  return readDbShared().gymProfiles.find((p) => p.id === gymProfileId && p.userId === userId);
 }
 
 export function createGymProfile(
@@ -3246,14 +3278,14 @@ export function setActiveGymProfile(userId: string, gymProfileId: string | null)
 }
 
 export function getActiveGymProfile(userId: string): GymProfileRecord | null {
-  const db = readDb();
+  const db = readDbShared();
   const activeId = db.profiles.find((p) => p.userId === userId)?.activeGymProfileId ?? null;
   if (!activeId) return null;
   return db.gymProfiles.find((p) => p.id === activeId && p.userId === userId) ?? null;
 }
 
 export function findNutritionTargetByUserId(userId: string): NutritionTargetRecord | undefined {
-  return readDb().nutritionTargets.find((t) => t.userId === userId);
+  return readDbShared().nutritionTargets.find((t) => t.userId === userId);
 }
 
 export function saveNutritionTarget(target: NutritionTargetRecord): void {
@@ -3265,7 +3297,7 @@ export function saveNutritionTarget(target: NutritionTargetRecord): void {
 }
 
 export function findNutritionDayStatusesByUserId(userId: string): NutritionDayStatusRecord[] {
-  return readDb().nutritionDayStatuses.filter((s) => s.userId === userId);
+  return readDbShared().nutritionDayStatuses.filter((s) => s.userId === userId);
 }
 
 // Sets or clears (status null) a member's mark on one diary day.
@@ -3293,13 +3325,13 @@ export function setNutritionDayStatus(userId: string, date: string, status: Nutr
 }
 
 export function findFoodEntriesByUserId(userId: string): FoodEntryRecord[] {
-  return readDb()
+  return readDbShared()
     .foodEntries.filter((e) => e.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findFoodEntryById(id: string): FoodEntryRecord | undefined {
-  return readDb().foodEntries.find((e) => e.id === id);
+  return readDbShared().foodEntries.find((e) => e.id === id);
 }
 
 export function saveFoodEntry(entry: FoodEntryRecord): void {
@@ -3329,25 +3361,25 @@ function setFoodCollection(db: Database, domain: FoodDomain, records: FoodRecord
 }
 
 export function findFoodById(domain: FoodDomain, id: string): FoodRecord | undefined {
-  return foodCollection(readDb(), domain).find((f) => f.id === id);
+  return foodCollection(readDbShared(), domain).find((f) => f.id === id);
 }
 
 export function findFoodByIdAnyDomain(id: string): FoodRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.customFoods.find((f) => f.id === id) ?? db.commonFoods.find((f) => f.id === id) ?? db.brandedFoods.find((f) => f.id === id);
 }
 
 export function findCustomFoodsByUserId(userId: string): FoodRecord[] {
-  return readDb().customFoods.filter((f) => f.ownerUserId === userId && !f.archivedAt);
+  return readDbShared().customFoods.filter((f) => f.ownerUserId === userId && !f.archivedAt);
 }
 
 export function findFoodByBarcode(domain: FoodDomain, barcode: string, ownerUserId?: string): FoodRecord | undefined {
-  const records = foodCollection(readDb(), domain);
+  const records = foodCollection(readDbShared(), domain);
   return records.find((f) => f.barcode === barcode && !f.archivedAt && (domain !== "custom" || f.ownerUserId === ownerUserId));
 }
 
 export function findAllFoods(domain: FoodDomain): FoodRecord[] {
-  return foodCollection(readDb(), domain).filter((f) => !f.archivedAt);
+  return foodCollection(readDbShared(), domain).filter((f) => !f.archivedAt);
 }
 
 export function saveFood(record: FoodRecord): void {
@@ -3367,7 +3399,7 @@ export function deleteFood(domain: FoodDomain, id: string): void {
 }
 
 export function findFoodIdentificationOverridesByUserId(userId: string): FoodIdentificationOverrideRecord[] {
-  return readDb().foodIdentificationOverrides.filter((o) => o.userId === userId);
+  return readDbShared().foodIdentificationOverrides.filter((o) => o.userId === userId);
 }
 
 // Upsert keyed on (userId, triggerLabel) — one standing override per trigger
@@ -3390,13 +3422,13 @@ export function deleteFoodIdentificationOverride(id: string, userId: string): vo
 }
 
 export function findFoodFavoritesByUserId(userId: string): FoodFavoriteRecord[] {
-  return readDb()
+  return readDbShared()
     .foodFavorites.filter((f) => f.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findFoodFavoriteById(id: string): FoodFavoriteRecord | undefined {
-  return readDb().foodFavorites.find((f) => f.id === id);
+  return readDbShared().foodFavorites.find((f) => f.id === id);
 }
 
 export function createFoodFavorite(record: FoodFavoriteRecord): void {
@@ -3418,11 +3450,11 @@ export function createFoodModerationRequest(request: FoodModerationRequest): voi
 }
 
 export function findAllFoodModerationRequests(): FoodModerationRequest[] {
-  return [...readDb().foodModerationRequests].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return [...readDbShared().foodModerationRequests].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findFoodModerationRequestById(id: string): FoodModerationRequest | undefined {
-  return readDb().foodModerationRequests.find((r) => r.id === id);
+  return readDbShared().foodModerationRequests.find((r) => r.id === id);
 }
 
 export function saveFoodModerationRequest(request: FoodModerationRequest): void {
@@ -3439,11 +3471,11 @@ export function createFoodSubmission(record: FoodSubmissionRecord): void {
 }
 
 export function findFoodSubmissionById(id: string): FoodSubmissionRecord | undefined {
-  return readDb().foodSubmissions.find((s) => s.id === id);
+  return readDbShared().foodSubmissions.find((s) => s.id === id);
 }
 
 export function findFoodSubmissionsByUserId(userId: string): FoodSubmissionRecord[] {
-  return readDb()
+  return readDbShared()
     .foodSubmissions.filter((s) => s.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -3451,13 +3483,13 @@ export function findFoodSubmissionsByUserId(userId: string): FoodSubmissionRecor
 export function findFoodSubmissionByCustomFoodId(customFoodId: string): FoodSubmissionRecord | undefined {
   // A custom food can only have one active submission at a time — the
   // create route enforces this; callers use it to show "already submitted".
-  return readDb()
+  return readDbShared()
     .foodSubmissions.filter((s) => s.customFoodId === customFoodId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 }
 
 export function findAllFoodSubmissions(): FoodSubmissionRecord[] {
-  return [...readDb().foodSubmissions].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return [...readDbShared().foodSubmissions].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function saveFoodSubmission(record: FoodSubmissionRecord): void {
@@ -3484,7 +3516,7 @@ export function updateWorkoutSession(
 }
 
 export function findWorkoutSessionsByUserId(userId: string): WorkoutSessionRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.workoutSessions
     .filter((session) => session.userId === userId)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -3510,14 +3542,14 @@ export function deleteWorkoutSession(id: string): void {
 }
 
 export function findClasses(): ClassRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.classes.sort(
     (a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)
   );
 }
 
 export function findClassById(id: string): ClassRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.classes.find((classRecord) => classRecord.id === id);
 }
 
@@ -3535,12 +3567,12 @@ export function saveClass(classRecord: ClassRecord) {
 }
 
 export function findClassSeries(): ClassSeriesRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.classSeries.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export function findClassSeriesById(id: string): ClassSeriesRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.classSeries.find((series) => series.id === id);
 }
 
@@ -3554,12 +3586,12 @@ export function saveClassSeries(series: ClassSeriesRecord) {
 
 // Generation dedupe key: one occurrence per (series, date).
 export function findClassBySeriesAndDate(seriesId: string, date: string): ClassRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.classes.find((c) => c.seriesId === seriesId && c.date === date);
 }
 
 export function findClassesBySeriesId(seriesId: string): ClassRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.classes.filter((c) => c.seriesId === seriesId);
 }
 // Physical deletion — callers are responsible for unwinding bookings and
@@ -3571,7 +3603,7 @@ export function deleteClass(id: string) {
 }
 
 export function findClassWorkoutByClassId(classId: string): ClassWorkoutRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.classWorkouts.find((w) => w.classId === classId);
 }
 
@@ -3588,27 +3620,27 @@ export function findWorkoutSessionByUserAndClass(
   userId: string,
   classId: string
 ): WorkoutSessionRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.workoutSessions.find((s) => s.userId === userId && s.classId === classId);
 }
 
 export function findWorkoutSessionById(id: string): WorkoutSessionRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.workoutSessions.find((s) => s.id === id);
 }
 
 export function findClassCategories(): ClassCategoryRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.classCategories.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function findClassCategoryById(id: string): ClassCategoryRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.classCategories.find((c) => c.id === id);
 }
 
 export function findClassCategoryBySlug(slug: string): ClassCategoryRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.classCategories.find((c) => c.slug === slug);
 }
 
@@ -3634,7 +3666,7 @@ export function deleteClassCategory(id: string) {
 }
 
 export function findDeletedCategoryLabels(): Record<string, string> {
-  const db = readDb();
+  const db = readDbShared();
   return db.deletedCategoryLabels;
 }
 
@@ -3643,25 +3675,25 @@ export function findDeletedCategoryLabels(): Record<string, string> {
 // (MembershipPackageRecord.eligibleClassTypes) — deleting one that's still in
 // use would orphan those references, so the route blocks it.
 export function countClassesByCategorySlug(slug: string): number {
-  return readDb().classes.filter((c) => c.category === slug).length;
+  return readDbShared().classes.filter((c) => c.category === slug).length;
 }
 
 export function countPackagesByEligibleClassType(slug: string): number {
-  return readDb().membershipPackages.filter((p) => p.eligibleClassTypes.includes(slug)).length;
+  return readDbShared().membershipPackages.filter((p) => p.eligibleClassTypes.includes(slug)).length;
 }
 
 export function findBookingsByClassId(classId: string): BookingRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.bookings.filter((booking) => booking.classId === classId);
 }
 
 export function findBookingsByUserId(userId: string): BookingRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.bookings.filter((booking) => booking.userId === userId);
 }
 
 export function findBookingById(id: string): BookingRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.bookings.find((booking) => booking.id === id);
 }
 
@@ -3696,12 +3728,12 @@ export function markBookingNoShowProcessed(id: string): void {
 }
 
 export function findNoShowsByUserId(userId: string): NoShowRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.noShows.filter((n) => n.userId === userId);
 }
 
 export function findAllNoShows(): NoShowRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.noShows;
 }
 
@@ -3712,7 +3744,7 @@ export function createNoShow(record: NoShowRecord): void {
 }
 
 export function findAttendanceWatchlist(): WatchlistEntryRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.attendanceWatchlist.sort((a, b) => b.addedAt.localeCompare(a.addedAt));
 }
 
@@ -3720,7 +3752,7 @@ export function findWatchlistEntryByUserAndMonth(
   userId: string,
   monthKey: string
 ): WatchlistEntryRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.attendanceWatchlist.find((e) => e.userId === userId && e.monthKey === monthKey);
 }
 
@@ -3739,7 +3771,7 @@ export function deleteWatchlistEntry(id: string): void {
 }
 
 export function findCoachNoteByUserId(userId: string): CoachNoteRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.coachNotes.find((note) => note.userId === userId);
 }
 
@@ -3757,7 +3789,7 @@ export function saveCoachNote(note: CoachNoteRecord) {
 }
 
 export function findStaffMemberStars(): StaffMemberStarRecord[] {
-  return readDb().staffMemberStars;
+  return readDbShared().staffMemberStars;
 }
 
 /** Stars or unstars a member. Read and write in one turn, so concurrent stars cannot lose each other. */
@@ -3785,18 +3817,18 @@ export function appendStaffAction(input: Omit<StaffActionRecord, "id" | "at">): 
 }
 
 export function findStaffActions(): StaffActionRecord[] {
-  return readDb().staffActions;
+  return readDbShared().staffActions;
 }
 
 export function findSubscriptionByUserId(userId: string): SubscriptionRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.subscriptions.find((subscription) => subscription.userId === userId);
 }
 
 export function findSubscriptionByProviderOrderId(
   providerOrderId: string
 ): SubscriptionRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.subscriptions.find(
     (subscription) => subscription.providerSubscriptionId === providerOrderId
   );
@@ -3838,12 +3870,12 @@ export function updateSubscription(
 export function findGooglePlayPurchaseByToken(
   purchaseToken: string
 ): GooglePlayPurchaseRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.googlePlayPurchases.find((p) => p.purchaseToken === purchaseToken);
 }
 
 export function findGooglePlayPurchasesByUserId(userId: string): GooglePlayPurchaseRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.googlePlayPurchases
     .filter((p) => p.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -3928,7 +3960,7 @@ export function appendIapEvent(input: IapEventInput): IapEventRecord {
 }
 
 export function findIapEvents(filter: { userId?: string; purchaseTokenHash?: string; type?: IapEventType } = {}): IapEventRecord[] {
-  return readDb()
+  return readDbShared()
     .iapEvents.filter(
       (e) =>
         (filter.userId === undefined || e.userId === filter.userId) &&
@@ -4094,22 +4126,22 @@ export function recordGooglePlayAcknowledgement(
 
 // Every purchase row, oldest first. For background jobs, which must filter themselves.
 export function findAllGooglePlayPurchases(): GooglePlayPurchaseRecord[] {
-  return [...readDb().googlePlayPurchases].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return [...readDbShared().googlePlayPurchases].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 
 // ── Digital entitlements ──
 
 export function findDigitalEntitlementsByUserId(userId: string): DigitalEntitlementRecord[] {
-  return readDb().digitalEntitlements.filter((e) => e.userId === userId);
+  return readDbShared().digitalEntitlements.filter((e) => e.userId === userId);
 }
 
 export function findDigitalEntitlement(userId: string, source: DigitalEntitlementSource): DigitalEntitlementRecord | undefined {
-  return readDb().digitalEntitlements.find((e) => e.userId === userId && e.source === source);
+  return readDbShared().digitalEntitlements.find((e) => e.userId === userId && e.source === source);
 }
 
 export function findAllDigitalEntitlements(): DigitalEntitlementRecord[] {
-  return [...readDb().digitalEntitlements];
+  return [...readDbShared().digitalEntitlements];
 }
 
 export function digitalEntitlementId(source: DigitalEntitlementSource, userId: string): string {
@@ -4129,17 +4161,17 @@ export function saveDigitalEntitlement(row: DigitalEntitlementRecord): DigitalEn
 // ── App Store purchases ──
 
 export function findAppStorePurchaseByOriginalTransactionId(originalTransactionId: string): AppStorePurchaseRecord | undefined {
-  return readDb().appStorePurchases.find((p) => p.originalTransactionId === originalTransactionId);
+  return readDbShared().appStorePurchases.find((p) => p.originalTransactionId === originalTransactionId);
 }
 
 export function findAppStorePurchasesByUserId(userId: string): AppStorePurchaseRecord[] {
-  return readDb()
+  return readDbShared()
     .appStorePurchases.filter((p) => p.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findAllAppStorePurchases(): AppStorePurchaseRecord[] {
-  return [...readDb().appStorePurchases].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return [...readDbShared().appStorePurchases].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export type ClaimAppStorePurchaseInput = Omit<
@@ -4281,11 +4313,11 @@ export function completeIapNotification(messageId: string, outcome: string, now:
 }
 
 export function findIapNotification(messageId: string): IapNotificationRecord | undefined {
-  return readDb().iapNotifications.find((n) => n.messageId === messageId);
+  return readDbShared().iapNotifications.find((n) => n.messageId === messageId);
 }
 
 export function findRecoveryLogsByUserId(userId: string): RecoveryLogRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.recoveryLogs
     .filter((log) => log.userId === userId)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -4295,7 +4327,7 @@ export function findRecoveryLogByUserIdAndDate(
   userId: string,
   date: string
 ): RecoveryLogRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.recoveryLogs.find((log) => log.userId === userId && log.date === date);
 }
 
@@ -4315,7 +4347,7 @@ export function saveRecoveryLog(log: RecoveryLogRecord) {
 }
 
 export function findWaterLogByUserIdAndDate(userId: string, date: string): WaterLogRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.waterLogs.find((log) => log.userId === userId && log.date === date);
 }
 
@@ -4349,7 +4381,7 @@ export function purgeOldRecoveryLogs(olderThanDays: number): number {
 }
 
 export function findMessagesByMemberId(memberId: string): MessageRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.messages
     .filter((message) => message.memberId === memberId)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -4387,25 +4419,25 @@ export function removeFollowsBetween(a: string, b: string): void {
 
 /** Ids of members whose block list contains this user (they blocked this user). */
 export function findUserIdsBlocking(userId: string): string[] {
-  return readDb()
+  return readDbShared()
     .profiles.filter((p) => p.blockedUserIds?.includes(userId))
     .map((p) => p.userId);
 }
 
 export function isFollowing(followerId: string, followingId: string): boolean {
-  return readDb().follows.some((f) => f.followerId === followerId && f.followingId === followingId);
+  return readDbShared().follows.some((f) => f.followerId === followerId && f.followingId === followingId);
 }
 
 export function findFollowingIds(userId: string): string[] {
-  return readDb().follows.filter((f) => f.followerId === userId).map((f) => f.followingId);
+  return readDbShared().follows.filter((f) => f.followerId === userId).map((f) => f.followingId);
 }
 
 export function findFollowerIds(userId: string): string[] {
-  return readDb().follows.filter((f) => f.followingId === userId).map((f) => f.followerId);
+  return readDbShared().follows.filter((f) => f.followingId === userId).map((f) => f.followerId);
 }
 
 export function findCommunityPrivacyByUserId(userId: string): CommunityPrivacyRecord | undefined {
-  return readDb().communityPrivacy.find((p) => p.userId === userId);
+  return readDbShared().communityPrivacy.find((p) => p.userId === userId);
 }
 
 export function saveCommunityPrivacy(prefs: CommunityPrivacyRecord): void {
@@ -4417,17 +4449,17 @@ export function saveCommunityPrivacy(prefs: CommunityPrivacyRecord): void {
 }
 
 export function findCommentsByWorkoutSessionId(workoutSessionId: string): CommentRecord[] {
-  return readDb()
+  return readDbShared()
     .workoutComments.filter((c) => c.workoutSessionId === workoutSessionId)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export function findCommentById(id: string): CommentRecord | undefined {
-  return readDb().workoutComments.find((c) => c.id === id);
+  return readDbShared().workoutComments.find((c) => c.id === id);
 }
 
 export function countCommentsByWorkoutSessionId(workoutSessionId: string): number {
-  return readDb().workoutComments.filter((c) => c.workoutSessionId === workoutSessionId).length;
+  return readDbShared().workoutComments.filter((c) => c.workoutSessionId === workoutSessionId).length;
 }
 
 export function createComment(comment: CommentRecord): void {
@@ -4447,11 +4479,11 @@ export function deleteComment(id: string): void {
 }
 
 export function countLikesByWorkoutSessionId(workoutSessionId: string): number {
-  return readDb().workoutLikes.filter((l) => l.workoutSessionId === workoutSessionId).length;
+  return readDbShared().workoutLikes.filter((l) => l.workoutSessionId === workoutSessionId).length;
 }
 
 export function hasLikedWorkoutSession(userId: string, workoutSessionId: string): boolean {
-  return readDb().workoutLikes.some((l) => l.userId === userId && l.workoutSessionId === workoutSessionId);
+  return readDbShared().workoutLikes.some((l) => l.userId === userId && l.workoutSessionId === workoutSessionId);
 }
 
 // Returns the new state: true if this call added a like, false if it removed one.
@@ -4475,11 +4507,11 @@ export function createCommentReport(report: CommentReportRecord): void {
 }
 
 export function findAllCommentReports(): CommentReportRecord[] {
-  return [...readDb().commentReports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return [...readDbShared().commentReports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findCommentReportById(id: string): CommentReportRecord | undefined {
-  return readDb().commentReports.find((r) => r.id === id);
+  return readDbShared().commentReports.find((r) => r.id === id);
 }
 
 export function saveCommentReport(report: CommentReportRecord): void {
@@ -4499,7 +4531,7 @@ export interface MessageThreadSummary {
 // first — the staff-facing inbox (previously the only way to notice a new
 // member message was to open that member's profile and scroll down).
 export function findMessageThreadSummaries(): MessageThreadSummary[] {
-  const db = readDb();
+  const db = readDbShared();
   const byMember = new Map<string, MessageRecord[]>();
 
   for (const message of db.messages) {
@@ -4523,7 +4555,7 @@ export function findMessageThreadSummaries(): MessageThreadSummary[] {
 }
 
 export function countUnreadMessagesForStaff(): number {
-  const db = readDb();
+  const db = readDbShared();
   return db.messages.filter((m) => m.senderRole === "member" && m.readAt === null).length;
 }
 
@@ -4550,7 +4582,7 @@ const ACTIVE_OFFER_STATES: WaitlistOfferState[] = ["queued", "offered"];
 // Returns only active (queued | offered) entries; terminal entries are
 // excluded so members can re-join after a rejection or expiry.
 export function findWaitlistEntriesByClassId(classId: string): WaitlistEntryRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.waitlistEntries
     .filter(
       (entry) => entry.classId === classId && ACTIVE_OFFER_STATES.includes(entry.offerState)
@@ -4560,7 +4592,7 @@ export function findWaitlistEntriesByClassId(classId: string): WaitlistEntryReco
 
 // Active entries for a user (queued or offered only).
 export function findWaitlistEntriesByUserId(userId: string): WaitlistEntryRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.waitlistEntries.filter(
     (entry) => entry.userId === userId && ACTIVE_OFFER_STATES.includes(entry.offerState)
   );
@@ -4572,7 +4604,7 @@ export function findWaitlistEntryByClassAndUser(
   classId: string,
   userId: string
 ): WaitlistEntryRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.waitlistEntries.find(
     (entry) =>
       entry.classId === classId &&
@@ -4583,7 +4615,7 @@ export function findWaitlistEntryByClassAndUser(
 
 // Look up any entry by id regardless of state (needed for the respond endpoint).
 export function findWaitlistEntryById(id: string): WaitlistEntryRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.waitlistEntries.find((entry) => entry.id === id);
 }
 
@@ -4616,12 +4648,12 @@ export function deleteWaitlistEntry(id: string) {
 // Returns ALL entries across all states — used by the cleanup job so it can
 // purge terminal records for past classes.
 export function findAllWaitlistEntries(): WaitlistEntryRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.waitlistEntries;
 }
 
 export function findAllSubscriptions(): SubscriptionRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.subscriptions;
 }
 
@@ -4659,7 +4691,7 @@ export function createContactInquiry(input: {
 }
 
 export function findContactInquiries(): ContactInquiryRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.contactInquiries.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -4843,11 +4875,11 @@ export function createInvite(input: {
 }
 
 export function findInvites(): InviteRecord[] {
-  return readDb().invites.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return readDbShared().invites.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findInviteById(id: string): InviteRecord | undefined {
-  return readDb().invites.find((i) => i.id === id);
+  return readDbShared().invites.find((i) => i.id === id);
 }
 
 // Marks any pending invite past its expiry as "expired" — lazy, on-read
@@ -4918,7 +4950,7 @@ export function createJobRun(run: JobRunRecord) {
 }
 
 export function findRecentJobRuns(limit: number): JobRunRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return [...db.jobRuns].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, limit);
 }
 
@@ -4942,7 +4974,7 @@ export function createAiRedirectEvent(event: AiRedirectEventRecord): void {
 }
 
 export function findAllAiRedirectEvents(): AiRedirectEventRecord[] {
-  return readDb().aiRedirectEvents;
+  return readDbShared().aiRedirectEvents;
 }
 
 // Revenue ledger — deliberately append-only with NO cap (see
@@ -4960,13 +4992,13 @@ export function findRevenueEventByProviderRef(
   provider: BillingProvider,
   providerRef: string
 ): RevenueEventRecord | undefined {
-  return readDb().revenueEvents.find(
+  return readDbShared().revenueEvents.find(
     (e) => e.provider === provider && e.providerRef === providerRef
   );
 }
 
 export function findAllRevenueEvents(): RevenueEventRecord[] {
-  return readDb().revenueEvents;
+  return readDbShared().revenueEvents;
 }
 
 // AI usage ledger — append-only, uncapped (see AiUsageLogRecord). One entry
@@ -5074,7 +5106,7 @@ function trialHeadroomIn(
 
 /** Advisory: could one more trial be honoured right now? (The catalog uses this; reserveTrialSlot is the guarantee.) */
 export function aiTrialHeadroom(cfg: TrialHeadroomConfig, nowMs: number = Date.now()): TrialHeadroom {
-  return trialHeadroomIn(readDb(), cfg, nowMs, null);
+  return trialHeadroomIn(readDbShared(), cfg, nowMs, null);
 }
 
 export type ReserveTrialSlotResult = { ok: true; slotId: string; expiresAt: string } | { ok: false; reason: "pool_full" | "ceiling_reached" };
@@ -5104,7 +5136,7 @@ export function aiCapacitySnapshot(nowMs: number = Date.now()): {
   paid: { spentUsd: number; heldUsd: number };
   all: { spentUsd: number; heldUsd: number };
 } {
-  const db = readDb();
+  const db = readDbShared();
   const live = db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() > nowMs);
   // Expired holds count as spent at their reserved maximum, exactly as reserveAiBudget will charge them.
   const logs = [...db.aiUsageLogs, ...db.aiReservations.filter((r) => new Date(r.expiresAt).getTime() <= nowMs).map(abandonedCharge)];
@@ -5255,19 +5287,19 @@ export function settleAiReservation(reservationId: string | null, log: AiUsageLo
 
 // The holds currently recorded (live and not yet pruned). For tests and diagnostics.
 export function listAiReservations(): AiReservationRecord[] {
-  return readDb().aiReservations;
+  return readDbShared().aiReservations;
 }
 
 export function findAiUsageLogsByUserId(userId: string): AiUsageLogRecord[] {
-  return readDb().aiUsageLogs.filter((l) => l.userId === userId);
+  return readDbShared().aiUsageLogs.filter((l) => l.userId === userId);
 }
 
 export function findAllAiUsageLogs(): AiUsageLogRecord[] {
-  return readDb().aiUsageLogs;
+  return readDbShared().aiUsageLogs;
 }
 
 export function getFinanceSettings(): FinanceSettings {
-  return readDb().financeSettings;
+  return readDbShared().financeSettings;
 }
 
 export function saveFinanceSettings(settings: FinanceSettings): void {
@@ -5282,11 +5314,11 @@ export function saveFinanceSettings(settings: FinanceSettings): void {
 // expense or a corrected date needs to be fixable, not compensated for with
 // a reversing entry.
 export function findAllFinanceLedgerEntries(): FinanceLedgerEntryRecord[] {
-  return readDb().financeLedgerEntries;
+  return readDbShared().financeLedgerEntries;
 }
 
 export function findFinanceLedgerEntryById(id: string): FinanceLedgerEntryRecord | undefined {
-  return readDb().financeLedgerEntries.find((e) => e.id === id);
+  return readDbShared().financeLedgerEntries.find((e) => e.id === id);
 }
 
 export function saveFinanceLedgerEntry(entry: FinanceLedgerEntryRecord): void {
@@ -5304,7 +5336,7 @@ export function deleteFinanceLedgerEntry(id: string): void {
 }
 
 export function getReadinessAlertSettings(): ReadinessAlertSettings {
-  return readDb().readinessAlertSettings;
+  return readDbShared().readinessAlertSettings;
 }
 
 export function saveReadinessAlertSettings(settings: ReadinessAlertSettings): void {
@@ -5326,11 +5358,11 @@ export function createBugReport(report: BugReportRecord): void {
 }
 
 export function findAllBugReports(): BugReportRecord[] {
-  return [...readDb().bugReports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return [...readDbShared().bugReports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findBugReportById(id: string): BugReportRecord | undefined {
-  return readDb().bugReports.find((r) => r.id === id);
+  return readDbShared().bugReports.find((r) => r.id === id);
 }
 
 export function saveBugReport(report: BugReportRecord): void {
@@ -5347,7 +5379,7 @@ export function deleteBugReport(id: string): void {
 }
 
 export function findCycleSettingsByUserId(userId: string): CycleSettingsRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.cycleSettings.find((s) => s.userId === userId);
 }
 
@@ -5363,7 +5395,7 @@ export function saveCycleSettings(settings: CycleSettingsRecord) {
 }
 
 export function findWeeklyTrainingScheduleByUserId(userId: string): WeeklyTrainingScheduleRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.weeklyTrainingSchedules.find((s) => s.userId === userId);
 }
 
@@ -5379,7 +5411,7 @@ export function saveWeeklyTrainingSchedule(schedule: WeeklyTrainingScheduleRecor
 }
 
 export function findCyclePrivacyByUserId(userId: string): CyclePrivacyPreferencesRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.cyclePrivacyPreferences.find((p) => p.userId === userId);
 }
 
@@ -5395,12 +5427,12 @@ export function saveCyclePrivacy(prefs: CyclePrivacyPreferencesRecord) {
 }
 
 export function findPregnancyStatusByUserId(userId: string): PregnancyStatusRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.pregnancyStatus.find((p) => p.userId === userId);
 }
 
 export function findAllPregnancyStatuses(): PregnancyStatusRecord[] {
-  return readDb().pregnancyStatus;
+  return readDbShared().pregnancyStatus;
 }
 
 export function savePregnancyStatus(status: PregnancyStatusRecord) {
@@ -5417,14 +5449,14 @@ export function savePregnancyStatus(status: PregnancyStatusRecord) {
 // Exercise library
 
 export function findExercises(): ExerciseRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return [...db.exercises].sort(
     (a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name)
   );
 }
 
 export function findExerciseById(id: string): ExerciseRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.exercises.find((e) => e.id === id);
 }
 
@@ -5480,12 +5512,12 @@ export interface ClassWorkoutTemplateRecord {
 }
 
 export function findClassWorkoutTemplates(): ClassWorkoutTemplateRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return [...db.classWorkoutTemplates].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function findClassWorkoutTemplateById(id: string): ClassWorkoutTemplateRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.classWorkoutTemplates.find((t) => t.id === id);
 }
 
@@ -5512,7 +5544,7 @@ export function findAiMessagesByUserId(
   userId: string,
   channel: "coach" | "nutrition" = "coach"
 ): AiMessageRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.aiMessages
     .filter((m) => m.userId === userId && (m.channel ?? "coach") === channel)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -5527,7 +5559,7 @@ export function createAiMessage(message: AiMessageRecord) {
 // Bodyweight logs (member-facing, deferred to Slice 7)
 
 export function findBodyWeightLogsByUserId(userId: string): BodyWeightLogRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.bodyWeightLogs
     .filter((l) => l.userId === userId)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -5547,7 +5579,7 @@ export function saveBodyWeightLog(log: BodyWeightLogRecord) {
 // Body fat logs — mirrors the bodyWeightLogs functions above exactly.
 
 export function findBodyFatLogsByUserId(userId: string): BodyFatLogRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.bodyFatLogs
     .filter((l) => l.userId === userId)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -5570,14 +5602,14 @@ export function saveBodyFatLog(log: BodyFatLogRecord) {
 export const MAX_NOTIFICATIONS_PER_USER = 50;
 
 export function findNotificationsByUserId(userId: string): NotificationRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.notifications
     .filter((n) => n.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findUnreadNotificationCount(userId: string): number {
-  const db = readDb();
+  const db = readDbShared();
   return db.notifications.filter((n) => n.userId === userId && n.readAt === null).length;
 }
 
@@ -5623,12 +5655,12 @@ export function findNotificationByDedupeKey(
   userId: string,
   dedupeKey: string
 ): NotificationRecord | undefined {
-  const db = readDb();
+  const db = readDbShared();
   return db.notifications.find((n) => n.userId === userId && n.dedupeKey === dedupeKey);
 }
 
 export function findAllBookings(): BookingRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.bookings;
 }
 
@@ -5653,7 +5685,7 @@ export function savePushSubscription(sub: PushSubscriptionRecord): void {
 }
 
 export function findPushSubscriptionsByUserId(userId: string): PushSubscriptionRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.pushSubscriptions.filter((s) => s.userId === userId);
 }
 
@@ -5685,7 +5717,7 @@ export function saveExpoPushToken(record: ExpoPushTokenRecord): void {
 }
 
 export function findExpoPushTokensByUserId(userId: string): ExpoPushTokenRecord[] {
-  const db = readDb();
+  const db = readDbShared();
   return db.expoPushTokens.filter((t) => t.userId === userId);
 }
 
@@ -5709,11 +5741,11 @@ export function deleteExpoPushTokenByToken(token: string): void {
 
 // ── Catalog helpers ───────────────────────────────────────────────────
 export function findMembershipCategories(): MembershipCategoryRecord[] {
-  return readDb().membershipCategories.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+  return readDbShared().membershipCategories.slice().sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export function findMembershipCategoryById(id: string): MembershipCategoryRecord | undefined {
-  return readDb().membershipCategories.find((c) => c.id === id);
+  return readDbShared().membershipCategories.find((c) => c.id === id);
 }
 
 export function saveMembershipCategory(category: MembershipCategoryRecord) {
@@ -5731,7 +5763,7 @@ export function deleteMembershipCategory(id: string) {
 }
 
 export function findMembershipPackages(): MembershipPackageRecord[] {
-  return readDb().membershipPackages.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+  return readDbShared().membershipPackages.slice().sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export function findMembershipPackagesByCategoryId(categoryId: string): MembershipPackageRecord[] {
@@ -5739,7 +5771,7 @@ export function findMembershipPackagesByCategoryId(categoryId: string): Membersh
 }
 
 export function findMembershipPackageById(id: string): MembershipPackageRecord | undefined {
-  return readDb().membershipPackages.find((p) => p.id === id);
+  return readDbShared().membershipPackages.find((p) => p.id === id);
 }
 
 export function saveMembershipPackage(pkg: MembershipPackageRecord) {
@@ -5757,15 +5789,15 @@ export function deleteMembershipPackage(id: string) {
 }
 
 export function findGyms(): GymRecord[] {
-  return readDb().gyms.slice();
+  return readDbShared().gyms.slice();
 }
 
 export function findGymById(id: string): GymRecord | undefined {
-  return readDb().gyms.find((g) => g.id === id);
+  return readDbShared().gyms.find((g) => g.id === id);
 }
 
 export function findGymBySlug(slug: string): GymRecord | undefined {
-  return readDb().gyms.find((g) => g.slug === slug);
+  return readDbShared().gyms.find((g) => g.slug === slug);
 }
 
 export function createGym(gym: GymRecord) {
@@ -5783,7 +5815,7 @@ export function saveGym(gym: GymRecord) {
 }
 
 export function findMembershipBillingOptions(): MembershipBillingOptionRecord[] {
-  return readDb().membershipBillingOptions.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+  return readDbShared().membershipBillingOptions.slice().sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export function findMembershipBillingOptionsByPackageId(
@@ -5795,7 +5827,7 @@ export function findMembershipBillingOptionsByPackageId(
 export function findMembershipBillingOptionById(
   id: string
 ): MembershipBillingOptionRecord | undefined {
-  return readDb().membershipBillingOptions.find((o) => o.id === id);
+  return readDbShared().membershipBillingOptions.find((o) => o.id === id);
 }
 
 export function saveMembershipBillingOption(option: MembershipBillingOptionRecord) {
@@ -5814,44 +5846,44 @@ export function deleteMembershipBillingOption(id: string) {
 
 // Reference guards for safe deletes.
 export function countPackagesByCategoryId(categoryId: string): number {
-  return readDb().membershipPackages.filter((p) => p.categoryId === categoryId).length;
+  return readDbShared().membershipPackages.filter((p) => p.categoryId === categoryId).length;
 }
 
 export function countBillingOptionsByPackageId(packageId: string): number {
-  return readDb().membershipBillingOptions.filter((o) => o.packageId === packageId).length;
+  return readDbShared().membershipBillingOptions.filter((o) => o.packageId === packageId).length;
 }
 
 export function countSubscriptionsByPackageId(packageId: string): number {
-  return readDb().subscriptions.filter((s) => s.packageId === packageId).length;
+  return readDbShared().subscriptions.filter((s) => s.packageId === packageId).length;
 }
 
 // How many purchases (any status, incl. pending/failed) reference this
 // catalog package. Any reference means the package's name/pricing is
 // load-bearing for purchase history, so it must be hidden rather than deleted.
 export function countPurchasesByProductId(productId: string): number {
-  return readDb().purchases.filter((p) => p.productId === productId).length;
+  return readDbShared().purchases.filter((p) => p.productId === productId).length;
 }
 
 export function findPurchaseById(id: string): PurchaseRecord | undefined {
-  return readDb().purchases.find((p) => p.id === id);
+  return readDbShared().purchases.find((p) => p.id === id);
 }
 
 export function findPurchaseByProviderOrderId(orderId: string): PurchaseRecord | undefined {
-  return readDb().purchases.find((p) => p.providerOrderId === orderId);
+  return readDbShared().purchases.find((p) => p.providerOrderId === orderId);
 }
 
 export function findPurchaseByIdempotencyKey(key: string): PurchaseRecord | undefined {
-  return readDb().purchases.find((p) => p.idempotencyKey === key);
+  return readDbShared().purchases.find((p) => p.idempotencyKey === key);
 }
 
 export function findPurchasesByUserId(userId: string): PurchaseRecord[] {
-  return readDb()
+  return readDbShared()
     .purchases.filter((p) => p.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function findAllPurchases(): PurchaseRecord[] {
-  return readDb().purchases;
+  return readDbShared().purchases;
 }
 
 export function savePurchase(purchase: PurchaseRecord) {
@@ -5864,7 +5896,7 @@ export function savePurchase(purchase: PurchaseRecord) {
 
 // Webhook replay protection: true if this logical event was already applied.
 export function hasPaymentEvent(key: string): boolean {
-  return readDb().paymentEvents.some((e) => e.key === key);
+  return readDbShared().paymentEvents.some((e) => e.key === key);
 }
 
 export function recordPaymentEvent(event: PaymentEventRecord) {
@@ -5881,15 +5913,15 @@ export function appendPassLedgerEntry(entry: PassLedgerEntryRecord) {
 }
 
 export function findPassLedgerByUserId(userId: string): PassLedgerEntryRecord[] {
-  return readDb().passLedger.filter((e) => e.userId === userId);
+  return readDbShared().passLedger.filter((e) => e.userId === userId);
 }
 
 export function findPassLedgerByPurchaseId(purchaseId: string): PassLedgerEntryRecord[] {
-  return readDb().passLedger.filter((e) => e.purchaseId === purchaseId);
+  return readDbShared().passLedger.filter((e) => e.purchaseId === purchaseId);
 }
 
 export function findPassLedgerByBookingId(bookingId: string): PassLedgerEntryRecord[] {
-  return readDb().passLedger.filter((e) => e.bookingId === bookingId);
+  return readDbShared().passLedger.filter((e) => e.bookingId === bookingId);
 }
 
 export function createPendingCancellationCredit(record: PendingCancellationCreditRecord): void {
@@ -5902,7 +5934,7 @@ export function createPendingCancellationCredit(record: PendingCancellationCredi
 // itself is ordered, so the earliest unresolved late cancellation for a
 // class is the one credited when a spot for it gets filled.
 export function findPendingCancellationCreditsByClassId(classId: string): PendingCancellationCreditRecord[] {
-  return readDb()
+  return readDbShared()
     .pendingCancellationCredits.filter((r) => r.classId === classId && r.status === "pending")
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
@@ -5916,13 +5948,13 @@ export function savePendingCancellationCredit(record: PendingCancellationCreditR
 }
 
 export function findPurchaseByProviderPaymentRef(ref: string): PurchaseRecord | undefined {
-  return readDb().purchases.find((p) => p.providerPaymentRef === ref);
+  return readDbShared().purchases.find((p) => p.providerPaymentRef === ref);
 }
 
 export function findSubscriptionBySetupOrderId(
   setupOrderId: string
 ): SubscriptionRecord | undefined {
-  return readDb().subscriptions.find(
+  return readDbShared().subscriptions.find(
     (subscription) => subscription.providerSetupOrderId === setupOrderId
   );
 }
@@ -5933,7 +5965,7 @@ export function findSubscriptionBySetupOrderId(
 export function findSubscriptionByAbandonedCheckout(
   sessionId: string
 ): { subscription: SubscriptionRecord; checkout: AbandonedCheckout } | undefined {
-  for (const subscription of readDb().subscriptions) {
+  for (const subscription of readDbShared().subscriptions) {
     const checkout = subscription.abandonedCheckouts?.find((c) => c.sessionId === sessionId && !c.settledAt);
     if (checkout) return { subscription, checkout };
   }
@@ -5943,5 +5975,5 @@ export function findSubscriptionByAbandonedCheckout(
 export function findSubscriptionByPendingSetupOrderId(
   sessionId: string
 ): SubscriptionRecord | undefined {
-  return readDb().subscriptions.find((subscription) => subscription.pendingSetupOrderId === sessionId);
+  return readDbShared().subscriptions.find((subscription) => subscription.pendingSetupOrderId === sessionId);
 }

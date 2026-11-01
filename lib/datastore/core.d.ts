@@ -3,7 +3,12 @@ export class DatastoreError extends Error {
   constructor(code: string, message: string);
 }
 export const MARKER_NAME: string;
-export function readInTurn(dbPath: string, opts: { allowNew: boolean }): { text: string | null; epoch: number };
+/** Reads the datastore for the current turn. With `knownIdentity` equal to the file's identity, the file is not read again: `unchanged` is true and `text` is null. */
+export function readInTurn(
+  dbPath: string,
+  opts: { allowNew: boolean },
+  knownIdentity?: string
+): { text: string | null; epoch: number; identity: string; unchanged: boolean };
 export function writeInTurn(dbPath: string, text: string, epoch: number): void;
 export function parseDatastoreText(text: string, dbPath: string): Record<string, unknown>;
 export function readForScript(dbPath: string): { db: Record<string, unknown>; token: { identity: string; bytes: number } };
