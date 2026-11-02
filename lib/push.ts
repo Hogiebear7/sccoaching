@@ -36,51 +36,69 @@ interface ExpoPushTicket {
   details?: { error?: string };
 }
 
-// Sends to every Expo (native app) token registered for a user in one
-// batched request. Unlike web push, Expo's push API needs no server-side
-// keys — sending only requires the recipient's token. Tokens Expo reports
-// as no longer valid (DeviceNotRegistered — uninstalled app, etc.) are
-// deleted automatically.
+interface ExpoPushResponse {
+  data?: ExpoPushTicket[];
+  errors?: { code?: string; message?: string; details?: Record<string, string[]> }[];
+}
+
+// Sends to every Expo (native app) token registered for a user. Expo's push API needs no server-side keys: sending only requires the
+// recipient's tokens. Tokens Expo reports as no longer valid (DeviceNotRegistered: uninstalled app, etc.) are deleted automatically.
+//
+// One request may only carry tokens from ONE Expo project. A member whose devices registered under different projects (an Android build
+// made on one EAS account and a later one, or an iPhone build, made on another) would otherwise have the whole request refused with
+// PUSH_TOO_MANY_EXPERIENCE_IDS and get nothing at all. Expo's refusal lists the tokens by project, so they are re-sent one project at a time.
 async function sendExpoPush(userId: string, payload: PushPayload): Promise<void> {
-  const tokens = findExpoPushTokensByUserId(userId);
+  const tokens = findExpoPushTokensByUserId(userId).map((t) => t.token);
   if (tokens.length === 0) return;
-
-  const messages = tokens.map((t) => ({
-    to: t.token,
-    title: payload.title,
-    body: payload.body,
-    data: { linkHref: payload.linkHref },
-  }));
-
   try {
-    const res = await fetch(EXPO_PUSH_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(messages),
-      // Unbounded before this: a single stalled request here had nothing to
-      // cut it off, and since sendPush is called sequentially per user
-      // across several housekeeping jobs, one hang could block the entire
-      // cron run past its own external timeout.
-      signal: AbortSignal.timeout(10_000),
-    });
-    const json = (await res.json().catch(() => null)) as { data?: ExpoPushTicket[] } | null;
-    const tickets = json?.data ?? [];
-
-    tickets.forEach((ticket, i) => {
-      const token = tokens[i]?.token;
-      if (!token) return;
-      if (ticket.status === "ok") {
-        console.log(`[push] sent (expo): ...${token.slice(-12)} → "${payload.title}"`);
-      } else if (ticket.details?.error === "DeviceNotRegistered") {
-        deleteExpoPushTokenByToken(token);
-        console.log(`[push] expo token expired, removed: ...${token.slice(-12)}`);
-      } else {
-        console.error(`[push] expo send failed: ...${token.slice(-12)}`, ticket.message ?? ticket);
-      }
-    });
+    const first = await postExpoPush(tokens, payload);
+    const mixed = first.errors?.find((e) => e.code === "PUSH_TOO_MANY_EXPERIENCE_IDS");
+    if (mixed?.details) {
+      const groups = Object.values(mixed.details).filter((g) => Array.isArray(g) && g.length > 0);
+      const grouped = new Set(groups.flat());
+      const rest = tokens.filter((t) => !grouped.has(t));
+      if (rest.length > 0) groups.push(rest);
+      console.log(`[push] tokens for user ${userId} span ${groups.length} Expo projects; sending to each separately`);
+      for (const group of groups) handleExpoTickets(group, await postExpoPush(group, payload), payload, userId);
+      return;
+    }
+    handleExpoTickets(tokens, first, payload, userId);
   } catch (err) {
     console.error(`[push] expo request failed for user ${userId}`, err);
   }
+}
+
+async function postExpoPush(tokens: string[], payload: PushPayload): Promise<ExpoPushResponse> {
+  const res = await fetch(EXPO_PUSH_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(tokens.map((to) => ({ to, title: payload.title, body: payload.body, data: { linkHref: payload.linkHref } }))),
+    // Unbounded before this: a single stalled request here had nothing to
+    // cut it off, and since sendPush is called sequentially per user
+    // across several housekeeping jobs, one hang could block the entire
+    // cron run past its own external timeout.
+    signal: AbortSignal.timeout(10_000),
+  });
+  return ((await res.json().catch(() => null)) as ExpoPushResponse | null) ?? {};
+}
+
+function handleExpoTickets(tokens: string[], response: ExpoPushResponse, payload: PushPayload, userId: string) {
+  // A refusal of the whole request (no tickets) is logged, never silently dropped.
+  if (response.errors?.length) {
+    console.error(`[push] expo refused the request for user ${userId}:`, response.errors.map((e) => `${e.code ?? "error"}: ${e.message ?? ""}`).join("; "));
+  }
+  (response.data ?? []).forEach((ticket, i) => {
+    const token = tokens[i];
+    if (!token) return;
+    if (ticket.status === "ok") {
+      console.log(`[push] sent (expo): ...${token.slice(-12)} → "${payload.title}"`);
+    } else if (ticket.details?.error === "DeviceNotRegistered") {
+      deleteExpoPushTokenByToken(token);
+      console.log(`[push] expo token expired, removed: ...${token.slice(-12)}`);
+    } else {
+      console.error(`[push] expo send failed: ...${token.slice(-12)}`, ticket.message ?? ticket);
+    }
+  });
 }
 
 // Sends a push notification to every registered device for a user, across
