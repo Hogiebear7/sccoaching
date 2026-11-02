@@ -29,10 +29,14 @@ export interface PushPayload {
 }
 
 const EXPO_PUSH_ENDPOINT = "https://exp.host/--/api/v2/push/send";
+const EXPO_RECEIPTS_ENDPOINT = "https://exp.host/--/api/v2/push/getReceipts";
+/** When to ask Expo what became of accepted messages: most receipts are ready within minutes, and Expo says to allow about 15. */
+const EXPO_RECEIPT_CHECKS_MS = [2 * 60_000, 15 * 60_000];
 /** The app's high-importance Android channel (pop-up, sound, vibration), created from build 102 (sc-coaching-mobile src/lib/push-notifications.ts). */
 export const EXPO_ALERTS_CHANNEL = "alerts";
 
 interface ExpoPushTicket {
+  id?: string;
   status: "ok" | "error";
   message?: string;
   details?: { error?: string };
@@ -98,11 +102,13 @@ function handleExpoTickets(tokens: string[], response: ExpoPushResponse, payload
   if (response.errors?.length) {
     console.error(`[push] expo refused the request for user ${userId}:`, response.errors.map((e) => `${e.code ?? "error"}: ${e.message ?? ""}`).join("; "));
   }
+  const accepted = new Map<string, string>();
   (response.data ?? []).forEach((ticket, i) => {
     const token = tokens[i];
     if (!token) return;
     if (ticket.status === "ok") {
       console.log(`[push] sent (expo): ...${token.slice(-12)} → "${payload.title}"`);
+      if (ticket.id) accepted.set(ticket.id, token);
     } else if (ticket.details?.error === "DeviceNotRegistered") {
       deleteExpoPushTokenByToken(token);
       console.log(`[push] expo token expired, removed: ...${token.slice(-12)}`);
@@ -110,6 +116,43 @@ function handleExpoTickets(tokens: string[], response: ExpoPushResponse, payload
       console.error(`[push] expo send failed: ...${token.slice(-12)}`, ticket.message ?? ticket);
     }
   });
+  if (accepted.size > 0) scheduleReceiptCheck(accepted, 0);
+}
+
+// "ok" on a ticket only means Expo accepted the message. Whether Firebase or Apple then took it (a bad key shows up here, as
+// InvalidCredentials) is only in the receipt, fetched later. Best-effort and in memory: a restart in between loses that one check, nothing else.
+function scheduleReceiptCheck(accepted: Map<string, string>, attempt: number) {
+  const timer = setTimeout(() => void checkReceipts(accepted, attempt), EXPO_RECEIPT_CHECKS_MS[attempt]);
+  timer.unref?.();
+}
+
+async function checkReceipts(accepted: Map<string, string>, attempt: number) {
+  try {
+    const res = await fetch(EXPO_RECEIPTS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ ids: [...accepted.keys()] }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const json = (await res.json().catch(() => null)) as { data?: Record<string, ExpoPushTicket> } | null;
+    const waiting = new Map<string, string>();
+    for (const [id, token] of accepted) {
+      const receipt = json?.data?.[id];
+      if (!receipt) {
+        waiting.set(id, token);
+      } else if (receipt.status === "ok") {
+        console.log(`[push] delivered to Firebase/Apple: ...${token.slice(-12)}`);
+      } else {
+        if (receipt.details?.error === "DeviceNotRegistered") deleteExpoPushTokenByToken(token);
+        console.error(`[push] delivery failed: ...${token.slice(-12)} ${receipt.details?.error ?? "error"}: ${receipt.message ?? ""}`);
+      }
+    }
+    if (waiting.size === 0) return;
+    if (attempt + 1 < EXPO_RECEIPT_CHECKS_MS.length) scheduleReceiptCheck(waiting, attempt + 1);
+    else console.error(`[push] no delivery receipt yet for ${waiting.size} message(s)`);
+  } catch (err) {
+    console.error("[push] could not read delivery receipts", err);
+  }
 }
 
 // Sends a push notification to every registered device for a user, across

@@ -73,6 +73,43 @@ describe("Expo push across projects", () => {
     expect(newer).toMatchObject({ priority: "high", sound: "default", channelId: "alerts" });
   });
 
+  it("asks Expo for the delivery receipt later and logs a failure such as a bad key", async () => {
+    vi.useFakeTimers();
+    try {
+      h.findExpoPushTokensByUserId.mockReturnValue([{ token: NEW }]);
+      fetchMock
+        .mockResolvedValueOnce(reply({ data: [{ status: "ok", id: "ticket-1" }] }))
+        .mockResolvedValueOnce(reply({ data: {} })) // not ready at the first check
+        .mockResolvedValueOnce(reply({ data: { "ticket-1": { status: "error", message: "Unable to retrieve the FCM server key", details: { error: "InvalidCredentials" } } } }));
+      await sendPush("member-1", payload);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(2 * 60_000);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[1][0]).toContain("getReceipts");
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ ids: ["ticket-1"] });
+      await vi.advanceTimersByTimeAsync(15 * 60_000);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining("InvalidCredentials"));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a receipt saying the device is gone removes that token", async () => {
+    vi.useFakeTimers();
+    try {
+      h.findExpoPushTokensByUserId.mockReturnValue([{ token: NEW }]);
+      fetchMock
+        .mockResolvedValueOnce(reply({ data: [{ status: "ok", id: "ticket-2" }] }))
+        .mockResolvedValueOnce(reply({ data: { "ticket-2": { status: "error", details: { error: "DeviceNotRegistered" } } } }));
+      await sendPush("member-1", payload);
+      await vi.advanceTimersByTimeAsync(2 * 60_000);
+      expect(h.deleteExpoPushTokenByToken).toHaveBeenCalledWith(NEW);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("logs any other refusal of the whole request instead of dropping it silently", async () => {
     fetchMock.mockResolvedValueOnce(reply({ errors: [{ code: "VALIDATION_ERROR", message: "bad request" }] }));
     await sendPush("member-1", payload);
