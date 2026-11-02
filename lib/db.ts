@@ -1731,6 +1731,9 @@ export interface ExpoPushTokenRecord {
   userId: string;
   token: string;
   deviceInfo: string | null;
+  /** The Android notification channel this install has created, reported by the app when it registers. Absent on older builds and iPhones:
+      Android does not show a notification naming a channel the phone doesn't have, so lib/push.ts names one only when it is listed here. */
+  androidChannel?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -5709,6 +5712,7 @@ export function saveExpoPushToken(record: ExpoPushTokenRecord): void {
   );
   if (existing) {
     existing.deviceInfo = record.deviceInfo;
+    existing.androidChannel = record.androidChannel ?? null;
     existing.updatedAt = record.updatedAt;
   } else {
     db.expoPushTokens.push(record);

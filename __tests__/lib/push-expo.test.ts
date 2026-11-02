@@ -63,6 +63,16 @@ describe("Expo push across projects", () => {
     expect(sentBatches()).toEqual([[OLD, NEW]]);
   });
 
+  it("asks for high priority and sound, and names the Alerts channel only for installs that have it", async () => {
+    h.findExpoPushTokensByUserId.mockReturnValue([{ token: OLD }, { token: NEW, androidChannel: "alerts" }]);
+    fetchMock.mockResolvedValueOnce(reply({ data: [{ status: "ok" }, { status: "ok" }] }));
+    await sendPush("member-1", payload);
+    const [older, newer] = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(older).toMatchObject({ priority: "high", sound: "default" });
+    expect(older).not.toHaveProperty("channelId");
+    expect(newer).toMatchObject({ priority: "high", sound: "default", channelId: "alerts" });
+  });
+
   it("logs any other refusal of the whole request instead of dropping it silently", async () => {
     fetchMock.mockResolvedValueOnce(reply({ errors: [{ code: "VALIDATION_ERROR", message: "bad request" }] }));
     await sendPush("member-1", payload);

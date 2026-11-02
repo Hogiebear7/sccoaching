@@ -9,6 +9,7 @@ import {
   type ExpoPushTokenRecord,
 } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { EXPO_ALERTS_CHANNEL } from "@/lib/push";
 
 // Registers/unregisters this device's Expo push token against the signed-in
 // member. Distinct from /api/push/subscribe (web app's browser Web Push) —
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { token, deviceInfo } = (body ?? {}) as Record<string, unknown>;
+  const { token, deviceInfo, androidChannel } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof token !== "string" || !token.trim()) {
     return NextResponse.json({ success: false, message: "token (string) is required." }, { status: 400 });
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
     userId,
     token: token.trim(),
     deviceInfo: typeof deviceInfo === "string" && deviceInfo.trim() ? deviceInfo.trim() : null,
+    androidChannel: androidChannel === EXPO_ALERTS_CHANNEL ? EXPO_ALERTS_CHANNEL : null,
     createdAt: now,
     updatedAt: now,
   };

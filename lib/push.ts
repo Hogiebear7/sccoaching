@@ -29,6 +29,8 @@ export interface PushPayload {
 }
 
 const EXPO_PUSH_ENDPOINT = "https://exp.host/--/api/v2/push/send";
+/** The app's high-importance Android channel (pop-up, sound, vibration), created from build 102 (sc-coaching-mobile src/lib/push-notifications.ts). */
+export const EXPO_ALERTS_CHANNEL = "alerts";
 
 interface ExpoPushTicket {
   status: "ok" | "error";
@@ -48,10 +50,12 @@ interface ExpoPushResponse {
 // made on one EAS account and a later one, or an iPhone build, made on another) would otherwise have the whole request refused with
 // PUSH_TOO_MANY_EXPERIENCE_IDS and get nothing at all. Expo's refusal lists the tokens by project, so they are re-sent one project at a time.
 async function sendExpoPush(userId: string, payload: PushPayload): Promise<void> {
-  const tokens = findExpoPushTokensByUserId(userId).map((t) => t.token);
+  const records = findExpoPushTokensByUserId(userId);
+  const tokens = records.map((t) => t.token);
   if (tokens.length === 0) return;
+  const channels = new Map(records.map((t) => [t.token, t.androidChannel ?? null]));
   try {
-    const first = await postExpoPush(tokens, payload);
+    const first = await postExpoPush(tokens, channels, payload);
     const mixed = first.errors?.find((e) => e.code === "PUSH_TOO_MANY_EXPERIENCE_IDS");
     if (mixed?.details) {
       const groups = Object.values(mixed.details).filter((g) => Array.isArray(g) && g.length > 0);
@@ -59,7 +63,7 @@ async function sendExpoPush(userId: string, payload: PushPayload): Promise<void>
       const rest = tokens.filter((t) => !grouped.has(t));
       if (rest.length > 0) groups.push(rest);
       console.log(`[push] tokens for user ${userId} span ${groups.length} Expo projects; sending to each separately`);
-      for (const group of groups) handleExpoTickets(group, await postExpoPush(group, payload), payload, userId);
+      for (const group of groups) handleExpoTickets(group, await postExpoPush(group, channels, payload), payload, userId);
       return;
     }
     handleExpoTickets(tokens, first, payload, userId);
@@ -68,11 +72,18 @@ async function sendExpoPush(userId: string, payload: PushPayload): Promise<void>
   }
 }
 
-async function postExpoPush(tokens: string[], payload: PushPayload): Promise<ExpoPushResponse> {
+// High priority and sound on every message, so a notification alerts the member and gets through a phone's battery saving. An Android
+// channel is named only for an install that reports having it: Android doesn't show a notification naming a channel the phone lacks.
+async function postExpoPush(tokens: string[], channels: Map<string, string | null>, payload: PushPayload): Promise<ExpoPushResponse> {
   const res = await fetch(EXPO_PUSH_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(tokens.map((to) => ({ to, title: payload.title, body: payload.body, data: { linkHref: payload.linkHref } }))),
+    body: JSON.stringify(
+      tokens.map((to) => {
+        const channelId = channels.get(to);
+        return { to, title: payload.title, body: payload.body, data: { linkHref: payload.linkHref }, priority: "high", sound: "default", ...(channelId ? { channelId } : {}) };
+      })
+    ),
     // Unbounded before this: a single stalled request here had nothing to
     // cut it off, and since sendPush is called sequentially per user
     // across several housekeeping jobs, one hang could block the entire

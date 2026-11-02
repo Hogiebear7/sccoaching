@@ -22,7 +22,7 @@ export default function TermsPage() {
 
         <p className="text-mono mt-8 text-[11px] uppercase tracking-[0.24em] text-gold">Legal</p>
         <h1 className="text-headline mt-2 text-[40px] text-zinc-50 sm:text-[48px]">Terms of Service</h1>
-        <p className="mt-2 text-sm text-zinc-500">Last updated: {new Date().toLocaleDateString("en-IE", { year: "numeric", month: "long" })}</p>
+        <p className="mt-2 text-sm text-zinc-500">Last updated: November 2026</p>
 
         <div className="mt-10 space-y-8 text-sm leading-relaxed text-zinc-300">
           <section>
@@ -50,6 +50,19 @@ export default function TermsPage() {
               a set number of bookings. Prices and what&rsquo;s included are shown at the time of purchase. To
               cancel or change your membership, or to query a payment, contact us — cancellations and refunds are
               reviewed and actioned by our team rather than processed automatically.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold text-zinc-50">AI features and fair usage</h2>
+            <p className="mt-3">
+              AI features (such as the AI coach, food photo recognition, meal ideas, programme generation and workout
+              reviews) are provided under a fair usage limit, whichever membership, subscription, pass or free trial you
+              have. Fair usage limits how much AI you can use in a day, over a rolling 30-day period and during a free
+              trial. We may also limit how often requests can be made, and limit AI features when overall demand is high.
+              We set these limits to keep the features available to all members, and we may change them. If you reach a
+              limit, AI features pause until your allowance is available again; the rest of the app keeps working. Nothing
+              in these terms affects your statutory rights as a consumer.
             </p>
           </section>
 
