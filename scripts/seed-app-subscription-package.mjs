@@ -71,6 +71,10 @@ const PLANS = [
   { basePlanId: "yearly", name: "App Subscription — Yearly", intervalUnit: "year", intervalCount: 1, amountCents: 11999, sortOrder: 1 },
 ];
 
+// A catalog option seeded under an old base plan id ("annual" was set up with the wrong billing period and retired) is re-pointed to the new one,
+// instead of being left dead with a duplicate created beside it.
+const LEGACY_BASE_PLAN_IDS = { annual: "yearly" };
+
 if (!existsSync(DB_PATH)) {
   console.error(`✗ Database not found at ${DB_PATH}.`);
   process.exit(1);
@@ -84,13 +88,13 @@ console.log(`\nSeed App Subscription (Tier 2) package — ${CONFIRM ? "APPLYING"
 
 const needsPackage = !pkg;
 const needsChannelFlip = pkg && pkg.billingChannel !== "google_play";
-const existingOptionsByBasePlan = new Map(
-  pkg
-    ? (db.membershipBillingOptions ?? [])
-        .filter((o) => o.packageId === pkg.id && o.googlePlaySubscriptionId === GOOGLE_PLAY_PRODUCT_ID)
-        .map((o) => [o.googlePlayBasePlanId, o])
-    : []
-);
+const packageOptions = pkg
+  ? (db.membershipBillingOptions ?? []).filter((o) => o.packageId === pkg.id && o.googlePlaySubscriptionId === GOOGLE_PLAY_PRODUCT_ID)
+  : [];
+const hasBasePlan = (id) => packageOptions.some((o) => o.googlePlayBasePlanId === id);
+const renamedOptions = packageOptions.filter((o) => LEGACY_BASE_PLAN_IDS[o.googlePlayBasePlanId] && !hasBasePlan(LEGACY_BASE_PLAN_IDS[o.googlePlayBasePlanId]));
+const existingOptionsByBasePlan = new Map(packageOptions.map((o) => [renamedOptions.includes(o) ? LEGACY_BASE_PLAN_IDS[o.googlePlayBasePlanId] : o.googlePlayBasePlanId, o]));
+const renames = renamedOptions.map((o) => ({ id: o.id, name: o.name, from: o.googlePlayBasePlanId, to: LEGACY_BASE_PLAN_IDS[o.googlePlayBasePlanId] }));
 const missingPlans = PLANS.filter((p) => !existingOptionsByBasePlan.has(p.basePlanId));
 // Reconcile drift on plans that already exist — e.g. the real price changed,
 // or (as happened once) a placeholder price was seeded before the real
@@ -110,7 +114,7 @@ const driftedPlans = PLANS.filter((p) => {
   );
 });
 
-if (!needsPackage && !needsChannelFlip && missingPlans.length === 0 && driftedPlans.length === 0) {
+if (!needsPackage && !needsChannelFlip && missingPlans.length === 0 && driftedPlans.length === 0 && renamedOptions.length === 0) {
   console.log(`Already fully set up (package id: ${pkg.id}). Nothing to do.\n`);
   process.exit(0);
 }
@@ -123,6 +127,7 @@ if (needsPackage && !category) {
 
 if (needsPackage) console.log(`Will create package "App Subscription" under category "${category.name}".`);
 if (needsChannelFlip) console.log(`Will switch billingChannel "${pkg.billingChannel}" → "google_play".`);
+for (const r of renames) console.log(`Will re-point "${r.name}" from base plan "${r.from}" to "${r.to}".`);
 for (const plan of missingPlans) {
   console.log(`Will create billing option "${plan.name}" (base plan "${plan.basePlanId}", ${(plan.amountCents / 100).toFixed(2)} EUR).`);
 }
@@ -172,6 +177,12 @@ if (needsPackage) {
   pkg.updatedAt = now;
 }
 
+for (const r of renames) {
+  const option = db.membershipBillingOptions.find((x) => x.id === r.id);
+  option.googlePlayBasePlanId = r.to;
+  option.updatedAt = now;
+}
+
 if (missingPlans.length > 0) {
   const newOptions = missingPlans.map((plan) => ({
     id: randomUUID(),
@@ -210,6 +221,7 @@ writeForScript(DB_PATH, db, dbToken);
 console.log(`\n✓ Backed up db to ${backup}`);
 if (needsPackage) console.log(`✓ Created package "${pkg.name}" (id: ${pkg.id})`);
 if (needsChannelFlip) console.log(`✓ Switched billingChannel to "google_play"`);
+for (const r of renames) console.log(`✓ Re-pointed "${r.name}" from base plan "${r.from}" to "${r.to}"`);
 for (const plan of missingPlans) console.log(`✓ Created "${plan.name}"`);
 for (const plan of driftedPlans) console.log(`✓ Updated "${plan.name}" to ${(plan.amountCents / 100).toFixed(2)} EUR`);
 console.log("");
