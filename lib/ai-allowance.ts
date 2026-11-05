@@ -34,6 +34,8 @@
 // THE NUMBERS ARE NOT IN THE CODE. They are the owner's, in the environment (USD):
 //   per member: AI_ALLOWANCE_FREE_USD  AI_ALLOWANCE_TRIAL_USD  AI_ALLOWANCE_PAID_USD  AI_ALLOWANCE_COMPLIMENTARY_USD
 //   shared:     AI_TRIAL_POOL_USD  AI_PAID_POOL_USD  AI_COMPLIMENTARY_POOL_USD  AI_STAFF_USD  AI_APP_CEILING_USD
+// Each may instead be given in euros under the matching _EUR name (AI_ALLOWANCE_PAID_EUR, AI_STAFF_EUR, AI_APP_CEILING_EUR ...) together with AI_USD_PER_EUR; the
+// _USD name wins when both are set.
 // A value of 0 is valid and means "none". Unset means NOT SET. If NONE are set, nothing is enforced (the behaviour before this existed: development). If any
 // is set, enforcement is ON and anything whose budget is unset is refused (fail closed, code "ai_allowance_unavailable"). The model must also have a known
 // price. A store purchase cannot be started until all nine are set, the ceiling is at least the paid pool, and the model is priced (aiAllowanceConfigured).
@@ -72,18 +74,36 @@ function parseBudget(raw: string | undefined): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+// EURO NAMES (compatibility): an earlier release read the same nine budgets in euros (AI_ALLOWANCE_PAID_EUR ...) plus AI_USD_PER_EUR, and production is
+// configured that way. Each budget is therefore read from its _USD name first; only when that is unset is the matching _EUR name used, converted with
+// AI_USD_PER_EUR. A _EUR budget with no usable rate is NOT SET (fail closed): it is never converted at a guessed rate.
+function usdPerEur(): number | null {
+  const raw = process.env.AI_USD_PER_EUR;
+  if (raw === undefined || raw.trim() === "") return null;
+  const n = Number(raw.trim());
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function budgetUsd(usdName: string): number | null {
+  const usd = parseBudget(process.env[usdName]);
+  if (usd !== null) return usd;
+  const eur = parseBudget(process.env[usdName.replace(/_USD$/, "_EUR")]);
+  const rate = usdPerEur();
+  return eur !== null && rate !== null ? eur * rate : null;
+}
+
 export function aiAllowanceBudgets(): Record<MemberAllowanceKind, number | null> {
-  return { free: parseBudget(process.env[ENV.free]), trial: parseBudget(process.env[ENV.trial]), paid: parseBudget(process.env[ENV.paid]), complimentary: parseBudget(process.env[ENV.complimentary]) };
+  return { free: budgetUsd(ENV.free), trial: budgetUsd(ENV.trial), paid: budgetUsd(ENV.paid), complimentary: budgetUsd(ENV.complimentary) };
 }
 
 /** The shared pools (all users together) and the app-wide emergency ceiling. */
 export function aiPoolBudgets(): { staff: number | null; ceiling: number | null; trial: number | null; paid: number | null; complimentary: number | null } {
   return {
-    staff: parseBudget(process.env[ENV_STAFF]),
-    ceiling: parseBudget(process.env[ENV_CEILING]),
-    trial: parseBudget(process.env[ENV_TRIAL_POOL]),
-    paid: parseBudget(process.env[ENV_PAID_POOL]),
-    complimentary: parseBudget(process.env[ENV_COMPLIMENTARY_POOL]),
+    staff: budgetUsd(ENV_STAFF),
+    ceiling: budgetUsd(ENV_CEILING),
+    trial: budgetUsd(ENV_TRIAL_POOL),
+    paid: budgetUsd(ENV_PAID_POOL),
+    complimentary: budgetUsd(ENV_COMPLIMENTARY_POOL),
   };
 }
 
