@@ -1,6 +1,6 @@
 // Creates the one catalog package Tier 2 ("App Subscription") is granted
-// against, plus its three Google Play billing options (monthly / every 6
-// months / yearly) — the primary purchase path is the native Play Billing
+// against, plus its two Google Play billing options (monthly / yearly;
+// a six-month plan is deferred) — the primary purchase path is the native Play Billing
 // flow (see lib/providers/google-play.ts,
 // app/api/mobile/billing/google-play/verify/route.ts); staff manual-grant
 // and invite-link flows (lib/member-access.ts / lib/membership-entitlement.ts)
@@ -11,19 +11,19 @@
 // checkout/membership pages — Tier 2 is only ever purchased from inside the
 // mobile app's own paywall screen, never the web checkout.
 //
-// All three plans are base plans on the SAME Play Console subscription
+// Both plans are base plans on the SAME Play Console subscription
 // product (Monetize > Subscriptions > app_subscription_tier2 > Base plans) —
 // Play lets one product carry several base plans at different cadences and
 // prices. The base plan ids below (PLANS[].basePlanId) must be created in
 // Play Console with these EXACT ids, or updated here to match whatever you
 // actually create.
 //
-// The seeded prices mirror the real member-facing prices (confirmed with
-// the client 2026-08-29: €12.99/mo, €53.99 every 6 months [~€9/mo], €84/yr
-// [€7/mo]) so staff-side displays/reporting read correctly even before Play
-// Console is fully wired up — but Play Console's own base-plan price is
-// still what members actually get charged; keep these in sync if the real
-// price ever changes.
+// The seeded prices mirror the real member-facing Play Console prices
+// (confirmed by the owner 2026-11-05: €12.99/month, €119.99/year) so
+// staff-side displays/reporting read correctly — but Play Console's own
+// base-plan price is still what members actually get charged; keep these in
+// sync if the real price ever changes. (The earlier €53.99 six-month and €84
+// yearly figures are retired.)
 //
 //   npm run seed:app-subscription-package
 //   npm run seed:app-subscription-package -- --confirm
@@ -37,7 +37,6 @@
 // Env (optional):
 //   GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID   e.g. "app_subscription_tier2"
 //   APP_STORE_PRODUCT_ID_MONTHLY          the App Store Connect product id for the monthly plan
-//   APP_STORE_PRODUCT_ID_SEMIANNUAL       ... for the 6-month plan
 //   APP_STORE_PRODUCT_ID_ANNUAL           ... for the yearly plan
 //
 // The App Store product ids are NEVER defaulted or invented: each is written only when you set it, and must be exactly the
@@ -63,15 +62,18 @@ const GOOGLE_PLAY_PRODUCT_ID = process.env.GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID ?
 
 const APPLE_PRODUCT_IDS = {
   monthly: process.env.APP_STORE_PRODUCT_ID_MONTHLY?.trim() || null,
-  semiannual: process.env.APP_STORE_PRODUCT_ID_SEMIANNUAL?.trim() || null,
-  annual: process.env.APP_STORE_PRODUCT_ID_ANNUAL?.trim() || null,
+  yearly: process.env.APP_STORE_PRODUCT_ID_ANNUAL?.trim() || null,
 };
 
+// The Play Console base plan ids. The yearly base plan is "yearly": the first attempt, "annual", was created with a MONTHLY duration, is inactive, and a Play
+// base plan id can be neither renamed nor reused. The six-month plan is deferred, so it is not seeded.
 const PLANS = [
   { basePlanId: "monthly", name: "App Subscription — Monthly", intervalUnit: "month", intervalCount: 1, amountCents: 1299, sortOrder: 0 },
-  { basePlanId: "semiannual", name: "App Subscription — 6 Months", intervalUnit: "month", intervalCount: 6, amountCents: 5399, sortOrder: 1 },
-  { basePlanId: "annual", name: "App Subscription — Yearly", intervalUnit: "year", intervalCount: 1, amountCents: 8400, sortOrder: 2 },
+  { basePlanId: "yearly", name: "App Subscription — Yearly", intervalUnit: "year", intervalCount: 1, amountCents: 11999, sortOrder: 2 },
 ];
+
+// A catalog option seeded under an old base plan id is re-pointed to the new one (instead of leaving it dead and creating a duplicate beside it).
+const LEGACY_BASE_PLAN_IDS = { annual: "yearly" };
 
 if (!existsSync(DB_PATH)) {
   console.error(`✗ Database not found at ${DB_PATH}.`);
@@ -86,13 +88,13 @@ console.log(`\nSeed App Subscription (Tier 2) package — ${CONFIRM ? "APPLYING"
 
 const needsPackage = !pkg;
 const needsChannelFlip = pkg && pkg.billingChannel !== "google_play";
-const existingOptionsByBasePlan = new Map(
-  pkg
-    ? (db.membershipBillingOptions ?? [])
-        .filter((o) => o.packageId === pkg.id && o.googlePlaySubscriptionId === GOOGLE_PLAY_PRODUCT_ID)
-        .map((o) => [o.googlePlayBasePlanId, o])
-    : []
-);
+const packageOptions = pkg
+  ? (db.membershipBillingOptions ?? []).filter((o) => o.packageId === pkg.id && o.googlePlaySubscriptionId === GOOGLE_PLAY_PRODUCT_ID)
+  : [];
+const hasBasePlan = (id) => packageOptions.some((o) => o.googlePlayBasePlanId === id);
+const renamedOptions = packageOptions.filter((o) => LEGACY_BASE_PLAN_IDS[o.googlePlayBasePlanId] && !hasBasePlan(LEGACY_BASE_PLAN_IDS[o.googlePlayBasePlanId]));
+const existingOptionsByBasePlan = new Map(packageOptions.map((o) => [renamedOptions.includes(o) ? LEGACY_BASE_PLAN_IDS[o.googlePlayBasePlanId] : o.googlePlayBasePlanId, o]));
+const renames = renamedOptions.map((o) => ({ id: o.id, name: o.name, from: o.googlePlayBasePlanId, to: LEGACY_BASE_PLAN_IDS[o.googlePlayBasePlanId] }));
 const missingPlans = PLANS.filter((p) => !existingOptionsByBasePlan.has(p.basePlanId));
 // Reconcile drift on plans that already exist — e.g. the real price changed,
 // or (as happened once) a placeholder price was seeded before the real
@@ -112,7 +114,7 @@ const driftedPlans = PLANS.filter((p) => {
   );
 });
 
-if (!needsPackage && !needsChannelFlip && missingPlans.length === 0 && driftedPlans.length === 0) {
+if (!needsPackage && !needsChannelFlip && missingPlans.length === 0 && driftedPlans.length === 0 && renamedOptions.length === 0) {
   console.log(`Already fully set up (package id: ${pkg.id}). Nothing to do.\n`);
   process.exit(0);
 }
@@ -125,6 +127,7 @@ if (needsPackage && !category) {
 
 if (needsPackage) console.log(`Will create package "App Subscription" under category "${category.name}".`);
 if (needsChannelFlip) console.log(`Will switch billingChannel "${pkg.billingChannel}" → "google_play".`);
+for (const r of renames) console.log(`Will re-point "${r.name}" from base plan "${r.from}" to "${r.to}".`);
 for (const plan of missingPlans) {
   console.log(`Will create billing option "${plan.name}" (base plan "${plan.basePlanId}", ${(plan.amountCents / 100).toFixed(2)} EUR).`);
 }
@@ -174,6 +177,12 @@ if (needsPackage) {
   pkg.updatedAt = now;
 }
 
+for (const r of renames) {
+  const option = db.membershipBillingOptions.find((x) => x.id === r.id);
+  option.googlePlayBasePlanId = r.to;
+  option.updatedAt = now;
+}
+
 if (missingPlans.length > 0) {
   const newOptions = missingPlans.map((plan) => ({
     id: randomUUID(),
@@ -212,6 +221,7 @@ writeForScript(DB_PATH, db, dbToken);
 console.log(`\n✓ Backed up db to ${backup}`);
 if (needsPackage) console.log(`✓ Created package "${pkg.name}" (id: ${pkg.id})`);
 if (needsChannelFlip) console.log(`✓ Switched billingChannel to "google_play"`);
+for (const r of renames) console.log(`✓ Re-pointed "${r.name}" from base plan "${r.from}" to "${r.to}"`);
 for (const plan of missingPlans) console.log(`✓ Created "${plan.name}"`);
 for (const plan of driftedPlans) console.log(`✓ Updated "${plan.name}" to ${(plan.amountCents / 100).toFixed(2)} EUR`);
 console.log("");
