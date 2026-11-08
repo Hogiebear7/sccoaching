@@ -199,6 +199,14 @@ describe("viewing, leaving, removing, closing", () => {
     expect(after).not.toContain(b.id);
   });
 
+  it("a group whose organiser I have blocked disappears from my list and its page reads as not found", async () => {
+    const { org, a, id } = await setup();
+    expect((await (await call("groups", a.id, undefined, "", "GET")).json()).data).toHaveLength(1);
+    fx.db.saveProfile({ ...(fx.db.findProfileByUserId(a.id) as object), blockedUserIds: [org.id] } as never);
+    expect((await (await call("groups", a.id, undefined, "", "GET")).json()).data).toEqual([]);
+    expect((await call("groups/[id]", a.id, undefined, id, "GET")).status).toBe(404);
+  });
+
   it("a member can leave; the organiser can't (they close it instead)", async () => {
     const { org, a, id } = await setup();
     expect((await call("groups/[id]/leave", a.id, {}, id)).status).toBe(200);

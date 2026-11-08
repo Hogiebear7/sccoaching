@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { MAX_GROUP_DESCRIPTION, MAX_GROUP_NAME, groupView, newInviteCode, requireGroupAccess } from "@/lib/community-groups";
-import { violatesCommunityRules } from "@/lib/community-moderation";
+import { hiddenFromViewer, violatesCommunityRules } from "@/lib/community-moderation";
 import { MAX_GROUPS_PER_ORGANISER, createGroupIfUnderLimit, findOpenGroupsForUser, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
@@ -17,7 +17,14 @@ export async function GET(request: NextRequest) {
   const blocked = requireGroupAccess(me.id);
   if (blocked) return blocked;
 
-  return NextResponse.json({ success: true, data: findOpenGroupsForUser(me.id).map((g) => groupView(g, me.id)) });
+  // A group whose organiser is blocked either way with me is hidden, like any other content from them.
+  const hidden = hiddenFromViewer(me.id);
+  return NextResponse.json({
+    success: true,
+    data: findOpenGroupsForUser(me.id)
+      .filter((g) => !hidden.has(g.organiserId))
+      .map((g) => groupView(g, me.id)),
+  });
 }
 
 export async function POST(request: NextRequest) {

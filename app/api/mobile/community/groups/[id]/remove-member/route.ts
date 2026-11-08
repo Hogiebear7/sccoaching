@@ -6,26 +6,28 @@ import { findGroupById, findGroupMembers, findUserById, removeGroupMember } from
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // POST /api/mobile/community/groups/[id]/remove-member — { userId }  Organiser only. Removes someone from the group; they can rejoin only with the code.
-// A non-organiser gets the same "not found" as a missing group, so non-members learn nothing.
+// A non-organiser gets the same "not found" as a missing group, so non-members learn nothing. Everything asynchronous (params, body) is read FIRST, so
+// the checks and the write below run back to back with nothing awaited in between (see scripts/audit-await-gaps.cjs).
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = verifyRequestSession(request);
-  const me = session ? findUserById(session.userId) : undefined;
-  if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
-  const gate = requireGroupAccess(me.id);
-  if (gate) return gate;
-
   const { id } = await params;
-  const group = findGroupById(id);
-  if (!group || group.organiserId !== me.id) {
-    return NextResponse.json({ success: false, message: "Group not found." }, { status: 404 });
-  }
-
   let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
+
+  const session = verifyRequestSession(request);
+  const me = session ? findUserById(session.userId) : undefined;
+  if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const gate = requireGroupAccess(me.id);
+  if (gate) return gate;
+
+  const group = findGroupById(id);
+  if (!group || group.organiserId !== me.id) {
+    return NextResponse.json({ success: false, message: "Group not found." }, { status: 404 });
+  }
+
   const userId = (body as { userId?: unknown } | null)?.userId;
   if (typeof userId !== "string" || !userId.trim()) {
     return NextResponse.json({ success: false, message: "userId is required." }, { status: 400 });

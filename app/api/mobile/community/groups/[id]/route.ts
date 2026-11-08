@@ -23,6 +23,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const hidden = hiddenFromViewer(me.id);
+  if (hidden.has(group.organiserId)) {
+    return NextResponse.json({ success: false, message: "Group not found." }, { status: 404 });
+  }
   return NextResponse.json({
     success: true,
     data: {
