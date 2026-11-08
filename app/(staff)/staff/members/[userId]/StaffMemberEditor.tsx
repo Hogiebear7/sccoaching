@@ -76,6 +76,10 @@ export function StaffMemberEditor({
   const [resetUrl, setResetUrl] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [tempMessage, setTempMessage] = useState<string | null>(null);
+  const [tempError, setTempError] = useState<string | null>(null);
+  const [isSettingTemp, setIsSettingTemp] = useState(false);
 
   const [notes, setNotes] = useState(initialNotes);
   const [notesError, setNotesError] = useState<string | null>(null);
@@ -166,6 +170,39 @@ export function StaffMemberEditor({
       setResetError("Something went wrong. Please try again.");
     } finally {
       setIsResetting(false);
+    }
+  }
+
+  // For a member who can't use email: sets a temporary password, shown once here.
+  // The current password stops working immediately, so confirm first.
+  async function handleSetTempPassword() {
+    if (!window.confirm("Set a temporary password for this member? Their current password will stop working straight away.")) return;
+
+    setTempError(null);
+    setTempMessage(null);
+    setTempPassword(null);
+    setIsSettingTemp(true);
+
+    try {
+      const res = await fetch("/api/staff/members/set-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setTempError(data?.message ?? "Could not set a temporary password. Please try again.");
+        return;
+      }
+
+      setTempMessage(data?.message ?? "Temporary password set.");
+      setTempPassword(data?.temporaryPassword ?? null);
+    } catch {
+      setTempError("Something went wrong. Please try again.");
+    } finally {
+      setIsSettingTemp(false);
     }
   }
 
@@ -474,6 +511,38 @@ export function StaffMemberEditor({
           >
             {isResetting ? "Creating link…" : "Send password reset"}
           </button>
+
+          <div className="mt-6 border-t border-border pt-4">
+            <h4 className="text-sm font-semibold">Can&apos;t use email?</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Set a temporary password you can read out or text to the member. It is shown once, here. Ask them to change
+              it in Settings once they are signed in.
+            </p>
+
+            {tempError ? (
+              <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {tempError}
+              </p>
+            ) : null}
+
+            {tempMessage ? (
+              <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+                <p>{tempMessage}</p>
+                {tempPassword ? (
+                  <p className="mt-2 select-all font-mono text-lg tracking-wide text-primary" data-testid="temp-password">{tempPassword}</p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={handleSetTempPassword}
+              disabled={isSettingTemp}
+              className="mt-4 rounded-xl border border-border px-5 py-2 text-sm font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSettingTemp ? "Setting password…" : "Set temporary password"}
+            </button>
+          </div>
         </div>
       ) : null}
 
