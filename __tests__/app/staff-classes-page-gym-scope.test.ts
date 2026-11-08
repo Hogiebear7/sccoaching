@@ -32,6 +32,7 @@ const h = vi.hoisted(() => ({
   findWaitlistEntriesByClassId: vi.fn(),
   findProfileByUserId: vi.fn(),
   findStaffUsers: vi.fn(),
+  findMembers: vi.fn(),
   ensureSeriesOccurrences: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
@@ -44,6 +45,7 @@ vi.mock("@/lib/db", () => ({
   findWaitlistEntriesByClassId: h.findWaitlistEntriesByClassId,
   findProfileByUserId: h.findProfileByUserId,
   findStaffUsers: h.findStaffUsers,
+  findMembers: h.findMembers,
 }));
 vi.mock("@/lib/class-series", () => ({ ensureSeriesOccurrences: h.ensureSeriesOccurrences }));
 vi.mock("@/app/(staff)/staff/classes/ClassesView", () => ({ ClassesView: () => null }));
@@ -161,6 +163,7 @@ beforeEach(() => {
   h.findWaitlistEntriesByClassId.mockImplementation((id: string) => WAITLISTS[id] ?? []);
   h.findProfileByUserId.mockImplementation((id: string) => (NAMES[id] ? { fullName: NAMES[id] } : undefined));
   h.findStaffUsers.mockImplementation(() => STAFF);
+  h.findMembers.mockImplementation(() => EVERYONE.filter((u) => u.role === "member"));
   asStaff(COACH_A);
 });
 
@@ -190,6 +193,17 @@ describe("StaffClassesPage — same-gym classes only", () => {
     expect(classIds(props)).toEqual(["class-b"]);
     expect(props.classes[0].roster.map((r) => r.email)).toEqual([MEMBER_B.email]);
     expect(props.classes[0].waitlist.map((w) => w.email)).toEqual([MEMBER_B.email]);
+  });
+
+  it("the 'book a member in' picker lists only own-gym, non-archived members", async () => {
+    const own = ((await callPage()).props as unknown as { members: { userId: string }[] }).members.map((m) => m.userId);
+    expect(own).toEqual(expect.arrayContaining([MEMBER_A.id, MEMBER_A2.id]));
+    expect(own).not.toContain(MEMBER_B.id);
+
+    asStaff(COACH_B);
+    const other = ((await callPage()).props as unknown as { members: { userId: string }[] }).members.map((m) => m.userId);
+    expect(other).toContain(MEMBER_B.id);
+    expect(other).not.toContain(MEMBER_A.id);
   });
 
   it("never loads another gym's (or an unowned) class's bookings, waitlists, attendee users, or profiles", async () => {

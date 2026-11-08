@@ -7,6 +7,7 @@ import {
   findClassCategories,
   findClasses,
   findDeletedCategoryLabels,
+  findMembers,
   findProfileByUserId,
   findStaffUsers,
   findUserById,
@@ -86,8 +87,15 @@ export default async function StaffClassesPage() {
     .map((u) => ({ userId: u.id, label: findProfileByUserId(u.id)?.fullName ?? u.email }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
+  // Members staff can book into a class on their behalf: own gym only, not archived. The booking route re-checks all of this.
+  const members = findMembers()
+    .filter((u) => !u.archivedAt && sameGym(staff, u))
+    .map((u) => ({ userId: u.id, label: findProfileByUserId(u.id)?.fullName ?? u.email }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
   return (
     <ClassesView
+      members={members}
       classes={classes}
       categories={categories}
       deletedLabels={deletedLabels}

@@ -234,6 +234,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "recovery/log", scope: "self-tenant-checked", evidence: ["sameGym("] },
   { route: "staff/attendance/watchlist/delete", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"] },
   { route: "staff/bookings/attendance", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"] },
+  { route: "staff/bookings/create", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff", "sameGym("], note: "Books a member in (or onto the waitlist) with every member rule still applied." },
   { route: "staff/bookings/remove", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"] },
   { route: "staff/bug-reports/delete", scope: "tenant-staff", capabilities: ["bugReports.manage"], evidence: ["sameGym("] },
   { route: "staff/bug-reports/status", scope: "tenant-staff", capabilities: ["bugReports.manage"], evidence: ["sameGym("] },
