@@ -42,7 +42,7 @@ import {
 import { aiAllowanceConfigured, reserveTrialStart, TRIALS_UNAVAILABLE_MESSAGE } from "@/lib/ai-allowance";
 import { describeDigitalPlan, liveStoreEntitlement } from "@/lib/digital-entitlement";
 import { isDeletedOwner } from "@/lib/member-deletion-guard";
-import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
+import { digitalIncludedWithGym, resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import {
   appStoreAccountBindingMatches,
   appStoreAccountToken,
@@ -56,7 +56,7 @@ import {
 import { getAppStoreAdapter, type AppStoreAdapter } from "./apple-adapter";
 import { acceptedAppStoreEnvironment, appStoreIapDisabledReason, appStoreIapEnvironment } from "./apple-config";
 import { applyStoreEntitlement, checkStoreConflict, type StoreApplyOutcome } from "./entitlement-apply";
-import { STORE_CONFLICT_MEMBER_MESSAGE } from "./messages";
+import { INCLUDED_WITH_MEMBERSHIP_MESSAGE, STORE_CONFLICT_MEMBER_MESSAGE } from "./messages";
 import type { ServiceFailure, VerifyData, JobSummary } from "./service";
 import "./apple-real-adapter";
 
@@ -159,6 +159,9 @@ export function getAppStorePurchaseContext(userId: string, adapter: AppStoreAdap
     appendIapEvent({ provider: "app_store", type: "claim_rejected_conflict", userId, actor: "user", detail: { code, source: "purchase_context" } });
     return fail(409, code, STORE_CONFLICT_MEMBER_MESSAGE[code]);
   }
+
+  // A gym Membership that already includes the App features (GYM_MEMBERSHIP_INCLUDES_APP): there is nothing to buy, so no purchase starts.
+  if (digitalIncludedWithGym(userId)) return fail(409, "included_with_membership", INCLUDED_WITH_MEMBERSHIP_MESSAGE);
 
   const token = appStoreAccountToken(userId);
   if (!token) {
