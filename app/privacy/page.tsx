@@ -61,11 +61,12 @@ export default function PrivacyPolicyPage() {
               <li><strong className="text-zinc-100">Nutrition and food-logging data</strong> — see &ldquo;Food photos and nutrition information&rdquo; below.</li>
               <li><strong className="text-zinc-100">Cycle and pregnancy data (optional)</strong> — see &ldquo;Health and sensitive information&rdquo; below.</li>
               <li><strong className="text-zinc-100">Dietary preference, allergies, intolerances, and medical/dietary notes</strong> you choose to share — see &ldquo;Health and sensitive information&rdquo; below.</li>
-              <li><strong className="text-zinc-100">Payment information</strong> — membership and class-pass payments are processed by Stripe or Revolut. We never see or store your full card details; we keep a record of the purchase itself (amount, date, status, and an internal reference) for your account history and our accounts.</li>
+              <li><strong className="text-zinc-100">Payment information</strong> — membership and class-pass payments are processed by Stripe or Revolut. We never see or store your full card details; we keep a record of the purchase itself (amount, date, status, and an internal reference) for your account history and our accounts. The App Subscription is bought and billed by Apple or Google instead; we receive only its status (plan, trial or renewal state, and renewal date) and an internal reference, never your card or Apple or Google account details.</li>
               <li><strong className="text-zinc-100">Messages and coach notes</strong> — messages you send to coaching staff through the app, and any private notes your coaches keep about your training. Coach notes aren&rsquo;t shown to you in the app, but are included if you ask us for a copy of your data.</li>
               <li><strong className="text-zinc-100">Push notification data</strong> — if you enable notifications, a device token and basic device information (model, OS version) so we can deliver them.</li>
               <li><strong className="text-zinc-100">Location (optional)</strong> &mdash; if you use Find a coach and allow it, your device&rsquo;s location is sent with that request so we can list nearby gyms. We use it only to answer that request and do not save it to your account. If you type a place name instead, the text you type is sent to OpenStreetMap&rsquo;s Nominatim search service to find its coordinates.</li>
               <li><strong className="text-zinc-100">Community activity (optional)</strong> &mdash; if you share workouts, comment, like, or follow other members, that content and your display name are visible to other members of your gym according to your Community privacy settings. You can block any member (they and you stop seeing each other in Community; your list of blocked members is stored on your profile and removed with your account) and report a comment or shared workout to our coaches for review. Reports include the reason you give and who sent it, and are visible to staff who moderate Community at your gym.</li>
+              <li><strong className="text-zinc-100">Groups, challenges and gym community (optional, members aged 18 or over)</strong> &mdash; if you create or join a group, we store its name, description and members; group members can see each other&rsquo;s display names, posts and challenge results, and the organiser can remove members and posts. Groups are joined only by an invite link or code. If you hold a gym Membership you may be added to your gym&rsquo;s members-only community, where other members and that gym&rsquo;s coaches and admins can see your posts, comments and challenge results, and staff can post and set challenges. Challenge results are worked out automatically from the workouts you log (total volume, number of workouts, best lift) and shown on that group&rsquo;s or gym&rsquo;s leaderboard according to your leaderboard and display-name settings. Cycle and pregnancy information is never shown in Community, groups, challenges or leaderboards.</li>
               <li><strong className="text-zinc-100">Contact form submissions</strong> — if you enquire through the website, we collect your name, email, phone (if given), and message to reply to you.</li>
               <li><strong className="text-zinc-100">Bug reports</strong> — if you report a problem in the app, your description and any screenshots you attach.</li>
             </ul>
@@ -163,7 +164,7 @@ export default function PrivacyPolicyPage() {
             <ul className="mt-3 list-disc space-y-2 pl-5">
               <li>Providing the coaching, training, recovery, and nutrition features you&rsquo;ve signed up for, including AI-assisted food recognition and coaching chat.</li>
               <li>Personalising guidance — for example, adjusting nutrition targets around your training load, cycle phase, or goals, and generating a readiness score from your recovery check-ins.</li>
-              <li>Class booking, attendance, and membership/class-pass payment processing.</li>
+              <li>Class booking, attendance, and membership/class-pass payment processing. At your request, a coach or admin may also book you into a class on your behalf; the same booking rules and notifications apply.</li>
               <li>Communicating with you about bookings, your membership, and enquiries or bug reports you send us.</li>
               <li>Authentication and keeping accounts secure, including limiting repeated failed sign-in attempts.</li>
               <li>Diagnosing technical problems and improving reliability.</li>
@@ -207,6 +208,7 @@ export default function PrivacyPolicyPage() {
               <li><strong className="text-zinc-100">Resend</strong> — transactional emails (booking confirmations, password resets, and similar).</li>
               <li><strong className="text-zinc-100">Anthropic (Claude)</strong> — AI-assisted coaching and food-logging features. See &ldquo;AI-assisted features&rdquo; above.</li>
               <li><strong className="text-zinc-100">Hostinger</strong> — hosts our website and app.</li>
+              <li><strong className="text-zinc-100">Apple</strong> and <strong className="text-zinc-100">Google</strong> — if you buy the App Subscription, they sell and bill it under their own terms and privacy policies (they are not processing on our behalf), and tell us its status so we can unlock the features.</li>
               <li><strong className="text-zinc-100">Supabase</strong> — hosts part of our database and file storage, including our exercise library, the exercises you favourite, and website contact-form enquiries.</li>
               <li><strong className="text-zinc-100">Expo&rsquo;s push service and standard web push</strong> — delivering app and browser notifications, if you enable them.</li>
               <li><strong className="text-zinc-100">Open Food Facts</strong> — a public, open food database we query by barcode or food name when you search for food to log. We don&rsquo;t send any personal data to it.</li>
@@ -260,7 +262,10 @@ export default function PrivacyPolicyPage() {
               We take reasonable technical and organisational steps to protect your data: passwords are hashed
               (never stored in plain text) and checked using methods designed to resist timing attacks; the site and
               app communicate over HTTPS; and access to member data is limited by role, so coaches and
-              administrators only see what they need to coach you and run the club. No system is completely secure
+              administrators only see what they need to coach you and run the club. If you can&rsquo;t use email to
+              reset your password, a gym admin may, at your request, set a temporary password for you; we then email a notice
+              (never the password) to the address on your account, and you should change it once you&rsquo;re signed in. Our
+              coaches can also pause AI features on an account for safety or misuse. No system is completely secure
               and we can&rsquo;t guarantee absolute security — if you have a security concern, please contact us.
             </p>
           </section>
@@ -321,7 +326,8 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-base font-semibold text-zinc-50">16. Children</h2>
             <p className="mt-3">
               This service is intended for adults booking and managing their own coaching, training, and nutrition,
-              and isn&rsquo;t designed or marketed for children. We don&rsquo;t currently verify a specific minimum
+              and isn&rsquo;t designed or marketed for children. Community groups and gym communities are for members aged 18
+              or over, and you confirm that before you can use them. We don&rsquo;t otherwise verify a specific minimum
               age at sign-up beyond confirming a valid date of birth in the past. If you believe a child has given
               us personal data, please contact us and we&rsquo;ll act on it, including deleting the data where
               appropriate.
