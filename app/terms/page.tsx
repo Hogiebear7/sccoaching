@@ -54,6 +54,45 @@ export default function TermsPage() {
           </section>
 
           <section>
+            <h2 className="text-base font-semibold text-zinc-50">App features included with a gym Membership</h2>
+            <p className="mt-3">
+              If you hold an active gym Membership, your Membership includes access to the app&rsquo;s digital features,
+              including the AI coach, programmes, food and calorie tools, full history and personal bests (the &ldquo;App
+              Features&rdquo;), at no extra charge, for as long as your Membership is active (including any short payment
+              grace period we allow).
+            </p>
+            <p className="mt-3">
+              If your Membership ends, is cancelled, is paused or lapses for non-payment, your access to the App Features
+              ends with it and your account returns to the free version of the app. We keep your data, and it is available
+              again if you later hold an active Membership or buy the App Subscription.
+            </p>
+            <p className="mt-3">
+              The App Features come with the Membership as a benefit; they are not sold separately by us to Membership
+              holders, and you do not need to buy the App Subscription. If you also buy the App Subscription from an app
+              store, that is a separate contract with the store, and ending your Membership does not cancel it. We may change
+              which features come with a Membership; where a change reduces what you receive, we will give existing members at
+              least 30 days&rsquo; notice.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold text-zinc-50">App Subscription bought through an app store</h2>
+            <p className="mt-3">
+              The App Subscription is sold and billed by Apple or Google, not by us. Its price, billing period, renewal,
+              free trial, cancellation and refunds are governed by the store&rsquo;s terms, and you manage or cancel it in
+              your store account.
+            </p>
+            <p className="mt-3">
+              Where the store offers it, new subscribers can start with a 7-day free trial. The subscription then renews at the
+              price the store shows you unless you cancel at least 24 hours before the trial ends.
+            </p>
+            <p className="mt-3">
+              Deleting your account in the app does not cancel a store subscription. Cancel it with the store first; we may not
+              be able to delete your account while a store subscription is still running.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-base font-semibold text-zinc-50">AI features and fair usage</h2>
             <p className="mt-3">
               AI features (such as the AI coach, food photo recognition, meal ideas, programme generation and workout
@@ -63,6 +102,19 @@ export default function TermsPage() {
               We set these limits to keep the features available to all members, and we may change them. If you reach a
               limit, AI features pause until your allowance is available again; the rest of the app keeps working. Nothing
               in these terms affects your statutory rights as a consumer.
+            </p>
+            <p className="mt-3">
+              AI features give general information and suggestions. They are not medical, nutritional or professional advice
+              and are not a substitute for your doctor, midwife, physiotherapist or other qualified professional. Check with
+              a qualified professional before changing your training or diet, especially if you are pregnant or postnatal,
+              or have a medical condition, an injury or an eating disorder. AI responses may be inaccurate or incomplete.
+            </p>
+            <p className="mt-3">
+              Our coaches may pause AI features on your account, for example for safety or misuse, or if you ask us to; we
+              will tell you if we do. We do not guarantee that AI features will be available at all times: they may pause when
+              you reach a usage limit, when demand is high, or when a third-party provider is unavailable. AI features only
+              use your data if you have allowed them, and you can turn them off in Settings at any time (see our{" "}
+              <Link href="/privacy" className="text-gold hover:underline">Privacy Policy</Link>).
             </p>
           </section>
 
@@ -95,6 +147,19 @@ export default function TermsPage() {
               review reports and remove content that breaks these rules; a removed workout stays in its owner&rsquo;s own history but can&rsquo;t be shared again. We may
               also restrict or close accounts that break these rules. To raise a concern, email {CONTACT_INFO.email}.
             </p>
+            <p className="mt-3">
+              Groups, challenges and gym communities are for members aged 18 or over. If you create a group you are its
+              organiser and are responsible for it: you can remove members and end the group. Groups are available to members
+              with access to the App Features. If you hold a gym Membership, you may be added to your gym&rsquo;s members-only
+              community, where members and that gym&rsquo;s staff can post, and staff can set challenges. Posts there are
+              visible to its members and staff. We can remove any group, post or member that breaks these rules, and we may
+              close a group at any time. You can report a post, comment or member, and block any member, from the app.
+            </p>
+            <p className="mt-3">
+              Challenges are for fun and motivation. Take part within your own limits and training level; we are not
+              responsible for injury caused by taking part in a challenge. Any rewards for challenges are arranged in person
+              by your gym and are not provided through the app.
+            </p>
           </section>
 
           <section>
@@ -113,13 +178,19 @@ export default function TermsPage() {
               or close an account for misuse of the service or non-payment, and will make reasonable efforts to let
               you know why.
             </p>
+            <p className="mt-3">
+              Deleting your account removes the data the app holds about you as described in our{" "}
+              <Link href="/privacy" className="text-gold hover:underline">Privacy Policy</Link>, other than records we are
+              required to keep, such as payment records.
+            </p>
           </section>
 
           <section>
             <h2 className="text-base font-semibold text-zinc-50">Changes to these terms</h2>
             <p className="mt-3">
               We may update these terms from time to time. We&rsquo;ll update the &ldquo;last updated&rdquo; date
-              above when we do; continuing to use the service after a change means you accept the update.
+              above when we do; continuing to use the service after a change means you accept the update. When a change
+              affects what you pay or what you receive, we will also tell you in the app or by email.
             </p>
           </section>
 
