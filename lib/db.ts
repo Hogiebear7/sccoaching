@@ -1655,8 +1655,31 @@ export interface CommunityPrivacyRecord {
   leaderboardVisible: boolean;
   showRealName: boolean;
   communityOptIn?: boolean;
+  /** When the member confirmed they are 18 or over (required for groups and the gym community). Absent = not confirmed. */
+  adultConfirmedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// A private Community group (Community plan, 2026-11). Joined only by invite code/link, never searched. The organiser is the creator; `gymId` is the
+// organiser's gym at creation (null = primary gym) and only members of that gym can join. A closed group (closedAt set) is hidden everywhere.
+export interface GroupRecord {
+  id: string;
+  name: string;
+  description: string;
+  organiserId: string;
+  gymId: string | null;
+  inviteCode: string;
+  createdAt: string;
+  closedAt: string | null;
+}
+
+// Membership of a group. The organiser is also a member row, so "members of the group" is one list.
+export interface GroupMemberRecord {
+  id: string;
+  groupId: string;
+  userId: string;
+  joinedAt: string;
 }
 
 // A comment on a WorkoutSessionRecord. No edit, no soft-delete — mirrors
@@ -2192,6 +2215,8 @@ interface Database {
   workoutComments: CommentRecord[];
   workoutLikes: LikeRecord[];
   commentReports: CommentReportRecord[];
+  groups: GroupRecord[];
+  groupMembers: GroupMemberRecord[];
   emailChangeRequests: EmailChangeRequestRecord[];
   invites: InviteRecord[];
   programmes: ProgrammeRecord[];
@@ -2342,6 +2367,8 @@ function normalizeDatabase(raw: string | null): Database {
       workoutComments: [],
       workoutLikes: [],
       commentReports: [],
+      groups: [],
+      groupMembers: [],
       emailChangeRequests: [],
       invites: [],
       programmes: [],
@@ -2475,6 +2502,8 @@ function normalizeDatabase(raw: string | null): Database {
     workoutComments: parsed.workoutComments ?? [],
     workoutLikes: parsed.workoutLikes ?? [],
     commentReports: parsed.commentReports ?? [],
+    groups: parsed.groups ?? [],
+    groupMembers: parsed.groupMembers ?? [],
     emailChangeRequests: parsed.emailChangeRequests ?? [],
     invites: parsed.invites ?? [],
     programmes: parsed.programmes ?? [],
@@ -2986,6 +3015,14 @@ export function deleteUserAndOwnedRecords(userId: string): Record<string, number
   db.commentReports = db.commentReports.filter((r) => r.reporterId !== userId);
   const reportsRemoved = reportsBefore - db.commentReports.length;
   if (reportsRemoved > 0) summary.commentReports = reportsRemoved;
+
+  // Groups: a deleted member leaves every group, and a group they organised is deleted with them (its other members' rows go too).
+  const organised = db.groups.filter((g) => g.organiserId === userId).map((g) => g.id);
+  const groupRowsBefore = db.groups.length + db.groupMembers.length;
+  db.groups = db.groups.filter((g) => g.organiserId !== userId);
+  db.groupMembers = db.groupMembers.filter((m) => m.userId !== userId && !organised.includes(m.groupId));
+  const groupRowsRemoved = groupRowsBefore - (db.groups.length + db.groupMembers.length);
+  if (groupRowsRemoved > 0) summary.groups = groupRowsRemoved;
 
   writeDb(db);
   return summary;
@@ -4449,6 +4486,73 @@ export function saveCommunityPrivacy(prefs: CommunityPrivacyRecord): void {
   if (index === -1) db.communityPrivacy.push(prefs);
   else db.communityPrivacy[index] = prefs;
   writeDb(db);
+}
+
+// ─── Community groups ──────────────────────────────────────────────────────
+// Limits live here so the check and the write happen in ONE read-modify-write (no window for two requests to both slip past a cap).
+export const MAX_GROUPS_PER_ORGANISER = 5;
+export const MAX_MEMBERS_PER_GROUP = 50;
+
+export function findGroupById(id: string): GroupRecord | undefined {
+  return readDbShared().groups.find((g) => g.id === id && !g.closedAt);
+}
+
+export function findGroupByInviteCode(code: string): GroupRecord | undefined {
+  return readDbShared().groups.find((g) => g.inviteCode === code && !g.closedAt);
+}
+
+export function findOpenGroupsForUser(userId: string): GroupRecord[] {
+  const db = readDbShared();
+  const ids = new Set(db.groupMembers.filter((m) => m.userId === userId).map((m) => m.groupId));
+  return db.groups.filter((g) => ids.has(g.id) && !g.closedAt).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function findGroupMembers(groupId: string): GroupMemberRecord[] {
+  return readDbShared()
+    .groupMembers.filter((m) => m.groupId === groupId)
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
+}
+
+/** Creates a group (and the organiser's own member row) unless the organiser already has the maximum open groups. */
+export function createGroupIfUnderLimit(group: GroupRecord): { ok: true } | { ok: false; reason: "limit" } {
+  const db = readDb();
+  if (db.groups.filter((g) => g.organiserId === group.organiserId && !g.closedAt).length >= MAX_GROUPS_PER_ORGANISER) {
+    return { ok: false, reason: "limit" };
+  }
+  db.groups.push(group);
+  db.groupMembers.push({ id: `${group.id}:${group.organiserId}`, groupId: group.id, userId: group.organiserId, joinedAt: group.createdAt });
+  writeDb(db);
+  return { ok: true };
+}
+
+/** Adds a member unless the group is closed, missing, or full. Joining twice is a no-op that still reports ok. */
+export function addGroupMemberIfRoom(groupId: string, userId: string, now: string): { ok: true } | { ok: false; reason: "missing" | "full" } {
+  const db = readDb();
+  const group = db.groups.find((g) => g.id === groupId && !g.closedAt);
+  if (!group) return { ok: false, reason: "missing" };
+  if (db.groupMembers.some((m) => m.groupId === groupId && m.userId === userId)) return { ok: true };
+  if (db.groupMembers.filter((m) => m.groupId === groupId).length >= MAX_MEMBERS_PER_GROUP) return { ok: false, reason: "full" };
+  db.groupMembers.push({ id: `${groupId}:${userId}`, groupId, userId, joinedAt: now });
+  writeDb(db);
+  return { ok: true };
+}
+
+export function removeGroupMember(groupId: string, userId: string): boolean {
+  const db = readDb();
+  const before = db.groupMembers.length;
+  db.groupMembers = db.groupMembers.filter((m) => !(m.groupId === groupId && m.userId === userId));
+  if (db.groupMembers.length === before) return false;
+  writeDb(db);
+  return true;
+}
+
+export function closeGroup(groupId: string, now: string): boolean {
+  const db = readDb();
+  const group = db.groups.find((g) => g.id === groupId && !g.closedAt);
+  if (!group) return false;
+  group.closedAt = now;
+  writeDb(db);
+  return true;
 }
 
 export function findCommentsByWorkoutSessionId(workoutSessionId: string): CommentRecord[] {

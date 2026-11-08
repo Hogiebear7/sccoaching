@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
       // Only meaningful for a staff account — absent/false for a member is
       // fine since this field is never read for them.
       communityOptIn: prefs?.communityOptIn ?? false,
+      // Whether the member has confirmed they are 18 or over (needed for groups and the gym community).
+      adultConfirmed: !!prefs?.adultConfirmedAt,
     },
   });
 }
@@ -72,6 +74,8 @@ export async function POST(request: NextRequest) {
     leaderboardVisible,
     showRealName,
     communityOptIn: resolvedCommunityOptIn,
+    // Saving privacy choices must never wipe the 18+ confirmation.
+    adultConfirmedAt: existing?.adultConfirmedAt ?? null,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });
