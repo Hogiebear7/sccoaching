@@ -68,7 +68,7 @@ describe("GET /api/mobile/community/privacy", () => {
     expect(res.status).toBe(200);
     expect(data).toEqual({
       success: true,
-      data: { discoverable: true, leaderboardVisible: true, showRealName: true, communityOptIn: false },
+      data: { discoverable: true, leaderboardVisible: true, showRealName: true, communityOptIn: false, adultConfirmed: false },
     });
   });
 
@@ -91,6 +91,7 @@ describe("GET /api/mobile/community/privacy", () => {
       leaderboardVisible: false,
       showRealName: false,
       communityOptIn: true,
+      adultConfirmed: false,
     });
   });
 

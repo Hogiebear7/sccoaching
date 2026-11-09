@@ -44,6 +44,8 @@ export type MemberFeature =
   | "fullHistory"
   | "cyclePhaseGuidance"
   | "communityLeaderboards"
+  // Create and join private Community groups (App tier and up; owner decision 2026-11-08).
+  | "communityGroups"
   | "coachMessaging";
 
 // What each feature needs (owner decisions 2026-10-27). "free" = everyone: logging (with food search and custom foods) and notifications stay
@@ -68,6 +70,7 @@ const FEATURE_REQUIRES: Record<MemberFeature, "free" | "digital" | "gymMembershi
   fullHistory: "digital",
   cyclePhaseGuidance: "digital",
   communityLeaderboards: "digital",
+  communityGroups: "digital",
   coachMessaging: "gymMembership",
 };
 

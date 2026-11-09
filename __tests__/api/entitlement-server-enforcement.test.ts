@@ -78,6 +78,7 @@ const GATED: { feature: string; run: (m: { cookie: string; workoutId: string }) 
   { feature: "calorieTargets (web)", run: async (m) => (await import("@/app/api/nutrition/target/route")).GET(call("GET", "/api/nutrition/target", m.cookie)) },
   { feature: "communityLeaderboards", run: async (m) => (await import("@/app/api/mobile/community/leaderboard/route")).GET(call("GET", "/api/mobile/community/leaderboard", m.cookie)) },
   { feature: "communityLeaderboards (highlight)", run: async (m) => (await import("@/app/api/mobile/community/highlight/route")).GET(call("GET", "/api/mobile/community/highlight", m.cookie)) },
+  { feature: "communityGroups", run: async (m) => (await import("@/app/api/mobile/community/groups/route")).GET(call("GET", "/api/mobile/community/groups", m.cookie)) },
   { feature: "nutritionMoreTools (meal suggestions)", run: async (m) => (await import("@/app/api/mobile/nutrition/meal-suggest/route")).POST(call("POST", "/api/mobile/nutrition/meal-suggest", m.cookie, {})) },
 ];
 

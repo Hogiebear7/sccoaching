@@ -56,6 +56,8 @@ export const COLLECTION_SCOPE = {
   workoutComments: user("userId", "Community feed is gym-scoped on read via the author's gym."),
   workoutLikes: user(),
   commentReports: user("reporterId", "Resolution is gated on the reporter's gym."),
+  groups: user("organiserId", "A group belongs to its organiser's gym; joining requires the same gym (groups/join)."),
+  groupMembers: user(),
   emailChangeRequests: user(),
   invites: parent("invitedByStaffId", "Tenant is the inviting staff member's gym; redemption checks it."),
   programmes: user(),
