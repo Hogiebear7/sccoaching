@@ -1,4 +1,4 @@
-import { CHALLENGE_METRIC_LABEL, daysBetween, todayIso } from "@/lib/challenges";
+import { challengeLabel, daysBetween, todayIso } from "@/lib/challenges";
 import { gymCommunityAudience, notifyCommunityUser } from "@/lib/community-notify";
 import { findAllChallenges, findGroupById, findGroupMembers, findUserById, type ChallengeRecord } from "@/lib/db";
 import type { JobDefinition } from "./types";
@@ -53,7 +53,7 @@ export const notifyCommunityChallengesJob: JobDefinition = {
           const sent = notifyCommunityUser(userId, {
             type: "challenge_started",
             title: `Challenge started: ${c.title}`,
-            body: `${CHALLENGE_METRIC_LABEL[c.metric]}. It runs until ${c.endDate}. Your logged workouts count automatically.`,
+            body: `${challengeLabel(c.metric, c.custom)}. It runs until ${c.endDate}. Your logged workouts count automatically.`,
             linkHref: link,
             dedupeKey: `challenge-start:${c.id}`,
           });

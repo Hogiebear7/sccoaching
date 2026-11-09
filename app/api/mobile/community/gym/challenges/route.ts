@@ -9,9 +9,9 @@ import { createChallengeIfUnderLimit, findChallengesByScope } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // GET  /api/mobile/community/gym/challenges — your gym's challenges (upcoming, active, ended, canceled). Gym members and the gym's staff.
-// POST /api/mobile/community/gym/challenges — { title, metric, startDate, endDate }. ANY coach or admin of the gym sets one (members don't). Same scoring and
-// date rules as group challenges: volume, days trained, or best squat / bench / deadlift, scored from logged workouts inside the dates; 90 days at most;
-// can't start in the past; up to 5 open at once.
+// POST /api/mobile/community/gym/challenges — { title, metric, custom?, startDate, endDate }. ANY coach or admin of the gym sets one (members don't). Same
+// kinds (ready-made or custom), scoring and date rules as group challenges (lib/challenges.ts): scored from logged workouts and cardio inside the dates; 90
+// days at most; can't start in the past; up to 5 open at once.
 export async function GET(request: NextRequest) {
   const access = gymCommunityAccess(verifyRequestSession(request)?.userId);
   if (!access.ok) return access.response;
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const today = todayIso();
   const parsed = parseChallengeInput(body, today);
   if (!parsed.ok) return NextResponse.json({ success: false, message: parsed.message }, { status: 400 });
-  if (violatesCommunityRules(parsed.title)) {
+  if (violatesCommunityRules(parsed.title) || (parsed.custom && violatesCommunityRules(parsed.custom.subject))) {
     return NextResponse.json({ success: false, message: "That wording breaks the Community rules. Please change it." }, { status: 400 });
   }
 
@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
     createdBy: access.user.id,
     title: parsed.title,
     metric: parsed.metric,
+    ...(parsed.custom ? { custom: parsed.custom } : {}),
     startDate: parsed.startDate,
     endDate: parsed.endDate,
     createdAt: new Date().toISOString(),

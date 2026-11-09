@@ -1724,6 +1724,8 @@ export interface ChallengeRecord {
   title: string;
   /** What it is scored on: the list and the scoring rules are in lib/challenges.ts. Existing challenges only ever hold the original five. */
   metric: import("./challenges").ChallengeMetric;
+  /** Only when metric is "custom": what to measure and of which exercise or activity (lib/challenges.ts). Absent on every other challenge. */
+  custom?: import("./challenges").CustomChallenge | null;
   /** YYYY-MM-DD, inclusive. */
   startDate: string;
   endDate: string;
