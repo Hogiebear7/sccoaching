@@ -57,7 +57,7 @@ export default function PrivacyPolicyPage() {
               <li><strong className="text-zinc-100">Account details</strong> — your email and a securely hashed password (we never store your password itself).</li>
               <li><strong className="text-zinc-100">Profile information</strong> — name, phone number, date of birth, gender, country, primary coaching goal, secondary coaching goal (optional), sport played (where relevant to your goal), and, if you choose to add them, a profile photo, height, current weight, body-fat %, goal weight/body-fat/target date, and training days per week.</li>
               <li><strong className="text-zinc-100">Emergency contact details</strong> — the name and phone number of up to two emergency contacts, collected at sign-up. Visible to your coaches; used only if we need to reach someone on your behalf in an emergency.</li>
-              <li><strong className="text-zinc-100">Training, performance &amp; recovery data</strong> — workout sessions, exercises/sets/reps/weight logged, run and cardio sessions, the personal bests and exercises you choose to feature, class bookings and attendance, your weekly training schedule, recovery check-ins (sleep, soreness, fatigue, RPE, readiness score), hydration logs, and sports-performance drink-calculator settings.</li>
+              <li><strong className="text-zinc-100">Training, performance &amp; recovery data</strong> — workout sessions, exercises/sets/reps/weight logged, run and cardio sessions, the personal bests and exercises you choose to feature, class bookings and attendance, your weekly training schedule, recovery check-ins (sleep, soreness, fatigue, RPE, readiness score), hydration logs, and sports-performance drink-calculator settings. If you are on the App tier or hold a gym Membership you can also add an optional note to your daily check-in to say you are unwell or injured.</li>
               <li><strong className="text-zinc-100">Nutrition and food-logging data</strong> — see &ldquo;Food photos and nutrition information&rdquo; below.</li>
               <li><strong className="text-zinc-100">Cycle and pregnancy data (optional)</strong> — see &ldquo;Health and sensitive information&rdquo; below.</li>
               <li><strong className="text-zinc-100">Dietary preference, allergies, intolerances, and medical/dietary notes</strong> you choose to share — see &ldquo;Health and sensitive information&rdquo; below.</li>
@@ -84,8 +84,9 @@ export default function PrivacyPolicyPage() {
             <p className="mt-3">Here&rsquo;s what&rsquo;s optional and what it&rsquo;s for:</p>
             <ul className="mt-3 list-disc space-y-2 pl-5">
               <li>Your date of birth, gender, and weight are needed for core account and coaching features. Height, body-fat %, and dietary/medical notes are optional, and are used to personalise your training and nutrition guidance.</li>
+              <li>The optional note in your daily check-in about being unwell or injured is health information. You choose whether to write it and can clear it any time. While it is recent (about a week) it is used to keep AI suggestions and the workout helper gentler, and, if you hold a gym Membership, your coaches can see it. Check-ins, and any note in them, are deleted after 14 days.</li>
               <li>Cycle tracking and pregnancy tracking (see the next section) are entirely optional, off by default, and visible only to you unless you choose to share specific parts with your coach.</li>
-              <li>Your coaches can see the dietary, medical, training, and recovery data needed to coach you safely. Administrators with the relevant staff permission can access it to run the club. Where you use an AI-assisted feature, relevant parts of this data may be sent to our AI provider — see &ldquo;AI-assisted features&rdquo; below.</li>
+              <li>Your coaches can see the dietary, medical, training, and recovery data needed to coach you safely. Administrators with the relevant staff permission can access it to run the club. If you hold a gym Membership, your coaches also see a summary built from what you log (training and how hard it has been, check-ins including any health note, food and water, weight, and class attendance), including a short version when they take a class you are booked into, so they can look after you safely. Members without a gym Membership do not have this summary shown to coaches. Where you use an AI-assisted feature, relevant parts of this data may be sent to our AI provider — see &ldquo;AI-assisted features&rdquo; below.</li>
               <li>The app generates automated guidance from this data (for example, adjusting nutrition targets around your cycle phase, or estimating a readiness score) — this supports your coaching, it doesn&rsquo;t replace it.</li>
             </ul>
             <p className="mt-3">
@@ -136,7 +137,7 @@ export default function PrivacyPolicyPage() {
               reading a nutrition label or receipt, importing stats from a tracker screenshot, estimating nutrition
               from a text description, the AI Coach and AI Nutrition Coach chats, and generating an automatic
               post-workout review. When you use these, the relevant data — which may include photos you submit,
-              your messages, and training, recovery, weight, or dietary data needed to give you a relevant answer —
+              your messages, and training, recovery, weight, or dietary data, or the optional health note from your check-in, needed to give you a relevant answer —
               is sent to Anthropic to generate a response.
             </p>
             <p className="mt-3">
