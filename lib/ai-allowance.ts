@@ -10,8 +10,8 @@
 //                   starting a trial on the other store never replenishes it. Trial use is tagged "trial" and never counts toward the paid allowance.
 //   paid            a paid store subscription. Rolling 30 days. It begins at the first request made after the plan stops being a trial (conversion): trial
 //                   use is not counted against it.
-//   complimentary   staff-granted or legacy complimentary access. Rolling 30 days, with its OWN budget: a complimentary member is neither a trial nor a paid
-//                   member and is never silently given either allowance.
+//   complimentary   staff-granted or legacy complimentary access, and (when GYM_MEMBERSHIP_INCLUDES_APP is on) a live gym Membership. Rolling 30 days, with
+//                   its OWN budget: a complimentary member is neither a trial nor a paid member and is never silently given either allowance.
 //
 // A member who holds several: paid beats trial beats complimentary beats free (the larger real entitlement a person actually pays for decides; a grant or a
 // trial never lifts a paying member down, and a complimentary grant never replaces a trial's smaller total).
@@ -46,6 +46,7 @@ import { ratesForKnownModel } from "@/lib/ai-usage";
 import { aiSpendUsd, aiTrialHeadroom, findAiUsageLogsByUserId, findDigitalEntitlementsByUserId, findProfileByUserId, findUserById, reserveTrialSlot, type AiAllowanceKind, type TrialHeadroomConfig } from "@/lib/db";
 import { describeDigitalPlan, isDigitalEntitlementLive, liveDigitalEntitlements, type DigitalPlanSummary } from "@/lib/digital-entitlement";
 import { hasOwnerAccess, OWNER_AI_ALLOWANCE_MULTIPLIER } from "@/lib/permissions";
+import { digitalIncludedWithGym } from "@/lib/membership-entitlement";
 
 /** The four groups a MEMBER can be in ("staff" is the shared pool for staff-run features, not a member group). */
 export type MemberAllowanceKind = Exclude<AiAllowanceKind, "staff">;
@@ -205,6 +206,9 @@ export function allowanceKindFor(userId: string, nowMs: number): MemberAllowance
   if (live.some((e) => e.source !== "staff_grant" && e.trial !== true)) return "paid";
   if (live.some((e) => e.source !== "staff_grant" && e.trial === true)) return "trial";
   if (live.length > 0 || isOwner(userId)) return "complimentary";
+  // A gym Membership that includes the App features (GYM_MEMBERSHIP_INCLUDES_APP, owner decision 2026-11-08): AI is drawn from the complimentary
+  // allowance and pool, never the paid pool that protects store subscribers. A store plan or trial (checked above) takes precedence.
+  if (digitalIncludedWithGym(userId)) return "complimentary";
   return "free";
 }
 

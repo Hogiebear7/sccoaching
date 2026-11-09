@@ -73,12 +73,15 @@ export function resolveSubscriptionEntitlement(
   return planShapeForPackage(pkg, option);
 }
 
-// The two independent access facts for one member (see lib/member-access.ts for what each unlocks).
+// The two access facts for one member (see lib/member-access.ts for what each unlocks).
 //
 //   gymMembership: a catalog package that is NOT the app-only package, with status active or past_due. Derived from the
 //     subscription row, never a stored flag, so it cannot drift out of sync with the real subscription state.
 //   digital:       any live DigitalEntitlementRecord (lib/digital-entitlement.ts): a verified store subscription inside its
-//     paid period, or a complimentary staff grant. A gym Membership contributes NOTHING to this (owner decision D1).
+//     paid period, or a complimentary staff grant. By default a gym Membership contributes NOTHING to this (owner decision D1).
+//     OWNER DECISION 2026-11-08: when GYM_MEMBERSHIP_INCLUDES_APP is "true", a live gym Membership ALSO gives digital access
+//     (see gymBundleEnabled below). Nothing is stored for it: it is worked out from the subscription row on every request, so it
+//     ends with the Membership, and turning the setting off puts everything back to D1 with no data to undo.
 //
 // Legacy rows: before the digital entitlement store existed, a complimentary App Subscription was a SubscriptionRecord on the
 // app-only package with provider "none". Those rows keep granting digital access (they are the staff comps the owner already
@@ -99,6 +102,18 @@ function hasGymMembershipRow(subscription: SubscriptionRecord | undefined | null
   return !!pkg && pkg.deliveryChannel !== "app_only";
 }
 
+// The one switch for "a gym Membership includes the App Subscription features". Exactly "true" turns it on; anything else, including
+// unset, is off (D1). It exists so the owner can undo the bundle at once, without a code change, if a store objects to it.
+export function gymBundleEnabled(): boolean {
+  return process.env.GYM_MEMBERSHIP_INCLUDES_APP?.trim() === "true";
+}
+
+/** True when this member's digital access comes from a live gym Membership (the bundle is on). Used to pick their AI budget and to
+ * stop a store purchase they do not need. Not true for a member who also holds a store plan or staff grant: those are checked first. */
+export function digitalIncludedWithGym(userId: string): boolean {
+  return gymBundleEnabled() && hasGymMembershipRow(findSubscriptionByUserId(userId));
+}
+
 export function computeMemberAccess(
   subscription: SubscriptionRecord | undefined | null,
   entitlements: readonly DigitalEntitlementRecord[],
@@ -106,7 +121,10 @@ export function computeMemberAccess(
 ): MemberAccess {
   return {
     gymMembership: hasGymMembershipRow(subscription),
-    digital: liveDigitalEntitlements(entitlements, nowMs).length > 0 || legacyManualDigitalGrant(subscription, nowMs),
+    digital:
+      liveDigitalEntitlements(entitlements, nowMs).length > 0 ||
+      legacyManualDigitalGrant(subscription, nowMs) ||
+      (gymBundleEnabled() && hasGymMembershipRow(subscription)),
   };
 }
 

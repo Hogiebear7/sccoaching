@@ -47,13 +47,13 @@ import { aiAllowanceConfigured, reserveTrialStart, TRIALS_UNAVAILABLE_MESSAGE } 
 import { describeDigitalPlan, liveStoreEntitlement, type DigitalPlanSummary } from "@/lib/digital-entitlement";
 import type { MemberAccess } from "@/lib/member-access";
 import { isDeletedOwner } from "@/lib/member-deletion-guard";
-import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
+import { digitalIncludedWithGym, resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { googlePlayAccountBindingMatches, googlePlayObfuscatedAccountId } from "@/lib/providers/google-play";
 
 import { getPlayAdapter, type PlayAdapter, type ProviderSubscriptionSnapshot } from "./adapter";
 import { iapDisabledReason, iapEnvironment } from "./config";
 import { applyStoreEntitlement, checkStoreConflict, type StoreApplyOutcome } from "./entitlement-apply";
-import { STORE_CONFLICT_MEMBER_MESSAGE } from "./messages";
+import { INCLUDED_WITH_MEMBERSHIP_MESSAGE, STORE_CONFLICT_MEMBER_MESSAGE } from "./messages";
 import "./google-adapter";
 
 const MAX_TOKEN_LENGTH = 4096;
@@ -288,6 +288,9 @@ export function getPurchaseContext(userId: string, adapter: PlayAdapter = getPla
     appendIapEvent({ type: "claim_rejected_conflict", userId, actor: "user", detail: { code, source: "purchase_context" } });
     return fail(409, code, STORE_CONFLICT_MEMBER_MESSAGE[code]);
   }
+
+  // A gym Membership that already includes the App features (GYM_MEMBERSHIP_INCLUDES_APP): there is nothing to buy, so no purchase starts.
+  if (digitalIncludedWithGym(userId)) return fail(409, "included_with_membership", INCLUDED_WITH_MEMBERSHIP_MESSAGE);
 
   const obfuscatedAccountId = googlePlayObfuscatedAccountId(userId);
   if (!obfuscatedAccountId) return fail(503, "binding_unavailable", MESSAGES.notConfigured);

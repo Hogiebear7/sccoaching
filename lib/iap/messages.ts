@@ -9,3 +9,6 @@ export const STORE_CONFLICT_MEMBER_MESSAGE: Record<StoreConflictMessageCode, str
   subscription_already_active:
     "You already have an active digital plan on this account. Manage it in your store's subscription settings.",
 };
+
+// Shown instead of a store purchase when the member's gym Membership already includes the App features (GYM_MEMBERSHIP_INCLUDES_APP).
+export const INCLUDED_WITH_MEMBERSHIP_MESSAGE = "Your gym Membership already includes the App features, so there is nothing to buy.";
