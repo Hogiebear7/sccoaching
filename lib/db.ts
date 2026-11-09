@@ -1674,6 +1674,42 @@ export interface GroupRecord {
   closedAt: string | null;
 }
 
+// The gym community (Community plan, 2026-11): one members-only feed per gym, for members holding a live gym Membership at that gym plus that gym's staff.
+// `gymId` is the author's gym at the time (null = primary gym), the same convention as every other gym-scoped record. Text only; a removed post or comment
+// keeps its row (removedAt set) so a report about it can still be resolved, but is never shown.
+export interface GymPostRecord {
+  id: string;
+  gymId: string | null;
+  authorId: string;
+  body: string;
+  createdAt: string;
+  removedAt: string | null;
+  removedById: string | null;
+}
+
+export interface GymCommentRecord {
+  id: string;
+  postId: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+  removedAt: string | null;
+}
+
+// A member's report of a gym post or comment, reviewed by that gym's staff (capability comments.moderate).
+export interface GymReportRecord {
+  id: string;
+  gymId: string | null;
+  targetType: "post" | "comment";
+  targetId: string;
+  reporterId: string;
+  reason: string;
+  status: "open" | "resolved" | "dismissed";
+  resolvedById: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
 // A challenge inside a Community scope, scored automatically from logged workouts over an inclusive date range (lib/challenges.ts). `scopeType` is "group"
 // now and "gym" for the gym community later; the same record and scoring serve both.
 export interface ChallengeRecord {
@@ -2234,6 +2270,9 @@ interface Database {
   groups: GroupRecord[];
   groupMembers: GroupMemberRecord[];
   challenges: ChallengeRecord[];
+  gymPosts: GymPostRecord[];
+  gymComments: GymCommentRecord[];
+  gymReports: GymReportRecord[];
   emailChangeRequests: EmailChangeRequestRecord[];
   invites: InviteRecord[];
   programmes: ProgrammeRecord[];
@@ -2387,6 +2426,9 @@ function normalizeDatabase(raw: string | null): Database {
       groups: [],
       groupMembers: [],
       challenges: [],
+      gymPosts: [],
+      gymComments: [],
+      gymReports: [],
       emailChangeRequests: [],
       invites: [],
       programmes: [],
@@ -2523,6 +2565,9 @@ function normalizeDatabase(raw: string | null): Database {
     groups: parsed.groups ?? [],
     groupMembers: parsed.groupMembers ?? [],
     challenges: parsed.challenges ?? [],
+    gymPosts: parsed.gymPosts ?? [],
+    gymComments: parsed.gymComments ?? [],
+    gymReports: parsed.gymReports ?? [],
     emailChangeRequests: parsed.emailChangeRequests ?? [],
     invites: parsed.invites ?? [],
     programmes: parsed.programmes ?? [],
@@ -3048,6 +3093,15 @@ export function deleteUserAndOwnedRecords(userId: string): Record<string, number
   db.challenges = db.challenges.filter((c) => !(c.scopeType === "group" && organised.includes(c.scopeId)));
   const challengesRemoved = challengesBefore - db.challenges.length;
   if (challengesRemoved > 0) summary.challenges = challengesRemoved;
+
+  // Gym community: the member's own posts (with every comment on them), comments and reports go with the account.
+  const ownPostIds = db.gymPosts.filter((p) => p.authorId === userId).map((p) => p.id);
+  const gymRowsBefore = db.gymPosts.length + db.gymComments.length + db.gymReports.length;
+  db.gymPosts = db.gymPosts.filter((p) => p.authorId !== userId);
+  db.gymComments = db.gymComments.filter((c) => c.authorId !== userId && !ownPostIds.includes(c.postId));
+  db.gymReports = db.gymReports.filter((r) => r.reporterId !== userId);
+  const gymRowsRemoved = gymRowsBefore - (db.gymPosts.length + db.gymComments.length + db.gymReports.length);
+  if (gymRowsRemoved > 0) summary.gymCommunity = gymRowsRemoved;
 
   writeDb(db);
   return summary;
@@ -4567,6 +4621,103 @@ export function removeGroupMember(groupId: string, userId: string): boolean {
   const before = db.groupMembers.length;
   db.groupMembers = db.groupMembers.filter((m) => !(m.groupId === groupId && m.userId === userId));
   if (db.groupMembers.length === before) return false;
+  writeDb(db);
+  return true;
+}
+
+// ─── Gym community ─────────────────────────────────────────────────────────
+const sameGymId = (a: string | null | undefined, b: string | null | undefined) => (a ?? null) === (b ?? null);
+
+/** Newest first, removed posts excluded. `before` is an ISO createdAt cursor for the next page. */
+export function findGymPosts(gymId: string | null, limit: number, before?: string): GymPostRecord[] {
+  return readDbShared()
+    .gymPosts.filter((p) => sameGymId(p.gymId, gymId) && !p.removedAt && (!before || p.createdAt < before))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+}
+
+export function findGymPostById(id: string): GymPostRecord | undefined {
+  return readDbShared().gymPosts.find((p) => p.id === id);
+}
+
+export function createGymPost(post: GymPostRecord): void {
+  const db = readDb();
+  db.gymPosts.push(post);
+  writeDb(db);
+}
+
+/** Posts by one author since an ISO time (for the daily posting limit), counting removed ones too. */
+export function countGymPostsByAuthorSince(authorId: string, sinceISO: string): number {
+  return readDbShared().gymPosts.filter((p) => p.authorId === authorId && p.createdAt >= sinceISO).length;
+}
+
+export function removeGymPost(id: string, byId: string, now: string): boolean {
+  const db = readDb();
+  const post = db.gymPosts.find((p) => p.id === id && !p.removedAt);
+  if (!post) return false;
+  post.removedAt = now;
+  post.removedById = byId;
+  writeDb(db);
+  return true;
+}
+
+export function findGymCommentsByPostId(postId: string): GymCommentRecord[] {
+  return readDbShared()
+    .gymComments.filter((c) => c.postId === postId && !c.removedAt)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function findGymCommentById(id: string): GymCommentRecord | undefined {
+  return readDbShared().gymComments.find((c) => c.id === id);
+}
+
+export function countGymComments(postId: string): number {
+  return readDbShared().gymComments.filter((c) => c.postId === postId && !c.removedAt).length;
+}
+
+export function createGymComment(comment: GymCommentRecord): void {
+  const db = readDb();
+  db.gymComments.push(comment);
+  writeDb(db);
+}
+
+export function removeGymComment(id: string, now: string): boolean {
+  const db = readDb();
+  const comment = db.gymComments.find((c) => c.id === id && !c.removedAt);
+  if (!comment) return false;
+  comment.removedAt = now;
+  writeDb(db);
+  return true;
+}
+
+export function createGymReport(report: GymReportRecord): void {
+  const db = readDb();
+  db.gymReports.push(report);
+  writeDb(db);
+}
+
+export function findGymReports(gymId: string | null, status?: GymReportRecord["status"]): GymReportRecord[] {
+  return readDbShared()
+    .gymReports.filter((r) => sameGymId(r.gymId, gymId) && (!status || r.status === status))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findGymReportById(id: string): GymReportRecord | undefined {
+  return readDbShared().gymReports.find((r) => r.id === id);
+}
+
+/** True if this reporter already has an open report on the target (so a double tap doesn't queue two). */
+export function hasOpenGymReport(reporterId: string, targetType: GymReportRecord["targetType"], targetId: string): boolean {
+  return readDbShared().gymReports.some((r) => r.reporterId === reporterId && r.targetType === targetType && r.targetId === targetId && r.status === "open");
+}
+
+export function resolveGymReport(id: string, status: "resolved" | "dismissed", byId: string, now: string): boolean {
+  const db = readDb();
+  const report = db.gymReports.find((r) => r.id === id && r.status === "open");
+  if (!report) return false;
+  report.status = status;
+  report.resolvedById = byId;
+  report.resolvedAt = now;
   writeDb(db);
   return true;
 }
