@@ -105,7 +105,9 @@ export function ClassesView({
   deletedLabels,
   series,
   coaches,
+  members,
 }: {
+  members: { userId: string; label: string }[];
   classes: ClassWithRoster[];
   categories: ClassCategoryRecord[];
   deletedLabels: Record<string, string>;
@@ -135,6 +137,10 @@ export function ClassesView({
   const [confirmRemoveBookingId, setConfirmRemoveBookingId] = useState<string | null>(null);
   const [removingBookingId, setRemovingBookingId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  // Staff booking a member in on their behalf (one class at a time).
+  const [addMemberChoice, setAddMemberChoice] = useState<Record<string, string>>({});
+  const [addingClassId, setAddingClassId] = useState<string | null>(null);
+  const [addNotice, setAddNotice] = useState<{ classId: string; ok: boolean; message: string } | null>(null);
   const [showUpcoming, setShowUpcoming] = useState(true);
   const [showPast, setShowPast] = useState(false);
   const [showRepeating, setShowRepeating] = useState(false);
@@ -277,6 +283,33 @@ export function ClassesView({
       setRemoveError("Something went wrong. Please try again.");
     } finally {
       setRemovingBookingId(null);
+    }
+  }
+
+  // Books the chosen member into the class, or onto the waitlist if it is full. The route applies every member rule.
+  async function handleAddMember(classId: string) {
+    const userId = addMemberChoice[classId];
+    if (!userId) return;
+    setAddingClassId(classId);
+    setAddNotice(null);
+    try {
+      const res = await fetch("/api/staff/bookings/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classId, userId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setAddNotice({ classId, ok: false, message: data?.message ?? "Could not book this member." });
+        return;
+      }
+      setAddNotice({ classId, ok: true, message: data?.message ?? "Done." });
+      setAddMemberChoice((prev) => ({ ...prev, [classId]: "" }));
+      router.refresh();
+    } catch {
+      setAddNotice({ classId, ok: false, message: "Something went wrong. Please try again." });
+    } finally {
+      setAddingClassId(null);
     }
   }
 
@@ -1155,6 +1188,50 @@ export function ClassesView({
                       })}
                     </ul>
                   )}
+
+                  {classRecord.date >= todayDateString() ? (
+                    <div className="mt-3 border-t border-border/50 pt-3">
+                      <label htmlFor={`add-member-${classRecord.id}`} className="text-xs text-muted-foreground">
+                        Book a member in
+                      </label>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <select
+                          id={`add-member-${classRecord.id}`}
+                          value={addMemberChoice[classRecord.id] ?? ""}
+                          onChange={(e) => setAddMemberChoice((prev) => ({ ...prev, [classRecord.id]: e.target.value }))}
+                          className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="">Choose a member…</option>
+                          {members.map((m) => (
+                            <option key={m.userId} value={m.userId}>{m.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleAddMember(classRecord.id)}
+                          disabled={!addMemberChoice[classRecord.id] || addingClassId === classRecord.id}
+                          className="rounded-full border border-border px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {addingClassId === classRecord.id ? "Booking…" : "Book in"}
+                        </button>
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Normal booking rules apply. If the class is full they join the waitlist.
+                      </p>
+                      {addNotice && addNotice.classId === classRecord.id ? (
+                        <p
+                          role="status"
+                          className={`mt-2 rounded-xl border px-3 py-2 text-xs ${
+                            addNotice.ok
+                              ? "border-primary/30 bg-primary/10 text-primary"
+                              : "border-destructive/30 bg-destructive/10 text-destructive"
+                          }`}
+                        >
+                          {addNotice.message}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Waitlist */}

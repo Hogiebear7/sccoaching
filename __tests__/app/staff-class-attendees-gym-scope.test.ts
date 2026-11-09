@@ -39,6 +39,7 @@ const h = vi.hoisted(() => ({
   findWaitlistEntriesByClassId: vi.fn(),
   findProfileByUserId: vi.fn(),
   findStaffUsers: vi.fn(),
+  findMembers: vi.fn(),
   findWorkoutSessionByUserAndClass: vi.fn(),
   findClassWorkoutByClassId: vi.fn(),
   findClassWorkoutTemplates: vi.fn(),
@@ -118,6 +119,7 @@ beforeEach(() => {
   h.findWaitlistEntriesByClassId.mockImplementation((id: string) => WAITLISTS[id] ?? []);
   h.findProfileByUserId.mockImplementation((id: string) => (NAMES[id] ? { fullName: NAMES[id] } : undefined));
   h.findStaffUsers.mockReturnValue([COACH_A, COACH_B]);
+  h.findMembers.mockReturnValue(USERS.filter((u) => u.role === "member"));
   h.findWorkoutSessionByUserAndClass.mockReturnValue(undefined);
   h.findClassWorkoutByClassId.mockReturnValue(undefined);
   h.findClassWorkoutTemplates.mockReturnValue([]);
