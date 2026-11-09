@@ -123,7 +123,13 @@ jobs:
       - name: Print toolchain versions
         run: node --version && npm --version
       - run: npm ci --include=dev
+      # The workflow-wide NODE_ENV=production is right for the build job but wrong here: vitest only sets NODE_ENV=test when it is unset, so
+      # under production the datastore's "never start an empty datastore in production" guard refuses every fixture's fresh data
+      # directory and ~40 test files fail with DATASTORE_NOT_INITIALISED (red on every PR since at least 2026-11-05). The tests exercise
+      # that guard explicitly where they need production behaviour, so they run as `test`.
       - run: npm test
+        env:
+          NODE_ENV: test
 
   diff-check:
     name: Whitespace (git diff --check)
