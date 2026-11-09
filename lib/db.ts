@@ -1699,11 +1699,12 @@ export interface GymCommentRecord {
   removedAt: string | null;
 }
 
-// A member's report of a gym post or comment, reviewed by that gym's staff (capability comments.moderate).
+// A member's report of a gym post or comment, or of a Community group's name or description, reviewed by that gym's staff (capability comments.moderate).
+// For a "group" report the staff action is to close the group.
 export interface GymReportRecord {
   id: string;
   gymId: string | null;
-  targetType: "post" | "comment";
+  targetType: "post" | "comment" | "group";
   targetId: string;
   reporterId: string;
   reason: string;
@@ -1834,6 +1835,12 @@ export type NotificationType =
   | "workout_liked"
   | "workout_commented"
   | "mentioned_in_comment"
+  // Community groups and the gym community (2026-11): a coach's post in the member's gym, a comment on the member's own gym post, and a challenge
+  // (group or gym) starting or finishing.
+  | "gym_post"
+  | "gym_comment"
+  | "challenge_started"
+  | "challenge_ended"
   // Calorie target changes the member should know about (pregnancy pausing
   // a weight goal, the goal resuming after the birth).
   | "nutrition_update"
@@ -4730,6 +4737,16 @@ export function findChallengesByScope(scopeType: ChallengeRecord["scopeType"], s
   return readDbShared()
     .challenges.filter((c) => c.scopeType === scopeType && c.scopeId === scopeId)
     .sort((a, b) => b.startDate.localeCompare(a.startDate) || b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Every challenge, newest start first (for the job that announces challenges starting and ending). */
+export function findAllChallenges(): ChallengeRecord[] {
+  return [...readDbShared().challenges].sort((a, b) => b.startDate.localeCompare(a.startDate));
+}
+
+/** The live accounts of members in one gym (null = the primary gym). */
+export function findMembersInGym(gymId: string | null): StoredUser[] {
+  return readDbShared().users.filter((u) => u.role === "member" && !u.archivedAt && sameGymId(u.gymId, gymId));
 }
 
 export function findChallengeById(id: string): ChallengeRecord | undefined {

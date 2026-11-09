@@ -76,8 +76,6 @@ const GATED: { feature: string; run: (m: { cookie: string; workoutId: string }) 
   { feature: "calorieTargets", run: async (m) => (await import("@/app/api/mobile/nutrition/target/route")).GET(call("GET", "/api/mobile/nutrition/target", m.cookie)) },
   { feature: "calorieTargets (week)", run: async (m) => (await import("@/app/api/mobile/nutrition/targets/week/route")).GET(call("GET", "/api/mobile/nutrition/targets/week", m.cookie)) },
   { feature: "calorieTargets (web)", run: async (m) => (await import("@/app/api/nutrition/target/route")).GET(call("GET", "/api/nutrition/target", m.cookie)) },
-  { feature: "communityLeaderboards", run: async (m) => (await import("@/app/api/mobile/community/leaderboard/route")).GET(call("GET", "/api/mobile/community/leaderboard", m.cookie)) },
-  { feature: "communityLeaderboards (highlight)", run: async (m) => (await import("@/app/api/mobile/community/highlight/route")).GET(call("GET", "/api/mobile/community/highlight", m.cookie)) },
   { feature: "communityGroups", run: async (m) => (await import("@/app/api/mobile/community/groups/route")).GET(call("GET", "/api/mobile/community/groups", m.cookie)) },
   { feature: "nutritionMoreTools (meal suggestions)", run: async (m) => (await import("@/app/api/mobile/nutrition/meal-suggest/route")).POST(call("POST", "/api/mobile/nutrition/meal-suggest", m.cookie, {})) },
 ];
@@ -140,6 +138,7 @@ describe("lib/member-access.ts feature list is fully accounted for", () => {
       "fullHistory",
       "cyclePhaseGuidance",
       "coachMessaging",
+      "communityLeaderboards", // free for everyone since 2026-11-08; covered by community-leaderboard-free-friends.test.ts
       "communityGym", // gym-Membership-gated (the opposite way round to the digital rows above); covered by community-gym.test.ts
     ]);
     expect(features.filter((f) => !tested.has(f) && !clientOnly.has(f))).toEqual([]);

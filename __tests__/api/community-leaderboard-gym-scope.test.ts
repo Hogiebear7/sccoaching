@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
   findUserIdsBlocking: vi.fn(() => [] as string[]),
   findUserById: vi.fn(),
   findCommunityEligibleUsers: vi.fn(),
+  // Nobody is followed in this file, so the board is the whole gym (the Friends scope is covered by community-leaderboard-free-friends.test.ts).
+  findFollowingIds: vi.fn(() => [] as string[]),
   findProfileByUserId: vi.fn(),
   findWorkoutSessionsByUserId: vi.fn(),
   findBodyWeightLogsByUserId: vi.fn(),
@@ -120,7 +122,7 @@ describe("GET /api/mobile/community/leaderboard", () => {
     const data = await res.json();
     expect(data).toMatchObject({
       success: true,
-      data: { metric: "volume", range: "all", entries: expect.any(Array), myUserId: GYM_A_CALLER.id },
+      data: { metric: "volume", range: "all", scope: "global", followingCount: 0, entries: expect.any(Array), myUserId: GYM_A_CALLER.id },
     });
   });
 

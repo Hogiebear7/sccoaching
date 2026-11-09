@@ -2,7 +2,8 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { MAX_GYM_COMMENT, gymCommentView, gymCommunityAccess, sameGymId } from "@/lib/community-gym";
+import { MAX_GYM_COMMENT, gymAuthorView, gymCommentView, gymCommunityAccess, sameGymId } from "@/lib/community-gym";
+import { notifyGymPostAuthorOfComment } from "@/lib/community-notify";
 import { hiddenFromViewer, violatesCommunityRules } from "@/lib/community-moderation";
 import { createGymComment, findGymCommentsByPostId, findGymPostById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -52,5 +53,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const comment = { id: randomUUID(), postId: post.id, authorId: access.user.id, body: text, createdAt: new Date().toISOString(), removedAt: null };
   createGymComment(comment);
+  // Tell the post's author (a comment on your own post, or from someone blocked either way, tells no one). Never blocks or fails the comment.
+  notifyGymPostAuthorOfComment({
+    postAuthorId: post.authorId,
+    commenterId: access.user.id,
+    commenterName: gymAuthorView(access.user.id).displayName,
+    commentId: comment.id,
+    commentBody: text,
+  });
   return NextResponse.json({ success: true, data: gymCommentView(comment, access.user, access.isStaff) }, { status: 201 });
 }

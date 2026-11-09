@@ -71,7 +71,8 @@ const FEATURE_REQUIRES: Record<MemberFeature, "free" | "digital" | "gymMembershi
   calorieTargets: "digital",
   fullHistory: "digital",
   cyclePhaseGuidance: "digital",
-  communityLeaderboards: "digital",
+  // Free for everyone (owner decision 2026-11-08): the leaderboard and the highlight card. Groups and the gym community stay gated below.
+  communityLeaderboards: "free",
   communityGroups: "digital",
   communityGym: "gymMembership",
   coachMessaging: "gymMembership",
