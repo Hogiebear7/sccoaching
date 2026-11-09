@@ -604,6 +604,38 @@ export function passwordResetEmail(opts: PasswordResetEmailOpts): {
   return { subject, html, text };
 }
 
+// ─── Password changed by staff ─────────────────────────────────────────────────
+// A security notice only: it never contains the new password.
+
+export function passwordChangedByStaffEmail(): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const subject = "Your password was changed by our team";
+
+  const html = emailWrapper(subject, `
+    <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Account security</p>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">Your password was changed</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
+      A member of our team set a new password on your account. They will have given it to you directly. Once you are signed in, please change it to one only you know.
+    </p>
+    <p style="margin:20px 0 0;font-size:12px;color:#52525b;">If you weren&#39;t expecting this, contact us straight away.</p>
+  `);
+
+  const text = [
+    `A member of our team set a new password on your account. They will have given it to you directly.`,
+    ``,
+    `Once you are signed in, please change it to one only you know.`,
+    ``,
+    `If you weren't expecting this, contact us straight away.`,
+    ``,
+    `— S&C Performance Coaching`,
+  ].join("\n");
+
+  return { subject, html, text };
+}
+
 // ─── Email change verification ─────────────────────────────────────────────
 
 export interface EmailChangeEmailOpts {

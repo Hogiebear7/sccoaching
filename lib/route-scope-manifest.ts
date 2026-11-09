@@ -278,6 +278,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/members/bulk-tier", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGymAsStaff"], runtimeTenantContext: true },
   { route: "staff/members/notes", scope: "tenant-staff", capabilities: ["members.edit"], evidence: ["sameGym("] },
   { route: "staff/members/reset-password", scope: "tenant-staff", capabilities: ["members.account"], evidence: ["sameGym(", "targetOutranksActor", "protectedOperatorTarget"] },
+  { route: "staff/members/set-password", scope: "tenant-staff", capabilities: ["members.account"], evidence: ["sameGym(", "targetOutranksActor", "protectedOperatorTarget"], note: "Members only; returns a one-time temporary password, never logged." },
   { route: "staff/members/update", scope: "tenant-staff", capabilities: ["members.edit", "members.account"], evidence: ["sameGym(", "targetOutranksActor", "protectedOperatorTarget"] },
   { route: "staff/messages/unread-count", scope: "tenant-staff", capabilities: ["members.view"], evidence: ["sameGym("] },
   { route: "staff/settings/emails", scope: "global-shared", capabilities: ["operations.view"], note: "Singleton platform email toggles." },
