@@ -38,6 +38,32 @@ export function challengeStatus(c: Pick<ChallengeRecord, "startDate" | "endDate"
   return "active";
 }
 
+export type ParsedChallengeInput =
+  | { ok: true; title: string; metric: ChallengeMetric; startDate: string; endDate: string }
+  | { ok: false; message: string };
+
+/** Validates what an organiser or coach sent when setting a challenge (the same rules for a group and for the gym). Wording checks stay with the route. */
+export function parseChallengeInput(body: unknown, today: string): ParsedChallengeInput {
+  const { title, metric, startDate, endDate } = (body ?? {}) as Record<string, unknown>;
+  const cleanTitle = typeof title === "string" ? title.trim() : "";
+  if (!cleanTitle || cleanTitle.length > MAX_CHALLENGE_TITLE) {
+    return { ok: false, message: `Give the challenge a title of up to ${MAX_CHALLENGE_TITLE} characters.` };
+  }
+  if (typeof metric !== "string" || !(CHALLENGE_METRICS as readonly string[]).includes(metric)) {
+    return { ok: false, message: "Choose what the challenge is scored on." };
+  }
+  if (!isIsoDate(startDate) || !isIsoDate(endDate)) return { ok: false, message: "Choose a start and end date." };
+  if (startDate < today) return { ok: false, message: "A challenge can't start in the past." };
+  if (daysBetween(today, startDate) > MAX_START_AHEAD_DAYS) {
+    return { ok: false, message: `A challenge can start up to ${MAX_START_AHEAD_DAYS} days from now.` };
+  }
+  if (endDate < startDate) return { ok: false, message: "The end date can't be before the start date." };
+  if (daysBetween(startDate, endDate) + 1 > MAX_CHALLENGE_DAYS) {
+    return { ok: false, message: `A challenge can run for up to ${MAX_CHALLENGE_DAYS} days.` };
+  }
+  return { ok: true, title: cleanTitle, metric: metric as ChallengeMetric, startDate, endDate };
+}
+
 /** A challenge as members see it. */
 export function challengeView(c: ChallengeRecord, today: string) {
   return {

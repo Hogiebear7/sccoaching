@@ -140,6 +140,7 @@ describe("lib/member-access.ts feature list is fully accounted for", () => {
       "fullHistory",
       "cyclePhaseGuidance",
       "coachMessaging",
+      "communityGym", // gym-Membership-gated (the opposite way round to the digital rows above); covered by community-gym.test.ts
     ]);
     expect(features.filter((f) => !tested.has(f) && !clientOnly.has(f))).toEqual([]);
   });

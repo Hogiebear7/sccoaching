@@ -46,6 +46,8 @@ export type MemberFeature =
   | "communityLeaderboards"
   // Create and join private Community groups (App tier and up; owner decision 2026-11-08).
   | "communityGroups"
+  // Your gym's members-only community: a gym Membership (a gym's staff take part by role, not by this flag).
+  | "communityGym"
   | "coachMessaging";
 
 // What each feature needs (owner decisions 2026-10-27). "free" = everyone: logging (with food search and custom foods) and notifications stay
@@ -71,6 +73,7 @@ const FEATURE_REQUIRES: Record<MemberFeature, "free" | "digital" | "gymMembershi
   cyclePhaseGuidance: "digital",
   communityLeaderboards: "digital",
   communityGroups: "digital",
+  communityGym: "gymMembership",
   coachMessaging: "gymMembership",
 };
 
