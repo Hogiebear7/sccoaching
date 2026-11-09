@@ -1,4 +1,4 @@
-import { daysBetween, todayIso } from "@/lib/challenges";
+import { CHALLENGE_METRIC_LABEL, daysBetween, todayIso } from "@/lib/challenges";
 import { gymCommunityAudience, notifyCommunityUser } from "@/lib/community-notify";
 import { findAllChallenges, findGroupById, findGroupMembers, findUserById, type ChallengeRecord } from "@/lib/db";
 import type { JobDefinition } from "./types";
@@ -9,14 +9,6 @@ import type { JobDefinition } from "./types";
 // closed group, is never announced.
 const START_WINDOW_DAYS = 2;
 const END_WINDOW_DAYS = 3;
-
-const METRIC_LABEL: Record<ChallengeRecord["metric"], string> = {
-  volume: "Total volume",
-  workouts: "Workouts logged",
-  squat: "Best squat",
-  bench: "Best bench",
-  deadlift: "Best deadlift",
-};
 
 /** Who is in the challenge: a group's members, or the gym's members who can open the gym community. Empty when the group is gone or closed. */
 function audienceFor(c: ChallengeRecord): string[] {
@@ -61,7 +53,7 @@ export const notifyCommunityChallengesJob: JobDefinition = {
           const sent = notifyCommunityUser(userId, {
             type: "challenge_started",
             title: `Challenge started: ${c.title}`,
-            body: `${METRIC_LABEL[c.metric]}. It runs until ${c.endDate}. Your logged workouts count automatically.`,
+            body: `${CHALLENGE_METRIC_LABEL[c.metric]}. It runs until ${c.endDate}. Your logged workouts count automatically.`,
             linkHref: link,
             dedupeKey: `challenge-start:${c.id}`,
           });
