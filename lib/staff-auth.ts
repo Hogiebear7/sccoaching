@@ -8,6 +8,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { findUserById, type StoredUser } from "./db";
+import { verifyRequestSession } from "./mobile-auth";
 import { can, type Capability } from "./permissions";
 import { verifySession } from "./session";
 
@@ -20,11 +21,18 @@ type Unauthorized = { ok: false; response: NextResponse };
 //   const auth = authorizeStaffRequest(request, "catalog.manage");
 //   if (!auth.ok) return auth.response;
 //   const { user } = auth;
+//
+// By default this reads the website's session cookie only. A route the staff APP also calls passes { allowAppToken: true }, which additionally accepts the
+// app's Bearer token (the same signed session token, sent as a header; see lib/mobile-auth.ts). It is opt-in per route so that a route is never reachable
+// from the app by accident, and an archived account is refused either way.
 export function authorizeStaffRequest(
   request: NextRequest,
-  capability: Capability
+  capability: Capability,
+  options: { allowAppToken?: boolean } = {}
 ): Authorized | Unauthorized {
-  const userId = verifySession(request.cookies.get("session")?.value)?.userId ?? null;
+  const userId = options.allowAppToken
+    ? verifyRequestSession(request)?.userId ?? null
+    : verifySession(request.cookies.get("session")?.value)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
 
   if (!user) {
