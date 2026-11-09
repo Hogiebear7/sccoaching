@@ -22,7 +22,8 @@ import { formatRemainingSessions, type ClassPassBalance } from "@/lib/scheduling
 // an optional end date, end, pause), digital access (complimentary grants; a paid store plan is shown but only the member can change it),
 // class passes, and an Advanced section holding the manual package + status override.
 //
-// A gym Membership and digital access stay two separate things (owner decision D1): a gym Membership does not include digital access.
+// A live gym Membership includes digital access (owner decision 2026-11-08, behind GYM_MEMBERSHIP_INCLUDES_APP); a store subscription or a staff grant is the other
+// way to hold it, and the two never end each other.
 // Granting/ending needs members.grantTier; pause, passes and the override need members.billing (both admin today). Every action uses
 // the routes the two old panels used: /tier, /pause, /extra-sessions, /subscription.
 
@@ -306,8 +307,8 @@ export function MembershipAccessPanel({
     <div className="panel p-6">
       <h3 className="text-lg font-semibold">Membership &amp; access</h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        A gym Membership and digital access are two separate things: a gym Membership doesn&apos;t include the digital features, and digital
-        access doesn&apos;t include a gym Membership.
+        A live gym Membership includes the digital features while it&apos;s active. Digital access can also come from the App Subscription or a
+        grant below, and ending one never ends the other.
       </p>
 
       {/* Summary */}
