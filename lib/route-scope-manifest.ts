@@ -294,6 +294,8 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/members/[userId]/delete", scope: "tenant-staff", capabilities: ["members.hardDelete"], evidence: ["sameGym("] },
   { route: "staff/members/[userId]/extra-sessions", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym("] },
   { route: "staff/members/[userId]/pause", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym("] },
+  { route: "staff/members/[userId]/summary", scope: "tenant-staff", capabilities: ["members.view"], evidence: ["sameGym(", "staffCanViewMemberData"], note: "Gym-Membership members only (the staff data wall)." },
+  { route: "staff/members/[userId]/brief", scope: "tenant-staff", capabilities: ["members.view"], evidence: ["sameGym(", "staffCanViewMemberData"], note: "Compact pre-class view; gym-Membership members only." },
   { route: "staff/members/[userId]/subscription", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGym(", "staffAuthorizedForCatalogPackage", "ownerGymFor"], runtimeTenantContext: true },
   { route: "staff/members/[userId]/tier", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGym("], runtimeTenantContext: true },
   { route: "staff/members/bulk-tier", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGymAsStaff"], runtimeTenantContext: true },

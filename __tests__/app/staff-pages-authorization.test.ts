@@ -69,6 +69,8 @@ vi.mock("@/lib/db", () => h);
 
 const { mockStaffCanViewMemberData } = vi.hoisted(() => ({ mockStaffCanViewMemberData: vi.fn() }));
 vi.mock("@/lib/member-tier-wall", () => ({ staffCanViewMemberData: mockStaffCanViewMemberData }));
+// The member summary panel reads many records of its own (covered in member-summary.test.ts and staff-member-summary.test.ts); this file is about who reaches the page.
+vi.mock("@/lib/member-summary-data", () => ({ memberSummaryFor: () => ({ state: "good", flags: [] }) }));
 
 // gymId: null is the established primary-gym convention. "coach" is the
 // lowest role with staff.access + members.view (see lib/permissions.ts),
