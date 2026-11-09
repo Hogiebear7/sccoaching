@@ -259,4 +259,82 @@ describe("running and cardio challenges", () => {
   });
 });
 
+describe("custom challenges", () => {
+  const custom = (over: Record<string, unknown> = {}) => ({ measure: "best_weight", subject: "Front squat", ...over });
+  const mkCustom = (org: { id: string }, id: string, c: unknown, title = "Front squat PB") => mk(org, id, { metric: "custom", title, custom: c });
+  const lift = (userId: string, date: string, name: string, weight: number, reps = 1) =>
+    fx.db.saveWorkoutSession({ id: `w${++wk}`, userId, date, title: "Lift", exercises: [{ exerciseId: null, name, weight: String(weight), reps, sets: 1 }], runs: [], createdAt: T, updatedAt: T } as never);
+  const cardioRun = (userId: string, date: string, distance: number, durationSecs: number) =>
+    fx.db.saveWorkoutSession({ id: `w${++wk}`, userId, date, title: "Run", exercises: [], runs: [{ distance, distanceUnit: "km", durationSecs, reps: null, sets: null, notes: null }], createdAt: T, updatedAt: T } as never);
+
+  it("the organiser sets a strength challenge on an exercise they name, and members see it by its own name, unit and direction", async () => {
+    const { org, others, id } = await groupWith(["Alice", "Bob"]);
+    const res = await mkCustom(org, id, custom());
+    expect(res.status).toBe(201);
+    const view = (await res.json()).data;
+    expect(view).toMatchObject({ metric: "custom", label: "Front squat: best weight", unit: "kg", lowerIsBetter: false, custom: { measure: "best_weight", subject: "Front squat" } });
+
+    lift(others[0].id, IN_RANGE, "Barbell Front Squat", 100);
+    lift(others[1].id, IN_RANGE, "Back Squat", 250); // a different exercise
+    lift(others[1].id, IN_RANGE, "Front Squat", 120);
+    const s = await standings(others[0], id, view.id);
+    expect(s.body.data.challenge).toMatchObject({ label: "Front squat: best weight", unit: "kg" });
+    expect(s.body.data.entries.map((e: { displayName: string; value: number }) => [e.displayName, e.value])).toEqual([["Bob", 120], ["Alice", 100]]);
+  });
+
+  it("a fastest time over a distance is won by the lowest time, in seconds", async () => {
+    const { org, others, id } = await groupWith(["Rae", "Sam"]);
+    const view = (await (await mkCustom(org, id, { measure: "fastest_time", cardioType: "run", targetDistanceKm: 5 }, "5k showdown")).json()).data;
+    expect(view).toMatchObject({ label: "5 km Run: fastest time", unit: "secs", lowerIsBetter: true });
+    cardioRun(others[0].id, IN_RANGE, 5.02, 1258); // 20:58
+    cardioRun(others[1].id, IN_RANGE, 5.0, 1500);
+    cardioRun(others[1].id, IN_RANGE, 10, 2400); // not near 5 km: ignored
+    const s = await standings(others[0], id, view.id);
+    expect(s.body.data.entries.map((e: { displayName: string; value: number }) => [e.displayName, e.value])).toEqual([["Rae", 1258], ["Sam", 1500]]);
+  });
+
+  it("refuses an unusable custom challenge with a message that says what to fix", async () => {
+    const { org, id } = await groupWith();
+    const cases: [unknown, RegExp][] = [
+      [undefined, /measure/i],
+      [custom({ measure: "best_vibes" }), /measure/i],
+      [custom({ subject: "x" }), /exercise/i],
+      [{ measure: "total_distance" }, /activity/i],
+      [{ measure: "fastest_time", cardioType: "run" }, /distance/i],
+      [{ measure: "fastest_time", cardioType: "run", targetDistanceKm: 500 }, /distance/i],
+    ];
+    for (const [c, message] of cases) {
+      const res = await mkCustom(org, id, c);
+      expect(res.status, JSON.stringify(c)).toBe(400);
+      expect((await res.json()).message).toMatch(message);
+    }
+  });
+
+  it("wording in the exercise name is checked like any other text, and only the organiser can set one", async () => {
+    const { org, others, id } = await groupWith(["Alice"]);
+    const rude = await mkCustom(org, id, custom({ subject: "kys squat" }));
+    expect(rude.status).toBe(400);
+    expect((await rude.json()).message).toMatch(/community rules/i);
+    expect((await mkCustom(others[0], id, custom())).status).toBe(404);
+  });
+
+  it("the gym's coach sets a custom challenge too, and the ready-made kinds carry their label and unit", async () => {
+    const coach = fx.db.createUserWithRole("custom-coach@example.test", "x", "coach", null);
+    const mod = (await import("@/app/api/mobile/community/gym/challenges/route")) as { POST: (req: NextRequest) => Promise<Response> };
+    const res = await mod.POST(
+      new NextRequest("http://localhost/api/mobile/community/gym/challenges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: fx.cookie(coach.id) },
+        body: JSON.stringify({ title: "Gym 5k", metric: "custom", custom: { measure: "fastest_time", cardioType: "run", targetDistanceKm: 5 }, startDate: TODAY, endDate: dayOffset(6) }),
+      })
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).data).toMatchObject({ label: "5 km Run: fastest time", unit: "secs", lowerIsBetter: true });
+
+    const { org, id } = await groupWith();
+    const ready = (await (await mk(org, id, { metric: "run_distance" })).json()).data;
+    expect(ready).toMatchObject({ metric: "run_distance", custom: null, label: "Running distance", unit: "km", lowerIsBetter: false });
+  });
+});
+
 void vi;

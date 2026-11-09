@@ -2,27 +2,17 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import {
-  CHALLENGE_METRICS,
-  MAX_CHALLENGE_DAYS,
-  MAX_CHALLENGE_TITLE,
-  MAX_OPEN_CHALLENGES_PER_SCOPE,
-  MAX_START_AHEAD_DAYS,
-  challengeView,
-  daysBetween,
-  isIsoDate,
-  todayIso,
-  type ChallengeMetric,
-} from "@/lib/challenges";
+import { MAX_OPEN_CHALLENGES_PER_SCOPE, challengeView, parseChallengeInput, todayIso } from "@/lib/challenges";
 import { findGroupVisibleToMember, requireGroupAccess } from "@/lib/community-groups";
 import { violatesCommunityRules } from "@/lib/community-moderation";
 import { createChallengeIfUnderLimit, findChallengesByScope, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // GET  /api/mobile/community/groups/[id]/challenges — the group's challenges (upcoming, active, ended, canceled), newest first. Members only.
-// POST /api/mobile/community/groups/[id]/challenges — { title, metric, startDate, endDate } the ORGANISER sets one. Scored automatically from members'
-// logged workouts (volume, days trained, or best squat / bench / deadlift) inside the dates. Up to 5 open at once; at most 90 days long; it can start
-// today or up to 60 days ahead (never in the past, so it can't be backdated to a result that already exists).
+// POST /api/mobile/community/groups/[id]/challenges — { title, metric, custom?, startDate, endDate } the ORGANISER sets one. `metric` is a ready-made kind
+// (strength, consistency, running, cardio: lib/challenges.ts) or "custom" with { measure, subject | cardioType, targetDistanceKm }. Scored automatically from
+// members' logged workouts and cardio inside the dates. Up to 5 open at once; at most 90 days long; it can start today or up to 60 days ahead (never in the
+// past, so it can't be backdated to a result that already exists).
 // Everything asynchronous (params, body) is read first so the checks and the write run back to back (scripts/audit-await-gaps.cjs).
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,32 +49,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "Group not found." }, { status: 404 });
   }
 
-  const { title, metric, startDate, endDate } = (body ?? {}) as Record<string, unknown>;
-  const cleanTitle = typeof title === "string" ? title.trim() : "";
-  if (!cleanTitle || cleanTitle.length > MAX_CHALLENGE_TITLE) {
-    return NextResponse.json({ success: false, message: `Give the challenge a title of up to ${MAX_CHALLENGE_TITLE} characters.` }, { status: 400 });
-  }
-  if (violatesCommunityRules(cleanTitle)) {
-    return NextResponse.json({ success: false, message: "That wording breaks the Community rules. Please change it." }, { status: 400 });
-  }
-  if (typeof metric !== "string" || !(CHALLENGE_METRICS as readonly string[]).includes(metric)) {
-    return NextResponse.json({ success: false, message: "Choose what the challenge is scored on." }, { status: 400 });
-  }
-  if (!isIsoDate(startDate) || !isIsoDate(endDate)) {
-    return NextResponse.json({ success: false, message: "Choose a start and end date." }, { status: 400 });
-  }
+  // The same rules as the gym's challenges (lib/challenges.ts): title, kind (ready-made or custom), dates. Wording checks stay here.
   const today = todayIso();
-  if (startDate < today) {
-    return NextResponse.json({ success: false, message: "A challenge can't start in the past." }, { status: 400 });
-  }
-  if (daysBetween(today, startDate) > MAX_START_AHEAD_DAYS) {
-    return NextResponse.json({ success: false, message: `A challenge can start up to ${MAX_START_AHEAD_DAYS} days from now.` }, { status: 400 });
-  }
-  if (endDate < startDate) {
-    return NextResponse.json({ success: false, message: "The end date can't be before the start date." }, { status: 400 });
-  }
-  if (daysBetween(startDate, endDate) + 1 > MAX_CHALLENGE_DAYS) {
-    return NextResponse.json({ success: false, message: `A challenge can run for up to ${MAX_CHALLENGE_DAYS} days.` }, { status: 400 });
+  const parsed = parseChallengeInput(body, today);
+  if (!parsed.ok) return NextResponse.json({ success: false, message: parsed.message }, { status: 400 });
+  if (violatesCommunityRules(parsed.title) || (parsed.custom && violatesCommunityRules(parsed.custom.subject))) {
+    return NextResponse.json({ success: false, message: "That wording breaks the Community rules. Please change it." }, { status: 400 });
   }
 
   const challenge = {
@@ -92,10 +62,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     scopeType: "group" as const,
     scopeId: group.id,
     createdBy: me.id,
-    title: cleanTitle,
-    metric: metric as ChallengeMetric,
-    startDate,
-    endDate,
+    title: parsed.title,
+    metric: parsed.metric,
+    ...(parsed.custom ? { custom: parsed.custom } : {}),
+    startDate: parsed.startDate,
+    endDate: parsed.endDate,
     createdAt: new Date().toISOString(),
     canceledAt: null,
   };

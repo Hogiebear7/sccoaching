@@ -49,7 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     success: true,
     data: {
       challenge: challengeView(challenge, todayIso()),
-      entries: scoreChallenge(challenge.metric, members, challenge.startDate, challenge.endDate),
+      entries: scoreChallenge(challenge.metric, members, challenge.startDate, challenge.endDate, challenge.custom),
       myUserId: access.user.id,
       iAmHidden: !access.isStaff && findCommunityPrivacyByUserId(access.user.id)?.leaderboardVisible === false,
     },
