@@ -1,12 +1,69 @@
 // Community challenges (Community plan, 2026-11): a title, one scoring metric and a date range, scored automatically from the workouts members already
-// log. No new scoring rules: volume and the three big lifts are exactly the leaderboard's (lib/leaderboard.ts), and "workouts" counts the days a member
-// trained. Pure and DB-free: the route builds the member inputs, this module only computes.
+// log. Strength: volume and the three big lifts are exactly the leaderboard's (lib/leaderboard.ts). Everything else is worked out here from what a member
+// logged: days trained and total training time, and distance and time from their run and cardio entries. Pure and DB-free: the route builds the member
+// inputs, this module only computes.
 import { communityDisplayName } from "./community-display-name";
-import type { ChallengeRecord } from "./db";
+import type { ChallengeRecord, WorkoutRunEntry, WorkoutSessionRecord } from "./db";
 import { computeLeaderboard, filterSessionsByRange, type LeaderboardEntry, type LeaderboardMemberInput } from "./leaderboard";
 
-export const CHALLENGE_METRICS = ["volume", "workouts", "squat", "bench", "deadlift"] as const;
+/** Challenge metrics, grouped for display. The order here is the order the apps show them in. */
+export const CHALLENGE_CATEGORIES = [
+  { id: "strength", label: "Strength", metrics: ["volume", "squat", "bench", "deadlift"] },
+  { id: "consistency", label: "Consistency", metrics: ["workouts", "training_time"] },
+  { id: "running", label: "Running", metrics: ["run_distance", "run_longest", "run_time"] },
+  { id: "cardio", label: "Cardio", metrics: ["cardio_time", "cardio_distance", "bike_distance", "row_distance"] },
+] as const;
+
+export const CHALLENGE_METRICS = [
+  "volume",
+  "squat",
+  "bench",
+  "deadlift",
+  "workouts",
+  "training_time",
+  "run_distance",
+  "run_longest",
+  "run_time",
+  "cardio_time",
+  "cardio_distance",
+  "bike_distance",
+  "row_distance",
+] as const;
 export type ChallengeMetric = (typeof CHALLENGE_METRICS)[number];
+
+/** How a metric's number is meant to be read: kilograms, kilometres, minutes or a count of days. Values are already rounded for that unit. */
+export const CHALLENGE_METRIC_UNIT: Record<ChallengeMetric, "kg" | "km" | "min" | "days"> = {
+  volume: "kg",
+  squat: "kg",
+  bench: "kg",
+  deadlift: "kg",
+  workouts: "days",
+  training_time: "min",
+  run_distance: "km",
+  run_longest: "km",
+  run_time: "min",
+  cardio_time: "min",
+  cardio_distance: "km",
+  bike_distance: "km",
+  row_distance: "km",
+};
+
+/** Plain-words names, used in notifications and anywhere the server writes a sentence about a challenge. */
+export const CHALLENGE_METRIC_LABEL: Record<ChallengeMetric, string> = {
+  volume: "Total volume",
+  squat: "Best squat",
+  bench: "Best bench",
+  deadlift: "Best deadlift",
+  workouts: "Days trained",
+  training_time: "Total training time",
+  run_distance: "Running distance",
+  run_longest: "Longest run",
+  run_time: "Running time",
+  cardio_time: "Cardio time",
+  cardio_distance: "Cardio distance",
+  bike_distance: "Cycling distance",
+  row_distance: "Rowing distance",
+};
 
 export const MAX_CHALLENGE_TITLE = 60;
 export const MAX_CHALLENGE_DAYS = 90;
@@ -88,15 +145,60 @@ export function isOpenChallenge(c: Pick<ChallengeRecord, "endDate" | "canceledAt
  */
 export function scoreChallenge(metric: ChallengeMetric, members: LeaderboardMemberInput[], startDate: string, endDate: string): LeaderboardEntry[] {
   const inRange = members.map((m) => ({ ...m, sessions: filterSessionsByRange(m.sessions, "custom", startDate, endDate) }));
-  if (metric !== "workouts") return computeLeaderboard(metric, inRange);
+  if (metric === "volume" || metric === "squat" || metric === "bench" || metric === "deadlift") return computeLeaderboard(metric, inRange);
 
   const entries: LeaderboardEntry[] = [];
   for (const { userId, fullName, sessions, privacy } of inRange) {
     if (privacy?.leaderboardVisible === false) continue;
-    // Days trained, not sessions logged: several entries on one day count once, and an empty session counts for nothing.
-    const days = new Set(sessions.filter((s) => s.exercises.length > 0 || s.runs.length > 0).map((s) => s.date));
-    if (days.size === 0) continue;
-    entries.push({ userId, displayName: communityDisplayName(fullName, privacy), value: days.size, bodyweightPct: null });
+    const value = scoreSessions(metric, sessions);
+    if (value <= 0) continue;
+    entries.push({ userId, displayName: communityDisplayName(fullName, privacy), value, bodyweightPct: null });
   }
   return entries.sort((a, b) => b.value - a.value);
+}
+
+// ── Scoring from logged sessions ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Cardio types that count as running. An entry with no type is a run (older entries were all runs). */
+const isRun = (r: WorkoutRunEntry) => r.cardioType === undefined || r.cardioType === "run";
+const isBike = (r: WorkoutRunEntry) => r.cardioType === "bike";
+const isRower = (r: WorkoutRunEntry) => r.cardioType === "rower";
+
+const km = (r: WorkoutRunEntry) => (typeof r.distance === "number" && Number.isFinite(r.distance) && r.distance > 0 ? r.distance : 0);
+const secs = (r: WorkoutRunEntry) => (typeof r.durationSecs === "number" && Number.isFinite(r.durationSecs) && r.durationSecs > 0 ? r.durationSecs : 0);
+
+const sum = (items: WorkoutRunEntry[], f: (r: WorkoutRunEntry) => number) => items.reduce((total, r) => total + f(r), 0);
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/**
+ * One member's score for a non-strength metric over the sessions already limited to the challenge's dates. Distances are kilometres to one decimal, times are
+ * whole minutes. An entry with no distance (or no time) adds nothing to a distance (or time) score rather than failing, so a half-filled entry never breaks
+ * the board. 0 means "nothing scored", and a member with 0 is not listed.
+ */
+export function scoreSessions(metric: ChallengeMetric, sessions: WorkoutSessionRecord[]): number {
+  const runs = sessions.flatMap((s) => s.runs ?? []);
+  switch (metric) {
+    case "workouts":
+      // Days trained, not sessions logged: several entries on one day count once, and an empty session counts for nothing.
+      return new Set(sessions.filter((s) => (s.exercises?.length ?? 0) > 0 || (s.runs?.length ?? 0) > 0).map((s) => s.date)).size;
+    case "training_time":
+      return Math.round(sessions.reduce((total, s) => total + (typeof s.durationMins === "number" && s.durationMins > 0 ? s.durationMins : 0), 0));
+    case "run_distance":
+      return round1(sum(runs.filter(isRun), km));
+    case "run_longest":
+      return round1(Math.max(0, ...runs.filter(isRun).map(km)));
+    case "run_time":
+      return Math.round(sum(runs.filter(isRun), secs) / 60);
+    case "cardio_time":
+      return Math.round(sum(runs, secs) / 60);
+    case "cardio_distance":
+      return round1(sum(runs, km));
+    case "bike_distance":
+      return round1(sum(runs.filter(isBike), km));
+    case "row_distance":
+      return round1(sum(runs.filter(isRower), km));
+    default:
+      // volume and the lifts are scored by the leaderboard; reaching here means a metric was added without a rule for it.
+      return 0;
+  }
 }

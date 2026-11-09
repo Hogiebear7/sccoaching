@@ -1722,7 +1722,8 @@ export interface ChallengeRecord {
   scopeId: string;
   createdBy: string;
   title: string;
-  metric: "volume" | "workouts" | "squat" | "bench" | "deadlift";
+  /** What it is scored on: the list and the scoring rules are in lib/challenges.ts. Existing challenges only ever hold the original five. */
+  metric: import("./challenges").ChallengeMetric;
   /** YYYY-MM-DD, inclusive. */
   startDate: string;
   endDate: string;

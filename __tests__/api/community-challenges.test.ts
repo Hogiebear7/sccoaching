@@ -220,4 +220,43 @@ describe("account deletion", () => {
   });
 });
 
+describe("running and cardio challenges", () => {
+  const cardio = (userId: string, date: string, runs: unknown[], durationMins: number | null = null) =>
+    fx.db.saveWorkoutSession({ id: `w${++wk}`, userId, date, title: "Cardio", durationMins, exercises: [], runs, createdAt: T, updatedAt: T } as never);
+  const runEntry = (distance: number | null, durationSecs: number | null, cardioType?: string) => ({ distance, distanceUnit: "km", durationSecs, reps: null, sets: null, notes: null, ...(cardioType ? { cardioType } : {}) });
+
+  it("the organiser can set each new kind, and an unknown one is refused", async () => {
+    const { org, id } = await groupWith();
+    for (const metric of ["training_time", "run_distance", "run_longest", "run_time", "cardio_time", "cardio_distance", "bike_distance", "row_distance"]) {
+      expect((await mk(org, id, { metric, title: `Challenge ${metric}` })).status, metric).toBe(201);
+      // only 5 may be open at once, so close the group's open ones before the next
+      for (const c of fx.db.findChallengesByScope("group", id)) fx.db.cancelChallenge(c.id, new Date().toISOString());
+    }
+    const bad = await mk(org, id, { metric: "swim_laps" });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ message: "Choose what the challenge is scored on." });
+  });
+
+  it("standings come back in kilometres: runs only for a running challenge, every type for a cardio one, and only inside the dates", async () => {
+    const { org, others, id } = await groupWith(["Rae Runner", "Cy Cyclist"]);
+    const [rae, cy] = others;
+    cardio(rae.id, IN_RANGE, [runEntry(10.04, 3000), runEntry(null, 600)]);
+    cardio(cy.id, IN_RANGE, [runEntry(40, 5400, "bike")]);
+    cardio(rae.id, dayOffset(-30), [runEntry(100, 9000)]); // before the challenge: never counts
+
+    const running = (await (await mk(org, id, { metric: "run_distance", title: "Run club" })).json()).data.id as string;
+    const r = await standings(org, id, running);
+    expect(r.res.status).toBe(200);
+    expect(r.body.data.entries).toEqual([expect.objectContaining({ displayName: "Rae Runner", value: 10 })]);
+
+    const all = (await (await mk(org, id, { metric: "cardio_distance", title: "Any cardio" })).json()).data.id as string;
+    const a = await standings(org, id, all);
+    expect(a.body.data.entries.map((e: { displayName: string; value: number }) => [e.displayName, e.value])).toEqual([["Cy Cyclist", 40], ["Rae Runner", 10]]);
+
+    const time = (await (await mk(org, id, { metric: "cardio_time", title: "Time" })).json()).data.id as string;
+    const t = await standings(org, id, time);
+    expect(t.body.data.entries.map((e: { value: number }) => e.value)).toEqual([90, 60]); // 5400 s, then 3000 + 600 s
+  });
+});
+
 void vi;
