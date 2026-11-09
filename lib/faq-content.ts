@@ -83,7 +83,7 @@ const THE_APP: FaqItem[] = [
   {
     question: "How is this different from the in-person membership?",
     answer:
-      "They're separate. A gym Membership (Semi-Private, Parent & Baby or Over 50s) covers your classes, booking and messaging your coach in the app. The App Subscription covers the app's digital coaching (the AI coach, targets and programmes) and is for anyone, member or not. A gym Membership doesn't include it, and it doesn't include a gym Membership.",
+      "A gym Membership (Semi-Private, Parent & Baby or Over 50s) covers your classes, booking, messaging your coach and your gym's members-only community in the app, and it includes the full App features (the AI coach, targets and programmes) at no extra charge while it's active. The App Subscription is the same digital coaching for anyone who isn't a member, so you don't need a gym Membership to use it.",
   },
   {
     question: "Do I need any equipment?",

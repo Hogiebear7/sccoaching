@@ -221,7 +221,7 @@ export function AppShowcase({ children }: { children?: ReactNode }) {
         <p className="max-w-[60ch] text-base leading-relaxed text-zinc-300">
           Free to download, with workout, meal and check-in logging included. The App Subscription adds the AI coach, adaptive targets and
           programmes: <span className="font-semibold text-zinc-100">€12.99 a month or €119.99 a year</span>, 7-day free trial. No gym visit
-          needed, and it&apos;s separate from a gym Membership.
+          needed, and it&apos;s included with a gym Membership.
         </p>
         <div className="flex flex-wrap gap-3">
           <StoreBadge store="apple" />
