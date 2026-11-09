@@ -6,6 +6,8 @@ import {
   findWorkoutSessionsByUserId,
 } from "./db";
 import { memberPhaseEstimateForViewer } from "./cycle-phase-data";
+import { hasHealthNoteAccess } from "./health-note";
+import { resolveMemberAccessForUser } from "./membership-entitlement";
 import { computeRollingTrainingLoad, readinessGuidance } from "./recovery";
 
 export interface RecoveryLogSummary {
@@ -19,10 +21,14 @@ export interface RecoveryLogSummary {
   rpe: number | null;
   goal: string | null;
   notes: string | null;
+  /** The optional "injured or sick?" note (App tier or gym Membership). */
+  healthNote: string | null;
   readinessScore: number | null;
 }
 
 export interface RecoveryData {
+  /** True when this member can write the "injured or sick?" note (App tier or gym Membership); the app shows the field only then. */
+  healthNoteEnabled: boolean;
   logs: RecoveryLogSummary[];
   latestReadinessScore: number | null;
   latestGuidance: string | null;
@@ -55,6 +61,7 @@ export function getRecoveryData(userId: string | undefined): RecoveryData | null
   const todayISO = new Date().toISOString().slice(0, 10);
 
   return {
+    healthNoteEnabled: hasHealthNoteAccess(resolveMemberAccessForUser(user.id)),
     logs: logs.map((l) => ({
       id: l.id,
       date: l.date,
@@ -66,6 +73,7 @@ export function getRecoveryData(userId: string | undefined): RecoveryData | null
       rpe: l.rpe,
       goal: l.goal,
       notes: l.notes,
+      healthNote: l.healthNote ?? null,
       readinessScore: l.readinessScore,
     })),
     latestReadinessScore: latestLog?.readinessScore ?? null,

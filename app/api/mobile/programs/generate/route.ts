@@ -14,7 +14,9 @@ import {
   findWorkoutSessionsByUserId,
   type PrescribedExercise,
   type WorkoutSessionRecord,
+  findRecoveryLogsByUserId,
 } from "@/lib/db";
+import { healthNoteForAi } from "@/lib/health-note";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
 import { hasAccess } from "@/lib/member-access";
@@ -281,6 +283,12 @@ export async function POST(request: NextRequest) {
     const goalContext = buildGoalContextForAi(user.id);
     if (goalContext) {
       notesForAi = [notesForAi, goalContext].filter((v): v is string => !!v).join(" ").slice(0, 900);
+    }
+
+    // A current "injured or sick?" check-in note shapes the plan too (lib/health-note.ts); only members who can write one can have one.
+    const healthContext = healthNoteForAi(findRecoveryLogsByUserId(user.id), new Date().toISOString().slice(0, 10));
+    if (healthContext) {
+      notesForAi = [notesForAi, healthContext.replace(/\n+/g, " ")].filter((v): v is string => !!v).join(" ").slice(0, 1400);
     }
 
     const checkpointWeeks = computeCheckpointWeeks(cleanWeeks);

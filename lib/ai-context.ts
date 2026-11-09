@@ -1,6 +1,7 @@
 import type { ProfileRecord, TrainingDayOfWeek, WeeklyTrainingScheduleRecord } from "./profile-schema";
 import type { NutritionTargetMode, RecoveryLogRecord, WorkoutSessionRecord } from "./db";
 import type { DrinkSettings } from "./drink-settings";
+import { healthNoteForAi } from "./health-note";
 import type { ResolvedBooking } from "./bookings";
 import {
   buildDrinkMix,
@@ -258,6 +259,14 @@ export function buildCoachingContext(input: CoachingContextInput): CoachingConte
     lines.push(`- App guidance for this score: ${readinessGuidance(readinessScore)}`);
   } else {
     lines.push("- No recovery log for today. The member can log recovery in the Recovery tab.");
+  }
+
+  // The member's own optional "injured or sick?" note from the daily check-in, while it is current (lib/health-note.ts).
+  const healthNote = healthNoteForAi(recoveryLogs, todayISO);
+  if (healthNote) {
+    lines.push("");
+    lines.push("## Health note from the member");
+    lines.push(healthNote);
   }
 
   // ── Training load ──
