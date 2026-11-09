@@ -12,7 +12,7 @@ import { authorizeStaffRequest } from "@/lib/staff-auth";
 // sick?" note. Same rules as the full summary: coach and above, own gym only, gym-Membership members only (others get { walled: true }).
 export async function GET(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
-  const auth = authorizeStaffRequest(request, "members.view");
+  const auth = authorizeStaffRequest(request, "members.view", { allowAppToken: true });
   if (!auth.ok) return auth.response;
 
   const member = findUserById(userId);

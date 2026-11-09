@@ -8,7 +8,7 @@ import { authorizeStaffRequest } from "@/lib/staff-auth";
 // GET /api/staff/community/gym-reports?status=open|resolved|dismissed — reports of posts and comments in the staff member's OWN gym's community (capability
 // comments.moderate). Each carries the reported text, who wrote it and who reported it, so staff can decide without opening the feed.
 export async function GET(request: NextRequest) {
-  const auth = authorizeStaffRequest(request, "comments.moderate");
+  const auth = authorizeStaffRequest(request, "comments.moderate", { allowAppToken: true });
   if (!auth.ok) return auth.response;
 
   const statusParam = new URL(request.url).searchParams.get("status");

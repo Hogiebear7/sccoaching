@@ -13,7 +13,7 @@ import { authorizeStaffRequest } from "@/lib/staff-auth";
 // account all read as "not found".
 export async function GET(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
-  const auth = authorizeStaffRequest(request, "members.view");
+  const auth = authorizeStaffRequest(request, "members.view", { allowAppToken: true });
   if (!auth.ok) return auth.response;
 
   const member = findUserById(userId);

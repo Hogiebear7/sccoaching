@@ -16,7 +16,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const auth = authorizeStaffRequest(request, "comments.moderate");
+  const auth = authorizeStaffRequest(request, "comments.moderate", { allowAppToken: true });
   if (!auth.ok) return auth.response;
 
   const action = (body as { action?: unknown } | null)?.action;
