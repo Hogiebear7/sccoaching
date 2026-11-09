@@ -5,6 +5,7 @@ import { detectNoShowsJob } from "./detect-no-shows";
 import { dropLapsedManualMembershipsJob } from "./drop-lapsed-manual-memberships";
 import { expireStaleCheckoutsJob } from "./expire-stale-checkouts";
 import { generateClassSeriesJob } from "./generate-class-series";
+import { notifyCommunityChallengesJob } from "./notify-community-challenges";
 import { notifyExpiringPassesJob } from "./notify-expiring-passes";
 import { notifyLowPassBalanceJob } from "./notify-low-pass-balance";
 import { notifyLapsedMembershipsJob } from "./notify-lapsed-memberships";
@@ -45,6 +46,7 @@ export const ALL_JOBS: JobDefinition[] = [
   sendProgrammeRemindersJob,
   sendProgrammeCheckinsJob,
   notifyPregnancyGoalResumeJob,
+  notifyCommunityChallengesJob,
   aiSpendAlertJob,
   monthlyReportEmailJob,
   detectNoShowsJob,

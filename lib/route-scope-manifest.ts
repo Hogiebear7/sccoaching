@@ -106,6 +106,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "mobile/community/groups/[id]/leave", scope: "self" },
   { route: "mobile/community/groups/[id]/remove-member", scope: "self", note: "Organiser only." },
   { route: "mobile/community/groups/[id]/close", scope: "self", note: "Organiser only." },
+  { route: "mobile/community/groups/[id]/report", scope: "self-tenant-checked", evidence: ["findGroupVisibleToMember("], note: "A member of the group reports it; staff of the organiser's gym review it." },
   { route: "mobile/community/groups/[id]/challenges", scope: "self", note: "Members of the group list; the organiser creates." },
   { route: "mobile/community/groups/[id]/challenges/[challengeId]", scope: "self", note: "Members of the group only." },
   { route: "mobile/community/groups/[id]/challenges/[challengeId]/cancel", scope: "self", note: "Organiser only." },

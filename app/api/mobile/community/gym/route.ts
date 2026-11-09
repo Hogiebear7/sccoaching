@@ -2,7 +2,8 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { GYM_PAGE_SIZE, GYM_POSTS_PER_DAY, MAX_GYM_POST, gymCommunityAccess, gymPostView } from "@/lib/community-gym";
+import { GYM_PAGE_SIZE, GYM_POSTS_PER_DAY, MAX_GYM_POST, gymAuthorView, gymCommunityAccess, gymPostView } from "@/lib/community-gym";
+import { notifyGymOfStaffPost } from "@/lib/community-notify";
 import { hiddenFromViewer, violatesCommunityRules } from "@/lib/community-moderation";
 import { countGymPostsByAuthorSince, createGymPost, findGymPosts } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -65,5 +66,7 @@ export async function POST(request: NextRequest) {
     removedById: null,
   };
   createGymPost(post);
+  // A coach's or admin's post tells the gym's members; a member's post does not. Never blocks or fails the post.
+  if (access.isStaff) notifyGymOfStaffPost(access.user, text, gymAuthorView(access.user.id).displayName);
   return NextResponse.json({ success: true, data: gymPostView(post, access.user, access.isStaff) }, { status: 201 });
 }

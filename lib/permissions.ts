@@ -186,4 +186,5 @@ export const NAV_CAPABILITY: Record<string, Capability> = {
   "/staff/nutrition-submissions": "foodCatalog.manage",
   "/staff/bug-reports": "bugReports.manage",
   "/staff/community-reports": "comments.moderate",
+  "/staff/gym-community": "comments.moderate",
 };

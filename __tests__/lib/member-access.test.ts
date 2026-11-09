@@ -14,7 +14,8 @@ import {
 
 // Owner decisions 2026-10-27: Free keeps logging (food search, custom foods) and notifications; the App subscription (digital) unlocks the rest,
 // including all AI; the gym Membership adds only direct coach messaging.
-const FREE_FEATURES: MemberFeature[] = ["foodSearch", "unlimitedCustomFoods", "notifications"];
+// The Community leaderboard and highlight card are free for everyone (owner decision 2026-11-08); groups and the gym community are not.
+const FREE_FEATURES: MemberFeature[] = ["foodSearch", "unlimitedCustomFoods", "notifications", "communityLeaderboards"];
 const DIGITAL_FEATURES: MemberFeature[] = [
   "workoutGenerate",
   "trackerImport",
@@ -30,7 +31,6 @@ const DIGITAL_FEATURES: MemberFeature[] = [
   "calorieTargets",
   "fullHistory",
   "cyclePhaseGuidance",
-  "communityLeaderboards",
 ];
 
 describe("hasAccess: Free features are open to everyone", () => {
