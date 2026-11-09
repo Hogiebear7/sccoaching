@@ -1589,6 +1589,9 @@ export interface RecoveryLogRecord {
   rpe: number | null;
   goal: string | null;
   notes: string | null;
+  /** Optional "injured or sick?" note from the daily check-in (App tier or gym Membership). Up to 300 characters; read by the AI features and the gym's
+      coaches while current (lib/health-note.ts). Absent = none. */
+  healthNote?: string | null;
   readinessScore: number | null;
   createdAt: string;
   updatedAt: string;

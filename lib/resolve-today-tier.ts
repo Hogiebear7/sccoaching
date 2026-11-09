@@ -1,4 +1,5 @@
 import { findRecoveryLogsByUserId, findWeeklyTrainingScheduleByUserId, findWorkoutSessionsByUserId } from "./db";
+import { currentHealthNote, mentionsIllnessOrInjury } from "./health-note";
 import { computeRollingTrainingLoad } from "./recovery";
 import { plannedExertionForDate } from "./weekly-training";
 import { decideTier, type SessionTier } from "./workout-helper";
@@ -24,10 +25,20 @@ export function resolveTodayTier(userId: string): { tier: SessionTier; rationale
   const rolling = computeRollingTrainingLoad(recoveryLogs, sessions);
   const plannedTodayExertion = plannedExertionForDate(schedule, today);
 
-  return decideTier({
+  const decided = decideTier({
     readinessScore,
     sevenDayLoad: rolling.sevenDaySum,
     daysWithLoad: rolling.daysWithLoad,
     plannedTodayExertion,
   });
+
+  // A fresh "injured or sick?" check-in note that mentions illness or injury keeps today gentle, whatever the numbers say.
+  const note = currentHealthNote(recoveryLogs, today);
+  if (note && note.ageDays <= 2 && mentionsIllnessOrInjury(note.note) && decided.tier !== "reduced") {
+    return {
+      tier: "reduced",
+      rationale: `${decided.rationale} Your check-in note says you're not feeling your best, so today stays gentle. Listen to your body and speak to a professional if it's getting worse.`,
+    };
+  }
+  return decided;
 }

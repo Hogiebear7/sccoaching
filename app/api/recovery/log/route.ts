@@ -14,6 +14,8 @@ import {
   type RecoveryLogRecord,
 } from "@/lib/db";
 import { computeReadinessScore } from "@/lib/recovery";
+import { MAX_HEALTH_NOTE, hasHealthNoteAccess } from "@/lib/health-note";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sameGym } from "@/lib/gym-scope";
 import { sendPush } from "@/lib/push";
@@ -99,6 +101,7 @@ export async function POST(request: NextRequest) {
     rpe,
     goal,
     notes,
+    healthNote,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof date !== "string" || !date.trim()) {
@@ -167,6 +170,21 @@ export async function POST(request: NextRequest) {
     fatigue: fatigueResult.value,
   });
 
+  // The optional "injured or sick?" note: App tier or gym Membership only. Left out of the request = keep what is already saved for the day; an empty
+  // string clears it; a Free member's note is not stored (the app doesn't show the field to them).
+  let resolvedHealthNote = existingLog?.healthNote ?? null;
+  if (typeof healthNote === "string") {
+    const cleaned = healthNote.trim();
+    if (cleaned.length > MAX_HEALTH_NOTE) {
+      return NextResponse.json(
+        { success: false, message: `Keep the note to ${MAX_HEALTH_NOTE} characters or fewer.` },
+        { status: 400 }
+      );
+    }
+    if (!cleaned) resolvedHealthNote = null;
+    else if (hasHealthNoteAccess(resolveMemberAccessForUser(user.id))) resolvedHealthNote = cleaned;
+  }
+
   const log: RecoveryLogRecord = {
     id: existingLog?.id ?? randomUUID(),
     userId: user.id,
@@ -180,6 +198,7 @@ export async function POST(request: NextRequest) {
     rpe: rpeResult.value,
     goal: typeof goal === "string" && goal.trim() ? goal.trim() : null,
     notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
+    healthNote: resolvedHealthNote,
     readinessScore,
     createdAt: existingLog?.createdAt ?? now,
     updatedAt: now,

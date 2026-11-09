@@ -1,4 +1,5 @@
 import {
+  findRecoveryLogsByUserId,
   findCycleSettingsByUserId,
   findFoodEntriesByUserId,
   findPregnancyStatusByUserId,
@@ -10,6 +11,7 @@ import {
   type RecoveryLogRecord,
   type WorkoutSessionRecord,
 } from "./db";
+import { healthNoteForAi } from "./health-note";
 import type { PhaseEstimate } from "./cycle-phase";
 import { memberPhaseEstimate } from "./cycle-phase-data";
 import { estimatePregnancy, type PregnancyEstimate } from "./pregnancy";
@@ -68,6 +70,8 @@ export interface WorkoutReviewData {
   session: WorkoutSessionRecord;
   comparison: SessionComparison;
   recovery: RecoveryLogRecord | null;
+  /** The member's own "injured or sick?" check-in note, if one is current for this session's date (lib/health-note.ts). */
+  healthNote?: string | null;
   cyclePhase: PhaseEstimate | null;
   pregnancy: PregnancyEstimate | null;
   /** Exercises in this session that need a swap at the member's pregnancy
@@ -163,7 +167,9 @@ export function buildWorkoutReviewData(userId: string, session: WorkoutSessionRe
     ? { targetMl: target.calories, loggedMl: findWaterLogByUserIdAndDate(userId, session.date)?.ml ?? 0 }
     : null;
 
-  return { session, comparison, recovery, cyclePhase, pregnancy, pregnancyFlags, nutrition, hydration };
+  const healthNote = healthNoteForAi(findRecoveryLogsByUserId(userId), session.date);
+
+  return { session, comparison, recovery, healthNote, cyclePhase, pregnancy, pregnancyFlags, nutrition, hydration };
 }
 
 // Plain-text grounding block for the AI call — every fact here is one the
@@ -219,6 +225,8 @@ export function formatWorkoutReviewContext(data: WorkoutReviewData): string {
   } else {
     lines.push(`No recovery log for this date, so sleep/soreness/fatigue can't be factored in.`);
   }
+
+  if (data.healthNote) lines.push(data.healthNote);
 
   if (cyclePhase) {
     lines.push(
