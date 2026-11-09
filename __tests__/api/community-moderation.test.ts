@@ -238,7 +238,7 @@ describe("community routes apply the moderation helpers", () => {
   const files = (dir: string): string[] => readdirSync(dir).flatMap((n) => { const p = path.join(dir, n); return statSync(p).isDirectory() ? files(p) : n === "route.ts" ? [p] : []; });
   // own settings, own list, or removal of own relationship; the group routes below only change the caller's own membership or the group they organise
   // and return no other member's content (the group list and the group page, which do, are hidden-aware and import community-moderation).
-  const NO_OTHER_MEMBER_CONTENT = ["privacy", "blocked", "unblock", "block", "unfollow", "confirm-adult", "groups/[id]/leave", "groups/[id]/remove-member", "groups/[id]/close"];
+  const NO_OTHER_MEMBER_CONTENT = ["privacy", "blocked", "unblock", "block", "unfollow", "confirm-adult", "groups/[id]/leave", "groups/[id]/remove-member", "groups/[id]/close", "groups/[id]/challenges/[challengeId]/cancel"];
   it("every route that reads other members' content calls community-moderation", () => {
     const missing = files(root)
       .filter((f) => !NO_OTHER_MEMBER_CONTENT.includes(path.relative(root, path.dirname(f)).split(path.sep).join("/")))

@@ -1674,6 +1674,22 @@ export interface GroupRecord {
   closedAt: string | null;
 }
 
+// A challenge inside a Community scope, scored automatically from logged workouts over an inclusive date range (lib/challenges.ts). `scopeType` is "group"
+// now and "gym" for the gym community later; the same record and scoring serve both.
+export interface ChallengeRecord {
+  id: string;
+  scopeType: "group" | "gym";
+  scopeId: string;
+  createdBy: string;
+  title: string;
+  metric: "volume" | "workouts" | "squat" | "bench" | "deadlift";
+  /** YYYY-MM-DD, inclusive. */
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  canceledAt: string | null;
+}
+
 // Membership of a group. The organiser is also a member row, so "members of the group" is one list.
 export interface GroupMemberRecord {
   id: string;
@@ -2217,6 +2233,7 @@ interface Database {
   commentReports: CommentReportRecord[];
   groups: GroupRecord[];
   groupMembers: GroupMemberRecord[];
+  challenges: ChallengeRecord[];
   emailChangeRequests: EmailChangeRequestRecord[];
   invites: InviteRecord[];
   programmes: ProgrammeRecord[];
@@ -2369,6 +2386,7 @@ function normalizeDatabase(raw: string | null): Database {
       commentReports: [],
       groups: [],
       groupMembers: [],
+      challenges: [],
       emailChangeRequests: [],
       invites: [],
       programmes: [],
@@ -2504,6 +2522,7 @@ function normalizeDatabase(raw: string | null): Database {
     commentReports: parsed.commentReports ?? [],
     groups: parsed.groups ?? [],
     groupMembers: parsed.groupMembers ?? [],
+    challenges: parsed.challenges ?? [],
     emailChangeRequests: parsed.emailChangeRequests ?? [],
     invites: parsed.invites ?? [],
     programmes: parsed.programmes ?? [],
@@ -3023,6 +3042,12 @@ export function deleteUserAndOwnedRecords(userId: string): Record<string, number
   db.groupMembers = db.groupMembers.filter((m) => m.userId !== userId && !organised.includes(m.groupId));
   const groupRowsRemoved = groupRowsBefore - (db.groups.length + db.groupMembers.length);
   if (groupRowsRemoved > 0) summary.groups = groupRowsRemoved;
+
+  // A deleted organiser's groups take their challenges with them.
+  const challengesBefore = db.challenges.length;
+  db.challenges = db.challenges.filter((c) => !(c.scopeType === "group" && organised.includes(c.scopeId)));
+  const challengesRemoved = challengesBefore - db.challenges.length;
+  if (challengesRemoved > 0) summary.challenges = challengesRemoved;
 
   writeDb(db);
   return summary;
@@ -4542,6 +4567,38 @@ export function removeGroupMember(groupId: string, userId: string): boolean {
   const before = db.groupMembers.length;
   db.groupMembers = db.groupMembers.filter((m) => !(m.groupId === groupId && m.userId === userId));
   if (db.groupMembers.length === before) return false;
+  writeDb(db);
+  return true;
+}
+
+// ─── Community challenges ──────────────────────────────────────────────────
+export function findChallengesByScope(scopeType: ChallengeRecord["scopeType"], scopeId: string): ChallengeRecord[] {
+  return readDbShared()
+    .challenges.filter((c) => c.scopeType === scopeType && c.scopeId === scopeId)
+    .sort((a, b) => b.startDate.localeCompare(a.startDate) || b.createdAt.localeCompare(a.createdAt));
+}
+
+export function findChallengeById(id: string): ChallengeRecord | undefined {
+  return readDbShared().challenges.find((c) => c.id === id);
+}
+
+/** Creates a challenge unless the scope already has `maxOpen` open ones (not canceled, not yet over): check and write in one read-modify-write. */
+export function createChallengeIfUnderLimit(challenge: ChallengeRecord, maxOpen: number, todayISO: string): { ok: true } | { ok: false; reason: "limit" } {
+  const db = readDb();
+  const open = db.challenges.filter(
+    (c) => c.scopeType === challenge.scopeType && c.scopeId === challenge.scopeId && !c.canceledAt && c.endDate >= todayISO
+  ).length;
+  if (open >= maxOpen) return { ok: false, reason: "limit" };
+  db.challenges.push(challenge);
+  writeDb(db);
+  return { ok: true };
+}
+
+export function cancelChallenge(id: string, now: string): boolean {
+  const db = readDb();
+  const challenge = db.challenges.find((c) => c.id === id && !c.canceledAt);
+  if (!challenge) return false;
+  challenge.canceledAt = now;
   writeDb(db);
   return true;
 }
