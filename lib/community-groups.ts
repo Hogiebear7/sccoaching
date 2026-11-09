@@ -2,7 +2,8 @@ import { randomInt } from "crypto";
 import { NextResponse } from "next/server";
 
 import { communityDisplayName } from "@/lib/community-display-name";
-import { findCommunityPrivacyByUserId, findGroupByInviteCode, findGroupMembers, findProfileByUserId, type GroupRecord } from "@/lib/db";
+import { hiddenFromViewer } from "@/lib/community-moderation";
+import { findCommunityPrivacyByUserId, findGroupById, findGroupByInviteCode, findGroupMembers, findProfileByUserId, type GroupRecord } from "@/lib/db";
 import { requireFeature } from "@/lib/member-access-response";
 
 // Shared pieces of the Community groups routes (Community plan, 2026-11).
@@ -42,6 +43,18 @@ export function newInviteCode(): string {
 /** Normalises what a person typed or pasted (case, spaces, dashes) to the stored form. */
 export function normaliseInviteCode(input: string): string {
   return input.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+/**
+ * The open group, only if `viewerId` is a member and its organiser is not blocked either way with them. Anyone else (a stranger, a closed or missing group)
+ * gets undefined, which every route turns into the same "not found".
+ */
+export function findGroupVisibleToMember(viewerId: string, groupId: string): GroupRecord | undefined {
+  const group = findGroupById(groupId);
+  if (!group) return undefined;
+  if (!findGroupMembers(group.id).some((m) => m.userId === viewerId)) return undefined;
+  if (hiddenFromViewer(viewerId).has(group.organiserId)) return undefined;
+  return group;
 }
 
 /** The group as its members see it. Only the organiser is shown the invite code. */

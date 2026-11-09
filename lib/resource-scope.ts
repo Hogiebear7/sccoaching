@@ -58,6 +58,7 @@ export const COLLECTION_SCOPE = {
   commentReports: user("reporterId", "Resolution is gated on the reporter's gym."),
   groups: user("organiserId", "A group belongs to its organiser's gym; joining requires the same gym (groups/join)."),
   groupMembers: user(),
+  challenges: user("createdBy", "A group challenge is only reachable through its group (members only); gym challenges will be scoped by the gym."),
   emailChangeRequests: user(),
   invites: parent("invitedByStaffId", "Tenant is the inviting staff member's gym; redemption checks it."),
   programmes: user(),
