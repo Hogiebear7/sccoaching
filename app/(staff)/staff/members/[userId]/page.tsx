@@ -45,6 +45,8 @@ import {
 import { MessagesThread } from "@/components/messages/MessagesThread";
 import { AiUsagePanel } from "@/components/staff/AiUsagePanel";
 import { CoachSummaryPanel } from "@/components/staff/CoachSummaryPanel";
+import { MemberSummaryPanel } from "@/components/staff/MemberSummaryPanel";
+import { memberSummaryFor } from "@/lib/member-summary-data";
 import { MemberAccountPanel } from "@/components/staff/MemberAccountPanel";
 import { MembershipAccessPanel } from "@/components/staff/MembershipAccessPanel";
 import { WorkoutHistoryPanel } from "@/components/staff/WorkoutHistoryPanel";
@@ -249,6 +251,9 @@ export default async function StaffMemberDetailPage({
           canHardDelete={canHardDelete}
         />
       ) : null}
+
+      {/* The full member summary: only for a member with a gym Membership (the same wall as everything below). */}
+      {!walled ? <MemberSummaryPanel summary={memberSummaryFor(user.id)} /> : null}
 
       {!walled ? <CoachSummaryPanel memberId={user.id} /> : null}
 

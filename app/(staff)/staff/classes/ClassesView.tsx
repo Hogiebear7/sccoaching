@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+
+import { ClassMemberBrief } from "@/components/staff/ClassMemberBrief";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
@@ -1126,6 +1128,8 @@ export function ClassesView({
                                 ) : null}
                               </div>
                             </div>
+
+                            <ClassMemberBrief userId={member.userId} />
 
                             {isConfirmingRemove ? (
                               <div className="flex flex-wrap items-center justify-end gap-2">
