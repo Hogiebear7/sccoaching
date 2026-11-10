@@ -260,7 +260,7 @@ function manualResult(dateISO: string, record: NutritionTargetRecord, bodyWeight
     bodyWeightKg,
     rationale: [
       setByMember
-        ? "Set by you via the AI Nutrition Coach — it doesn't change automatically day to day."
+        ? "Set by you via the Nutrition Coach — it doesn't change automatically day to day."
         : "Set directly by your coach — it doesn't change automatically day to day.",
     ],
     setByMember,

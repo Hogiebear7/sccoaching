@@ -32,7 +32,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     target: "nutrition",
     title: "Nutrition",
-    body: "Log meals and hydration, and get an AI coach that already knows your goals, dietary needs, and training load.",
+    body: "Log meals and hydration, and get a coach in the app that already knows your goals, dietary needs, and training load.",
   },
   {
     target: "club",

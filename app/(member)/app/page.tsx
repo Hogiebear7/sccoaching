@@ -11,7 +11,7 @@ function greeting() {
 const quickActions = [
   {
     href: "/app/coach",
-    label: "Coach AI",
+    label: "Ask the app",
     sub: "Ask anything",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-teal-300">
