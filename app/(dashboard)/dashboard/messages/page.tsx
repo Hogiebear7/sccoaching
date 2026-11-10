@@ -66,7 +66,7 @@ export default async function DashboardMessagesPage({
       <ScreenHeader
         section="Club"
         title="Messages"
-        subtitle="Message your coach directly, or ask the AI coach about your training data."
+        subtitle="Message your coach directly, or ask the app about your training data."
       />
 
       <MessagesView

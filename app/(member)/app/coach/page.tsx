@@ -55,7 +55,7 @@ export default function CoachPage() {
     {
       id: "welcome",
       role: "assistant",
-      text: "Hey — I’m your AI coach. I can help with training, recovery, nutrition, and weekly planning.",
+      text: "Hey — I’m here to help with training, recovery, nutrition, and weekly planning.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -87,7 +87,7 @@ export default function CoachPage() {
       <div className="anim-rise mx-auto flex min-h-screen max-w-4xl flex-col px-4 py-6 md:px-6">
         <header className="mb-6">
           <p className="label-caps">Coach</p>
-          <h1 className="text-display text-[26px] mt-1">AI Coach</h1>
+          <h1 className="text-display text-[26px] mt-1">Ask the app</h1>
           <p className="mt-2 max-w-2xl text-sm text-zinc-400">
             Ask about workouts, recovery, food, or planning your week.
           </p>
@@ -132,7 +132,7 @@ export default function CoachPage() {
           }}
         >
           <label htmlFor="coach-message" className="sr-only">
-            Message the AI coach
+            Message the app
           </label>
           <input
             id="coach-message"
@@ -140,7 +140,7 @@ export default function CoachPage() {
             onChange={(event) => setInput(event.target.value)}
             placeholder="Ask your coach anything..."
             className="input-field flex-1 rounded-2xl px-4 py-3"
-            aria-label="Message the AI coach"
+            aria-label="Message the app"
           />
           <button
             type="submit"

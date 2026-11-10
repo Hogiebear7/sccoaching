@@ -38,7 +38,7 @@ export function MessagesView({
         onChange={setTab}
         options={[
           { value: "coach", label: "Your coach" },
-          { value: "ai", label: "AI coach" },
+          { value: "ai", label: "Ask the app" },
         ]}
       />
 

@@ -184,7 +184,7 @@ function targetSourceLine(target: ResolvedNutritionTarget | null): string {
   }
   if (target.mode === "manual") {
     return target.setByMember
-      ? "Set by you via the AI Nutrition Coach — it doesn't vary day to day."
+      ? "Set by you via the Nutrition Coach — it doesn't vary day to day."
       : "Set by your coach — it doesn't vary day to day.";
   }
   if (target.calories === null) return "No weight on file yet, so a target can't be calculated.";
@@ -1028,7 +1028,7 @@ export function NutritionView({
               }}
               className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors duration-150 hover:text-[var(--primary-hover)]"
             >
-              Ask the AI Nutrition Coach about this plan
+              Ask the Nutrition Coach about this plan
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-3 w-3">
                 <path d="M9 18l6-6-6-6" />
               </svg>

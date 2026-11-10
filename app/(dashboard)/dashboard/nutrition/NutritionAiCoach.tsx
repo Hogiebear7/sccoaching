@@ -260,7 +260,7 @@ export function NutritionAiCoach({
         </IconBadge>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold tracking-tight text-zinc-100">AI Nutrition Coach</p>
+            <p className="text-sm font-semibold tracking-tight text-zinc-100">Nutrition Coach</p>
             <span className="rounded-[3px] border border-gold/30 bg-gold/[0.08] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gold">
               New
             </span>
@@ -297,7 +297,7 @@ export function NutritionAiCoach({
               <CoachIcon />
             </IconBadge>
             <div>
-              <p className="text-display text-[15px] text-zinc-50">AI Nutrition Coach</p>
+              <p className="text-display text-[15px] text-zinc-50">Nutrition Coach</p>
               <p className="mt-0.5 text-xs text-zinc-500">
                 Practical meal ideas — built from today&apos;s fuel targets and your dietary profile.
               </p>
@@ -340,9 +340,9 @@ export function NutritionAiCoach({
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[10px] border border-white/[0.07] bg-white/[0.03] text-zinc-500">
             <CoachIcon className="h-5 w-5" />
           </div>
-          <p className="text-sm font-semibold tracking-tight text-zinc-200">AI Nutrition Coach unavailable</p>
+          <p className="text-sm font-semibold tracking-tight text-zinc-200">Nutrition Coach unavailable</p>
           <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-relaxed text-zinc-500">
-            The AI assistant isn&apos;t configured on this server yet. Use the{" "}
+            This isn&apos;t switched on for the server yet. Use the{" "}
             <span className="font-medium text-zinc-300">Message coach</span> tab in Messages to
             ask your coach directly.
           </p>
@@ -402,7 +402,7 @@ export function NutritionAiCoach({
                       </p>
                       {!msg.streaming && (
                         <p className={`mt-1.5 text-[11px] tabular-nums ${isUser ? "text-primary-foreground/70" : "text-zinc-500"}`}>
-                          {isUser ? "You" : "AI Nutrition Coach"}
+                          {isUser ? "You" : "Nutrition Coach"}
                           {formatTime(msg.createdAt) ? ` · ${formatTime(msg.createdAt)}` : ""}
                         </p>
                       )}

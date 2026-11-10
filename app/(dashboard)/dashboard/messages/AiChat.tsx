@@ -168,9 +168,9 @@ export function AiChat({
             <path d="M9.5 21h5" />
           </svg>
         </div>
-        <p className="text-sm font-semibold tracking-tight text-zinc-200">AI coach unavailable</p>
+        <p className="text-sm font-semibold tracking-tight text-zinc-200">Ask the app is unavailable</p>
         <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-relaxed text-zinc-500">
-          The AI assistant isn&apos;t configured on this server yet. Use the{" "}
+          This isn&apos;t switched on for the server yet. Use the{" "}
           <span className="font-medium text-zinc-300">Message coach</span> tab to contact your
           coach directly.
         </p>
@@ -294,7 +294,7 @@ export function AiChat({
               </svg>
             </div>
             <div>
-              <p className="text-display text-[15px] text-zinc-50">AI Coach</p>
+              <p className="text-display text-[15px] text-zinc-50">Ask the app</p>
               <p className="mt-0.5 text-xs text-zinc-500">
                 Answers grounded in your recovery, load, and training history.
               </p>
@@ -409,7 +409,7 @@ export function AiChat({
                   </p>
                   {!msg.streaming && (
                     <p className={`mt-1.5 text-[11px] tabular-nums ${isUser ? "text-white/60" : "text-zinc-500"}`}>
-                      {isUser ? "You" : "AI Coach"}
+                      {isUser ? "You" : "S&C app"}
                       {formatTime(msg.createdAt) ? ` · ${formatTime(msg.createdAt)}` : ""}
                     </p>
                   )}
