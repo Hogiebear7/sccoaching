@@ -7,8 +7,9 @@ import { appStoreListingUrl, playStoreListingUrl, storeListingsLive } from "@/li
 // Images are served with a one-year browser cache, so a new set always goes in a new folder (here 2026-10/): reusing a filename would leave
 // returning visitors on the old pictures.
 // Real in-app screenshots, the same screens (and wording) as the Play Store and App Store listings (sc-coaching-mobile/store-assets/2026-10),
-// captured from the demo member so no real member's data appears. Seven screens: 4 + 3 on a wide screen, 3 + 3 + 1 at tablet width, 2 per
-// row on a phone. No horizontal scroll, so nothing can be clipped. Updated 2026-10-29 (owner request: match the store images, add cycle tracking).
+// captured from the demo member so no real member's data appears. Seven screens: 4 + 3 on a wide screen, 3 + 3 + 1 at tablet width. On a
+// phone they are one swipeable row, one large screen at a time with the next peeking in, because two per row left the text inside them
+// too small to read (owner request, 2026-11-12). Updated 2026-10-29 (owner request: match the store images, add cycle tracking).
 const APP_SCREENS: { src: string; alt: string; label: string; description: string }[] = [
   {
     src: "/marketing/app/2026-10/home.jpg",
@@ -63,10 +64,11 @@ type AppScreen = (typeof APP_SCREENS)[number];
 // description over the screenshot; clicking opens it full-size.
 function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void }) {
   return (
-    // 2-up under sm: (percentage-based, so it scales with a narrow phone
-    // viewport); a fixed 220px at sm: and up, matching the row widths set in
-    // AppScreensGrid (3 per row at tablet width, 4 from lg:).
-    <div className="w-[calc(50%-12px)] max-w-[220px] sm:w-[220px]">
+    // Under sm: each screen takes most of the row's width so the next one
+    // peeks in, which is what shows the row can be swiped. A fixed 220px at
+    // sm: and up, matching the row widths set in AppScreensGrid (3 per row at
+    // tablet width, 4 from lg:).
+    <div className="w-[72%] max-w-[280px] flex-none snap-center sm:w-[220px] sm:max-w-[220px]">
       <button
         type="button"
         onClick={onOpen}
@@ -80,6 +82,8 @@ function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void 
         </div>
       </button>
       <p className="mt-3 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">{screen.label}</p>
+      {/* A phone has no hover, so the description that fades in over the screenshot on a wide screen is written out here instead. */}
+      <p className="mt-1 text-center text-sm leading-relaxed text-zinc-400 sm:hidden">{screen.description}</p>
     </div>
   );
 }
@@ -166,8 +170,9 @@ function AppScreensGrid() {
   return (
     <>
       {/* The row width decides how many screens sit side by side (each is 220px from sm:, gap-6 = 24px): 708px = 3 per row at tablet
-          width, 952px = 4 per row from lg: (7 screens read as 4 + 3). Unconstrained below sm:, where two-up already fits a phone. */}
-      <div className="mx-auto flex flex-wrap justify-center gap-6 sm:max-w-[708px] lg:max-w-[952px]">
+          width, 952px = 4 per row from lg: (7 screens read as 4 + 3). Below sm: it is a single swipeable row that snaps to each screen
+          and runs to the screen edges (-mx-6 cancels the section's px-6; px-6 puts the first and last screens back on the gutter). */}
+      <div className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 pb-2 [scrollbar-width:none] sm:mx-auto sm:max-w-[708px] sm:snap-none sm:flex-wrap sm:justify-center sm:gap-6 sm:overflow-visible sm:px-0 sm:pb-0 lg:max-w-[952px] [&::-webkit-scrollbar]:hidden">
         {APP_SCREENS.map((screen, i) => (
           <PhoneFrame key={screen.label} screen={screen} onOpen={() => setOpenIndex(i)} />
         ))}
@@ -219,8 +224,8 @@ export function AppShowcase({ children }: { children?: ReactNode }) {
 
       <div className="mt-10 flex flex-col items-start gap-4 border-t border-white/[0.08] pt-8 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-[60ch] text-base leading-relaxed text-zinc-300">
-          Free to download, with workout, meal and check-in logging included. The App Subscription adds the AI coach, adaptive targets and
-          programmes: <span className="font-semibold text-zinc-100">€12.99 a month or €119.99 a year</span>, 7-day free trial. No gym visit
+          Free to download, with workout, meal and check-in logging included. The App Subscription adds the Nutrition Coach, Ask the app,
+          adaptive targets and programmes: <span className="font-semibold text-zinc-100">€12.99 a month or €119.99 a year</span>, 7-day free trial. No gym visit
           needed, and it&apos;s included with a gym Membership.
         </p>
         <div className="flex flex-wrap gap-3">

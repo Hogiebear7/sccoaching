@@ -38,6 +38,11 @@ export function SiteFooter() {
           <ul className="mt-2 grid text-sm text-zinc-300">
             <li><a href={`mailto:${CONTACT_INFO.email}`} className={`${LINK} break-all`}>{CONTACT_INFO.email}</a></li>
             <li><a href={`tel:${CONTACT_INFO.phoneHref}`} className={LINK}>{CONTACT_INFO.phone}</a></li>
+            <li>
+              <a href={CONTACT_INFO.instagramUrl} target="_blank" rel="noopener noreferrer" className={LINK}>
+                Instagram<span className="sr-only"> ({CONTACT_INFO.instagramHandle}, opens in a new tab)</span>
+              </a>
+            </li>
             <li className="flex min-h-11 items-center text-zinc-400">{CONTACT_INFO.location}</li>
           </ul>
         </div>

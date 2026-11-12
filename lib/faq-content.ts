@@ -3,6 +3,18 @@
 // than invented policy, so nothing here contradicts what members experience
 // once they sign up.
 
+import { storeListingsLive } from "@/lib/app-links";
+
+// Where the app can be downloaded today. Follows the same build-time switches as the homepage store badges (lib/app-links.ts), so turning
+// a store on updates the badge and this answer together.
+function appAvailability(): string {
+  const { appStore, googlePlay } = storeListingsLive();
+  if (appStore && googlePlay) return "available now on the App Store and Google Play";
+  if (googlePlay) return "available now on Google Play and coming soon to the App Store";
+  if (appStore) return "available now on the App Store and coming soon to Google Play";
+  return "launching soon on the App Store and Google Play";
+}
+
 export interface FaqItem {
   question: string;
   answer: string;
@@ -78,12 +90,12 @@ const THE_APP: FaqItem[] = [
   {
     question: "What's included with the app?",
     answer:
-      "The App Subscription adds the AI coach and AI nutrition coach, food logging from a photo or a description, daily calorie and macro targets that adapt to your training, programmes and the weekly planner, and your full history and personal bests. Logging workouts, meals and check-ins is free for everyone.",
+      "The App Subscription adds the Nutrition Coach and Ask the app, food logging from a photo or a description, daily calorie and macro targets that adapt to your training, programmes and the weekly planner, and your full history and personal bests. Logging workouts, meals and check-ins is free for everyone.",
   },
   {
     question: "How is this different from the in-person membership?",
     answer:
-      "A gym Membership (Semi-Private, Parent & Baby or Over 50s) covers your classes, booking, messaging your coach and your gym's members-only community in the app, and it includes the full App features (the AI coach, targets and programmes) at no extra charge while it's active. The App Subscription is the same digital coaching for anyone who isn't a member, so you don't need a gym Membership to use it.",
+      "A gym Membership (Semi-Private, Parent & Baby or Over 50s) covers your classes, booking, messaging your coach and your gym's members-only community in the app, and it includes the full App features (the Nutrition Coach, Ask the app, targets and programmes) at no extra charge while it's active. The App Subscription is the same digital coaching for anyone who isn't a member, so you don't need a gym Membership to use it.",
   },
   {
     question: "Do I need any equipment?",
@@ -97,7 +109,8 @@ const THE_APP: FaqItem[] = [
   {
     question: "When can I download it, and what does it cost?",
     answer:
-      "The app is free to download and use for logging, launching soon on the App Store and Google Play. The App Subscription is €12.99 a month or €119.99 a year, with a 7-day free trial, bought in the app through your App Store or Google Play account. Cancel any time in your store settings.",
+      `The app is free to download and use for logging, ${appAvailability()}. ` +
+      "The App Subscription is €12.99 a month or €119.99 a year, with a 7-day free trial, bought in the app through your App Store or Google Play account. Cancel any time in your store settings.",
   },
 ];
 
