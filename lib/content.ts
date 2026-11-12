@@ -16,4 +16,7 @@ export const CONTACT_INFO = {
   email: "info@sandccoaching.com",
   phone: "083 007 9025",
   phoneHref: "+353830079025",
+  // The public profile address only, without any share-tracking parameters.
+  instagramUrl: "https://www.instagram.com/sandccoaching",
+  instagramHandle: "@sandccoaching",
 } as const;

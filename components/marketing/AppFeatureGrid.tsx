@@ -62,8 +62,8 @@ const CATEGORIES: FeatureCategory[] = [
         icon: "M12 21s-7-4.6-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.4-9.5 9-9.5 9Z",
       },
       {
-        title: "AI & human coach",
-        body: "Chat with a coach that knows your real readiness, training load, and history — covers training and nutrition questions alike — or message your human coach directly.",
+        title: "Ask the app & your coach",
+        body: "Ask the app about your readiness, training load and history, for training and nutrition questions alike, or message your coach directly.",
         icon: "M4 5h16v11H8l-4 4V5Z",
       },
     ],
