@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 import {
   findBookingsByClassId,
   findClassById,
+  findClassWorkoutByClassId,
   findUserById,
   findWorkoutSessionByUserAndClass,
   saveClassWorkout,
@@ -14,7 +15,7 @@ import {
 } from "@/lib/db";
 import { syncClassWorkoutToAllBooked } from "@/lib/class-workout-sync";
 import { sameGymAsStaff } from "@/lib/gym-scope";
-import { parseExerciseEntries } from "@/lib/workout-entries";
+import { parseExerciseEntries, parseRunEntries } from "@/lib/workout-entries";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 
@@ -75,11 +76,12 @@ export async function POST(
     );
   }
 
-  const { notes, exercises, results } = (body ?? {}) as Record<string, unknown>;
+  const { notes, exercises, runs, results } = (body ?? {}) as Record<string, unknown>;
 
   const templateExercises = parseExerciseEntries(exercises);
+  const templateRuns = parseRunEntries(runs);
 
-  if (templateExercises.length === 0) {
+  if (templateExercises.length === 0 && templateRuns.length === 0) {
     return NextResponse.json(
       { success: false, message: "Add at least one exercise to the class workout." },
       { status: 400 }
@@ -92,6 +94,9 @@ export async function POST(
     classId: classRecord.id,
     notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
     exercises: templateExercises,
+    runs: templateRuns,
+    // Saving again after the recap went out does not send it twice, and keeps the record of when it was sent.
+    recapSentAt: findClassWorkoutByClassId(classRecord.id)?.recapSentAt ?? null,
     updatedByStaffId: user.id,
     createdAt: now,
     updatedAt: now,

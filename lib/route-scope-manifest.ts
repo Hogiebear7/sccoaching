@@ -267,6 +267,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/categories/delete", scope: "tenant-staff", capabilities: ["operations.view"], evidence: ["sameGym("] },
   { route: "staff/classes", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff", "sameGym("] },
   { route: "staff/classes/[classId]/workout", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"] },
+  { route: "staff/classes/[classId]/workout/recap", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"] },
   { route: "staff/classes/delete", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"] },
   { route: "staff/classes/series/stop", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"] },
   { route: "staff/community/gym-reports", scope: "tenant-staff", capabilities: ["comments.moderate"], evidence: ["auth.user.gymId"] },

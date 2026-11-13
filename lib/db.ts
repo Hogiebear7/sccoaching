@@ -147,6 +147,9 @@ export interface WorkoutExerciseEntry {
   /** True when reps/weight were performed per side (unilateral exercise —
       e.g. single-arm row), rather than combined across both sides. */
   perSide?: boolean | null;
+  /** Place in the whole workout, exercises and cardio together (0, 1, 2 ...). Absent on entries saved before ordering existed, which show
+      every exercise first and then the cardio. */
+  order?: number | null;
   notes: string | null;
 }
 
@@ -161,6 +164,8 @@ export interface WorkoutRunEntry {
   cardioType?: import("./workout-entries").CardioType;
   /** Machine level or incline (0-30), when given. */
   level?: number | null;
+  /** Place in the whole workout, exercises and cardio together; see WorkoutExerciseEntry.order. */
+  order?: number | null;
 }
 
 export interface WorkoutSessionRecord {
@@ -223,6 +228,10 @@ export interface ClassWorkoutRecord {
   classId: string;
   notes: string | null;
   exercises: WorkoutExerciseEntry[];
+  /** Cardio done in the class (bike, row, run ...), in the same shape as a member's own cardio. Absent on workouts saved before this existed. */
+  runs?: WorkoutRunEntry[];
+  /** When the coach sent the "well done, have a look at your workout" recap to the people who came. Null or absent until then. */
+  recapSentAt?: string | null;
   updatedByStaffId: string;
   createdAt: string;
   updatedAt: string;
@@ -1850,7 +1859,9 @@ export type NotificationType =
   // To the owner (admin managers): AI spending has passed 50% or 80% of the emergency ceiling.
   | "ai_spend_alert"
   // To gym managers in the first week of a month: last month's master workbook is ready (lib/jobs/monthly-report-email.ts).
-  | "monthly_report";
+  | "monthly_report"
+  // To a member who came to a class: the coach has finished the class workout, have a look and add how it felt.
+  | "class_recap";
 
 export interface NotificationRecord {
   id: string;
