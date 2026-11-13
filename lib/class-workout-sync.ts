@@ -49,7 +49,8 @@ export function syncClassWorkoutToMember(classId: string, userId: string): void 
     durationMins: classRecord.durationMins,
     notes: existing?.notes ?? template.notes,
     exercises: existing ? mergeTemplateIntoExisting(template.exercises, existing.exercises) : template.exercises,
-    runs: existing?.runs ?? [],
+    // The coach's cardio goes in until the member has cardio of their own, which is never overwritten.
+    runs: existing && existing.runs.length > 0 ? existing.runs : template.runs ?? [],
     classId,
     recordedByStaffId: existing?.recordedByStaffId ?? template.updatedByStaffId,
     createdAt: existing?.createdAt ?? now,

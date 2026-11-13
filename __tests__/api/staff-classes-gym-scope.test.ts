@@ -33,6 +33,7 @@ const h = vi.hoisted(() => ({
   findProfileByUserId: vi.fn(),
   findWorkoutSessionByUserAndClass: vi.fn(),
   saveClassWorkout: vi.fn(),
+  findClassWorkoutByClassId: vi.fn(),
   saveWorkoutSession: vi.fn(),
   findClassesBySeriesId: vi.fn(),
 }));

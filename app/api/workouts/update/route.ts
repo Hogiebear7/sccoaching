@@ -6,7 +6,7 @@ import {
   findWorkoutSessionById,
   saveWorkoutSession,
 } from "@/lib/db";
-import { parseExerciseEntries } from "@/lib/workout-entries";
+import { parseExerciseEntries, parseRunEntries } from "@/lib/workout-entries";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 // Member correction for class-synced workouts: coaches often don't get
@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { sessionId, exercises, notes } = (body ?? {}) as Record<string, unknown>;
+  // runs, sessionRpe and feelingNotes are optional and new: an older app sends only exercises and notes and nothing else changes for it.
+  const { sessionId, exercises, notes, runs, sessionRpe, feelingNotes } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof sessionId !== "string" || !sessionId.trim()) {
     return NextResponse.json(
@@ -65,17 +66,36 @@ export async function POST(request: NextRequest) {
   }
 
   const parsedExercises = parseExerciseEntries(exercises);
+  const sendsRuns = Array.isArray(runs);
+  const parsedRuns = sendsRuns ? parseRunEntries(runs) : session.runs;
 
-  if (parsedExercises.length === 0) {
+  if (parsedExercises.length === 0 && parsedRuns.length === 0) {
     return NextResponse.json(
       { success: false, message: "A workout needs at least one exercise." },
       { status: 400 }
     );
   }
 
+  // How hard the session felt (1 to 10, half steps allowed) and a few words about it. Left as they were when the app does not send them.
+  let nextRpe = session.sessionRpe ?? null;
+  if (sessionRpe !== undefined) {
+    if (sessionRpe === null) nextRpe = null;
+    else if (typeof sessionRpe === "number" && Number.isFinite(sessionRpe) && sessionRpe >= 1 && sessionRpe <= 10) nextRpe = sessionRpe;
+    else return NextResponse.json({ success: false, message: "Effort must be between 1 and 10." }, { status: 400 });
+  }
+  const nextFeeling =
+    feelingNotes === undefined
+      ? session.feelingNotes ?? null
+      : typeof feelingNotes === "string" && feelingNotes.trim()
+        ? feelingNotes.trim().slice(0, 1000)
+        : null;
+
   saveWorkoutSession({
     ...session,
     exercises: parsedExercises,
+    runs: parsedRuns,
+    sessionRpe: nextRpe,
+    feelingNotes: nextFeeling,
     notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
     updatedAt: new Date().toISOString(),
   });

@@ -1,4 +1,9 @@
-import type { WorkoutExerciseEntry, WorkoutSetType } from "./db";
+import type { WorkoutExerciseEntry, WorkoutRunEntry, WorkoutSetType } from "./db";
+
+/** A place in the workout (0, 1, 2 ...), or null when the client did not send a usable one. */
+export function parseOrder(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1000 ? Math.floor(value) : null;
+}
 
 const SET_TYPES: WorkoutSetType[] = ["standard", "warmup", "dropset", "myoset", "failure", "partial"];
 
@@ -63,6 +68,7 @@ export function parseExerciseEntries(exercises: unknown): WorkoutExerciseEntry[]
         setType: parseSetType(e.setType),
         supersetGroup: typeof e.supersetGroup === "string" && e.supersetGroup.trim() ? e.supersetGroup.trim() : null,
         perSide: e.perSide === true,
+        order: parseOrder(e.order),
         notes: typeof e.notes === "string" && e.notes.trim() ? e.notes.trim() : null,
       } satisfies WorkoutExerciseEntry,
     ];
@@ -117,8 +123,37 @@ export function formatExerciseLoad(ex: WorkoutExerciseEntry): string {
 export const CARDIO_TYPES = ["run", "walk", "treadmill_walk", "stair_climber", "bike", "rower", "cross_trainer", "other"] as const;
 export type CardioType = (typeof CARDIO_TYPES)[number];
 
-export function parseCardioFields(r: Record<string, unknown>): { cardioType?: CardioType; level?: number | null } {
+export function parseCardioFields(r: Record<string, unknown>): { cardioType?: CardioType; level?: number | null; order?: number | null } {
   const cardioType = CARDIO_TYPES.includes(r.cardioType as CardioType) ? (r.cardioType as CardioType) : undefined;
   const level = typeof r.level === "number" && Number.isFinite(r.level) && r.level >= 0 && r.level <= 30 ? Math.round(r.level * 10) / 10 : null;
-  return cardioType ? { cardioType, level } : {};
+  const order = parseOrder(r.order);
+  return { ...(cardioType ? { cardioType, level } : {}), ...(order !== null ? { order } : {}) };
+}
+
+// Cardio rows arriving from a client, in the same shape a member's own session keeps them in. A row with nothing in it is dropped.
+export function parseRunEntries(runs: unknown): WorkoutRunEntry[] {
+  if (!Array.isArray(runs)) return [];
+  return runs.flatMap((raw) => {
+    const r = (raw ?? {}) as Record<string, unknown>;
+    const distanceRaw = typeof r.distance === "number" ? r.distance : null;
+    const durationRaw = typeof r.durationSecs === "number" ? r.durationSecs : null;
+    const repsRaw = typeof r.reps === "number" ? r.reps : null;
+    const setsRaw = typeof r.sets === "number" ? r.sets : null;
+    const distance = distanceRaw !== null && Number.isFinite(distanceRaw) && distanceRaw >= 0 ? Math.round(distanceRaw * 1000) / 1000 : null;
+    const durationSecs = durationRaw !== null && Number.isFinite(durationRaw) && durationRaw >= 0 ? Math.floor(durationRaw) : null;
+    const notes = typeof r.notes === "string" && r.notes.trim() ? r.notes.trim() : null;
+    const cardio = parseCardioFields(r);
+    if (distance === null && durationSecs === null && !notes && !cardio.cardioType && repsRaw === null && setsRaw === null) return [];
+    return [
+      {
+        distance,
+        distanceUnit: "km" as const,
+        durationSecs,
+        reps: repsRaw !== null && Number.isFinite(repsRaw) && repsRaw >= 0 ? Math.floor(repsRaw) : null,
+        sets: setsRaw !== null && Number.isFinite(setsRaw) && setsRaw >= 0 ? Math.floor(setsRaw) : null,
+        notes,
+        ...cardio,
+      } satisfies WorkoutRunEntry,
+    ];
+  });
 }
