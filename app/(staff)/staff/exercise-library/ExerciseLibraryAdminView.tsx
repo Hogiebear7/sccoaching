@@ -22,6 +22,69 @@ type ImportRunResult = {
   catalogCoverage: { totalNamesInList: number | null; matchedDetailFiles: number } | null;
 };
 
+// Upload your own demonstration clip for an exercise (a few seconds of someone doing it, MP4, MOV or WebM, up to 25 MB). Members then see it in the
+// app instead of the library picture. Uploading again replaces it.
+function OwnClipControl({ exerciseId }: { exerciseId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const res = await fetch(`/api/staff/exercise-library/${exerciseId}/video`, { method: "POST", body: form });
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
+      setMessage(body?.message ?? (res.ok ? "Saved." : "Could not upload the clip."));
+    } catch {
+      setMessage("Could not upload the clip. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/staff/exercise-library/${exerciseId}/video`, { method: "DELETE" });
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
+      setMessage(body?.message ?? (res.ok ? "Removed." : "Could not remove the clip."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <label className="cursor-pointer rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent">
+        {busy ? "Working…" : "Own clip"}
+        <input
+          type="file"
+          accept="video/mp4,video/quicktime,video/webm"
+          className="sr-only"
+          disabled={busy}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) void upload(file);
+          }}
+        />
+      </label>
+      <button
+        type="button"
+        onClick={() => void remove()}
+        disabled={busy}
+        className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition hover:bg-accent disabled:opacity-60"
+      >
+        Remove clip
+      </button>
+      {message ? <span className="text-xs text-muted-foreground" role="status">{message}</span> : null}
+    </span>
+  );
+}
+
 export function ExerciseLibraryAdminView() {
   const [packs, setPacks] = useState<string[]>([]);
   const [selectedPack, setSelectedPack] = useState<string>("");
@@ -450,6 +513,7 @@ export function ExerciseLibraryAdminView() {
                     <Button variant="secondary" size="sm" onClick={() => startLibraryEdit(ex)}>
                       Edit
                     </Button>
+                    <OwnClipControl exerciseId={ex.id} />
                     <button
                       type="button"
                       onClick={() => deleteLibraryExercise(ex)}

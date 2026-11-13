@@ -276,6 +276,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/exercise-library", scope: "global-shared", capabilities: ["exercises.manage"], note: "Shared exercise library; any gym's staff can mutate it (owner decision: audit 12.2)." },
   { route: "staff/exercise-library/[id]", scope: "global-shared", capabilities: ["exercises.manage"], note: "Shared exercise library." },
   { route: "staff/exercise-library/[id]/approve", scope: "global-shared", capabilities: ["exercises.manage"], note: "Shared exercise library." },
+  { route: "staff/exercise-library/[id]/video", scope: "global-shared", capabilities: ["exercises.manage"], note: "Shared exercise library: staff upload their own demonstration clip." },
   { route: "staff/exercise-library/import", scope: "global-shared", capabilities: ["exercises.manage"], note: "Shared exercise library." },
   { route: "staff/exercise-library/logs", scope: "global-shared", capabilities: ["exercises.manage"], note: "Shared exercise library." },
   { route: "staff/exercises", scope: "global-shared", capabilities: ["exercises.manage"], note: "Shared exercise catalogue." },
