@@ -123,11 +123,12 @@ export function formatExerciseLoad(ex: WorkoutExerciseEntry): string {
 export const CARDIO_TYPES = ["run", "walk", "treadmill_walk", "stair_climber", "bike", "rower", "cross_trainer", "other"] as const;
 export type CardioType = (typeof CARDIO_TYPES)[number];
 
-export function parseCardioFields(r: Record<string, unknown>): { cardioType?: CardioType; level?: number | null; order?: number | null } {
+export function parseCardioFields(r: Record<string, unknown>): { cardioType?: CardioType; level?: number | null; order?: number | null; supersetGroup?: string | null } {
   const cardioType = CARDIO_TYPES.includes(r.cardioType as CardioType) ? (r.cardioType as CardioType) : undefined;
   const level = typeof r.level === "number" && Number.isFinite(r.level) && r.level >= 0 && r.level <= 30 ? Math.round(r.level * 10) / 10 : null;
   const order = parseOrder(r.order);
-  return { ...(cardioType ? { cardioType, level } : {}), ...(order !== null ? { order } : {}) };
+  const supersetGroup = typeof r.supersetGroup === "string" && r.supersetGroup.trim() ? r.supersetGroup.trim().slice(0, 20) : null;
+  return { ...(cardioType ? { cardioType, level } : {}), ...(order !== null ? { order } : {}), ...(supersetGroup ? { supersetGroup } : {}) };
 }
 
 // Cardio rows arriving from a client, in the same shape a member's own session keeps them in. A row with nothing in it is dropped.

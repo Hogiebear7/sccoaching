@@ -166,6 +166,8 @@ export interface WorkoutRunEntry {
   level?: number | null;
   /** Place in the whole workout, exercises and cardio together; see WorkoutExerciseEntry.order. */
   order?: number | null;
+  /** "ST1", "ST2" ...: cardio done back to back with the exercises sharing this label; see WorkoutExerciseEntry.supersetGroup. */
+  supersetGroup?: string | null;
 }
 
 export interface WorkoutSessionRecord {

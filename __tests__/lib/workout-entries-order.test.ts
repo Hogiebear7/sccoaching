@@ -24,4 +24,10 @@ describe("entry order", () => {
     expect(parseCardioFields({ order: 4 })).toEqual({ order: 4 });
     expect(parseCardioFields({})).toEqual({});
   });
+
+  it("keeps the superset label on cardio, so cardio can sit inside a superset", () => {
+    expect(parseCardioFields({ cardioType: "bike", level: null, supersetGroup: "ST2" })).toEqual({ cardioType: "bike", level: null, supersetGroup: "ST2" });
+    expect(parseCardioFields({ supersetGroup: "   " })).toEqual({});
+    expect(parseCardioFields({ supersetGroup: 7 })).toEqual({});
+  });
 });
