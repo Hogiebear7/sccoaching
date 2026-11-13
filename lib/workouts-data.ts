@@ -25,6 +25,9 @@ export interface WorkoutSessionSummary {
   /** Hides this session from the member's followers' Community feed — see
       app/api/mobile/workouts/[id]/visibility/route.ts. */
   isPrivate: boolean;
+  /** How hard the whole session felt (1 to 10) and a few words on it, when the member said. */
+  sessionRpe: number | null;
+  feelingNotes: string | null;
 }
 
 export interface ExerciseLibraryEntry {
@@ -91,6 +94,8 @@ export function getWorkoutsData(userId: string | undefined): WorkoutsData | null
       runs: s.runs,
       classId: s.classId ?? null,
       isPrivate: s.isPrivate ?? false,
+      sessionRpe: s.sessionRpe ?? null,
+      feelingNotes: s.feelingNotes ?? null,
     })),
     personalBests,
     exerciseLibrary: findExercises().map((e) => ({ id: e.id, name: e.name, section: e.section })),
