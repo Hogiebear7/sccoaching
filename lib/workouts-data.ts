@@ -1,4 +1,5 @@
 import {
+  findClassById,
   findExercises,
   findProfileByUserId,
   findUserById,
@@ -22,6 +23,8 @@ export interface WorkoutSessionSummary {
       /api/workouts/edit, class-synced sessions through their own
       same-day correction path (see WorkoutSessionRecord). */
   classId: string | null;
+  /** The class's start time ("HH:MM", local) for a class-synced session, so the app can offer "Start workout" once the class has begun. */
+  classStartTime?: string | null;
   /** Hides this session from the member's followers' Community feed — see
       app/api/mobile/workouts/[id]/visibility/route.ts. */
   isPrivate: boolean;
@@ -93,6 +96,7 @@ export function getWorkoutsData(userId: string | undefined): WorkoutsData | null
       exercises: s.exercises,
       runs: s.runs,
       classId: s.classId ?? null,
+      classStartTime: s.classId ? (findClassById(s.classId)?.startTime ?? null) : null,
       isPrivate: s.isPrivate ?? false,
       sessionRpe: s.sessionRpe ?? null,
       feelingNotes: s.feelingNotes ?? null,
