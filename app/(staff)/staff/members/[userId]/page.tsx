@@ -200,6 +200,8 @@ export default async function StaffMemberDetailPage({
   const drinkPlan = drinkInput ? buildDrinkPlan(drinkInput) : null;
   const subscriptionPlan = resolveSubscriptionEntitlement(subscription);
 
+  // Server component: "now" at request time is exactly what is wanted here.
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
   const upcomingBookings = walled
     ? []
