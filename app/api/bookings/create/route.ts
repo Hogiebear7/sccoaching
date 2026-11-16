@@ -22,6 +22,7 @@ import {
 import { classStartDate } from "@/lib/class-time";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
+import { parqIsCurrent, parqRequired } from "@/lib/parq";
 import { sendBookingConfirmationEmail } from "@/lib/booking-emails";
 import { resolvePendingCancellationCreditsForClass } from "@/lib/cancellation-credits";
 import { syncClassWorkoutToMember } from "@/lib/class-workout-sync";
@@ -87,6 +88,13 @@ export async function POST(request: NextRequest) {
     if (!bookingUserProfile?.emergencyContactName || !bookingUserProfile?.emergencyContactPhone) {
       return NextResponse.json(
         { success: false, message: "Add an emergency contact before booking a class." },
+        { status: 403 }
+      );
+    }
+    // The PAR-Q health check (lib/parq.ts): gym members only, off until PARQ_REQUIRED=true, valid for 12 months. A Yes answer never blocks.
+    if (parqRequired() && !parqIsCurrent(bookingUserProfile.parq)) {
+      return NextResponse.json(
+        { success: false, code: "parq_required", message: "Please complete the quick health check before booking a class." },
         { status: 403 }
       );
     }

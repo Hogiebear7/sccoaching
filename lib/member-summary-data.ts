@@ -16,6 +16,7 @@ import {
 import { buildClassBrief, buildMemberSummary, daysAgoISO, type SummaryBooking, type SummaryInputs } from "./member-summary";
 import { getResolvedNutritionTarget } from "./nutrition-target-data";
 import { buildCareCards } from "./brief-care";
+import { parqIsCurrent, parqRequired, parqYesItems } from "./parq";
 import { currentHealthNote } from "./health-note";
 import { nutritionStageFor } from "./pregnancy-nutrition";
 
@@ -92,5 +93,7 @@ export function careCardsFor(userId: string, todayISO: string = new Date().toISO
     signupMedicalNotes: profile?.dietaryNotes ?? null,
     medicalPicks: profile?.intolerancesOrMedical ?? [],
     coachNote: findCoachNoteByUserId(userId)?.notes ?? null,
+    parqYes: parqYesItems(profile?.parq),
+    parqMissing: parqRequired() && !parqIsCurrent(profile?.parq),
   });
 }

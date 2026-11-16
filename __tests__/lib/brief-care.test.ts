@@ -71,3 +71,18 @@ describe("brief care cards", () => {
     expect(card.lines.some((l) => l.startsWith("Flag:"))).toBe(false);
   });
 });
+
+describe("brief care cards: PAR-Q", () => {
+  it("shows the Yes answers and flags a condition named in them", () => {
+    const [card] = buildCareCards({ ...base, parqYes: [{ question: "Do you have diabetes, asthma or another breathing condition?", note: "Type 1 diabetes" }] });
+    const text = card.lines.join("\n");
+    expect(text).toContain("Flag: diabetes");
+    expect(text).toContain("PAR-Q, yes to:");
+    expect(text).toContain("Type 1 diabetes");
+  });
+
+  it("says when there is no current PAR-Q, as its own card", () => {
+    const cards = buildCareCards({ ...base, parqMissing: true });
+    expect(cards.map((c) => c.id)).toEqual(["parq_missing"]);
+  });
+});

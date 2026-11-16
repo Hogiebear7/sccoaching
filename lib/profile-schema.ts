@@ -138,6 +138,8 @@ export interface ProfileRecord {
   // boost). Optional/nullable for pre-existing records (see db.ts
   // normalization); a member who never sets it just gets no boost.
   country?: string | null;
+  // The PAR-Q a gym member completes before booking (lib/parq.ts). Health information: only staff with the member's brief see the Yes answers.
+  parq?: import("./parq").ParqRecord | null;
   additionalInfo: string | null;
   // In-case-of-emergency contact — collected at signup, editable from
   // Profile, visible to staff on the member detail page. The second
