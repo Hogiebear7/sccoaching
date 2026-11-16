@@ -5,6 +5,8 @@ import {
   findBodyWeightLogsByUserId,
   findBookingsByUserId,
   findClassById,
+  findCoachNoteByUserId,
+  findPregnancyStatusByUserId,
   findFoodEntriesByUserId,
   findProfileByUserId,
   findRecoveryLogsByUserId,
@@ -13,6 +15,9 @@ import {
 } from "./db";
 import { buildClassBrief, buildMemberSummary, daysAgoISO, type SummaryBooking, type SummaryInputs } from "./member-summary";
 import { getResolvedNutritionTarget } from "./nutrition-target-data";
+import { buildCareCards } from "./brief-care";
+import { currentHealthNote } from "./health-note";
+import { nutritionStageFor } from "./pregnancy-nutrition";
 
 export function loadSummaryInputs(userId: string, todayISO: string = new Date().toISOString().slice(0, 10)): SummaryInputs {
   const profile = findProfileByUserId(userId);
@@ -74,3 +79,18 @@ export function loadSummaryInputs(userId: string, todayISO: string = new Date().
 
 export const memberSummaryFor = (userId: string, todayISO?: string) => buildMemberSummary(loadSummaryInputs(userId, todayISO));
 export const classBriefFor = (userId: string, todayISO?: string) => buildClassBrief(loadSummaryInputs(userId, todayISO));
+
+/** The care cards for a coach's brief (lib/brief-care.ts). Pregnancy appears only when the member has chosen to share it with her coach. */
+export function careCardsFor(userId: string, todayISO: string = new Date().toISOString().slice(0, 10)) {
+  const profile = findProfileByUserId(userId);
+  const pregnancy = findPregnancyStatusByUserId(userId);
+  const sharedStage = pregnancy?.isPregnant && pregnancy.shareWithCoach ? nutritionStageFor(pregnancy, todayISO) : null;
+  return buildCareCards({
+    sharedStage,
+    checkInNote: currentHealthNote(findRecoveryLogsByUserId(userId), todayISO)?.note ?? null,
+    signupInfo: profile?.additionalInfo ?? null,
+    signupMedicalNotes: profile?.dietaryNotes ?? null,
+    medicalPicks: profile?.intolerancesOrMedical ?? [],
+    coachNote: findCoachNoteByUserId(userId)?.notes ?? null,
+  });
+}

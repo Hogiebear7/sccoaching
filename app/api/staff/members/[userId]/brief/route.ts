@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import { findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
-import { classBriefFor } from "@/lib/member-summary-data";
+import { careCardsFor, classBriefFor } from "@/lib/member-summary-data";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
 
 // GET /api/staff/members/[userId]/brief — the compact "state of the member" for a coach about to take a class: an overall state (good / take care /
@@ -23,5 +23,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ success: true, data: { walled: true, message: "A brief is available for members with a gym Membership." } });
   }
 
-  return NextResponse.json({ success: true, data: { walled: false, ...classBriefFor(member.id) } });
+  return NextResponse.json({ success: true, data: { walled: false, ...classBriefFor(member.id), care: careCardsFor(member.id) } });
 }
