@@ -23,5 +23,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ success: true, data: { walled: true, message: "A brief is available for members with a gym Membership." } });
   }
 
-  return NextResponse.json({ success: true, data: { walled: false, ...classBriefFor(member.id), care: careCardsFor(member.id) } });
+  const brief = classBriefFor(member.id);
+  // An admin can hide members' health details from a staff account: no care cards, and the "wrote in their check-in" note is dropped too.
+  if (auth.user.hideMemberHealth) {
+    return NextResponse.json({
+      success: true,
+      data: { walled: false, ...brief, flags: brief.flags.filter((f) => f.code !== "health_note"), healthNote: null, care: [] },
+    });
+  }
+  return NextResponse.json({ success: true, data: { walled: false, ...brief, care: careCardsFor(member.id) } });
 }

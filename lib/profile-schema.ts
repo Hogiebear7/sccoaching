@@ -56,6 +56,9 @@ export interface UserRecord {
   // lib/gym-scope.ts's sameGym(), never by comparing this field directly,
   // so "null means primary" stays a single well-known rule.
   gymId?: string | null;
+  // Staff accounts only. When true, this person does not see members' health details (the brief's health cards and the pregnancy/cycle sections of a
+  // member's page). Set by an admin manager on the Staff users page. Absent/false = sees them.
+  hideMemberHealth?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -135,6 +138,8 @@ export interface ProfileRecord {
   // boost). Optional/nullable for pre-existing records (see db.ts
   // normalization); a member who never sets it just gets no boost.
   country?: string | null;
+  // The PAR-Q a gym member completes before booking (lib/parq.ts). Health information: only staff with the member's brief see the Yes answers.
+  parq?: import("./parq").ParqRecord | null;
   additionalInfo: string | null;
   // In-case-of-emergency contact — collected at signup, editable from
   // Profile, visible to staff on the member detail page. The second

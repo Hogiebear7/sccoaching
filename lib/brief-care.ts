@@ -5,7 +5,7 @@
 import type { NutritionStage } from "./pregnancy-nutrition";
 
 export interface CareCard {
-  id: "pregnancy" | "injury" | "illness" | "health_notes";
+  id: "pregnancy" | "injury" | "illness" | "health_notes" | "parq_missing";
   title: string;
   /** "caution" cards are drawn with more emphasis. */
   tone: "caution" | "note";
@@ -18,6 +18,10 @@ export interface CareInputs {
   sharedStage: NutritionStage | null;
   /** Her current check-in note (see lib/health-note.ts), if any. */
   checkInNote: string | null;
+  /** The "Yes" answers on the member's PAR-Q (lib/parq.ts), with the question and her own note. Empty when there are none. */
+  parqYes?: { question: string; note: string }[];
+  /** True when the PAR-Q gate is on and this member has no current PAR-Q. */
+  parqMissing?: boolean;
   /** From her sign-up: free text ("any other info, injuries"), "diet or medical" notes, and the medical pick list. */
   signupInfo: string | null;
   signupMedicalNotes: string | null;
@@ -136,11 +140,13 @@ function healthNotesCard(inputs: CareInputs): CareCard | null {
   const medNotes = inputs.signupMedicalNotes?.trim();
   const picks = inputs.medicalPicks.filter((p) => p.trim());
   const coach = inputs.coachNote?.trim();
-  if (!info && !medNotes && picks.length === 0 && !coach) return null;
+  const parqYes = inputs.parqYes ?? [];
+  if (!info && !medNotes && picks.length === 0 && !coach && parqYes.length === 0) return null;
 
-  const flags = conditionFlags([info, medNotes, ...picks, coach]);
+  const flags = conditionFlags([info, medNotes, ...picks, coach, ...parqYes.flatMap((p) => [p.question, p.note])]);
   const lines: string[] = [];
   for (const f of flags) lines.push(f.ask ? `Flag: ${f.label}. Ask before training: ${f.ask}` : `Flag: ${f.label}.`);
+  for (const p of parqYes) lines.push(`PAR-Q, yes to: "${p.question}"${p.note ? ` Their note: "${p.note}"` : ""}`);
   if (info) lines.push(`From sign-up: "${info}"`);
   if (medNotes) lines.push(`Diet or medical notes: "${medNotes}"`);
   if (picks.length) lines.push(`Medical (selected at sign-up): ${picks.join(", ")}`);
@@ -166,5 +172,14 @@ export function buildCareCards(inputs: CareInputs): CareCard[] {
   }
   const health = healthNotesCard(inputs);
   if (health) cards.push(health);
+  if (inputs.parqMissing) {
+    cards.push({
+      id: "parq_missing",
+      title: "No health check (PAR-Q) on file",
+      tone: "note",
+      lines: ["They haven't completed the PAR-Q yet. Ask about injuries, medical conditions and medication before training."],
+      footnote: "General prompts for coaches, not medical advice.",
+    });
+  }
   return cards;
 }

@@ -85,10 +85,10 @@ describe("StaffUsersPage — same-gym listing", () => {
 
     expect(element.type).toBe(StaffUsersView);
     expect(element.props.rows).toEqual([
-      { id: "admin-a", email: "admin-a@x.test", fullName: null, role: "admin", archivedAt: null },
-      { id: "coach-a", email: "coach-a@x.test", fullName: "Carl Coach", role: "coach", archivedAt: null },
-      { id: "mgr-a", email: "mgr-a@x.test", fullName: "Alice Manager", role: "admin_manager", archivedAt: null },
-      { id: "old-a", email: "old-a@x.test", fullName: null, role: "coach", archivedAt: "2026-01-01T00:00:00.000Z" },
+      { id: "admin-a", email: "admin-a@x.test", fullName: null, role: "admin", archivedAt: null, hideMemberHealth: false },
+      { id: "coach-a", email: "coach-a@x.test", fullName: "Carl Coach", role: "coach", archivedAt: null, hideMemberHealth: false },
+      { id: "mgr-a", email: "mgr-a@x.test", fullName: "Alice Manager", role: "admin_manager", archivedAt: null, hideMemberHealth: false },
+      { id: "old-a", email: "old-a@x.test", fullName: null, role: "coach", archivedAt: "2026-01-01T00:00:00.000Z", hideMemberHealth: false },
     ]);
   });
 
@@ -109,6 +109,7 @@ describe("StaffUsersPage — same-gym listing", () => {
       fullName: "Alice Manager",
       role: "admin_manager",
       archivedAt: null,
+      hideMemberHealth: false,
     });
   });
 
