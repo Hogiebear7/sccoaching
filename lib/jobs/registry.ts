@@ -18,6 +18,7 @@ import { purgeExpiredResetTokensJob } from "./purge-expired-reset-tokens";
 import { purgeOldRecoveryLogsJob } from "./purge-old-recovery-logs";
 import { refreshBrandedFoodCacheJob } from "./refresh-branded-food-cache";
 import { resumePausedMembershipsJob } from "./resume-paused-memberships";
+import { sendCheckinPromptsJob } from "./send-checkin-prompts";
 import { sendClassRemindersJob } from "./send-class-reminders";
 import { sendProgrammeCheckinsJob } from "./send-programme-checkins";
 import { sendProgrammeRemindersJob } from "./send-programme-reminders";
@@ -43,6 +44,7 @@ export const ALL_JOBS: JobDefinition[] = [
   generateClassSeriesJob,
   processWaitlistOffersJob,
   sendClassRemindersJob,
+  sendCheckinPromptsJob,
   sendProgrammeRemindersJob,
   sendProgrammeCheckinsJob,
   notifyPregnancyGoalResumeJob,
