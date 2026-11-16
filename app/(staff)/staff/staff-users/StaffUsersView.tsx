@@ -11,6 +11,7 @@ type Row = {
   fullName: string | null;
   role: StaffRole;
   archivedAt: string | null;
+  hideMemberHealth: boolean;
 };
 
 const input =
@@ -100,6 +101,17 @@ export function StaffUsersView({ rows, currentUserId }: { rows: Row[]; currentUs
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="When ticked, this person can't see members' health details (brief health cards, pregnancy and cycle).">
+                  <input
+                    type="checkbox"
+                    checked={row.hideMemberHealth}
+                    disabled={busyId === row.id}
+                    onChange={(e) =>
+                      run(row.id, () => post("/api/staff/staff-users/health-visibility", { id: row.id, hidden: e.target.checked }))
+                    }
+                  />
+                  Hide member health
+                </label>
                 <select
                   aria-label={`Role for ${row.email}`}
                   value={row.role}

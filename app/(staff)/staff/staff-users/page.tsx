@@ -22,6 +22,7 @@ export default async function StaffUsersPage() {
       fullName: findProfileByUserId(u.id)?.fullName ?? null,
       role: u.role as StaffRole,
       archivedAt: u.archivedAt ?? null,
+      hideMemberHealth: u.hideMemberHealth === true,
     }))
     .sort((a, b) => a.email.localeCompare(b.email));
 

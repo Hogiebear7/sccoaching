@@ -56,6 +56,9 @@ export interface UserRecord {
   // lib/gym-scope.ts's sameGym(), never by comparing this field directly,
   // so "null means primary" stays a single well-known rule.
   gymId?: string | null;
+  // Staff accounts only. When true, this person does not see members' health details (the brief's health cards and the pregnancy/cycle sections of a
+  // member's page). Set by an admin manager on the Staff users page. Absent/false = sees them.
+  hideMemberHealth?: boolean;
   createdAt: string;
   updatedAt: string;
 }

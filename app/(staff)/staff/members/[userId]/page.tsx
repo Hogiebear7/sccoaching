@@ -153,7 +153,7 @@ export default async function StaffMemberDetailPage({
   const cyclePrivacy = !walled && profile?.cycleTrackingEligible
     ? findCyclePrivacyByUserId(user.id)
     : undefined;
-  const pregnancyStatus = !walled && profile?.cycleTrackingEligible
+  const pregnancyStatus = !walled && !staffUser.hideMemberHealth && profile?.cycleTrackingEligible
     ? findPregnancyStatusByUserId(user.id)
     : undefined;
   const pregnancyEstimate =

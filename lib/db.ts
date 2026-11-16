@@ -2941,6 +2941,17 @@ export function updateUserRole(userId: string, role: UserRole): boolean {
   return true;
 }
 
+// Whether a staff account may see members' health details (see UserRecord.hideMemberHealth).
+export function setUserHideMemberHealth(userId: string, hide: boolean): boolean {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return false;
+  user.hideMemberHealth = hide;
+  user.updatedAt = new Date().toISOString();
+  writeDb(db);
+  return true;
+}
+
 // Soft-deactivation toggle. Archived accounts can't sign in; nothing else is
 // touched so bookings, purchases and the pass ledger stay intact.
 export function setUserArchived(userId: string, archived: boolean): boolean {
