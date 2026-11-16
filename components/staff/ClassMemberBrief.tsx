@@ -11,6 +11,7 @@ type Brief =
       state: "good" | "take_care" | "caution" | "no_recent_data";
       lines: string[];
       flags: { code: string; severity: "caution" | "note"; text: string }[];
+      care?: { id: string; title: string; tone: "caution" | "note"; lines: string[]; footnote: string }[];
     };
 
 const STATE_LABEL = { good: "In good shape", take_care: "Take care", caution: "Needs attention", no_recent_data: "Nothing logged recently" } as const;
@@ -73,6 +74,21 @@ export function ClassMemberBrief({ userId }: { userId: string }) {
                   ))}
                 </ul>
               ) : null}
+              {(brief.care ?? []).map((card) => (
+                <section
+                  key={card.id}
+                  aria-label={card.title}
+                  className={`rounded-lg border px-2.5 py-2 ${card.tone === "caution" ? "border-destructive/30 bg-destructive/5" : "border-gold/30 bg-gold/5"}`}
+                >
+                  <h4 className="font-semibold text-foreground">{card.title}</h4>
+                  <ul className="mt-1 space-y-1 text-foreground">
+                    {card.lines.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{card.footnote}</p>
+                </section>
+              ))}
               <ul className="space-y-1 text-muted-foreground">
                 {brief.lines.map((line) => (
                   <li key={line}>{line}</li>
