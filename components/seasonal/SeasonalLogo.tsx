@@ -2,8 +2,8 @@
 
 import { useSeason } from "./useSeason";
 
-// The site logo, with a small seasonal accessory on it: a Santa hat at Christmas, a witch hat at Halloween, bunny ears at Easter, a heart, a shamrock, a leaf, or
-// a sun. Plain logo outside the seasons. Positions are percentages of the logo, so it works at any size.
+// The site logo, with a small seasonal accessory on it: a Santa hat at Christmas, a witch hat at Halloween, and bunny ears at Easter. Plain logo otherwise
+// (Valentine's and St Patrick's have no logo accessory, owner 2026-11-17). Positions are percentages of the logo, so it works at any size.
 function Accessory({ season }: { season: string }) {
   const cls = "pointer-events-none absolute drop-shadow-sm";
   if (season === "christmas") {
@@ -33,45 +33,6 @@ function Accessory({ season }: { season: string }) {
         <ellipse cx="22" cy="28" rx="3.8" ry="16" fill="#ffb3c7" transform="rotate(-12 22 28)" />
         <ellipse cx="44" cy="26" rx="8" ry="22" fill="#ffffff" transform="rotate(14 44 26)" />
         <ellipse cx="44" cy="28" rx="3.8" ry="16" fill="#ffb3c7" transform="rotate(14 44 28)" />
-      </svg>
-    );
-  }
-  if (season === "valentines") {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className={`${cls} -left-[3%] -top-[22%] h-[48%] w-auto -rotate-[16deg]`}>
-        <path d="M12 21 C4 14 2 9 2 6.5 C2 3.5 4.5 2 7 2 C9 2 11 3.3 12 5 C13 3.3 15 2 17 2 C19.5 2 22 3.5 22 6.5 C22 9 20 14 12 21 Z" fill="#ff2e63" />
-      </svg>
-    );
-  }
-  if (season === "stpatricks") {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 34 24" className={`${cls} -left-[4%] -top-[28%] h-[52%] w-auto`}>
-        <g fill="#1fa84f">
-          <circle cx="12" cy="7" r="5" />
-          <circle cx="7" cy="13" r="5" />
-          <circle cx="17" cy="13" r="5" />
-        </g>
-        <path d="M12 12 L13.4 22" stroke="#1fa84f" strokeWidth="2" strokeLinecap="round" />
-        <circle cx="27" cy="16" r="5" fill="#f1c40f" stroke="#c99a06" strokeWidth="1.2" />
-      </svg>
-    );
-  }
-  if (season === "autumn") {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 24 24" className={`${cls} -left-[2%] -top-[24%] h-[50%] w-auto -rotate-[20deg]`}>
-        <path d="M12 2 C20 6 21 15 12 22 C3 15 4 6 12 2 Z" fill="#e07a1f" />
-        <path d="M12 4 L12 21" stroke="#ffffff" strokeWidth="1" opacity="0.45" />
-      </svg>
-    );
-  }
-  if (season === "summer") {
-    return (
-      <svg aria-hidden="true" viewBox="-12 -12 24 24" className={`${cls} -right-[4%] -top-[30%] h-[56%] w-auto`}>
-        <circle r="5" fill="#ffd23f" />
-        {Array.from({ length: 10 }, (_, i) => {
-          const a = (i / 10) * Math.PI * 2;
-          return <line key={i} x1={Math.cos(a) * 7} y1={Math.sin(a) * 7} x2={Math.cos(a) * 10.5} y2={Math.sin(a) * 10.5} stroke="#ffd23f" strokeWidth="2" strokeLinecap="round" />;
-        })}
       </svg>
     );
   }

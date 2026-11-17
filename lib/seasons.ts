@@ -2,15 +2,16 @@
 // server API (GET /api/season, used by the phone app) and the tests all share it. Dates are Irish local dates (Europe/Dublin). The brand stays navy and gold
 // all year; a season only adds effects (falling pieces, a hat on the logo, a banner).
 //
-// Every season is on (2026-11-17, owner approved the looks in the test build). SEASONS_ENABLED=false still switches them all off.
+// Seasons are the events only (owner, 2026-11-17): Christmas to Epiphany, Valentine's, St Patrick's, Easter and Halloween. No summer or autumn theme: too long to have the
+// app themed. SEASONS_ENABLED=false still switches them all off.
 
 export type Particle = "snow" | "hearts" | "shamrocks" | "eggs" | "sun" | "leaves" | "cobwebs";
 
 export interface Season {
-  key: "christmas" | "valentines" | "stpatricks" | "easter" | "summer" | "autumn" | "halloween";
+  key: "christmas" | "valentines" | "stpatricks" | "easter" | "halloween";
   label: string;
   particle: Particle;
-  /** Something settled along the bottom of the screen: snow at Christmas, sand and a wave in summer, a pile of leaves in autumn. */
+  /** Something settled along the bottom of the screen: snow at Christmas (the only ground with the new events-only calendar). */
   pile: boolean;
   /** A Santa hat on the logo (Christmas only; the other seasons put their own small accessory on it, chosen by the season key). */
   hat: boolean;
@@ -22,17 +23,25 @@ export interface SeasonNow {
   season: Season | null;
   /** Layered on top of the season for the first days of January: the New Year message from 1 to 6 January, with fireworks on 1 and 2 January only. */
   overlay: { key: "new-year"; fireworks: boolean; message: string } | null;
+  /** A short message for the splash screen and a banner (for example "Happy Christmas"), or null. Christmas has none until 18 December. */
+  greeting: string | null;
   /** The Irish calendar date this was worked out for (YYYY-MM-DD). */
   date: string;
 }
+
+const GREETINGS: Record<Season["key"], string> = {
+  christmas: "Happy Christmas",
+  valentines: "Happy Valentine's Day",
+  stpatricks: "Happy St Patrick's Day",
+  easter: "Happy Easter",
+  halloween: "Happy Halloween",
+};
 
 const SEASONS: Record<Season["key"], Season> = {
   christmas: { key: "christmas", label: "Christmas", particle: "snow", pile: true, hat: true, ready: true },
   valentines: { key: "valentines", label: "Valentine's", particle: "hearts", pile: false, hat: false, ready: true },
   stpatricks: { key: "stpatricks", label: "St Patrick's", particle: "shamrocks", pile: false, hat: false, ready: true },
   easter: { key: "easter", label: "Easter", particle: "eggs", pile: false, hat: false, ready: true },
-  summer: { key: "summer", label: "Summer", particle: "sun", pile: true, hat: false, ready: true },
-  autumn: { key: "autumn", label: "Autumn", particle: "leaves", pile: true, hat: false, ready: true },
   halloween: { key: "halloween", label: "Halloween", particle: "cobwebs", pile: false, hat: false, ready: true },
 };
 
@@ -67,15 +76,13 @@ export function dublinDate(now: Date = new Date()): { y: number; m: number; d: n
 /** Which season a month and day falls in, or null for the plain brand look. Windows follow the owner's calendar. */
 export function seasonKeyFor(y: number, m: number, d: number): Season["key"] | null {
   const md = m * 100 + d;
-  if (md >= 1201 || md <= 106) return "christmas"; // 1 Dec to 6 Jan
-  if (md >= 201 && md <= 214) return "valentines";
-  if (md >= 310 && md <= 317) return "stpatricks";
+  if (md >= 1201 || md <= 106) return "christmas"; // 1 Dec to 6 Jan (the snow look; the Happy Christmas message starts 18 Dec)
+  if (md === 214) return "valentines"; // the one day
+  if (md >= 315 && md <= 317) return "stpatricks"; // the two days before, and the day
   const e = easterSunday(y);
-  const doy = dayOfYear(y, m, d);
-  if (Math.abs(doy - dayOfYear(y, e.month, e.day)) <= 7) return "easter"; // a week either side of Easter Sunday
-  if (md >= 601 && md <= 731) return "summer";
-  if (md >= 901 && md <= 1014) return "autumn";
-  if (md >= 1015 && md <= 1031) return "halloween";
+  const fromEaster = dayOfYear(y, m, d) - dayOfYear(y, e.month, e.day);
+  if (fromEaster >= -3 && fromEaster <= 2) return "easter"; // Holy Thursday to Easter Tuesday
+  if (md >= 1024 && md <= 1031) return "halloween"; // the last eight days of October
   return null;
 }
 
@@ -89,7 +96,7 @@ export interface SeasonOptions {
 /** What the site and app should look like right now. A season whose ready flag is off comes back as null (the plain brand look). */
 export function currentSeason(now: Date = new Date(), options: SeasonOptions = {}): SeasonNow {
   const { y, m, d, iso } = dublinDate(now);
-  if (options.enabled === false) return { season: null, overlay: null, date: iso };
+  if (options.enabled === false) return { season: null, overlay: null, greeting: null, date: iso };
   const forced = options.forceKey && options.forceKey in SEASONS ? (options.forceKey as Season["key"]) : null;
   const key = forced ?? seasonKeyFor(y, m, d);
   const season = key && SEASONS[key].ready ? SEASONS[key] : null;
@@ -98,5 +105,12 @@ export function currentSeason(now: Date = new Date(), options: SeasonOptions = {
   const fireworks = (m === 1 && (d === 1 || d === 2)) || options.forceKey === "new-year";
   const overlay =
     season?.key === "christmas" && newYearMessage ? ({ key: "new-year", fireworks, message: "Happy New Year from S&C Performance Coaching" } as const) : null;
-  return { season, overlay, date: iso };
+  // The greeting: Christmas shows "Happy Christmas" only from 18 to 31 December (1 to 6 January has the New Year message instead); the other events all day.
+  // A forced preview always shows its greeting.
+  let greeting: string | null = null;
+  if (season) {
+    if (season.key !== "christmas" || forced) greeting = GREETINGS[season.key];
+    else if (m === 12 && d >= 18) greeting = GREETINGS.christmas;
+  }
+  return { season, overlay, greeting, date: iso };
 }
