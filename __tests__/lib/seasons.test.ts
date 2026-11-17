@@ -26,8 +26,8 @@ describe("seasons", () => {
     expect(currentSeason(at("2027-02-10")).season).toMatchObject({ key: "valentines", particle: "hearts" });
     expect(currentSeason(at("2027-03-14")).season).toMatchObject({ key: "stpatricks", particle: "shamrocks" });
     expect(currentSeason(at("2027-03-27")).season).toMatchObject({ key: "easter", particle: "eggs" });
-    expect(currentSeason(at("2027-07-04")).season).toMatchObject({ key: "summer", particle: "sun", pile: true });
-    expect(currentSeason(at("2026-09-20")).season).toMatchObject({ key: "autumn", particle: "leaves", pile: true });
+    expect(currentSeason(at("2027-07-04")).season).toBeNull();
+    expect(currentSeason(at("2026-09-20")).season).toBeNull();
     expect(currentSeason(at("2026-10-25")).season).toMatchObject({ key: "halloween", particle: "cobwebs" });
     expect(currentSeason(at("2027-04-20")).season).toBeNull();
     expect(currentSeason(at("2027-05-10")).season).toBeNull();

@@ -2,15 +2,16 @@
 // server API (GET /api/season, used by the phone app) and the tests all share it. Dates are Irish local dates (Europe/Dublin). The brand stays navy and gold
 // all year; a season only adds effects (falling pieces, a hat on the logo, a banner).
 //
-// Every season is on (2026-11-17, owner approved the looks in the test build). SEASONS_ENABLED=false still switches them all off.
+// Seasons are the events only (owner, 2026-11-17): Christmas to Epiphany, Valentine's, St Patrick's, Easter and Halloween. No summer or autumn theme: too long to have the
+// app themed. SEASONS_ENABLED=false still switches them all off.
 
 export type Particle = "snow" | "hearts" | "shamrocks" | "eggs" | "sun" | "leaves" | "cobwebs";
 
 export interface Season {
-  key: "christmas" | "valentines" | "stpatricks" | "easter" | "summer" | "autumn" | "halloween";
+  key: "christmas" | "valentines" | "stpatricks" | "easter" | "halloween";
   label: string;
   particle: Particle;
-  /** Something settled along the bottom of the screen: snow at Christmas, sand and a wave in summer, a pile of leaves in autumn. */
+  /** Something settled along the bottom of the screen: snow at Christmas (the only ground with the new events-only calendar). */
   pile: boolean;
   /** A Santa hat on the logo (Christmas only; the other seasons put their own small accessory on it, chosen by the season key). */
   hat: boolean;
@@ -31,8 +32,6 @@ const SEASONS: Record<Season["key"], Season> = {
   valentines: { key: "valentines", label: "Valentine's", particle: "hearts", pile: false, hat: false, ready: true },
   stpatricks: { key: "stpatricks", label: "St Patrick's", particle: "shamrocks", pile: false, hat: false, ready: true },
   easter: { key: "easter", label: "Easter", particle: "eggs", pile: false, hat: false, ready: true },
-  summer: { key: "summer", label: "Summer", particle: "sun", pile: true, hat: false, ready: true },
-  autumn: { key: "autumn", label: "Autumn", particle: "leaves", pile: true, hat: false, ready: true },
   halloween: { key: "halloween", label: "Halloween", particle: "cobwebs", pile: false, hat: false, ready: true },
 };
 
@@ -73,8 +72,6 @@ export function seasonKeyFor(y: number, m: number, d: number): Season["key"] | n
   const e = easterSunday(y);
   const doy = dayOfYear(y, m, d);
   if (Math.abs(doy - dayOfYear(y, e.month, e.day)) <= 7) return "easter"; // a week either side of Easter Sunday
-  if (md >= 601 && md <= 731) return "summer";
-  if (md >= 901 && md <= 1014) return "autumn";
   if (md >= 1015 && md <= 1031) return "halloween";
   return null;
 }

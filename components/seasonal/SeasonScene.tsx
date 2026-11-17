@@ -1,6 +1,6 @@
 // The scene along the bottom of the page for each season: a strip of ground with a few small drawings standing on it, still (like the corner scenes on the
 // seasonal workout posters). Christmas keeps its falling snow, which is the only thing that moves. Pointer-events none, so it never blocks a click.
-type ItemKind = "pumpkin" | "jack" | "ghost" | "egg" | "shamrock" | "heart" | "arrowHeart" | "ball" | "star" | "pot" | "rainbow" | "sun" | "leaf";
+type ItemKind = "bunny" | "flag" | "pumpkin" | "jack" | "ghost" | "egg" | "shamrock" | "heart" | "arrowHeart" | "ball" | "star" | "pot" | "rainbow" | "sun" | "leaf";
 interface Item {
   kind: ItemKind;
   left: string;
@@ -30,6 +30,30 @@ function Art({ kind, size, colour }: { kind: ItemKind; size: number; colour?: st
               <path d="M7.8 17 L9.3 16 L10.8 17.2 L12.2 16 L13.7 17.2 L15.2 16 L16.5 17 L16 18.5 L8.2 18.5 Z" />
             </g>
           ) : null}
+        </svg>
+      );
+    case "bunny":
+      return (
+        <svg viewBox="0 0 24 24" {...box}>
+          <ellipse cx="8.2" cy="7" rx="1.9" ry="5.2" fill="#ffffff" transform="rotate(-8 8.2 7)" />
+          <ellipse cx="8.2" cy="7.4" rx="0.8" ry="3.4" fill="#ffb3c7" transform="rotate(-8 8.2 7.4)" />
+          <ellipse cx="12.6" cy="6.6" rx="1.9" ry="5.4" fill="#ffffff" transform="rotate(8 12.6 6.6)" />
+          <ellipse cx="12.6" cy="7" rx="0.8" ry="3.5" fill="#ffb3c7" transform="rotate(8 12.6 7)" />
+          <ellipse cx="10.4" cy="14" rx="4.6" ry="4" fill="#ffffff" />
+          <ellipse cx="9.4" cy="20" rx="6.2" ry="3.6" fill="#ffffff" />
+          <circle cx="15.8" cy="21" r="2" fill="#f3f3f8" />
+          <circle cx="8.6" cy="13.4" r="0.7" fill="#3a3a46" />
+          <circle cx="12" cy="13.4" r="0.7" fill="#3a3a46" />
+          <circle cx="10.3" cy="15" r="0.7" fill="#ffb3c7" />
+        </svg>
+      );
+    case "flag":
+      return (
+        <svg viewBox="0 0 24 24" {...box}>
+          <rect x="4" y="2" width="1.4" height="21" rx="0.7" fill="#8a8a96" />
+          <rect x="5.4" y="3" width="5.6" height="9" fill="#169b62" />
+          <rect x="11" y="3" width="5.6" height="9" fill="#ffffff" />
+          <rect x="16.6" y="3" width="5.6" height="9" fill="#ff883e" />
         </svg>
       );
     case "ghost":
@@ -132,50 +156,34 @@ type Strip = "snow" | "grass" | "sand" | "leaves" | "night";
 
 const SCENES: Record<string, { strip: Strip | null; items: Item[] }> = {
   christmas: { strip: "snow", items: [] },
+  // Just a few small hearts. Not everyone wants Valentine's, so nothing more.
   valentines: {
     strip: null,
     items: [
-      { kind: "heart", left: "2%", size: 18, lift: 2, colour: "#ff8fa3" },
-      { kind: "heart", left: "4.5%", size: 14, lift: 2, colour: "#ff4d6d" },
-      { kind: "heart", left: "3%", size: 15, lift: 16, colour: "#ffb3c1" },
-      { kind: "arrowHeart", left: "95%", size: 32, lift: 2 },
+      { kind: "heart", left: "2.5%", size: 17, lift: 2, colour: "#ff8fa3" },
+      { kind: "heart", left: "4.8%", size: 13, lift: 2, colour: "#ff4d6d" },
+      { kind: "heart", left: "3.6%", size: 14, lift: 16, colour: "#ffb3c1" },
     ],
   },
+  // Flag on the left; pot of gold beside the rainbow on the right.
   stpatricks: {
     strip: "grass",
     items: [
-      { kind: "pot", left: "4%", size: 30, lift: 12 },
-      { kind: "shamrock", left: "26%", size: 20, lift: 12 },
-      { kind: "shamrock", left: "55%", size: 18, lift: 12, colour: "#2ecc71" },
-      { kind: "rainbow", left: "82%", size: 36, lift: 10 },
+      { kind: "flag", left: "4%", size: 34, lift: 10 },
+      { kind: "shamrock", left: "42%", size: 18, lift: 12 },
+      { kind: "pot", left: "84%", size: 30, lift: 10 },
+      { kind: "rainbow", left: "92%", size: 36, lift: 10 },
     ],
   },
   easter: {
     strip: "grass",
     items: [
-      { kind: "egg", left: "6%", size: 22, lift: 12, colour: "#ffd1dc" },
-      { kind: "egg", left: "19%", size: 19, lift: 12, colour: "#cde7ff" },
-      { kind: "egg", left: "38%", size: 22, lift: 12, colour: "#fff1a8" },
-      { kind: "egg", left: "62%", size: 19, lift: 12, colour: "#d6f5d6" },
-      { kind: "egg", left: "81%", size: 22, lift: 12, colour: "#e6d3ff" },
-      { kind: "egg", left: "93%", size: 18, lift: 12, colour: "#ffd1dc" },
-    ],
-  },
-  summer: {
-    strip: "sand",
-    items: [
-      { kind: "ball", left: "8%", size: 26, lift: 12 },
-      { kind: "star", left: "40%", size: 20, lift: 6 },
-      { kind: "sun", left: "90%", size: 44, lift: 14 },
-    ],
-  },
-  autumn: {
-    strip: "leaves",
-    items: [
-      { kind: "pumpkin", left: "7%", size: 28, lift: 12 },
-      { kind: "pumpkin", left: "22%", size: 19, lift: 12 },
-      { kind: "leaf", left: "55%", size: 16, lift: 16 },
-      { kind: "pumpkin", left: "90%", size: 26, lift: 12 },
+      { kind: "egg", left: "5%", size: 20, lift: 12, colour: "#ffd1dc" },
+      { kind: "egg", left: "16%", size: 18, lift: 12, colour: "#cde7ff" },
+      { kind: "bunny", left: "38%", size: 38, lift: 8 },
+      { kind: "egg", left: "62%", size: 19, lift: 12, colour: "#fff1a8" },
+      { kind: "egg", left: "80%", size: 20, lift: 12, colour: "#e6d3ff" },
+      { kind: "egg", left: "93%", size: 18, lift: 12, colour: "#d6f5d6" },
     ],
   },
   halloween: {
