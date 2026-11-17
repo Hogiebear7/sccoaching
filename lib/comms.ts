@@ -20,6 +20,11 @@ export function journeysFrom(): string | null {
 
 const baseUrl = () => (getConfiguredAppUrl() || "http://localhost:3000").replace(/\/$/, "");
 
+/** In production the links in these emails come from APP_URL. If it's missing (they'd say localhost), send nothing rather than send broken links. */
+export function linksAreReal(): boolean {
+  return process.env.NODE_ENV !== "production" || !/localhost|127\.0\.0\.1/.test(baseUrl());
+}
+
 export function unsubscribeUrl(userId: string, topic: "tips" | "marketing" | "all"): string {
   return `${baseUrl()}/unsubscribe?t=${unsubscribeToken(userId, topic)}`;
 }
@@ -39,6 +44,7 @@ export function unsubscribeHeaders(userId: string, topic: "tips" | "marketing"):
  */
 export async function sendJourneyStep(userId: string, stepId: string): Promise<string> {
   if (!commsEnabled()) return "comms off";
+  if (!linksAreReal()) return "APP_URL is not set to the real site";
   const user = findUserById(userId);
   const profile = findProfileByUserId(userId);
   if (!user || user.archivedAt || !profile?.email) return "no address";
@@ -63,7 +69,7 @@ export async function sendJourneyStep(userId: string, stepId: string): Promise<s
 
 // ── Payment emails, from the Stripe webhook. Service messages about the member's own payment, so no unsubscribe. ──
 async function sendPaymentEmail(userId: string, build: (name: string) => ReturnType<typeof paymentFailedEmail>, kind: string, dedupeKey: string): Promise<void> {
-  if (!commsEnabled()) return;
+  if (!commsEnabled() || !linksAreReal()) return;
   const user = findUserById(userId);
   const profile = findProfileByUserId(userId);
   if (!user || user.archivedAt || !profile?.email) return;

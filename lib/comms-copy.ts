@@ -88,7 +88,7 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
         "Welcome to S&C Performance Coaching",
         [
           { p: hi(c.name) },
-          { p: "Thanks for joining. S&C is a training, nutrition and recovery app built by a real coach, to help you train well and keep going." },
+          { p: "Thanks for joining. S&C is a training, nutrition and recovery app built by a real coach and grounded in sports science, to help you train well and keep going." },
           { heading: "Three steps to get started" },
           {
             list: [
@@ -161,7 +161,7 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
               "Go to Schedule and book your first class.",
             ],
           },
-          { p: "If you have any injuries, health conditions or anything else I should know about before you train, reply to this email or tell me in person." },
+          { p: "If you have any injuries, health conditions or anything else I should know about before you train, reply to this email, message me in the app, or tell me in person." },
           open,
           { p: SIGN_OFF },
         ],
@@ -187,7 +187,7 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
         [
           { p: hi(c.name) },
           { p: "You've been with us for a few days now. Is there anything I should know about how you're getting on, or anything about your training, injuries or health that would help me coach you better?" },
-          { p: "Just reply to this email. It comes straight to me." },
+          { p: "Just reply to this email or message me in the app. Both come straight to me." },
           { p: SIGN_OFF },
         ],
         tipsFooter(c)
