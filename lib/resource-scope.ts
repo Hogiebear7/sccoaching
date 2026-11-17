@@ -108,6 +108,7 @@ export const COLLECTION_SCOPE = {
   paymentEvents: { kind: "money-provenance", owner: "ownerGym", note: "Webhook idempotency ledger. Platform-only reads." },
   emailEvents: platform("Resend delivery events (delivered, bounced, complained). Recipient addresses only, no bodies. Platform-only."),
   emailSuppressions: platform("Addresses not to be emailed again after a hard bounce or complaint. Platform-only."),
+  emailSendLog: platform("One row per email handed to Resend (address and kind, never content); counts usage and stops once-only emails repeating. Platform-only."),
   passLedger: user("userId", "ownerGym is provenance, not access control."),
   pendingCancellationCredits: user(),
   recoveryLogs: user(),

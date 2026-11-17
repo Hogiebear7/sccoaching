@@ -1860,6 +1860,8 @@ export type NotificationType =
   | "nutrition_update"
   // To the owner (admin managers): AI spending has passed 50% or 80% of the emergency ceiling.
   | "ai_spend_alert"
+  // To the owner: email sending has reached 80% of Resend's daily or monthly cap (lib/jobs/check-email-usage.ts).
+  | "email_usage_alert"
   // To gym managers in the first week of a month: last month's master workbook is ready (lib/jobs/monthly-report-email.ts).
   | "monthly_report"
   // To a member who came to a class: the coach has finished the class workout, have a look and add how it felt.
@@ -2351,6 +2353,8 @@ interface Database {
   emailEvents: EmailEventRecord[];
   // Addresses we must not email again after a hard bounce or a spam complaint.
   emailSuppressions: EmailSuppressionRecord[];
+  // One row per email we handed to Resend (no content): used to count usage against Resend's caps and to stop the same email going twice. Capped.
+  emailSendLog: EmailSendRecord[];
   passLedger: PassLedgerEntryRecord[];
   pendingCancellationCredits: PendingCancellationCreditRecord[];
   recoveryLogs: RecoveryLogRecord[];
@@ -2506,6 +2510,7 @@ function normalizeDatabase(raw: string | null): Database {
       paymentEvents: [],
       emailEvents: [],
       emailSuppressions: [],
+      emailSendLog: [],
       passLedger: [],
       pendingCancellationCredits: [],
       recoveryLogs: [],
@@ -2697,6 +2702,7 @@ function normalizeDatabase(raw: string | null): Database {
     paymentEvents: parsed.paymentEvents ?? [],
     emailEvents: parsed.emailEvents ?? [],
     emailSuppressions: parsed.emailSuppressions ?? [],
+    emailSendLog: parsed.emailSendLog ?? [],
     passLedger: (parsed.passLedger ?? []).map((e) => ({
       ...e,
       bookingId: e.bookingId ?? null,
@@ -6286,6 +6292,37 @@ export interface EmailSuppressionRecord {
   reason: "bounced" | "complained";
   emailId: string | null;
   at: string;
+}
+
+export interface EmailSendRecord {
+  id: string;
+  /** ISO time we handed it to Resend. */
+  at: string;
+  /** Lower-cased recipient. */
+  to: string;
+  /** What kind of email ("booking-confirmation", "owner-alert", "other"...). Never the subject or body. */
+  kind: string;
+  /** Set for an email that must go once only (for example "welcome:<userId>"). Null otherwise. */
+  dedupeKey: string | null;
+  resendId: string | null;
+}
+
+const MAX_EMAIL_SEND_LOG = 20000;
+
+export function recordEmailSend(entry: EmailSendRecord) {
+  const db = readDb();
+  db.emailSendLog.push({ ...entry, to: entry.to.trim().toLowerCase() });
+  if (db.emailSendLog.length > MAX_EMAIL_SEND_LOG) db.emailSendLog.splice(0, db.emailSendLog.length - MAX_EMAIL_SEND_LOG);
+  writeDb(db);
+}
+
+export function hasEmailSend(dedupeKey: string): boolean {
+  return readDbShared().emailSendLog.some((e) => e.dedupeKey === dedupeKey);
+}
+
+/** How many emails were handed to Resend at or after the given ISO time. */
+export function countEmailSendsSince(sinceISO: string): number {
+  return readDbShared().emailSendLog.filter((e) => e.at >= sinceISO).length;
 }
 
 const MAX_EMAIL_EVENTS = 5000;

@@ -1,7 +1,9 @@
 import { Resend } from "resend";
 
 import { getConfiguredAppUrl, getConfiguredEmailFrom, getConfiguredResendApiKey } from "@/lib/app-config";
-import { isEmailSuppressed } from "@/lib/db";
+import { randomUUID } from "crypto";
+
+import { hasEmailSend, isEmailSuppressed, recordEmailSend } from "@/lib/db";
 
 const apiKey = getConfiguredResendApiKey() || null;
 const fromAddress = getConfiguredEmailFrom() || "onboarding@resend.dev";
@@ -30,6 +32,10 @@ export interface EmailPayload {
   attachments?: EmailAttachment[];
   /** Where replies go instead of the sender (e.g. the enquirer on a website lead). */
   replyTo?: string;
+  /** What this email is, for the send log ("booking-confirmation"...). Defaults to "other". */
+  kind?: string;
+  /** When set, the email goes once only: a second call with the same key is skipped (for example `welcome:<userId>`). */
+  dedupeKey?: string;
 }
 
 // Sends a transactional email. Never throws — failures are logged and swallowed
@@ -44,6 +50,12 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
   // An address that hard-bounced or complained is never emailed again (list kept from Resend's webhook, lib/email-events.ts).
   if (isEmailSuppressed(payload.to)) {
     console.log("[email] skipped, address is suppressed:", payload.subject, "→", payload.to);
+    return;
+  }
+
+  // A once-only email (welcome, onboarding step) already sent under this key is not sent again.
+  if (payload.dedupeKey && hasEmailSend(payload.dedupeKey)) {
+    console.log("[email] skipped, already sent:", payload.dedupeKey);
     return;
   }
 
@@ -69,6 +81,20 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
       resendError.message ?? error
     );
     return;
+  }
+
+  // Logged for usage counting (lib/jobs/check-email-usage.ts) and the once-only check above. A logging problem never affects the send.
+  try {
+    recordEmailSend({
+      id: randomUUID(),
+      at: new Date().toISOString(),
+      to: payload.to,
+      kind: payload.kind ?? "other",
+      dedupeKey: payload.dedupeKey ?? null,
+      resendId: data?.id ?? null,
+    });
+  } catch (err) {
+    console.error("[email] could not log the send:", err);
   }
 
   console.log(
