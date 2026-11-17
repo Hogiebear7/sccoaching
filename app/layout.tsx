@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 
 import { ChunkErrorRecovery } from "@/components/ChunkErrorRecovery";
+import { SeasonalEffects } from "@/components/seasonal/SeasonalEffects";
 import { SplashIntro } from "@/components/SplashIntro";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -117,6 +118,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ChunkErrorRecovery />
         <SplashIntro />
         {children}
+        <SeasonalEffects />
       </body>
     </html>
   );

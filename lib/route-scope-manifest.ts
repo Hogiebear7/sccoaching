@@ -55,6 +55,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "ai/draft-reply", scope: "tenant-staff", capabilities: ["members.coaching"], evidence: ["sameGym("] },
   { route: "ai/nutrition-coach", scope: "self" },
   { route: "unsubscribe", scope: "public", note: "Unsubscribe from optional emails with a signed link (HMAC of user id and topic); GET only redirects, POST applies." },
+  { route: "season", scope: "public", note: "Which season the site and app should look like today; the same for everyone, no personal data." },
   { route: "auth/check-email", scope: "public", note: "Pre-auth email existence probe; rate limited per email." },
   { route: "auth/forgot-password", scope: "public", note: "Pre-auth; rate limited; responds identically whether or not the account exists." },
   { route: "auth/login", scope: "public", note: "Credential login; the session's tenant comes from the stored account, never the request." },
