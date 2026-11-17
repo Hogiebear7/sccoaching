@@ -1,3 +1,4 @@
+import { setTopic } from "@/lib/comms-prefs";
 import { NextResponse } from "next/server";
 
 import { checkClientRateLimit } from "@/lib/client-ip";
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
   }
 
   const {
+    marketingOptIn,
     email,
     password,
     fullName,
@@ -214,6 +216,8 @@ export async function POST(request: Request) {
     menopauseSupportEnabled: Boolean(menopauseSupportEnabled),
     reminderTimingsMins: null,
     emailNotificationsEnabled: true,
+    // Newsletters and offers only if the person ticked the (never pre-ticked) box in the app; stores when and where, as proof of consent.
+    emailPrefs: marketingOptIn === true ? setTopic(null, "marketing", true, "signup-app") : null,
     pushNotificationsEnabled: false,
     onboardingCompleted: true,
     dashboardTourCompleted: false,

@@ -74,6 +74,8 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  // Optional: newsletters and offers. Never pre-ticked, and not needed to sign up.
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const mounted = useHydrated();
@@ -351,7 +353,7 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify({ ...values, marketingOptIn }),
       });
 
       const data = await res.json().catch(() => null);
@@ -916,6 +918,15 @@ export default function SignupPage() {
                       <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-gold underline underline-offset-2 hover:text-[var(--primary-hover)]">
                         Privacy Policy
                       </Link>
+                    </span>
+                  }
+                />
+                <CheckboxField
+                  checked={marketingOptIn}
+                  onChange={setMarketingOptIn}
+                  label={
+                    <span className="font-normal text-zinc-300">
+                      Optional: send me news and offers from S&amp;C Performance Coaching by email. I can unsubscribe at any time.
                     </span>
                   }
                 />

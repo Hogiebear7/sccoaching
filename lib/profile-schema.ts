@@ -140,6 +140,8 @@ export interface ProfileRecord {
   country?: string | null;
   // The PAR-Q a gym member completes before booking (lib/parq.ts). Health information: only staff with the member's brief see the Yes answers.
   parq?: import("./parq").ParqRecord | null;
+  // Optional-email preferences (lib/comms-prefs.ts): getting-started tips (on by default) and marketing (off until the member opts in, with proof of when).
+  emailPrefs?: import("./comms-prefs").EmailPrefs | null;
   additionalInfo: string | null;
   // In-case-of-emergency contact — collected at signup, editable from
   // Profile, visible to staff on the member detail page. The second
