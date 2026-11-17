@@ -1,11 +1,18 @@
 // The wording and layout of the getting-started, payment and owner emails (DRAFT wording: the owner approves it before COMMS_ENABLED is switched on). One
 // place for every word, so changing a sentence is a one-line edit. Plain on purpose: one column, one link per email, no hard selling.
+// Voice: app-only emails are from "The S&C Team" and use "we"; gym-member emails are from Conor, in the first person.
 import { getConfiguredAppUrl } from "@/lib/app-config";
 
 export const BUSINESS_NAME = "S&C Performance Coaching";
 export const BUSINESS_ADDRESS = "The Willows, Liscarton, Navan, Co. Meath, Ireland";
 export const BUSINESS_EMAIL = "info@sandccoaching.com";
-const SIGN_OFF = "Conor\nS&C Performance Coaching";
+const SIGN_OFF_CONOR = "Conor\nS&C Performance Coaching";
+const SIGN_OFF_TEAM = "The S&C Team";
+
+// Brand colours (navy and gold, matching the app and website).
+const NAVY = "#16294a";
+const GOLD = "#e3b341";
+const BLUE = "#1d4e9e";
 
 export interface BuiltEmail {
   subject: string;
@@ -30,7 +37,7 @@ function render(subject: string, blocks: Block[], footer: { reason: string; unsu
   for (const b of blocks) {
     if (b.heading) {
       textParts.push(b.heading.toUpperCase());
-      htmlParts.push(`<h2 style="font-size:17px;margin:24px 0 6px;color:#111;">${esc(b.heading)}</h2>`);
+      htmlParts.push(`<h2 style="font-size:17px;margin:24px 0 6px;color:${NAVY};">${esc(b.heading)}</h2>`);
     }
     if (b.p) {
       textParts.push(b.p);
@@ -42,7 +49,9 @@ function render(subject: string, blocks: Block[], footer: { reason: string; unsu
     }
     if (b.link) {
       textParts.push(`${b.link.label}: ${b.link.href}`);
-      htmlParts.push(`<p style="margin:0 0 14px;"><a href="${esc(b.link.href)}" style="color:#111;font-weight:600;">${esc(b.link.label)}</a></p>`);
+      htmlParts.push(
+        `<p style="margin:6px 0 18px;"><a href="${esc(b.link.href)}" style="display:inline-block;background:${GOLD};color:${NAVY};font-weight:700;text-decoration:none;padding:11px 20px;border-radius:8px;">${esc(b.link.label)}</a></p>`
+      );
     }
   }
   const footerText = [
@@ -52,14 +61,15 @@ function render(subject: string, blocks: Block[], footer: { reason: string; unsu
   ]
     .filter(Boolean)
     .join("\n");
+  const logo = `${appUrl()}/brand/email-logo.png`;
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${esc(subject)}</title></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#222;">
+<body style="margin:0;padding:0;background:#eef1f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:24px 12px;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
-<tr><td style="background:#000;color:#fff;padding:18px 20px;border-radius:10px;font-size:14px;font-weight:700;letter-spacing:0.08em;text-align:center;">S&amp;C PERFORMANCE COACHING</td></tr>
-<tr><td style="background:#fff;padding:22px 24px;border-radius:10px;font-size:15px;line-height:1.55;">${htmlParts.join("")}</td></tr>
-<tr><td style="padding:14px 8px;font-size:12px;color:#71717a;line-height:1.5;text-align:center;">${esc(footer.reason)}<br>${esc(BUSINESS_NAME)}, ${esc(BUSINESS_ADDRESS)}${
-    footer.unsubscribeUrl ? `<br><a href="${esc(footer.unsubscribeUrl)}" style="color:#71717a;">${esc(footer.unsubscribeLabel ?? "Unsubscribe")}</a>` : ""
+<tr><td align="center" style="background:${NAVY};border-bottom:4px solid ${GOLD};border-radius:10px 10px 0 0;padding:20px;"><table cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#ffffff;border-radius:10px;padding:10px 18px;"><img src="${esc(logo)}" width="180" alt="${esc(BUSINESS_NAME)}" style="display:block;border:0;height:auto;"></td></tr></table></td></tr>
+<tr><td style="background:#fff;padding:24px;border-radius:0 0 10px 10px;font-size:15px;line-height:1.6;">${htmlParts.join("")}</td></tr>
+<tr><td style="padding:14px 8px;font-size:12px;color:#6b7280;line-height:1.5;text-align:center;">${esc(footer.reason)}<br>${esc(BUSINESS_NAME)}, ${esc(BUSINESS_ADDRESS)}${
+    footer.unsubscribeUrl ? `<br><a href="${esc(footer.unsubscribeUrl)}" style="color:${BLUE};">${esc(footer.unsubscribeLabel ?? "Unsubscribe")}</a>` : ""
   }</td></tr>
 </table></td></tr></table></body></html>`;
   return { subject, text: `${textParts.join("\n\n")}\n\n--\n${footerText}`, html };
@@ -88,7 +98,7 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
         "Welcome to S&C Performance Coaching",
         [
           { p: hi(c.name) },
-          { p: "Thanks for joining. S&C is a training, nutrition and recovery app built by a real coach and grounded in sports and health science, to help you train well and keep going." },
+          { p: "Thanks for joining. S&C is a training, nutrition and recovery app, built by a real coach and grounded in sports and health science, to help you train well and keep going." },
           { heading: "Three steps to get started" },
           {
             list: [
@@ -97,11 +107,14 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
               "Do a daily check-in (sleep, soreness, how you feel). It takes about 30 seconds and tells you how ready you are to train.",
             ],
           },
+          { heading: "What to expect" },
+          { p: "The more you log, the more useful the app gets. Your readiness score, training load and calorie targets are all built from what you record, so give it a couple of weeks of honest logging and you'll start to see patterns." },
+          { p: "You don't need to be perfect. An estimate is better than an empty log." },
           { heading: "Your data is yours" },
           { p: "We never sell your data or share it with advertisers." },
-          { p: "I'll send a few short tips over the next days. If you have a question at any point, just reply to this email." },
+          { p: "Over the next few days we'll send a few short tips. If you have a question at any point, just reply to this email and one of the team will get back to you." },
           open,
-          { p: SIGN_OFF },
+          { p: SIGN_OFF_TEAM },
         ],
         tipsFooter(c)
       );
@@ -112,13 +125,15 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
           { p: hi(c.name) },
           { p: "The app does three things, and they work best together." },
           { heading: "Log" },
-          { p: "Record your workouts and your food. For food you can search, scan a barcode, or take a photo of a label or meal. You check what the app read before it's saved." },
+          { p: "Record your workouts: weights, reps and sets, with supersets and a rest timer to keep you moving. Record your food too: you can search, scan a barcode, or take a photo of a label or meal, and you check what the app read before it's saved." },
           { heading: "Check in" },
-          { p: "A daily check-in gives you a readiness score and a seven-day view of your training load, so you know when to push and when to ease off." },
+          { p: "A daily check-in on sleep, soreness and how you feel gives you a readiness score and a seven-day view of your training load, so you know when to push and when to ease off." },
           { heading: "Adjust" },
-          { p: "Your calorie and protein targets and your training can change as your data builds up." },
+          { p: "Your calorie and protein targets and your training can change as your data builds up, so what you see this month fits you better than what you saw on day one." },
+          { heading: "A good first day" },
+          { p: "Log one meal, log one workout, and do today's check-in. That's enough to get the app working for you." },
           open,
-          { p: SIGN_OFF },
+          { p: SIGN_OFF_TEAM },
         ],
         tipsFooter(c)
       );
@@ -127,11 +142,13 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
         "How are you getting on?",
         [
           { p: hi(c.name) },
-          { p: "A quick check-in from me. You've had the app for a few days, and I wanted to see how you're settling in." },
-          { p: "Starting a new routine brings up questions. If you've hit a snag, or just want to check you're set up properly, reply to this email and I'll get back to you." },
+          { p: "A quick check-in from us. You've had the app for a few days, and we wanted to see how you're settling in." },
+          { p: "Starting a new routine brings up questions. If you've hit a snag, or just want to check you're set up properly, reply to this email and we'll get back to you." },
+          { heading: "If you're not sure where to start" },
+          { p: "Pick one thing. Log what you eat for a day, or do a daily check-in for a week. Small and regular beats big and occasional." },
           { p: "Don't worry about being perfect. Logging honestly and often is what makes it work." },
           open,
-          { p: SIGN_OFF },
+          { p: SIGN_OFF_TEAM },
         ],
         tipsFooter(c)
       );
@@ -142,8 +159,10 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
           { p: hi(c.name) },
           { p: "If you only build one habit, make it the daily check-in. It takes about 30 seconds, and over a week or two it shows you patterns in your sleep, soreness and energy that are hard to spot otherwise." },
           { p: "Then let it guide your sessions: push on the days you feel ready, and keep it lighter on the days you don't." },
+          { heading: "A second small habit" },
+          { p: "Log your weight regularly. Once a week is plenty. Your calorie targets are adjusted from your weight trend, so the more consistent the weigh-ins, the better the targets fit you." },
           open,
-          { p: SIGN_OFF },
+          { p: SIGN_OFF_TEAM },
         ],
         tipsFooter(c)
       );
@@ -163,7 +182,7 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
           },
           { p: "If you have any injuries, health conditions or anything else I should know about before you train, reply to this email, message me in the app, or tell me in person." },
           open,
-          { p: SIGN_OFF },
+          { p: SIGN_OFF_CONOR },
         ],
         tipsFooter(c)
       );
@@ -177,7 +196,7 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
           { p: "On the day of a class, the app may ask you to do a quick check-in beforehand, so your coach can see how you're feeling." },
           { p: "Your workouts, food and recovery all sit in the same app, so your coach can see how you're doing." },
           open,
-          { p: SIGN_OFF },
+          { p: SIGN_OFF_CONOR },
         ],
         tipsFooter(c)
       );
@@ -188,7 +207,7 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
           { p: hi(c.name) },
           { p: "You've been with us for a few days now. Is there anything I should know about how you're getting on, or anything about your training, injuries or health that would help me coach you better?" },
           { p: "Just reply to this email or message me in the app. Both come straight to me." },
-          { p: SIGN_OFF },
+          { p: SIGN_OFF_CONOR },
         ],
         tipsFooter(c)
       );
@@ -197,7 +216,7 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
   }
 }
 
-// ── Payment emails (a service message: no unsubscribe, they're about the member's own payment) ──
+// ── Payment emails (a service message: no unsubscribe, they're about the member's own payment). From the team, since they can reach any member. ──
 export function paymentFailedEmail(name: string): BuiltEmail {
   return render(
     "Your membership payment didn't go through",
@@ -206,7 +225,7 @@ export function paymentFailedEmail(name: string): BuiltEmail {
       { p: "We couldn't take your latest membership payment. This is usually an expired card or a bank block, and it's quick to fix." },
       { p: "Please check your payment details so your membership stays active. If you need a hand, reply to this email." },
       { link: { label: "Manage your membership", href: `${appUrl()}/dashboard/membership` } },
-      { p: SIGN_OFF },
+      { p: SIGN_OFF_TEAM },
     ],
     { reason: "You're getting this because it's about your S&C Performance Coaching membership payment." }
   );
@@ -218,9 +237,9 @@ export function membershipEndedEmail(name: string): BuiltEmail {
     [
       { p: hi(name) },
       { p: "Your S&C Performance Coaching membership has ended. Your account and your history are still there, and you can keep using the app on the free plan." },
-      { p: "If this wasn't expected, or you'd like to come back, reply to this email and I'll sort it." },
+      { p: "If this wasn't expected, or you'd like to come back, reply to this email and we'll sort it." },
       { link: { label: "Manage your membership", href: `${appUrl()}/dashboard/membership` } },
-      { p: SIGN_OFF },
+      { p: SIGN_OFF_TEAM },
     ],
     { reason: "You're getting this because it's about your S&C Performance Coaching membership." }
   );
