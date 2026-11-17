@@ -31,6 +31,7 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   challenge_ended: "Challenge finished",
   nutrition_update: "Nutrition",
   ai_spend_alert: "AI spending",
+  email_usage_alert: "Email sending",
   monthly_report: "Monthly report",
   class_recap: "Class workout",
 };
@@ -74,6 +75,7 @@ const TYPE_ICON: Record<NotificationType, string> = {
   challenge_ended: "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z",
   nutrition_update: "M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z",
   ai_spend_alert: "M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
+  email_usage_alert: "M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
   monthly_report: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
   class_recap: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
 };
@@ -108,6 +110,7 @@ const TYPE_IS_URGENT: Record<NotificationType, boolean> = {
   challenge_ended: false,
   nutrition_update: false,
   ai_spend_alert: true,
+  email_usage_alert: true,
   monthly_report: false,
   class_recap: false,
 };

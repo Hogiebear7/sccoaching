@@ -1,4 +1,5 @@
 import { aiSpendAlertJob } from "./ai-spend-alert";
+import { checkEmailUsageJob } from "./check-email-usage";
 import { monthlyReportEmailJob } from "./monthly-report-email";
 import { cleanupPastWaitlistsJob } from "./cleanup-past-waitlists";
 import { detectNoShowsJob } from "./detect-no-shows";
@@ -50,6 +51,7 @@ export const ALL_JOBS: JobDefinition[] = [
   notifyPregnancyGoalResumeJob,
   notifyCommunityChallengesJob,
   aiSpendAlertJob,
+  checkEmailUsageJob,
   monthlyReportEmailJob,
   detectNoShowsJob,
   cleanupPastWaitlistsJob,
