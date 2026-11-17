@@ -24,6 +24,8 @@ import { reversePassConsumption } from "@/lib/payments";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { sendPush } from "@/lib/push";
+import { sendEmail } from "@/lib/email";
+import { classCancelledEmail } from "@/lib/email-templates";
 import { removeSyncedWeeklyTrainingSession } from "@/lib/weekly-training-sync";
 
 // Deletes an upcoming class and unwinds every reservation against it.
@@ -134,9 +136,8 @@ export async function POST(request: NextRequest) {
       // Non-critical — the deletion itself has already succeeded.
     }
 
-    // Gym-initiated class cancellation — push-only notification (no email,
-    // see the class-notification channel policy in lib/db.ts). Credit claim
-    // only when this member's credit was actually restored, otherwise neutral.
+    // Gym-initiated class cancellation: in-app and push, and (owner decision 2026-11-17) an email too, because a push alone can be missed and the member
+    // needs to know the class isn't happening. Credit claim only when this member's credit was actually restored, otherwise neutral.
     const cancellationNotification: NotificationRecord = {
       id: randomUUID(),
       userId: booking.userId,
@@ -159,6 +160,17 @@ export async function POST(request: NextRequest) {
         body: cancellationNotification.body,
         linkHref: cancellationNotification.linkHref ?? "/dashboard/schedule",
       });
+    }
+    if (affectedProfile?.emailNotificationsEnabled !== false && affectedProfile?.email) {
+      const email = classCancelledEmail({
+        memberName: affectedProfile.fullName || affectedProfile.email,
+        className: classRecord.title,
+        classDate: new Date(classRecord.date).toLocaleDateString("en-IE", { weekday: "short", month: "short", day: "numeric" }),
+        startTime: classRecord.startTime,
+        creditRestored,
+      });
+      // Once per class and member, so a retried request can't email twice.
+      void sendEmail({ to: affectedProfile.email, ...email, kind: "class-cancelled", dedupeKey: `class-cancelled:${classRecord.id}:${booking.userId}` });
     }
   }
 

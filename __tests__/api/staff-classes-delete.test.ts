@@ -17,6 +17,8 @@ const {
   mockReversePassConsumption,
   mockFindClassSeriesById,
   mockSaveClassSeries,
+  mockFindProfile,
+  mockSendEmail,
 } = vi.hoisted(() => ({
   mockFindUserById: vi.fn(),
   mockFindClassById: vi.fn(),
@@ -31,13 +33,15 @@ const {
   mockReversePassConsumption: vi.fn(),
   mockFindClassSeriesById: vi.fn(),
   mockSaveClassSeries: vi.fn(),
+  mockFindProfile: vi.fn(),
+  mockSendEmail: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   findUserById: mockFindUserById,
   // Class-cancelled email helper reads the member profile; undefined here makes
   // the fire-and-forget email a no-op (these tests assert deletion/pass logic).
-  findProfileByUserId: vi.fn(),
+  findProfileByUserId: mockFindProfile,
   isTransactionalEmailEnabled: vi.fn(() => true),
   findClassById: mockFindClassById,
   findBookingsByClassId: mockFindBookingsByClassId,
@@ -59,6 +63,7 @@ vi.mock("@/lib/payments", () => ({
 // Class-cancelled is now push-only (no email) — stub the send so these tests
 // keep asserting deletion/pass logic, not the notification pipeline.
 vi.mock("@/lib/push", () => ({ sendPush: vi.fn() }));
+vi.mock("@/lib/email", () => ({ sendEmail: mockSendEmail }));
 
 const STAFF_USER = { id: "staff-1", email: "coach@example.com", role: "staff" as const };
 const MEMBER_USER = { id: "member-1", email: "member@example.com", role: "member" as const };
@@ -255,5 +260,37 @@ describe("POST /api/staff/classes/delete", () => {
     expect(body).toContain("has been cancelled by the club.");
     expect(body).not.toContain("returned");
     expect(body).not.toContain("class pass");
+  });
+});
+
+describe("POST /api/staff/classes/delete: the cancellation email", () => {
+  const profile = (over: Record<string, unknown> = {}) => ({ email: "m@example.com", fullName: "Mary Murphy", emailNotificationsEnabled: true, pushNotificationsEnabled: false, ...over });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindUserById.mockReturnValue(STAFF_USER);
+    mockFindClassById.mockReturnValue(FUTURE_CLASS);
+    mockFindBookingsByClassId.mockReturnValue([BOOKING_A]);
+    mockFindAllWaitlistEntries.mockReturnValue([]);
+    mockFindSubscriptionByUserId.mockReturnValue(SUBSCRIPTION);
+    mockReversePassConsumption.mockReturnValue(false);
+  });
+  const del = () => callDelete({ id: "class-1" }, signSession({ userId: STAFF_USER.id }, MEMBER_SESSION_LIFETIME_MS));
+
+  it("emails each booked member once, with a once-only key", async () => {
+    mockFindProfile.mockReturnValue(profile());
+    await del();
+    expect(mockSendEmail).toHaveBeenCalledTimes(1);
+    expect(mockSendEmail.mock.calls[0][0]).toMatchObject({
+      to: "m@example.com",
+      kind: "class-cancelled",
+      dedupeKey: "class-cancelled:class-1:member-1",
+    });
+    expect(mockSendEmail.mock.calls[0][0].subject).toContain("Evening Strength");
+  });
+
+  it("does not email a member who has switched emails off", async () => {
+    mockFindProfile.mockReturnValue(profile({ emailNotificationsEnabled: false }));
+    await del();
+    expect(mockSendEmail).not.toHaveBeenCalled();
   });
 });
