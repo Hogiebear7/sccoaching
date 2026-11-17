@@ -71,6 +71,24 @@ export function StaffUsersView({ rows, currentUserId }: { rows: Row[]; currentUs
         </p>
       ) : null}
 
+      <div className="panel space-y-2 p-4">
+        <p className="text-sm font-semibold">Newsletter lists</p>
+        <p className="text-xs text-muted-foreground">
+          Members who have opted in to news and offers. Download one list per group and import each into the matching Resend segment.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a href="/api/staff/comms/marketing-export?type=gym" className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent">
+            Download gym members
+          </a>
+          <a href="/api/staff/comms/marketing-export?type=app" className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent">
+            Download app members
+          </a>
+          <a href="/api/staff/comms/marketing-export" className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent">
+            Download everyone
+          </a>
+        </div>
+      </div>
+
       <CreateForm
         busy={busyId === "new"}
         onCreate={(payload) => run(null, () => post("/api/staff/staff-users", payload))}
