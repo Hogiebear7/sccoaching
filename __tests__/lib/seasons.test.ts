@@ -22,24 +22,51 @@ describe("seasons", () => {
     expect(currentSeason(at("2026-12-25")).overlay).toBeNull();
   });
 
-  it("every season shows on its dates, with the right pieces", () => {
-    expect(currentSeason(at("2027-02-10")).season).toMatchObject({ key: "valentines", particle: "hearts" });
-    expect(currentSeason(at("2027-03-14")).season).toMatchObject({ key: "stpatricks", particle: "shamrocks" });
-    expect(currentSeason(at("2027-03-27")).season).toMatchObject({ key: "easter", particle: "eggs" });
+  it("each event shows on its own days only, with the right pieces", () => {
+    // Valentine's: the one day.
+    expect(currentSeason(at("2027-02-13")).season).toBeNull();
+    expect(currentSeason(at("2027-02-14")).season).toMatchObject({ key: "valentines", particle: "hearts" });
+    expect(currentSeason(at("2027-02-15")).season).toBeNull();
+    // St Patrick's: the two days before, and the day.
+    expect(currentSeason(at("2027-03-14")).season).toBeNull();
+    expect(currentSeason(at("2027-03-15")).season).toMatchObject({ key: "stpatricks", particle: "shamrocks" });
+    expect(currentSeason(at("2027-03-17")).season?.key).toBe("stpatricks");
+    expect(currentSeason(at("2027-03-18")).season).toBeNull();
+    // Halloween: the last eight days of October.
+    expect(currentSeason(at("2026-10-23")).season).toBeNull();
+    expect(currentSeason(at("2026-10-24")).season).toMatchObject({ key: "halloween", particle: "cobwebs" });
+    expect(currentSeason(at("2026-10-31")).season?.key).toBe("halloween");
+    expect(currentSeason(at("2026-11-01")).season).toBeNull();
+    // No summer or autumn theme.
     expect(currentSeason(at("2027-07-04")).season).toBeNull();
     expect(currentSeason(at("2026-09-20")).season).toBeNull();
-    expect(currentSeason(at("2026-10-25")).season).toMatchObject({ key: "halloween", particle: "cobwebs" });
-    expect(currentSeason(at("2027-04-20")).season).toBeNull();
     expect(currentSeason(at("2027-05-10")).season).toBeNull();
-    expect(seasonKeyFor(2027, 2, 10)).toBe("valentines");
   });
 
-  it("works out Easter, and a week either side", () => {
+  it("Easter runs from the Thursday before Easter Sunday to the Tuesday after", () => {
     expect(easterSunday(2027)).toEqual({ month: 3, day: 28 });
     expect(easterSunday(2026)).toEqual({ month: 4, day: 5 });
-    expect(seasonKeyFor(2027, 3, 22)).toBe("easter");
-    expect(seasonKeyFor(2027, 4, 4)).toBe("easter");
-    expect(seasonKeyFor(2027, 4, 6)).toBeNull();
+    expect(seasonKeyFor(2027, 3, 24)).toBeNull(); // Wednesday before
+    expect(seasonKeyFor(2027, 3, 25)).toBe("easter"); // Holy Thursday
+    expect(seasonKeyFor(2027, 3, 28)).toBe("easter"); // Easter Sunday
+    expect(seasonKeyFor(2027, 3, 30)).toBe("easter"); // Easter Tuesday
+    expect(seasonKeyFor(2027, 3, 31)).toBeNull();
+    expect(seasonKeyFor(2026, 4, 2)).toBe("easter");
+    expect(seasonKeyFor(2026, 4, 7)).toBe("easter");
+    expect(seasonKeyFor(2026, 4, 8)).toBeNull();
+  });
+
+  it("the Happy Christmas message starts on 18 December; the snow look starts on 1 December", () => {
+    expect(currentSeason(at("2026-12-01")).greeting).toBeNull();
+    expect(currentSeason(at("2026-12-17")).greeting).toBeNull();
+    expect(currentSeason(at("2026-12-18")).greeting).toBe("Happy Christmas");
+    expect(currentSeason(at("2026-12-31")).greeting).toBe("Happy Christmas");
+    // 1 to 6 January: the New Year message takes over.
+    expect(currentSeason(at("2027-01-01")).greeting).toBeNull();
+    expect(currentSeason(at("2027-01-01")).overlay?.message).toContain("Happy New Year");
+    expect(currentSeason(at("2027-02-14")).greeting).toBe("Happy Valentine's Day");
+    // A forced preview always has its greeting.
+    expect(currentSeason(at("2026-05-10"), { forceKey: "christmas" }).greeting).toBe("Happy Christmas");
   });
 
   it("uses the Irish date, not the server's", () => {

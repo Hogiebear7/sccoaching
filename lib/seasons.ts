@@ -23,9 +23,19 @@ export interface SeasonNow {
   season: Season | null;
   /** Layered on top of the season for the first days of January: the New Year message from 1 to 6 January, with fireworks on 1 and 2 January only. */
   overlay: { key: "new-year"; fireworks: boolean; message: string } | null;
+  /** A short message for the splash screen and a banner (for example "Happy Christmas"), or null. Christmas has none until 18 December. */
+  greeting: string | null;
   /** The Irish calendar date this was worked out for (YYYY-MM-DD). */
   date: string;
 }
+
+const GREETINGS: Record<Season["key"], string> = {
+  christmas: "Happy Christmas",
+  valentines: "Happy Valentine's Day",
+  stpatricks: "Happy St Patrick's Day",
+  easter: "Happy Easter",
+  halloween: "Happy Halloween",
+};
 
 const SEASONS: Record<Season["key"], Season> = {
   christmas: { key: "christmas", label: "Christmas", particle: "snow", pile: true, hat: true, ready: true },
@@ -66,13 +76,13 @@ export function dublinDate(now: Date = new Date()): { y: number; m: number; d: n
 /** Which season a month and day falls in, or null for the plain brand look. Windows follow the owner's calendar. */
 export function seasonKeyFor(y: number, m: number, d: number): Season["key"] | null {
   const md = m * 100 + d;
-  if (md >= 1201 || md <= 106) return "christmas"; // 1 Dec to 6 Jan
-  if (md >= 201 && md <= 214) return "valentines";
-  if (md >= 310 && md <= 317) return "stpatricks";
+  if (md >= 1201 || md <= 106) return "christmas"; // 1 Dec to 6 Jan (the snow look; the Happy Christmas message starts 18 Dec)
+  if (md === 214) return "valentines"; // the one day
+  if (md >= 315 && md <= 317) return "stpatricks"; // the two days before, and the day
   const e = easterSunday(y);
-  const doy = dayOfYear(y, m, d);
-  if (Math.abs(doy - dayOfYear(y, e.month, e.day)) <= 7) return "easter"; // a week either side of Easter Sunday
-  if (md >= 1015 && md <= 1031) return "halloween";
+  const fromEaster = dayOfYear(y, m, d) - dayOfYear(y, e.month, e.day);
+  if (fromEaster >= -3 && fromEaster <= 2) return "easter"; // Holy Thursday to Easter Tuesday
+  if (md >= 1024 && md <= 1031) return "halloween"; // the last eight days of October
   return null;
 }
 
@@ -86,7 +96,7 @@ export interface SeasonOptions {
 /** What the site and app should look like right now. A season whose ready flag is off comes back as null (the plain brand look). */
 export function currentSeason(now: Date = new Date(), options: SeasonOptions = {}): SeasonNow {
   const { y, m, d, iso } = dublinDate(now);
-  if (options.enabled === false) return { season: null, overlay: null, date: iso };
+  if (options.enabled === false) return { season: null, overlay: null, greeting: null, date: iso };
   const forced = options.forceKey && options.forceKey in SEASONS ? (options.forceKey as Season["key"]) : null;
   const key = forced ?? seasonKeyFor(y, m, d);
   const season = key && SEASONS[key].ready ? SEASONS[key] : null;
@@ -95,5 +105,12 @@ export function currentSeason(now: Date = new Date(), options: SeasonOptions = {
   const fireworks = (m === 1 && (d === 1 || d === 2)) || options.forceKey === "new-year";
   const overlay =
     season?.key === "christmas" && newYearMessage ? ({ key: "new-year", fireworks, message: "Happy New Year from S&C Performance Coaching" } as const) : null;
-  return { season, overlay, date: iso };
+  // The greeting: Christmas shows "Happy Christmas" only from 18 to 31 December (1 to 6 January has the New Year message instead); the other events all day.
+  // A forced preview always shows its greeting.
+  let greeting: string | null = null;
+  if (season) {
+    if (season.key !== "christmas" || forced) greeting = GREETINGS[season.key];
+    else if (m === 12 && d >= 18) greeting = GREETINGS.christmas;
+  }
+  return { season, overlay, greeting, date: iso };
 }

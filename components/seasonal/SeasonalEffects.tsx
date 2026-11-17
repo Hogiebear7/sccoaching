@@ -145,7 +145,8 @@ function Fireworks() {
 
 export function SeasonalEffects() {
   const pathname = usePathname();
-  const { season, overlay } = useSeason();
+  const { season, overlay, greeting } = useSeason();
+  const bannerText = overlay?.message ?? greeting;
   const reduceMotion = useReducedMotion();
   const [bannerOpen, setBannerOpen] = useState(true);
 
@@ -155,9 +156,9 @@ export function SeasonalEffects() {
     <>
       {season.particle === "snow" && !reduceMotion ? <SnowCanvas /> : null}
       <SeasonScene season={overlay ? "christmas" : season.key} />
-      {overlay && bannerOpen ? (
+      {bannerText && bannerOpen ? (
         <div className="fixed left-1/2 top-16 z-[47] flex max-w-[92vw] -translate-x-1/2 items-center gap-3 rounded-full bg-[#e3b341] px-4 py-2 text-sm font-semibold text-[#16294a] shadow-lg sm:top-20">
-          <span>{overlay.message}</span>
+          <span>{bannerText}</span>
           <button type="button" onClick={() => setBannerOpen(false)} aria-label="Close message" className="rounded-full px-1.5 leading-none hover:bg-black/10">
             ×
           </button>
