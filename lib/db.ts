@@ -1862,6 +1862,8 @@ export type NotificationType =
   | "ai_spend_alert"
   // To the owner: email sending has reached 80% of Resend's daily or monthly cap (lib/jobs/check-email-usage.ts).
   | "email_usage_alert"
+  // To the owner: the newsletter list has passed 10 people, or the first newsletter is due (lib/jobs/newsletter-nudge.ts).
+  | "newsletter_nudge"
   // To gym managers in the first week of a month: last month's master workbook is ready (lib/jobs/monthly-report-email.ts).
   | "monthly_report"
   // To a member who came to a class: the coach has finished the class workout, have a look and add how it felt.
