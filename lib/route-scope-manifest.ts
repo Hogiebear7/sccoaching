@@ -317,6 +317,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/staff-users/archive", scope: "tenant-staff", capabilities: ["staffUsers.manage"], evidence: ["sameGym(", "protectedOperatorTarget"] },
   { route: "staff/workout-templates", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["templateInStaffGym"] },
   { route: "staff/workout-templates/delete", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["templateInStaffGym"] },
+  { route: "webhooks/resend", scope: "webhook", note: "Resend delivery events: Svix signature verified with RESEND_WEBHOOK_SECRET; only records events and suppresses an address, no tenant data." },
   { route: "stripe/webhook", scope: "webhook", note: "Stripe: signature verified; tenant derived from stored records, never from the payload." },
   { route: "webhooks/app-store", scope: "webhook", note: "App Store Server Notifications V2: JWS verified against the pinned Apple root; tenant derived from the stored purchase's user." },
   { route: "webhooks/google-play", scope: "webhook", note: "Google Pub/Sub push: shared-secret token; tenant derived from the stored purchase's user." },

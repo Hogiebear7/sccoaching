@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 
 import { getConfiguredAppUrl, getConfiguredEmailFrom, getConfiguredResendApiKey } from "@/lib/app-config";
+import { isEmailSuppressed } from "@/lib/db";
 
 const apiKey = getConfiguredResendApiKey() || null;
 const fromAddress = getConfiguredEmailFrom() || "onboarding@resend.dev";
@@ -37,6 +38,12 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
   if (!resend) {
     // Console fallback: same pattern as the forgot-password route.
     console.log(`[email] ${payload.subject} → ${payload.to}`);
+    return;
+  }
+
+  // An address that hard-bounced or complained is never emailed again (list kept from Resend's webhook, lib/email-events.ts).
+  if (isEmailSuppressed(payload.to)) {
+    console.log("[email] skipped, address is suppressed:", payload.subject, "→", payload.to);
     return;
   }
 
