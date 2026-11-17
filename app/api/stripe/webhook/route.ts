@@ -3,6 +3,7 @@ import {
   resolveSubscriptionEntitlement,
 } from "@/lib/membership-entitlement";
 import { cancelProviderSubscription } from "@/lib/billing";
+import { sendMembershipEndedEmail, sendPaymentFailedEmail } from "@/lib/comms";
 import { settleAbandonedCheckout } from "@/lib/checkout-recovery";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -485,6 +486,10 @@ export async function POST(request: NextRequest) {
           lastWebhookEventAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
+        // Tell the member (off unless COMMS_ENABLED=true; once per Stripe event, so a retry can't send it twice; never blocks the webhook).
+        // A subscription that was already canceled or past_due isn't announced again.
+        if (event.type === "invoice.payment_failed" && subscription.status !== "past_due") void sendPaymentFailedEmail(subscription.userId, event.id);
+        if (event.type === "customer.subscription.deleted" && subscription.status !== "canceled") void sendMembershipEndedEmail(subscription.userId, event.id);
         return ack("Subscription status updated.", ownerGymForSubscription(subscription));
       }
     }

@@ -32,6 +32,8 @@ export interface EmailPayload {
   attachments?: EmailAttachment[];
   /** Where replies go instead of the sender (e.g. the enquirer on a website lead). */
   replyTo?: string;
+  /** Extra mail headers, for example List-Unsubscribe and List-Unsubscribe-Post on optional emails. */
+  headers?: Record<string, string>;
   /** What this email is, for the send log ("booking-confirmation"...). Defaults to "other". */
   kind?: string;
   /** When set, the email goes once only: a second call with the same key is skipped (for example `welcome:<userId>`). */
@@ -67,6 +69,7 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     text: payload.text,
     attachments: payload.attachments,
     ...(payload.replyTo ? { replyTo: payload.replyTo } : {}),
+    ...(payload.headers ? { headers: payload.headers } : {}),
   }).catch((err: unknown) => ({ data: null, error: err }));
 
   if (error) {

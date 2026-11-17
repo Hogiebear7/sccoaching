@@ -10,6 +10,7 @@ import { AppearancePanel } from "@/components/settings/AppearancePanel";
 import { DeleteAccountPanel } from "@/components/settings/DeleteAccountPanel";
 import { SupportPanel } from "@/components/settings/SupportPanel";
 import { ScreenHeader } from "@/components/member/ScreenHeader";
+import { OptionalEmailCard } from "./OptionalEmailCard";
 // TRIAL-ONLY — see docs/bug-reports.md.
 import { BugReportPanel } from "@/components/settings/BugReportPanel";
 
@@ -712,6 +713,8 @@ export function SettingsView({
               </span>
             </button>
           </div>
+
+          <OptionalEmailCard initial={profile.emailPrefs} />
 
           {/* Push notifications */}
           {pushPermission !== "checking" && (
