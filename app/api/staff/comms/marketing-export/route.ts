@@ -16,6 +16,10 @@ export async function GET(request: NextRequest) {
   const auth = authorizeStaffRequest(request, "staffUsers.manage");
   if (!auth.ok) return auth.response;
 
+  // ?type=gym or ?type=app gives just that group (a file ready to import into the matching Resend segment); no type gives everyone.
+  const wanted = request.nextUrl.searchParams.get("type");
+  const only = wanted === "gym" || wanted === "app" ? wanted : null;
+
   const rows: string[] = ["email,first_name,type,consented_at,source"];
   for (const user of findMembers()) {
     if (user.archivedAt || !sameGym(auth.user, user)) continue;
@@ -24,12 +28,13 @@ export async function GET(request: NextRequest) {
     const prefs = effectivePrefs(profile.emailPrefs);
     if (!prefs.marketing || isEmailSuppressed(profile.email)) continue;
     const type = resolveMemberAccessForUser(user.id).gymMembership ? "gym" : "app";
+    if (only && type !== only) continue;
     const first = (profile.fullName || "").trim().split(/\s+/)[0] ?? "";
     rows.push([csv(profile.email), csv(first), type, prefs.marketingConsentAt ?? "", csv(prefs.marketingConsentSource ?? "")].join(","));
   }
 
   return new NextResponse(rows.join("\n") + "\n", {
     status: 200,
-    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="marketing-optins.csv"' },
+    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${only ? `${only}-members-optins` : "marketing-optins"}.csv"` },
   });
 }
