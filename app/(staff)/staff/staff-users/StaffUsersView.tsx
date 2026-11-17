@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { NewsletterListsCard } from "./NewsletterListsCard";
 import { ASSIGNABLE_STAFF_ROLES, STAFF_ROLE_LABEL, type StaffRole } from "@/lib/permissions";
 
 type Row = {
@@ -71,23 +72,7 @@ export function StaffUsersView({ rows, currentUserId }: { rows: Row[]; currentUs
         </p>
       ) : null}
 
-      <div className="panel space-y-2 p-4">
-        <p className="text-sm font-semibold">Newsletter lists</p>
-        <p className="text-xs text-muted-foreground">
-          Members who have opted in to news and offers. Download one list per group and import each into the matching Resend segment.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <a href="/api/staff/comms/marketing-export?type=gym" className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent">
-            Download gym members
-          </a>
-          <a href="/api/staff/comms/marketing-export?type=app" className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent">
-            Download app members
-          </a>
-          <a href="/api/staff/comms/marketing-export" className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent">
-            Download everyone
-          </a>
-        </div>
-      </div>
+      <NewsletterListsCard />
 
       <CreateForm
         busy={busyId === "new"}

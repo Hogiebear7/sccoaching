@@ -1,36 +1,32 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { effectivePrefs } from "@/lib/comms-prefs";
-import { findMembers, findProfileByUserId, isEmailSuppressed } from "@/lib/db";
-import { sameGym } from "@/lib/gym-scope";
-import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
+import { listOptIns } from "@/lib/comms-optins";
 import { authorizeStaffRequest } from "@/lib/staff-auth";
 
 // CSV of members who have opted in to news and offers (marketing), for importing into Resend's Audience before a newsletter. Only members of the acting
-// manager's own gym; never anyone who hasn't opted in, has switched emails off, or whose address bounced or complained. The "type" column is gym or app
-// so a newsletter can be sent to the right group (a gym member shouldn't get app-subscription promotions).
+// manager's own gym (listOptIns scopes with sameGym( on the viewer's gym); never anyone who hasn't opted in, has switched emails off, or whose address
+// bounced or complained. ?type=gym or ?type=app gives just that group, ready for the matching Resend segment; no type gives everyone.
 const csv = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 export async function GET(request: NextRequest) {
   const auth = authorizeStaffRequest(request, "staffUsers.manage");
   if (!auth.ok) return auth.response;
 
-  // ?type=gym or ?type=app gives just that group (a file ready to import into the matching Resend segment); no type gives everyone.
+  // ?count=1: just the numbers, for the count on the Staff users page.
+  if (request.nextUrl.searchParams.get("count") === "1") {
+    const all = listOptIns(auth.user);
+    const gym = all.filter((o) => o.type === "gym").length;
+    return NextResponse.json({ success: true, data: { gym, app: all.length - gym, total: all.length } });
+  }
+
   const wanted = request.nextUrl.searchParams.get("type");
   const only = wanted === "gym" || wanted === "app" ? wanted : null;
 
   const rows: string[] = ["email,first_name,type,consented_at,source"];
-  for (const user of findMembers()) {
-    if (user.archivedAt || !sameGym(auth.user, user)) continue;
-    const profile = findProfileByUserId(user.id);
-    if (!profile?.email || profile.emailNotificationsEnabled === false) continue;
-    const prefs = effectivePrefs(profile.emailPrefs);
-    if (!prefs.marketing || isEmailSuppressed(profile.email)) continue;
-    const type = resolveMemberAccessForUser(user.id).gymMembership ? "gym" : "app";
-    if (only && type !== only) continue;
-    const first = (profile.fullName || "").trim().split(/\s+/)[0] ?? "";
-    rows.push([csv(profile.email), csv(first), type, prefs.marketingConsentAt ?? "", csv(prefs.marketingConsentSource ?? "")].join(","));
+  for (const o of listOptIns(auth.user)) {
+    if (only && o.type !== only) continue;
+    rows.push([csv(o.email), csv(o.firstName), o.type, o.consentedAt ?? "", csv(o.source ?? "")].join(","));
   }
 
   return new NextResponse(rows.join("\n") + "\n", {
