@@ -5,6 +5,9 @@
 // Seasons are the events only (owner, 2026-11-17): Christmas to Epiphany, Valentine's, St Patrick's, Easter and Halloween. No summer or autumn theme: too long to have the
 // app themed. SEASONS_ENABLED=false still switches them all off.
 
+/** Bump this when the artwork files in public/seasonal change: phones add it to the file address, so they download the new pictures (no app build needed). */
+export const ART_VERSION = 1;
+
 export type Particle = "snow" | "hearts" | "shamrocks" | "eggs" | "sun" | "leaves" | "cobwebs";
 
 export interface Season {

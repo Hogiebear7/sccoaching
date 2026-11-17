@@ -11,6 +11,11 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // The seasonal artwork (the website and the phone app load it). Cached for an hour; phones add ?v=<artVersion> so new art is picked up when it changes.
+        source: "/seasonal/:file*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=3600" }],
+      },
+      {
         // Everything except the public legal pages (see the /privacy,/terms
         // rule below) — X-Frame-Options has no "allow" value, so keeping
         // these two out of a real clickjacking risk (auth, dashboard,
