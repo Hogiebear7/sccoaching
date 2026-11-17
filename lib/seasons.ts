@@ -2,7 +2,7 @@
 // server API (GET /api/season, used by the phone app) and the tests all share it. Dates are Irish local dates (Europe/Dublin). The brand stays navy and gold
 // all year; a season only adds effects (falling pieces, a hat on the logo, a banner).
 //
-// Only Christmas has artwork so far. The other seasons are defined (so the calendar is agreed in one place) but are switched off until their artwork exists.
+// Every season is on (2026-11-17, owner approved the looks in the test build). SEASONS_ENABLED=false still switches them all off.
 
 export type Particle = "snow" | "hearts" | "shamrocks" | "eggs" | "sun" | "leaves" | "cobwebs";
 
@@ -10,11 +10,11 @@ export interface Season {
   key: "christmas" | "valentines" | "stpatricks" | "easter" | "summer" | "autumn" | "halloween";
   label: string;
   particle: Particle;
-  /** Snow settled along the bottom of the screen (Christmas only). */
+  /** Something settled along the bottom of the screen: snow at Christmas, sand and a wave in summer, a pile of leaves in autumn. */
   pile: boolean;
-  /** A Santa hat on the logo (Christmas only). */
+  /** A Santa hat on the logo (Christmas only; the other seasons put their own small accessory on it, chosen by the season key). */
   hat: boolean;
-  /** False until the artwork for this season exists. */
+  /** Switch for a season's artwork. Every season is on now (vector artwork; the owner's Canva artwork can replace pieces later). */
   ready: boolean;
 }
 
@@ -28,12 +28,12 @@ export interface SeasonNow {
 
 const SEASONS: Record<Season["key"], Season> = {
   christmas: { key: "christmas", label: "Christmas", particle: "snow", pile: true, hat: true, ready: true },
-  valentines: { key: "valentines", label: "Valentine's", particle: "hearts", pile: false, hat: false, ready: false },
-  stpatricks: { key: "stpatricks", label: "St Patrick's", particle: "shamrocks", pile: false, hat: false, ready: false },
-  easter: { key: "easter", label: "Easter", particle: "eggs", pile: false, hat: false, ready: false },
-  summer: { key: "summer", label: "Summer", particle: "sun", pile: false, hat: false, ready: false },
-  autumn: { key: "autumn", label: "Autumn", particle: "leaves", pile: false, hat: false, ready: false },
-  halloween: { key: "halloween", label: "Halloween", particle: "cobwebs", pile: false, hat: false, ready: false },
+  valentines: { key: "valentines", label: "Valentine's", particle: "hearts", pile: false, hat: false, ready: true },
+  stpatricks: { key: "stpatricks", label: "St Patrick's", particle: "shamrocks", pile: false, hat: false, ready: true },
+  easter: { key: "easter", label: "Easter", particle: "eggs", pile: false, hat: false, ready: true },
+  summer: { key: "summer", label: "Summer", particle: "sun", pile: true, hat: false, ready: true },
+  autumn: { key: "autumn", label: "Autumn", particle: "leaves", pile: true, hat: false, ready: true },
+  halloween: { key: "halloween", label: "Halloween", particle: "cobwebs", pile: false, hat: false, ready: true },
 };
 
 /** Easter Sunday for a year (the standard Gregorian computus). */
@@ -86,14 +86,17 @@ export interface SeasonOptions {
   forceKey?: string | null;
 }
 
-/** What the site and app should look like right now. Seasons whose artwork isn't ready come back as null (the plain brand look). */
+/** What the site and app should look like right now. A season whose ready flag is off comes back as null (the plain brand look). */
 export function currentSeason(now: Date = new Date(), options: SeasonOptions = {}): SeasonNow {
   const { y, m, d, iso } = dublinDate(now);
   if (options.enabled === false) return { season: null, overlay: null, date: iso };
   const forced = options.forceKey && options.forceKey in SEASONS ? (options.forceKey as Season["key"]) : null;
   const key = forced ?? seasonKeyFor(y, m, d);
   const season = key && SEASONS[key].ready ? SEASONS[key] : null;
-  const newYear = (m === 1 && (d === 1 || d === 2)) || options.forceKey === "new-year";
-  const overlay = season?.key === "christmas" && newYear ? ({ key: "new-year", fireworks: true, message: "Happy New Year from S&C Performance Coaching" } as const) : null;
+  // New Year: the message shows 1 to 6 January (the end of the Christmas season); the fireworks only on 1 and 2 January.
+  const newYearMessage = (m === 1 && d <= 6) || options.forceKey === "new-year";
+  const fireworks = (m === 1 && (d === 1 || d === 2)) || options.forceKey === "new-year";
+  const overlay =
+    season?.key === "christmas" && newYearMessage ? ({ key: "new-year", fireworks, message: "Happy New Year from S&C Performance Coaching" } as const) : null;
   return { season, overlay, date: iso };
 }
