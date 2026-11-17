@@ -20,7 +20,7 @@ export interface Season {
 
 export interface SeasonNow {
   season: Season | null;
-  /** Layered on top of the season for a day or two (New Year: fireworks and a message). */
+  /** Layered on top of the season for the first days of January: the New Year message from 1 to 6 January, with fireworks on 1 and 2 January only. */
   overlay: { key: "new-year"; fireworks: boolean; message: string } | null;
   /** The Irish calendar date this was worked out for (YYYY-MM-DD). */
   date: string;
