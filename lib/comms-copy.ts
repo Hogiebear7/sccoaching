@@ -88,7 +88,7 @@ export function journeyEmail(stepId: string, c: JourneyContext): BuiltEmail | nu
         "Welcome to S&C Performance Coaching",
         [
           { p: hi(c.name) },
-          { p: "Thanks for joining. S&C is a training, nutrition and recovery app built by a real coach and grounded in sports science, to help you train well and keep going." },
+          { p: "Thanks for joining. S&C is a training, nutrition and recovery app built by a real coach and grounded in sports and health science, to help you train well and keep going." },
           { heading: "Three steps to get started" },
           {
             list: [
