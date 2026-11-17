@@ -2,7 +2,9 @@
 // seasonal workout posters). Christmas keeps its falling snow, which is the only thing that moves. Pointer-events none, so it never blocks a click.
 type ItemKind = "bunny" | "flag" | "pumpkin" | "jack" | "ghost" | "egg" | "shamrock" | "heart" | "arrowHeart" | "ball" | "star" | "pot" | "rainbow" | "sun" | "leaf";
 interface Item {
-  kind: ItemKind;
+  kind: ItemKind | "img";
+  /** For kind "img": a file from /seasonal (the owner's Canva artwork), drawn this many pixels wide. */
+  src?: string;
   left: string;
   size: number;
   lift?: number;
@@ -170,7 +172,7 @@ const SCENES: Record<string, { strip: Strip | null; items: Item[] }> = {
     strip: "grass",
     items: [
       { kind: "flag", left: "4%", size: 34, lift: 10 },
-      { kind: "shamrock", left: "42%", size: 18, lift: 12 },
+      { kind: "img", src: "clover", left: "42%", size: 20, lift: 12 },
       { kind: "pot", left: "84%", size: 30, lift: 10 },
       { kind: "rainbow", left: "92%", size: 36, lift: 10 },
     ],
@@ -178,12 +180,11 @@ const SCENES: Record<string, { strip: Strip | null; items: Item[] }> = {
   easter: {
     strip: "grass",
     items: [
-      { kind: "egg", left: "5%", size: 20, lift: 12, colour: "#ffd1dc" },
-      { kind: "egg", left: "16%", size: 18, lift: 12, colour: "#cde7ff" },
+      { kind: "img", src: "eggs", left: "6%", size: 34, lift: 10 },
+      { kind: "egg", left: "18%", size: 18, lift: 12, colour: "#cde7ff" },
       { kind: "bunny", left: "38%", size: 38, lift: 8 },
       { kind: "egg", left: "62%", size: 19, lift: 12, colour: "#fff1a8" },
-      { kind: "egg", left: "80%", size: 20, lift: 12, colour: "#e6d3ff" },
-      { kind: "egg", left: "93%", size: 18, lift: 12, colour: "#d6f5d6" },
+      { kind: "img", src: "basket", left: "90%", size: 40, lift: 8 },
     ],
   },
   halloween: {
@@ -216,12 +217,29 @@ export function SeasonScene({ season }: { season: string }) {
             d={scene.strip === "sand" ? "M0 30 L0 15 C50 11 90 18 140 14 C190 10 240 18 290 14 C340 10 380 16 400 14 L400 30 Z" : "M0 30 L0 15 C30 6 60 18 100 12 C140 6 170 18 210 12 C250 6 280 18 320 12 C350 8 380 14 400 16 L400 30 Z"}
             fill={PAINT[scene.strip][0]}
           />
+          {scene.strip === "grass" ? (
+            <path
+              d={Array.from({ length: 70 }, (_, i) => {
+                const x = 3 + i * 5.7 + ((i * 7) % 3);
+                const h = 3 + ((i * 5) % 4);
+                const lean = ((i * 3) % 5) - 2;
+                return `M${x} 15 L${x + lean} ${15 - h} L${x + 1.4} 15 Z`;
+              }).join(" ")}
+              fill={PAINT.grass[0]}
+              opacity="0.8"
+            />
+          ) : null}
           <path d="M0 30 L0 23 C40 19 80 26 130 22 C180 18 230 26 280 22 C330 18 370 24 400 24 L400 30 Z" fill={PAINT[scene.strip][1]} />
         </svg>
       ) : null}
       {scene.items.map((it, i) => (
         <span key={i} className="absolute" style={{ left: it.left, bottom: it.lift ?? 0, transform: "translateX(-50%)" }}>
-          <Art kind={it.kind} size={it.size} colour={it.colour} />
+          {it.kind === "img" ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={`/seasonal/${it.src}.png`} alt="" width={it.size} style={{ width: it.size, height: "auto" }} />
+          ) : (
+            <Art kind={it.kind} size={it.size} colour={it.colour} />
+          )}
         </span>
       ))}
     </div>

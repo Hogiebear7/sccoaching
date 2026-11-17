@@ -16,25 +16,14 @@ function Accessory({ season }: { season: string }) {
       </svg>
     );
   }
+  // The owner's Canva artwork for the witch hat and bunny ears (the Santa hat above is still drawn here, to sit exactly on the website logo).
   if (season === "halloween") {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 64 52" className={`${cls} -left-[6%] -top-[28%] h-[58%] w-auto -rotate-[14deg]`}>
-        <path d="M8 42 C14 30 22 14 40 4 C38 16 42 28 56 42 Z" fill="#1c1b22" />
-        <path d="M10 36 C26 32 42 32 54 38 L56 42 L8 42 Z" fill="#7b3fb0" />
-        <rect x="28" y="33" width="10" height="9" rx="1.5" fill="none" stroke="#f1c40f" strokeWidth="2" />
-        <ellipse cx="32" cy="45" rx="30" ry="5" fill="#1c1b22" />
-      </svg>
-    );
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img aria-hidden="true" alt="" src="/seasonal/witch-hat.png" className={`${cls} -left-[6%] -top-[34%] h-[62%] w-auto -rotate-[10deg]`} />;
   }
   if (season === "easter") {
-    return (
-      <svg aria-hidden="true" viewBox="0 0 64 56" className={`${cls} left-[4%] -top-[48%] h-[64%] w-auto`}>
-        <ellipse cx="22" cy="26" rx="8" ry="22" fill="#ffffff" transform="rotate(-12 22 26)" />
-        <ellipse cx="22" cy="28" rx="3.8" ry="16" fill="#ffb3c7" transform="rotate(-12 22 28)" />
-        <ellipse cx="44" cy="26" rx="8" ry="22" fill="#ffffff" transform="rotate(14 44 26)" />
-        <ellipse cx="44" cy="28" rx="3.8" ry="16" fill="#ffb3c7" transform="rotate(14 44 28)" />
-      </svg>
-    );
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img aria-hidden="true" alt="" src="/seasonal/bunny-ears.png" className={`${cls} left-[2%] -top-[44%] h-[56%] w-auto`} />;
   }
   return null;
 }
