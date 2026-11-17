@@ -2347,6 +2347,10 @@ interface Database {
   iapNotifications: IapNotificationRecord[];
   purchases: PurchaseRecord[];
   paymentEvents: PaymentEventRecord[];
+  // What Resend reported about the emails we sent (delivered, bounced, complained...), newest last, capped. See lib/email-events.ts.
+  emailEvents: EmailEventRecord[];
+  // Addresses we must not email again after a hard bounce or a spam complaint.
+  emailSuppressions: EmailSuppressionRecord[];
   passLedger: PassLedgerEntryRecord[];
   pendingCancellationCredits: PendingCancellationCreditRecord[];
   recoveryLogs: RecoveryLogRecord[];
@@ -2500,6 +2504,8 @@ function normalizeDatabase(raw: string | null): Database {
       iapNotifications: [],
       purchases: [],
       paymentEvents: [],
+      emailEvents: [],
+      emailSuppressions: [],
       passLedger: [],
       pendingCancellationCredits: [],
       recoveryLogs: [],
@@ -2689,6 +2695,8 @@ function normalizeDatabase(raw: string | null): Database {
       providerPaymentRef: p.providerPaymentRef ?? null,
     })),
     paymentEvents: parsed.paymentEvents ?? [],
+    emailEvents: parsed.emailEvents ?? [],
+    emailSuppressions: parsed.emailSuppressions ?? [],
     passLedger: (parsed.passLedger ?? []).map((e) => ({
       ...e,
       bookingId: e.bookingId ?? null,
@@ -6255,6 +6263,52 @@ export function savePurchase(purchase: PurchaseRecord) {
   if (index === -1) db.purchases.push(purchase);
   else db.purchases[index] = purchase;
   writeDb(db);
+}
+
+// ── Email delivery events and suppression (Resend webhook, app/api/webhooks/resend) ──
+export interface EmailEventRecord {
+  /** The webhook delivery id (svix-id): a redelivery of the same event is ignored. */
+  id: string;
+  /** Resend's id for the email, from the send response. */
+  emailId: string | null;
+  /** email.delivered, email.bounced, email.complained, email.delivery_delayed, email.failed, ... */
+  type: string;
+  /** The recipient address, lower-cased. */
+  to: string | null;
+  receivedAt: string;
+  /** Short, non-sensitive detail (bounce type and reason). Never the email body. */
+  detail: string | null;
+}
+
+export interface EmailSuppressionRecord {
+  /** Lower-cased address. */
+  email: string;
+  reason: "bounced" | "complained";
+  emailId: string | null;
+  at: string;
+}
+
+const MAX_EMAIL_EVENTS = 5000;
+
+export function recordEmailEvent(event: EmailEventRecord) {
+  const db = readDb();
+  if (db.emailEvents.some((e) => e.id === event.id)) return;
+  db.emailEvents.push(event);
+  if (db.emailEvents.length > MAX_EMAIL_EVENTS) db.emailEvents.splice(0, db.emailEvents.length - MAX_EMAIL_EVENTS);
+  writeDb(db);
+}
+
+export function addEmailSuppression(entry: EmailSuppressionRecord) {
+  const db = readDb();
+  const email = entry.email.trim().toLowerCase();
+  if (!email || db.emailSuppressions.some((s) => s.email === email)) return;
+  db.emailSuppressions.push({ ...entry, email });
+  writeDb(db);
+}
+
+export function isEmailSuppressed(email: string): boolean {
+  const lower = email.trim().toLowerCase();
+  return readDbShared().emailSuppressions.some((s) => s.email === lower);
 }
 
 // Webhook replay protection: true if this logical event was already applied.

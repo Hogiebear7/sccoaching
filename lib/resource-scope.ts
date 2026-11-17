@@ -106,6 +106,8 @@ export const COLLECTION_SCOPE = {
   iapNotifications: platform("Pub/Sub message-id dedupe for provider notifications. No tenant, no user."),
   purchases: user("userId", "ownerGym is provenance, not access control."),
   paymentEvents: { kind: "money-provenance", owner: "ownerGym", note: "Webhook idempotency ledger. Platform-only reads." },
+  emailEvents: platform("Resend delivery events (delivered, bounced, complained). Recipient addresses only, no bodies. Platform-only."),
+  emailSuppressions: platform("Addresses not to be emailed again after a hard bounce or complaint. Platform-only."),
   passLedger: user("userId", "ownerGym is provenance, not access control."),
   pendingCancellationCredits: user(),
   recoveryLogs: user(),
