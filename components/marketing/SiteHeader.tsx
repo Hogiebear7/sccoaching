@@ -1,5 +1,6 @@
 "use client";
 
+import { SeasonalLogo } from "@/components/seasonal/SeasonalLogo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef } from "react";
@@ -22,8 +23,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[var(--bg-0)]">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-6 lg:h-[72px]">
         <Link href="/" aria-label="S&C Performance Coaching, home" className="flex h-11 shrink-0 items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-          <img src="/brand/website-logo-v2.png" alt="" width={160} height={74} className="h-9 w-auto lg:h-11" />
+          <SeasonalLogo width={160} height={74} className="h-9 w-auto lg:h-11" />
         </Link>
 
         <nav aria-label="Main" className="hidden items-center gap-8 lg:flex">

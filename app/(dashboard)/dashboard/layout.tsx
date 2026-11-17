@@ -1,3 +1,4 @@
+import { SeasonalLogo } from "@/components/seasonal/SeasonalLogo";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -88,8 +89,7 @@ export default async function DashboardLayout({
         <aside className="hidden border-r border-white/[0.06] bg-[var(--sidebar)] lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
           <div className="px-6 pb-6 pt-7">
             <Link href="/dashboard" aria-label="S&C Performance Coaching, home" className="inline-block">
-              {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-              <img src="/brand/website-logo-v2.png" alt="" width={160} height={74} className="h-11 w-auto" />
+              <SeasonalLogo width={160} height={74} className="h-11 w-auto" />
             </Link>
           </div>
 
@@ -143,8 +143,7 @@ export default async function DashboardLayout({
             <div className="flex h-14 items-center justify-between gap-3 lg:h-16">
               <div className="min-w-0">
                 <Link href="/dashboard" aria-label="S&C Performance Coaching, home" className="flex h-11 items-center lg:hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, next/image's overhead isn't worth it here */}
-                  <img src="/brand/website-logo-v2.png" alt="" width={160} height={74} className="h-8 w-auto" />
+                  <SeasonalLogo width={160} height={74} className="h-8 w-auto" />
                 </Link>
                 <p className="hidden text-sm text-zinc-400 lg:block">
                   Welcome back{firstName ? `, ${firstName}` : ""}.
