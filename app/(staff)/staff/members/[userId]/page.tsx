@@ -52,6 +52,7 @@ import { MembershipAccessPanel } from "@/components/staff/MembershipAccessPanel"
 import { WorkoutHistoryPanel } from "@/components/staff/WorkoutHistoryPanel";
 import { CyclePhaseCard } from "@/components/member/CyclePhaseCard";
 import { DietaryRequirementsSummary } from "@/components/profile/DietaryRequirementsSummary";
+import { ParqSummary } from "@/components/staff/ParqSummary";
 import { StaffMemberEditor } from "./StaffMemberEditor";
 
 function CycleInfoRow({ label, value }: { label: string; value: string }) {
@@ -346,6 +347,9 @@ export default async function StaffMemberDetailPage({
 
       {/* Dietary requirements (read-only for staff) */}
       {!walled && profile ? <DietaryRequirementsSummary profile={profile} /> : null}
+
+      {/* Health check (PAR-Q): hidden from staff an admin has blocked from member health details */}
+      {!walled && profile && !staffUser.hideMemberHealth ? <ParqSummary parq={profile.parq} /> : null}
 
       {/* Cycle tracking */}
       {!walled && profile?.cycleTrackingEligible ? (

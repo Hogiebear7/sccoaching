@@ -83,6 +83,11 @@ export function ScheduleView({
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
+        // A gym member who hasn't done the health check (PAR-Q) yet is taken to it; booking works once it's saved.
+        if (data?.code === "parq_required") {
+          router.push("/dashboard/parq");
+          return;
+        }
         setErrorByClassId((prev) => ({
           ...prev,
           [classId]: data?.message ?? "Could not book this class.",
