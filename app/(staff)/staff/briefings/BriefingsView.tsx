@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { reportBlocks } from "@/lib/manager-report-render";
+import { StoreDownloadsForm } from "./StoreDownloadsForm";
 import type { ManagerReport } from "@/lib/manager-report-shared";
 
 const pill = (active: boolean) =>
@@ -70,6 +71,9 @@ export function BriefingsView({ report, offset, maxOffset }: { report: ManagerRe
                 <li key={i}>{x}</li>
               ))}
             </ul>
+          ) : null}
+          {b.title === "App only" && report.app && report.app.downloads.month !== null ? (
+            <StoreDownloadsForm month={report.app.downloads.month} label={report.period.label} appStore={report.app.downloads.appStore} googlePlay={report.app.downloads.googlePlay} />
           ) : null}
           {b.title === "Members" && report.gym.members.quietNames.length > 0 ? (
             <p className="mt-3 text-xs text-muted-foreground">

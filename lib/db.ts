@@ -2258,6 +2258,9 @@ export interface BugReportRecord {
 //    anchor + ledger movements since the anchor date — an app-calculated
 //    estimate, never a bank-synced value. null = no anchor set yet.
 export interface FinanceSettings {
+  /** Apple and Google download numbers the owner typed in for a calendar month ("2026-10"), from App Store Connect and Google Play Console, which do not report
+      them to this system. Used only by the monthly manager report. Absent until one is entered. */
+  storeDownloads?: Record<string, { appStore: number | null; googlePlay: number | null }>;
   taxRatePercent: number | null;
   stripeFeePercent: number | null;
   stripeFeeFixedCents: number | null;

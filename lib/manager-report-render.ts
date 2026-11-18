@@ -93,7 +93,15 @@ export function reportBlocks(report: ManagerReport): Block[] {
       lines: [
         { label: "Total users", value: String(app.totalUsers) },
         { label: "App Subscription holders", value: `${app.subscribers.total} (Apple ${app.subscribers.appStore}, Google ${app.subscribers.googlePlay}, complimentary ${app.subscribers.complimentary})` },
-        { label: "Downloads", value: "not available yet" },
+        {
+          label: "Downloads",
+          value:
+            app.downloads.month === null
+              ? "monthly report only"
+              : app.downloads.appStore === null && app.downloads.googlePlay === null
+                ? "not entered yet"
+                : `Apple ${app.downloads.appStore ?? "n/a"}, Google ${app.downloads.googlePlay ?? "n/a"}${app.downloads.appStore !== null && app.downloads.googlePlay !== null ? ` (${app.downloads.appStore + app.downloads.googlePlay} in all)` : ""}`,
+        },
         { label: "Trials started / ended without converting", value: `${app.trialsStarted ?? "n/a"} / ${app.trialsEndedWithoutConverting}` },
         { label: "Income", value: app.money.incomeLineCount > 0 ? eur(app.money.incomeCents) : "none recorded" },
         { label: "Apple and Google cut", value: eur(app.money.feesCents) },

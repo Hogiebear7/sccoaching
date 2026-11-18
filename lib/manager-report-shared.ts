@@ -277,8 +277,9 @@ export interface AppSection {
   trialsEndedWithoutConverting: number;
   money: MoneySummary;
   ai: AiCostSummary;
-  /** Downloads are not reported by the stores to this system yet. Always null in phase 1. */
-  downloads: { appStore: number | null; googlePlay: number | null };
+  /** Apple and Google download numbers for the month, as the owner typed them in (the stores do not report them to this system). Null when not entered, and
+      always null in a weekly report. `month` is the calendar month the figures belong to ("2026-10"), null for weekly. */
+  downloads: { appStore: number | null; googlePlay: number | null; month: string | null };
 }
 
 export interface PlatformGymRow {
@@ -313,12 +314,13 @@ export interface ManagerReport {
 
 /** The rule-based "things to look at": no AI, just thresholds on the figures. */
 export function buildAttention(input: {
+  cadence: ReportCadence;
   gym: GymSection;
   money: GymMoneySection | null;
   app: AppSection | null;
 }): Attention[] {
   const out: Attention[] = [];
-  const { gym, money, app } = input;
+  const { cadence, gym, money, app } = input;
   if (gym.members.quiet > 0) {
     out.push({ level: "watch", text: `${gym.members.quiet} current member${gym.members.quiet === 1 ? " has" : "s have"} not trained in 14 days or more.`, href: "/staff/attendance" });
   }
@@ -345,6 +347,13 @@ export function buildAttention(input: {
     if (money.failedCount > 0) out.push({ level: "watch", text: `${money.failedCount} failed or disputed payment${money.failedCount === 1 ? "" : "s"} (€${(money.failedCents / 100).toFixed(2)}).`, href: "/staff/finances" });
     if (money.refundedCount > 0) out.push({ level: "info", text: `${money.refundedCount} refund${money.refundedCount === 1 ? "" : "s"} (€${(money.refundedCents / 100).toFixed(2)}).`, href: "/staff/finances" });
     if (money.pendingCount > 0) out.push({ level: "info", text: `${money.pendingCount} payment${money.pendingCount === 1 ? " is" : "s are"} still pending (€${(money.pendingCents / 100).toFixed(2)}).`, href: "/staff/finances" });
+  }
+  if (app && cadence === "monthly" && (app.downloads.appStore === null || app.downloads.googlePlay === null)) {
+    out.push({
+      level: "watch",
+      text: "Enter last month's app downloads: App Store Connect (Analytics) for Apple, Google Play Console (Statistics) for Google. Type them in on the Briefings page.",
+      href: "/staff/briefings?cadence=monthly#downloads",
+    });
   }
   if (app && app.money.incomeLineCount === 0) {
     out.push({ level: "info", text: "No App Subscription income is recorded for this period. Enter the Apple and Google payouts in Staff > Finances.", href: "/staff/finances" });

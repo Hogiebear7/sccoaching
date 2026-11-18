@@ -205,8 +205,15 @@ function buildAppSection(period: ReportPeriod, lines: FinanceLine[], taxRate: nu
     trialsEndedWithoutConverting: trialsEnded,
     money: { ...money, balanceCents: net, taxSetAsideCents: taxSetAsideCents(net, taxRate) ?? 0 },
     ai,
-    downloads: { appStore: null, googlePlay: null },
+    downloads: downloadsFor(period),
   };
+}
+
+// The Apple and Google download numbers typed in for a calendar month (monthly reports only; a week has none).
+function downloadsFor(period: ReportPeriod): AppSection["downloads"] {
+  if (period.cadence !== "monthly") return { appStore: null, googlePlay: null, month: null };
+  const saved = getFinanceSettings().storeDownloads?.[period.key];
+  return { appStore: saved?.appStore ?? null, googlePlay: saved?.googlePlay ?? null, month: period.key };
 }
 
 function buildPlatformRows(period: ReportPeriod): PlatformGymRow[] {
@@ -248,7 +255,11 @@ export function buildManagerReport(actor: ReportActor, cadence: ReportCadence, o
 
   const notes: string[] = [];
   if (app) {
-    notes.push("App downloads from Apple and Google are not available to this system yet; the stores only report them in their own consoles.");
+    notes.push(
+      cadence === "monthly"
+        ? "App downloads are the numbers you type in each month (the stores do not report them to this system)."
+        : "App downloads are only recorded monthly: they show in the monthly report, from the numbers you type in."
+    );
     notes.push("App income and the Apple and Google cut are the figures entered in Staff > Finances.");
     notes.push("Trials started is a lower bound and trials ended is approximate: the system keeps each subscription's current state, not its history.");
   }
@@ -265,7 +276,7 @@ export function buildManagerReport(actor: ReportActor, cadence: ReportCadence, o
     money,
     app,
     platform,
-    attention: buildAttention({ gym, money, app }),
+    attention: buildAttention({ cadence, gym, money, app }),
     notes,
   };
 }
