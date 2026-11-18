@@ -23,6 +23,63 @@ function useReducedMotion(): boolean {
   );
 }
 
+// Snow in three depths, so it reads as a real fall rather than one sheet of dots: far flakes are small, dim and slow; middle flakes are crisp, some of them
+// six-armed crystals that turn as they fall; near flakes are large, soft and out of focus, and they move fastest. A slow wind gusts across all of them (the near
+// ones feel it most). Every flake is a pre-drawn sprite, so ~100 of them stay cheap.
+function makeSprites(dpr: number) {
+  const make = (size: number, draw: (c: CanvasRenderingContext2D, s: number) => void) => {
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = Math.ceil(size * dpr);
+    const c = cv.getContext("2d")!;
+    c.scale(dpr, dpr);
+    draw(c, size);
+    return cv;
+  };
+  const soft = (blur: number) =>
+    make(64, (c, s) => {
+      const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      g.addColorStop(0, "rgba(255,255,255,1)");
+      g.addColorStop(Math.max(0, 1 - blur), "rgba(255,255,255,0.9)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      c.fillStyle = g;
+      c.fillRect(0, 0, s, s);
+    });
+  const crystal = (branches: boolean) =>
+    make(64, (c, s) => {
+      c.translate(s / 2, s / 2);
+      c.strokeStyle = "rgba(255,255,255,0.95)";
+      c.lineCap = "round";
+      c.shadowColor = "rgba(190,220,255,0.9)";
+      c.shadowBlur = 3;
+      for (let i = 0; i < 6; i++) {
+        c.save();
+        c.rotate((i * Math.PI) / 3);
+        c.lineWidth = 3;
+        c.beginPath();
+        c.moveTo(0, 0);
+        c.lineTo(0, -26);
+        c.stroke();
+        if (branches) {
+          c.lineWidth = 2;
+          for (const d of [10, 18]) {
+            c.beginPath();
+            c.moveTo(0, -d);
+            c.lineTo(-7 * (1 - d / 40), -d - 7);
+            c.moveTo(0, -d);
+            c.lineTo(7 * (1 - d / 40), -d - 7);
+            c.stroke();
+          }
+        }
+        c.restore();
+      }
+      c.fillStyle = "#fff";
+      c.beginPath();
+      c.arc(0, 0, 2.6, 0, 6.283);
+      c.fill();
+    });
+  return { dot: soft(0.35), bokeh: soft(0.8), crystalPlain: crystal(false), crystalFine: crystal(true) };
+}
+
 function SnowCanvas() {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -30,39 +87,72 @@ function SnowCanvas() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const sprites = makeSprites(dpr);
     let w = 0;
     let h = 0;
     let raf = 0;
-    type Flake = { x: number; y: number; r: number; v: number; sway: number; phase: number };
+    let last = 0;
+    type Layer = "far" | "mid" | "near";
+    type Flake = { x: number; y: number; size: number; v: number; sway: number; phase: number; alpha: number; layer: Layer; img: HTMLCanvasElement; spin: number; angle: number };
     let flakes: Flake[] = [];
+    const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+    const spawn = (layer: Layer, y: number): Flake => {
+      if (layer === "far") return { x: rnd(0, w), y, size: rnd(3, 6), v: rnd(14, 26), sway: rnd(4, 10), phase: rnd(0, 6.28), alpha: rnd(0.35, 0.65), layer, img: sprites.dot, spin: 0, angle: 0 };
+      if (layer === "mid") {
+        const cr = Math.random() < 0.3;
+        return { x: rnd(0, w), y, size: cr ? rnd(11, 17) : rnd(5, 9), v: rnd(30, 52), sway: rnd(10, 22), phase: rnd(0, 6.28), alpha: rnd(0.7, 0.95), layer, img: cr ? sprites.crystalFine : sprites.dot, spin: cr ? rnd(-0.9, 0.9) : 0, angle: rnd(0, 6.28) };
+      }
+      const cr = Math.random() < 0.25;
+      return { x: rnd(0, w), y, size: cr ? rnd(20, 30) : rnd(14, 26), v: rnd(70, 110), sway: rnd(18, 34), phase: rnd(0, 6.28), alpha: cr ? rnd(0.3, 0.45) : rnd(0.28, 0.5), layer, img: cr ? sprites.crystalPlain : sprites.bokeh, spin: cr ? rnd(-1.2, 1.2) : 0, angle: rnd(0, 6.28) };
+    };
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       w = window.innerWidth;
       h = window.innerHeight;
       canvas.width = w * dpr;
       canvas.height = h * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const count = Math.max(24, Math.min(90, Math.round(w / 14)));
-      flakes = Array.from({ length: count }, () => ({ x: Math.random() * w, y: Math.random() * h, r: 1 + Math.random() * 2.4, v: 0.4 + Math.random() * 0.9, sway: 8 + Math.random() * 18, phase: Math.random() * 6.28 }));
+      const k = Math.max(0.5, Math.min(1.4, w / 1100));
+      flakes = [
+        ...Array.from({ length: Math.round(70 * k) }, () => spawn("far", rnd(0, h))),
+        ...Array.from({ length: Math.round(46 * k) }, () => spawn("mid", rnd(0, h))),
+        ...Array.from({ length: Math.round(11 * k) }, () => spawn("near", rnd(0, h))),
+      ];
     };
     const tick = (t: number) => {
+      const dt = Math.min((t - (last || t)) / 1000, 0.05);
+      last = t;
+      // A slow wind that gusts: mostly a gentle lean to one side, now and then a stronger push.
+      const wind = Math.sin(t / 5200) * 14 + Math.sin(t / 1700 + 1.3) * 7;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
       for (const f of flakes) {
-        f.y += f.v;
-        if (f.y > h + 4) {
-          f.y = -4;
-          f.x = Math.random() * w;
+        const depth = f.layer === "near" ? 1.6 : f.layer === "mid" ? 1 : 0.5;
+        f.y += f.v * dt;
+        f.x += wind * depth * dt;
+        f.angle += f.spin * dt;
+        if (f.y > h + f.size) {
+          Object.assign(f, spawn(f.layer, -f.size));
         }
-        const x = f.x + Math.sin(t / 1400 + f.phase) * f.sway;
-        ctx.beginPath();
-        ctx.arc(x, f.y, f.r, 0, 6.283);
-        ctx.fill();
+        if (f.x > w + 40) f.x = -40;
+        else if (f.x < -40) f.x = w + 40;
+        const x = f.x + Math.sin(t / (f.layer === "near" ? 2200 : 1500) + f.phase) * f.sway;
+        ctx.globalAlpha = f.alpha;
+        if (f.spin) {
+          ctx.save();
+          ctx.translate(x, f.y);
+          ctx.rotate(f.angle);
+          ctx.drawImage(f.img, -f.size / 2, -f.size / 2, f.size, f.size);
+          ctx.restore();
+        } else {
+          ctx.drawImage(f.img, x - f.size / 2, f.y - f.size / 2, f.size, f.size);
+        }
       }
+      ctx.globalAlpha = 1;
       raf = requestAnimationFrame(tick);
     };
     const start = () => {
       cancelAnimationFrame(raf);
+      last = 0;
       if (!document.hidden) raf = requestAnimationFrame(tick);
     };
     resize();
