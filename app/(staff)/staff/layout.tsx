@@ -60,6 +60,7 @@ const navSections: StaffNavSection[] = [
     items: [
       { label: "Memberships & Pricing", href: "/staff/catalog",   capability: NAV_CAPABILITY["/staff/catalog"], icon: "catalog", hint: "Plans, packs and prices" },
       { label: "Finances",              href: "/staff/finances",  capability: NAV_CAPABILITY["/staff/finances"], icon: "finances", hint: "Payments and the ledger" },
+      { label: "Briefings",             href: "/staff/briefings", capability: NAV_CAPABILITY["/staff/briefings"], icon: "reports", hint: "Weekly and monthly briefings" },
       { label: "Reports",               href: "/staff/reports",   capability: NAV_CAPABILITY["/staff/reports"], icon: "reports", hint: "Trends over time" },
       { label: "Exports",               href: "/staff/exports",   capability: NAV_CAPABILITY["/staff/exports"], icon: "exports", hint: "Spreadsheets and the master workbook" },
       { label: "Staff changes",         href: "/staff/changes",   capability: NAV_CAPABILITY["/staff/changes"], icon: "changes", hint: "Every staff change to a member" },
