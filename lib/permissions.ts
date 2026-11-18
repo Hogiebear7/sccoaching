@@ -181,6 +181,7 @@ export const NAV_CAPABILITY: Record<string, Capability> = {
   "/staff/staff-users": "staffUsers.manage",
   "/staff/finances": "finance.view",
   "/staff/reports": "reports.view",
+  "/staff/briefings": "reports.view",
   "/staff/exports": "reports.view",
   "/staff/changes": "reports.view",
   "/staff/nutrition-submissions": "foodCatalog.manage",

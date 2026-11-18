@@ -3,6 +3,7 @@ import { checkEmailUsageJob } from "./check-email-usage";
 import { sendJourneyEmailsJob } from "./send-journey-emails";
 import { newsletterNudgeJob } from "./newsletter-nudge";
 import { monthlyReportEmailJob } from "./monthly-report-email";
+import { managerReportEmailJob } from "./manager-report-email";
 import { cleanupPastWaitlistsJob } from "./cleanup-past-waitlists";
 import { detectNoShowsJob } from "./detect-no-shows";
 import { dropLapsedManualMembershipsJob } from "./drop-lapsed-manual-memberships";
@@ -57,6 +58,7 @@ export const ALL_JOBS: JobDefinition[] = [
   sendJourneyEmailsJob,
   newsletterNudgeJob,
   monthlyReportEmailJob,
+  managerReportEmailJob,
   detectNoShowsJob,
   cleanupPastWaitlistsJob,
   purgeExpiredResetTokensJob,
