@@ -150,6 +150,9 @@ export interface WorkoutExerciseEntry {
   /** Place in the whole workout, exercises and cardio together (0, 1, 2 ...). Absent on entries saved before ordering existed, which show
       every exercise first and then the cardio. */
   order?: number | null;
+  /** The body part the member picked for an exercise of their own that is not in the library, so it shows the same muscle picture as the rest. Absent for
+      library exercises and on older entries. */
+  muscleSection?: ExerciseSection | null;
   notes: string | null;
 }
 

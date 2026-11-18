@@ -31,3 +31,18 @@ describe("entry order", () => {
     expect(parseCardioFields({ supersetGroup: 7 })).toEqual({});
   });
 });
+
+describe("body part of an exercise the member added themselves", () => {
+  it("keeps a valid body part and leaves the field off otherwise (library exercises, older apps, junk)", () => {
+    const [mine, library, junk, older] = parseExerciseEntries([
+      { name: "Sandbag clean", muscleSection: "lower_pull" },
+      { name: "Back Squat", exerciseId: "ex-1" },
+      { name: "Weird", muscleSection: "not_a_section" },
+      { name: "Old entry" },
+    ]);
+    expect(mine.muscleSection).toBe("lower_pull");
+    expect("muscleSection" in library).toBe(false);
+    expect("muscleSection" in junk).toBe(false);
+    expect("muscleSection" in older).toBe(false);
+  });
+});
