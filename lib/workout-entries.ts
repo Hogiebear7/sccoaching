@@ -5,6 +5,13 @@ export function parseOrder(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1000 ? Math.floor(value) : null;
 }
 
+const SECTIONS = ["upper_push", "upper_pull", "lower_push", "lower_pull", "core", "cardio"] as const;
+
+/** The body part of an exercise the member added themselves, or undefined when none (or anything unusable) was sent. */
+export function parseMuscleSection(value: unknown): (typeof SECTIONS)[number] | undefined {
+  return typeof value === "string" && (SECTIONS as readonly string[]).includes(value) ? (value as (typeof SECTIONS)[number]) : undefined;
+}
+
 const SET_TYPES: WorkoutSetType[] = ["standard", "warmup", "dropset", "myoset", "failure", "partial"];
 
 function parseSetType(value: unknown): WorkoutSetType | null {
@@ -69,6 +76,7 @@ export function parseExerciseEntries(exercises: unknown): WorkoutExerciseEntry[]
         supersetGroup: typeof e.supersetGroup === "string" && e.supersetGroup.trim() ? e.supersetGroup.trim() : null,
         perSide: e.perSide === true,
         order: parseOrder(e.order),
+        ...(parseMuscleSection(e.muscleSection) ? { muscleSection: parseMuscleSection(e.muscleSection) } : {}),
         notes: typeof e.notes === "string" && e.notes.trim() ? e.notes.trim() : null,
       } satisfies WorkoutExerciseEntry,
     ];
