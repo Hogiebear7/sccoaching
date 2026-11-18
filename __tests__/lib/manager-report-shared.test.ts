@@ -14,6 +14,7 @@ import {
   summarizeAiCost,
   summarizeMoney,
   taxSetAsideCents,
+  type AppSection,
   type GymSection,
 } from "@/lib/manager-report-shared";
 
@@ -215,14 +216,24 @@ describe("buildAttention", () => {
   });
 
   it("says nothing when nothing crosses a threshold", () => {
-    expect(buildAttention({ gym: gym({}), money: null, app: null })).toEqual([]);
+    expect(buildAttention({ cadence: "weekly", gym: gym({}), money: null, app: null })).toEqual([]);
   });
 
   it("flags quiet members, a 20% fall in bookings, a high no-show rate and more leavers than joiners", () => {
-    const text = buildAttention({ gym: gym({ quiet: 4, bookingsChange: -25, noShows: 20, total: 100, lost: 5, signups: 2 }), money: null, app: null }).map((a) => a.text);
+    const text = buildAttention({ cadence: "weekly", gym: gym({ quiet: 4, bookingsChange: -25, noShows: 20, total: 100, lost: 5, signups: 2 }), money: null, app: null }).map((a) => a.text);
     expect(text.some((t) => t.startsWith("4 current members have not trained"))).toBe(true);
     expect(text.some((t) => t.includes("down 25%"))).toBe(true);
     expect(text.some((t) => t.includes("20 no-shows out of 100"))).toBe(true);
     expect(text.some((t) => t.includes("More memberships ended (5) than started (2)"))).toBe(true);
+  });
+
+  it("the monthly report asks for the app download numbers until both are entered; a weekly one does not", () => {
+    const app = (downloads: { appStore: number | null; googlePlay: number | null; month: string | null }) =>
+      ({ money: { incomeLineCount: 1 }, downloads }) as unknown as AppSection;
+    const prompt = (a: AppSection, cadence: "weekly" | "monthly") => buildAttention({ cadence, gym: gym({}), money: null, app: a }).filter((x) => x.text.startsWith("Enter last month's app downloads"));
+    expect(prompt(app({ appStore: null, googlePlay: null, month: "2026-10" }), "monthly")).toHaveLength(1);
+    expect(prompt(app({ appStore: 120, googlePlay: null, month: "2026-10" }), "monthly")).toHaveLength(1);
+    expect(prompt(app({ appStore: 120, googlePlay: 95, month: "2026-10" }), "monthly")).toHaveLength(0);
+    expect(prompt(app({ appStore: null, googlePlay: null, month: null }), "weekly")).toHaveLength(0);
   });
 });

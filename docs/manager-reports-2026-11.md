@@ -36,7 +36,7 @@ Each report is for one gym (or the app business) and one period. **Weekly** = th
 - Total users (all accounts), App Subscription holders by store (Apple, Google, complimentary)
 - Plans bought in the period (monthly or yearly), trials started, trials ended without converting
 - Income (the Apple and Google payouts you enter in Finances), the Apple and Google cut (fees entered), AI cost total and average for App Subscription users, tax set aside, balance (income minus the cut minus AI cost)
-- **Downloads:** not available (see below)
+- **Downloads:** typed in by you once a month (see below)
 
 ### Platform section (you only)
 - One line per gym on the platform: members, new sign-ups, bookings, classes. No tenant money. Tenant billing is not live, so money stays out of their reports and out of this section.
@@ -50,14 +50,14 @@ Members who have gone quiet, failed, refunded or pending payments, a fall of mor
 3. **Tenants:** their gym managers get the gym report only, scoped to their own gym.
 
 ## Data gaps (stated in the report itself, not hidden)
-- **Downloads from Apple and Google:** the stores do not send us these. Connecting them means an App Store Connect API key and a Google Play reporting export. Not part of phase 1.
+- **Downloads from Apple and Google:** the stores do not send us these, so the monthly report asks for them: a "Things to look at" prompt, plus a small form on Staff > Briefings (monthly, App only) where you type the Apple and Google numbers for the month. Saved with the Finances settings. Connecting the stores automatically (an App Store Connect API key and a Google Play reporting export) is phase 2. Weekly reports do not show downloads.
 - **App income:** comes from what you enter in Staff > Finances. If nothing is entered for a period the report says so.
 - **Lost members and trials ended:** the system stores each member's current status, not a history, so these are close approximations using the last change date. Staff > Overview uses the same method.
 - **Tenant money:** excluded until tenant billing exists.
 
 ## Phase 2 (not built yet)
 - AI-written commentary on top of the numbers (aggregate figures only, never names or health data)
-- Store download numbers
+- Store download numbers pulled in automatically (today you type them in)
 - Per-tenant revenue share, once tenants pay through the platform
 
 ## Decisions already made
