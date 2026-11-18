@@ -22,16 +22,21 @@ import {
   type LeaderboardRange,
 } from "@/lib/leaderboard";
 import { hiddenFromViewer } from "@/lib/community-moderation";
+import { hasAccess } from "@/lib/member-access";
+import { requireFeature } from "@/lib/member-access-response";
+import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
 const MAX_ENTRIES = 100;
 
-// GET /api/mobile/community/leaderboard?metric=volume|squat|bench|deadlift&range=week|month|year|all|custom&start=YYYY-MM-DD&end=YYYY-MM-DD&scope=auto|friends|global
+// GET /api/mobile/community/leaderboard?metric=volume|squat|bench|deadlift&range=week|month|year|all|custom&start=YYYY-MM-DD&end=YYYY-MM-DD&scope=auto|friends|global|gym
 //
 // Free for every member (owner decision 2026-11-08). `scope` picks who is ranked:
 //   friends - the people the member follows, plus the member
 //   global  - everyone in the member's gym who has not switched the leaderboard off
-//   auto    - (the default) friends if the member follows anyone who can be shown, otherwise global
+//   gym     - only the gym community: the members of the member's gym who hold a live gym Membership (the people who can see "Your gym"). Asking for it
+//             without a gym Membership of your own gets the usual 403 upgrade answer, the same as the gym community itself.
+//   auto    - (the default) friends if the member follows anyone who can be shown, otherwise global (never gym)
 // The answer says which one was used (`scope`) and how many followed members could be shown (`followingCount`), so the app can offer the switch.
 // Followed members who are blocked either way, in another gym, archived or not Community-eligible never count.
 export async function GET(request: NextRequest) {
@@ -65,9 +70,26 @@ export async function GET(request: NextRequest) {
 
   const following = new Set(findFollowingIds(me.id));
   const followingCount = pool.filter((u) => u.id !== me.id && following.has(u.id)).length;
-  const scope: "friends" | "global" =
-    scopeParam === "friends" ? "friends" : scopeParam === "global" ? "global" : followingCount > 0 ? "friends" : "global";
-  const ranked = scope === "friends" ? pool.filter((u) => u.id === me.id || following.has(u.id)) : pool;
+  const scope: "friends" | "global" | "gym" =
+    scopeParam === "gym"
+      ? "gym"
+      : scopeParam === "friends"
+        ? "friends"
+        : scopeParam === "global"
+          ? "global"
+          : followingCount > 0
+            ? "friends"
+            : "global";
+  if (scope === "gym") {
+    const upgrade = requireFeature(me.id, "communityGym");
+    if (upgrade) return upgrade;
+  }
+  const ranked =
+    scope === "friends"
+      ? pool.filter((u) => u.id === me.id || following.has(u.id))
+      : scope === "gym"
+        ? pool.filter((u) => u.id === me.id || hasAccess(resolveMemberAccessForUser(u.id), "communityGym"))
+        : pool;
 
   const members: LeaderboardMemberInput[] = ranked.map((u) => {
     const profile = findProfileByUserId(u.id);
