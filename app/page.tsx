@@ -69,12 +69,12 @@ export default async function Root() {
           className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#08101e_0%,rgba(8,16,30,0.92)_32%,rgba(8,16,30,0.45)_62%,rgba(8,16,30,0.2)_100%),linear-gradient(to_bottom,rgba(8,16,30,0.55)_0%,transparent_22%,transparent_70%,#08101e_100%)] max-lg:bg-[linear-gradient(to_bottom,rgba(8,16,30,0.82)_0%,rgba(8,16,30,0.55)_45%,rgba(8,16,30,0.3)_70%,rgba(8,16,30,0.85)_100%)]"
         />
       <div className="relative mx-auto max-w-6xl px-6 pb-24 pt-16 lg:pb-36 lg:pt-32">
-        <div className="max-w-xl max-lg:[text-shadow:0_1px_14px_rgba(5,10,20,0.9)]">
-          <h1 className="anim-rise text-headline text-[64px] text-zinc-50 sm:text-[96px]" style={{ animationDelay: "60ms" }}>
+        <div className="max-w-xl">
+          <h1 className="anim-rise text-headline text-[64px] text-zinc-50 max-lg:[text-shadow:0_2px_16px_rgba(5,10,20,0.85)] sm:text-[96px]" style={{ animationDelay: "60ms" }}>
             {HOME_HERO.headline.lead}{" "}
             <em className="not-italic text-gold">{HOME_HERO.headline.accent}</em>
           </h1>
-          <p className="anim-rise mt-6 max-w-lg text-lg leading-relaxed text-zinc-300 sm:text-xl" style={{ animationDelay: "140ms" }}>
+          <p className="anim-rise mt-6 max-w-lg text-lg leading-relaxed text-zinc-200 max-lg:-mx-3 max-lg:rounded-xl max-lg:bg-[rgba(8,16,30,0.62)] max-lg:px-3 max-lg:py-2.5 max-lg:backdrop-blur-[3px] sm:text-xl" style={{ animationDelay: "140ms" }}>
             {HOME_HERO.intro}
           </p>
           <div className="anim-rise mt-10 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ animationDelay: "220ms" }}>
@@ -87,7 +87,7 @@ export default async function Root() {
             </a>
             <a
               href={HOME_HERO.secondaryCta.href}
-              className="inline-flex h-12 items-center justify-center rounded-[3px] border border-white/[0.16] px-7 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/50 hover:text-white"
+              className="inline-flex h-12 items-center justify-center rounded-[3px] border border-white/[0.16] max-lg:bg-[rgba(8,16,30,0.62)] max-lg:backdrop-blur-[3px] px-7 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/50 hover:text-white"
             >
               {HOME_HERO.secondaryCta.label}
             </a>
