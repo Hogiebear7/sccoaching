@@ -1,110 +1,109 @@
-// Three compact previews of what's inside the member area — training,
-// nutrition, and recovery — replacing the single Session Ledger in the hero.
-// Same signature-panel language as Ledger (solid surface, hairline border,
-// gold top accent, Teko headings and figures) so they read as one family, not three
-// unrelated widgets. The recovery card reuses the real ReadinessRing
-// component used on the actual dashboard — everything else here is
-// representative sample data, same as the Ledger's own SAMPLE_LEDGER_ROWS.
-import { ReadinessRing } from "@/components/ui/ReadinessRing";
+// Three previews of what's inside the member app, drawn to match how the app looks on a phone: rounded navy cards, the readiness
+// week as soft green bars, macro chips with their colours, and the "Up next" class card. All numbers are representative sample data.
 
-const WEEKDAY_VOLUME: { day: string; value: number }[] = [
-  { day: "M", value: 55 },
-  { day: "T", value: 80 },
-  { day: "W", value: 0 },
-  { day: "T", value: 65 },
-  { day: "F", value: 95 },
-  { day: "S", value: 40 },
-  { day: "S", value: 0 },
-];
+const READINESS_WEEK = [70, 78, 74, 81, 76, 72, 75];
 
-function PreviewCard({
-  title,
-  tag,
-  children,
-}: {
-  title: string;
-  tag: string;
-  children: React.ReactNode;
-}) {
+const CARD = "rounded-[22px] border border-white/[0.06] bg-[#111e34] p-5";
+
+function UpNextPreview() {
   return (
-    <div className="relative border border-white/[0.08] bg-[var(--surface-1)] p-5">
-      <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-primary to-transparent" />
+    <div className={CARD}>
       <div className="mb-4 flex items-baseline justify-between">
-        <span className="text-headline text-[26px] text-zinc-50">{title}</span>
-        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-gold">{tag}</span>
+        <span className="text-headline text-[26px] text-zinc-50">Up next</span>
+        <span className="text-sm text-zinc-400 underline underline-offset-4">Schedule</span>
       </div>
-      {children}
+      <div className="flex items-center gap-4 rounded-2xl bg-[#0b1527] p-3">
+        <div className="rounded-xl bg-[#17263f] px-3 py-2 text-center">
+          <p className="text-[11px] text-zinc-400">Thu 29 Oct</p>
+          <p className="text-headline text-[26px] leading-none text-zinc-50">07:00</p>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold text-zinc-50">Morning Strength</p>
+          <p className="mt-0.5 text-sm text-zinc-400">50 min · Coached small group</p>
+        </div>
+      </div>
     </div>
   );
 }
 
-function TrainingPreview() {
-  const max = Math.max(...WEEKDAY_VOLUME.map((d) => d.value), 1);
-
+function FuelPreview() {
+  const target = 2450;
+  const logged = 2180;
+  const macros = [
+    { name: "Protein", value: 142, target: 170, color: "#e0645f" },
+    { name: "Carbs", value: 238, target: 290, color: "#7fcf9f" },
+    { name: "Fat", value: 64, target: 72, color: "#e8964a" },
+  ];
   return (
-    <PreviewCard title="Training Log" tag="This Week">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-headline text-[44px] leading-none text-gold tabular-nums">
-            5<span className="ml-1.5 font-sans text-sm font-normal normal-case tracking-normal text-zinc-400">sessions</span>
-          </p>
-          <p className="mt-2 text-sm text-zinc-400">3,180kg logged this week</p>
-        </div>
-        <div className="flex h-14 items-end gap-1.5" role="img" aria-label="Training volume by day, Monday to Sunday">
-          {WEEKDAY_VOLUME.map((d, i) => (
-            <div key={i} className="flex flex-col items-center gap-1.5">
-              <div
-                className={`w-2.5 rounded-t-[3px] ${d.value > 0 ? "bg-primary" : "bg-white/[0.08]"}`}
-                style={{ height: `${Math.max((d.value / max) * 40, 3)}px` }}
-              />
-              <span className="text-[11px] text-zinc-500">{d.day}</span>
+    <div className={CARD}>
+      <div className="mb-3 flex items-baseline justify-between">
+        <span className="text-headline text-[26px] text-zinc-50">Nutrition</span>
+        <span className="text-sm text-zinc-400">Today</span>
+      </div>
+      <p className="text-headline text-[44px] leading-none text-zinc-50 tabular-nums">
+        {logged.toLocaleString("en-IE")}
+        <span className="ml-1.5 font-sans text-sm font-normal normal-case tracking-normal text-zinc-400">/ {target.toLocaleString("en-IE")} kcal</span>
+      </p>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.1]">
+        <div className="h-full rounded-full bg-white" style={{ width: `${(logged / target) * 100}%` }} />
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2.5">
+        {macros.map((m) => (
+          <div key={m.name} className="rounded-2xl bg-[#0b1527] p-3">
+            <p className="flex items-center gap-1.5 text-xs text-zinc-300">
+              <span className="h-2 w-2 rounded-full" style={{ background: m.color }} />
+              {m.name}
+            </p>
+            <p className="mt-1 text-lg font-semibold text-zinc-50 tabular-nums">
+              {m.value}
+              <span className="text-xs font-normal text-zinc-400"> / {m.target}g</span>
+            </p>
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.1]">
+              <div className="h-full rounded-full" style={{ width: `${(m.value / m.target) * 100}%`, background: m.color }} />
             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReadinessPreview() {
+  return (
+    <div className={CARD}>
+      <div className="mb-3 flex items-baseline justify-between">
+        <span className="text-headline text-[26px] text-zinc-50">Recovery</span>
+        <span className="text-sm text-zinc-400">Last 7 days</span>
+      </div>
+      <div className="flex items-end justify-between gap-6">
+        <div>
+          <p className="text-sm text-zinc-400">Readiness today</p>
+          <p className="mt-1 flex items-baseline gap-2">
+            <span className="text-headline text-[44px] leading-none text-[#7fcf9f]">75</span>
+            <span className="text-lg font-semibold text-zinc-50">Ready</span>
+          </p>
+          <p className="mt-1 max-w-[26ch] text-sm leading-snug text-zinc-400">Solid recovery. Train as planned.</p>
+        </div>
+        <div className="flex h-16 items-end gap-1.5" role="img" aria-label="Readiness over the last seven days">
+          {READINESS_WEEK.map((v, i) => (
+            <div
+              key={i}
+              className="w-3 rounded-[5px]"
+              style={{ height: `${(v / 100) * 64}px`, background: i === READINESS_WEEK.length - 1 ? "#7fcf9f" : "#3f7a5c" }}
+            />
           ))}
         </div>
       </div>
-    </PreviewCard>
-  );
-}
-
-function NutritionPreview() {
-  const targetKcal = 2450;
-  const loggedKcal = 2180;
-  const pct = Math.min(loggedKcal / targetKcal, 1);
-
-  return (
-    <PreviewCard title="Fuel Tracking" tag="Today">
-      <p className="text-headline text-[44px] leading-none text-gold tabular-nums">
-        {loggedKcal}
-        <span className="ml-1.5 font-sans text-sm font-normal normal-case tracking-normal text-zinc-400">/ {targetKcal} kcal</span>
-      </p>
-      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${pct * 100}%` }} />
-      </div>
-      <p className="mt-2.5 text-sm text-zinc-400">142g protein · on target</p>
-    </PreviewCard>
-  );
-}
-
-function RecoveryPreview() {
-  return (
-    <PreviewCard title="Recovery" tag="Readiness">
-      <div className="flex items-center gap-4">
-        <ReadinessRing score={82} size={64} />
-        <div>
-          <p className="text-base text-zinc-100">Well recovered</p>
-          <p className="mt-1 text-sm text-zinc-400">Follicular phase · Day 9</p>
-        </div>
-      </div>
-    </PreviewCard>
+    </div>
   );
 }
 
 export function MemberPreviewStack() {
   return (
     <div className="space-y-4">
-      <TrainingPreview />
-      <NutritionPreview />
-      <RecoveryPreview />
+      <UpNextPreview />
+      <FuelPreview />
+      <ReadinessPreview />
     </div>
   );
 }
