@@ -126,8 +126,8 @@ export default function AboutPage() {
                 <img
                   src={HOME_HERO.image.src}
                   alt={HOME_HERO.image.alt}
-                  width={2048}
-                  height={779}
+                  width={2000}
+                  height={1500}
                   loading="lazy"
                   className="aspect-[16/10] w-full object-cover"
                 />

@@ -34,8 +34,8 @@ export function AuthShell({
         <img
           src={HOME_HERO.image.src}
           alt=""
-          width={2048}
-          height={779}
+          width={2000}
+          height={1500}
           className="absolute inset-0 h-full w-full object-cover"
         />
         <div aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgb(10_21_38/0.55)_0%,rgb(10_21_38/0.35)_40%,rgb(5_12_24/0.92)_100%)]" />
