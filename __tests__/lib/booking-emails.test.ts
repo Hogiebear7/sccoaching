@@ -166,5 +166,19 @@ describe("sendBookingConfirmationEmail", () => {
     expect(decoded).toContain("BEGIN:VCALENDAR");
     expect(decoded).toContain("SUMMARY:Sunrise Strength");
   });
-});
 
+  it("adds Google Calendar and Outlook links to the email", () => {
+    mockFindProfileByUserId.mockImplementation((id: string) =>
+      id === "member-1"
+        ? { email: "alex@example.com", fullName: "Alex", emailNotificationsEnabled: true }
+        : { fullName: "Coach Sarah" }
+    );
+
+    sendBookingConfirmationEmail("member-1", CLASS);
+
+    const payload = mockSendEmail.mock.calls[0][0];
+    expect(payload.html).toContain("calendar.google.com/calendar/render");
+    expect(payload.html).toContain("outlook.live.com/calendar");
+    expect(payload.text).toContain("Add to Google Calendar:");
+  });
+});

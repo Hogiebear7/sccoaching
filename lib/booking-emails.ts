@@ -19,7 +19,7 @@ import {
 } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { bookingConfirmationEmail } from "@/lib/email-templates";
-import { buildClassIcsEvent } from "@/lib/ics";
+import { buildClassIcsEvent, googleCalendarUrl, outlookCalendarUrl } from "@/lib/ics";
 import { getCancellationCutoffHours } from "@/lib/scheduling";
 
 const GYM_LOCATION = "S&C Performance Coaching, Navan, Co. Meath";
@@ -51,6 +51,13 @@ export function sendBookingConfirmationEmail(userId: string, classRecord: ClassR
   const recipient = memberRecipient(userId);
   if (!recipient) return;
 
+  const calendarEvent = {
+    title: classRecord.title,
+    date: classRecord.date,
+    startTime: classRecord.startTime,
+    durationMins: classRecord.durationMins,
+    location: GYM_LOCATION,
+  };
   const template = bookingConfirmationEmail({
     memberName: recipient.name,
     className: classRecord.title,
@@ -59,6 +66,7 @@ export function sendBookingConfirmationEmail(userId: string, classRecord: ClassR
     durationLabel: `${classRecord.durationMins} min`,
     coachName: resolveCoachName(classRecord.coachUserId),
     cancellationCutoffHours: getCancellationCutoffHours(),
+    calendarLinks: { google: googleCalendarUrl(calendarEvent), outlook: outlookCalendarUrl(calendarEvent) },
   });
 
   const ics = buildClassIcsEvent({

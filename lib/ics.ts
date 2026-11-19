@@ -72,3 +72,24 @@ export function buildClassIcsEvent({
   // RFC 5545 requires CRLF line endings.
   return lines.join("\r\n");
 }
+
+type CalendarEvent = { title: string; date: string; startTime: string; durationMins: number; location?: string; description?: string };
+
+// A one-click "Add to Google Calendar" link. The times are sent as local Irish time (ctz), the same way the .ics file treats them.
+export function googleCalendarUrl(e: CalendarEvent): string {
+  const { start, end } = classDateTimeStamps(e.date, e.startTime, e.durationMins);
+  const params = new URLSearchParams({ action: "TEMPLATE", text: e.title, dates: `${start}/${end}`, ctz: "Europe/Dublin" });
+  if (e.location) params.set("location", e.location);
+  if (e.description) params.set("details", e.description);
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+// The same for Outlook on the web (outlook.live.com, which also opens Microsoft 365 accounts after sign-in).
+export function outlookCalendarUrl(e: CalendarEvent): string {
+  const { start, end } = classDateTimeStamps(e.date, e.startTime, e.durationMins);
+  const iso = (stamp: string) => `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(9, 11)}:${stamp.slice(11, 13)}:00`;
+  const params = new URLSearchParams({ path: "/calendar/action/compose", rru: "addevent", subject: e.title, startdt: iso(start), enddt: iso(end) });
+  if (e.location) params.set("location", e.location);
+  if (e.description) params.set("body", e.description);
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`;
+}

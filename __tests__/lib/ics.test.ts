@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildClassIcsEvent } from "@/lib/ics";
+import { buildClassIcsEvent, googleCalendarUrl, outlookCalendarUrl } from "@/lib/ics";
 
 describe("buildClassIcsEvent", () => {
   it("produces a valid VEVENT with correct start/end derived from duration", () => {
@@ -44,5 +44,28 @@ describe("buildClassIcsEvent", () => {
       durationMins: 30,
     });
     expect(ics).not.toContain("LOCATION:");
+  });
+});
+
+describe("add-to-calendar links", () => {
+  const event = { title: "Friday Class", date: "2026-11-20", startTime: "13:00", durationMins: 50, location: "S&C Performance Coaching, Navan, Co. Meath" };
+
+  it("builds a Google Calendar link with local Irish time", () => {
+    const url = new URL(googleCalendarUrl(event));
+    expect(url.origin + url.pathname).toBe("https://calendar.google.com/calendar/render");
+    expect(url.searchParams.get("action")).toBe("TEMPLATE");
+    expect(url.searchParams.get("text")).toBe("Friday Class");
+    expect(url.searchParams.get("dates")).toBe("20261120T130000/20261120T135000");
+    expect(url.searchParams.get("ctz")).toBe("Europe/Dublin");
+    expect(url.searchParams.get("location")).toContain("Navan");
+  });
+
+  it("builds an Outlook link with ISO start and end", () => {
+    const url = new URL(outlookCalendarUrl(event));
+    expect(url.host).toBe("outlook.live.com");
+    expect(url.searchParams.get("rru")).toBe("addevent");
+    expect(url.searchParams.get("subject")).toBe("Friday Class");
+    expect(url.searchParams.get("startdt")).toBe("2026-11-20T13:00:00");
+    expect(url.searchParams.get("enddt")).toBe("2026-11-20T13:50:00");
   });
 });
