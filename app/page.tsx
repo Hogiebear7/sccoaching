@@ -86,8 +86,8 @@ export default async function Root() {
             <img
               src={HOME_HERO.image.src}
               alt={HOME_HERO.image.alt}
-              width={2048}
-              height={779}
+              width={2000}
+              height={1500}
               fetchPriority="high"
               className="aspect-[4/3] w-full object-cover lg:aspect-[4/5]"
             />
