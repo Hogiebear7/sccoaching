@@ -53,47 +53,49 @@ export default async function Root() {
 
       {/* Hero — who we help and the outcome, one primary action, the real
           training floor as the brand-led visual. */}
-      <section className="relative mx-auto grid max-w-6xl items-center gap-12 px-6 pb-20 pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pb-28 lg:pt-24">
-        <div>
-          <h1 className="anim-rise text-headline text-[64px] text-zinc-50 sm:text-[96px]" style={{ animationDelay: "60ms" }}>
+      <section className="relative isolate overflow-hidden">
+        {/* The photo runs the full width of the hero and fades to navy on the left, so the headline stays easy to read over it. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- static marketing photo with fixed dimensions */}
+        <img
+          src={HOME_HERO.image.src}
+          alt={HOME_HERO.image.alt}
+          width={2000}
+          height={1500}
+          fetchPriority="high"
+          className="anim-fade absolute inset-0 -z-20 h-full w-full object-cover object-[65%_55%]"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#08101e_0%,rgba(8,16,30,0.92)_32%,rgba(8,16,30,0.45)_62%,rgba(8,16,30,0.2)_100%),linear-gradient(to_bottom,rgba(8,16,30,0.55)_0%,transparent_22%,transparent_70%,#08101e_100%)] max-lg:bg-[linear-gradient(to_bottom,rgba(8,16,30,0.82)_0%,rgba(8,16,30,0.55)_45%,rgba(8,16,30,0.3)_70%,rgba(8,16,30,0.85)_100%)]"
+        />
+      <div className="relative mx-auto max-w-6xl px-6 pb-24 pt-16 lg:pb-36 lg:pt-32">
+        <div className="max-w-xl">
+          <h1 className="anim-rise text-headline text-[64px] text-zinc-50 max-lg:[text-shadow:0_2px_16px_rgba(5,10,20,0.85)] sm:text-[96px]" style={{ animationDelay: "60ms" }}>
             {HOME_HERO.headline.lead}{" "}
             <em className="not-italic text-gold">{HOME_HERO.headline.accent}</em>
           </h1>
-          <p className="anim-rise mt-6 max-w-lg text-lg leading-relaxed text-zinc-300 sm:text-xl" style={{ animationDelay: "140ms" }}>
+          <p className="anim-rise mt-6 max-w-lg text-lg leading-relaxed text-zinc-300 max-lg:-mx-3 max-lg:text-white max-lg:rounded-xl max-lg:bg-[rgba(8,16,30,0.28)] max-lg:px-3 max-lg:py-2.5 max-lg:[text-shadow:0_1px_10px_rgba(5,10,20,0.9)] sm:text-xl" style={{ animationDelay: "140ms" }}>
             {HOME_HERO.intro}
           </p>
           <div className="anim-rise mt-10 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ animationDelay: "220ms" }}>
             <a
               href={HOME_HERO.primaryCta.href}
-              className="group inline-flex h-12 items-center justify-center gap-2 rounded-[3px] bg-primary px-7 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
+              className="group inline-flex h-12 items-center justify-center gap-2 rounded-[3px] bg-primary max-lg:bg-[var(--gold)] px-7 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
             >
               {HOME_HERO.primaryCta.label}
               <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
             </a>
             <a
               href={HOME_HERO.secondaryCta.href}
-              className="inline-flex h-12 items-center justify-center rounded-[3px] border border-white/[0.16] px-7 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/50 hover:text-white"
+              className="inline-flex h-12 items-center justify-center rounded-[3px] border border-white/[0.16] max-lg:bg-[#0f1a2e] px-7 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/50 hover:text-white"
             >
               {HOME_HERO.secondaryCta.label}
             </a>
           </div>
         </div>
 
-        <figure className="anim-fade relative" style={{ animationDelay: "120ms" }}>
-          <div className="relative overflow-hidden rounded-[4px] border border-white/[0.1]">
-            <div className="absolute inset-x-0 top-0 z-10 h-[2px] bg-primary" aria-hidden />
-            {/* eslint-disable-next-line @next/next/no-img-element -- static marketing photo with fixed dimensions */}
-            <img
-              src={HOME_HERO.image.src}
-              alt={HOME_HERO.image.alt}
-              width={2000}
-              height={1500}
-              fetchPriority="high"
-              className="aspect-[4/3] w-full object-cover lg:aspect-[4/5]"
-            />
-          </div>
-          <figcaption className="mt-3 text-sm text-zinc-500">{HOME_HERO.image.caption}</figcaption>
-        </figure>
+        <p className="absolute bottom-4 right-6 hidden text-sm text-zinc-300/80 lg:block">{HOME_HERO.image.caption}</p>
+      </div>
       </section>
 
       {/* Proof strip — how the coaching works, no invented statistics. */}
