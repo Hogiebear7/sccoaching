@@ -13,7 +13,7 @@ export const HOME_HERO = {
   primaryCta: { label: "Book your first session", href: "#contact" },
   secondaryCta: { label: "See classes and pricing", href: "#classes" },
   image: {
-    src: "/marketing/training-floor.jpg",
+    src: "/marketing/training-floor-2026-11.jpg",
     alt: "The S&C training floor in Navan: racks, plates and kettlebells",
     caption: "The S&C training floor, Navan",
   },
