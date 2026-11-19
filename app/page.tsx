@@ -74,13 +74,13 @@ export default async function Root() {
             {HOME_HERO.headline.lead}{" "}
             <em className="not-italic text-gold">{HOME_HERO.headline.accent}</em>
           </h1>
-          <p className="anim-rise mt-6 max-w-lg text-lg leading-relaxed text-zinc-200 max-lg:-mx-3 max-lg:rounded-xl max-lg:bg-[rgba(8,16,30,0.28)] max-lg:px-3 max-lg:py-2.5 max-lg:[text-shadow:0_1px_10px_rgba(5,10,20,0.9)] sm:text-xl" style={{ animationDelay: "140ms" }}>
+          <p className="anim-rise mt-6 max-w-lg text-lg leading-relaxed text-zinc-300 max-lg:-mx-3 max-lg:text-white max-lg:rounded-xl max-lg:bg-[rgba(8,16,30,0.28)] max-lg:px-3 max-lg:py-2.5 max-lg:[text-shadow:0_1px_10px_rgba(5,10,20,0.9)] sm:text-xl" style={{ animationDelay: "140ms" }}>
             {HOME_HERO.intro}
           </p>
           <div className="anim-rise mt-10 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ animationDelay: "220ms" }}>
             <a
               href={HOME_HERO.primaryCta.href}
-              className="group inline-flex h-12 items-center justify-center gap-2 rounded-[3px] bg-primary px-7 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
+              className="group inline-flex h-12 items-center justify-center gap-2 rounded-[3px] bg-primary max-lg:bg-[var(--gold)] px-7 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px"
             >
               {HOME_HERO.primaryCta.label}
               <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
