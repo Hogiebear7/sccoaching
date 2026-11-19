@@ -256,6 +256,8 @@ export interface BookingConfirmationEmailOpts {
   coachName?: string | null;
   /** Hours before class a member can cancel and keep their session credit. */
   cancellationCutoffHours: number;
+  /** One-click add-to-calendar links (Google and Outlook). Apple Calendar and others use the attached .ics file. */
+  calendarLinks?: { google: string; outlook: string };
 }
 
 export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
@@ -263,7 +265,7 @@ export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
   html: string;
   text: string;
 } {
-  const { memberName, className, classDate, startTime, durationLabel, coachName, cancellationCutoffHours } = opts;
+  const { memberName, className, classDate, startTime, durationLabel, coachName, cancellationCutoffHours, calendarLinks } = opts;
   const eName = escapeHtml(memberName);
   const eClass = escapeHtml(className);
   const eDate = escapeHtml(classDate);
@@ -294,7 +296,12 @@ export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
       ${eCoach ? `<tr><td style="font-size:13px;color:#71717a;padding-top:10px;">Coach: ${eCoach}</td></tr>` : ""}
     </table>
     <p style="margin:16px 0 0;font-size:12px;color:#71717a;">${escapeHtml(cancellationPolicy)}</p>
-    <p style="margin:8px 0 0;font-size:12px;color:#71717a;">A calendar invite for this class is attached to this email.</p>
+    ${
+      calendarLinks
+        ? `<p style="margin:16px 0 0;font-size:13px;color:#a1a1aa;">Add it to your calendar: <a href="${escapeHtml(calendarLinks.google)}" style="color:#e4c55a;font-weight:600;">Google Calendar</a> &nbsp;·&nbsp; <a href="${escapeHtml(calendarLinks.outlook)}" style="color:#e4c55a;font-weight:600;">Outlook</a></p>
+    <p style="margin:6px 0 0;font-size:12px;color:#71717a;">Apple Calendar or another app? Open the attached class.ics file.</p>`
+        : `<p style="margin:8px 0 0;font-size:12px;color:#71717a;">A calendar invite for this class is attached to this email.</p>`
+    }
     ${ctaButton("View booking →", actionUrl)}
   `);
 
@@ -308,7 +315,9 @@ export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
     ``,
     cancellationPolicy,
     ``,
-    `A calendar invite for this class is attached to this email.`,
+    ...(calendarLinks
+      ? [`Add to Google Calendar: ${calendarLinks.google}`, `Add to Outlook: ${calendarLinks.outlook}`, `Apple Calendar or another app: open the attached class.ics file.`]
+      : [`A calendar invite for this class is attached to this email.`]),
     ``,
     `View your booking: ${actionUrl}`,
     ``,
