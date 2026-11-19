@@ -74,7 +74,7 @@ export default async function Root() {
             {HOME_HERO.headline.lead}{" "}
             <em className="not-italic text-gold">{HOME_HERO.headline.accent}</em>
           </h1>
-          <p className="anim-rise mt-6 max-w-lg text-lg leading-relaxed text-zinc-200 max-lg:-mx-3 max-lg:rounded-xl max-lg:bg-[rgba(8,16,30,0.62)] max-lg:px-3 max-lg:py-2.5 max-lg:backdrop-blur-[3px] sm:text-xl" style={{ animationDelay: "140ms" }}>
+          <p className="anim-rise mt-6 max-w-lg text-lg leading-relaxed text-zinc-200 max-lg:-mx-3 max-lg:rounded-xl max-lg:bg-[rgba(8,16,30,0.28)] max-lg:px-3 max-lg:py-2.5 max-lg:[text-shadow:0_1px_10px_rgba(5,10,20,0.9)] sm:text-xl" style={{ animationDelay: "140ms" }}>
             {HOME_HERO.intro}
           </p>
           <div className="anim-rise mt-10 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ animationDelay: "220ms" }}>
@@ -87,7 +87,7 @@ export default async function Root() {
             </a>
             <a
               href={HOME_HERO.secondaryCta.href}
-              className="inline-flex h-12 items-center justify-center rounded-[3px] border border-white/[0.16] max-lg:bg-[rgba(8,16,30,0.62)] max-lg:backdrop-blur-[3px] px-7 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/50 hover:text-white"
+              className="inline-flex h-12 items-center justify-center rounded-[3px] border border-white/[0.16] max-lg:bg-[#0f1a2e] px-7 text-sm font-medium text-zinc-200 transition-colors duration-150 hover:border-primary/50 hover:text-white"
             >
               {HOME_HERO.secondaryCta.label}
             </a>
