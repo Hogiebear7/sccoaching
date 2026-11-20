@@ -36,7 +36,8 @@ export function ClassOffers() {
               </p>
 
               <div className="mt-4 border-t border-white/[0.08] pt-4 lg:mt-6 lg:pt-5">
-                <p className="text-sm leading-relaxed text-zinc-300 lg:text-base">{cls.tagline}</p>
+                {/* The three taglines reserve the same height on a wide screen, so the cards line up when closed. */}
+                <p className="text-sm leading-relaxed text-zinc-300 lg:min-h-[4.9em] lg:text-base">{cls.tagline}</p>
                 {/* The fuller description slides open (and closed) by animating the row height from 0 to its natural size. */}
                 <div
                   id={descId}
@@ -45,7 +46,7 @@ export function ClassOffers() {
                   }`}
                 >
                   <div className="overflow-hidden">
-                    <p className="pt-3 text-sm leading-relaxed text-zinc-100 lg:text-base">{cls.description}</p>
+                    <p className="text-sm leading-relaxed text-zinc-300 lg:text-base">{cls.description}</p>
                   </div>
                 </div>
               </div>
