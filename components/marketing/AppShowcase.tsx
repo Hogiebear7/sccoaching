@@ -57,18 +57,21 @@ const APP_SCREENS: { src: string; alt: string; label: string; description: strin
 
 type AppScreen = (typeof APP_SCREENS)[number];
 
+// The homepage shows just these three; the full set is on /the-app.
+const HOME_PREVIEW = ["Home", "Nutrition", "Recovery"];
+
 // Plain rounded-rect device frame rather than a fake notch/camera cutout —
 // the screenshots themselves already read clearly as a phone UI, so a
 // heavier mockup would add visual noise without adding believability.
 // Hovering (or focusing, for keyboard/touch users) fades in the
 // description over the screenshot; clicking opens it full-size.
-function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void }) {
+function PhoneFrame({ screen, onOpen, compact = false }: { screen: AppScreen; onOpen: () => void; compact?: boolean }) {
   return (
     // Under sm: each screen takes most of the row's width so the next one
     // peeks in, which is what shows the row can be swiped. A fixed 220px at
     // sm: and up, matching the row widths set in AppScreensGrid (3 per row at
     // tablet width, 4 from lg:).
-    <div className="w-[72%] max-w-[280px] flex-none snap-center sm:w-[220px] sm:max-w-[220px]">
+    <div className={compact ? "w-full sm:w-[220px] sm:max-w-[220px] sm:flex-none" : "w-[72%] max-w-[280px] flex-none snap-center sm:w-[220px] sm:max-w-[220px]"}>
       <button
         type="button"
         onClick={onOpen}
@@ -83,7 +86,7 @@ function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void 
       </button>
       <p className="mt-3 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">{screen.label}</p>
       {/* A phone has no hover, so the description that fades in over the screenshot on a wide screen is written out here instead. */}
-      <p className="mt-1 text-center text-sm leading-relaxed text-zinc-400 sm:hidden">{screen.description}</p>
+      {compact ? null : <p className="mt-1 text-center text-sm leading-relaxed text-zinc-400 sm:hidden">{screen.description}</p>}
     </div>
   );
 }
@@ -164,7 +167,7 @@ function ScreenLightbox({ screen, onClose }: { screen: AppScreen; onClose: () =>
   );
 }
 
-function AppScreensGrid() {
+function AppScreensGrid({ screens = APP_SCREENS, compact = false }: { screens?: AppScreen[]; compact?: boolean }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
@@ -172,12 +175,14 @@ function AppScreensGrid() {
       {/* The row width decides how many screens sit side by side (each is 220px from sm:, gap-6 = 24px): 708px = 3 per row at tablet
           width, 952px = 4 per row from lg: (7 screens read as 4 + 3). Below sm: it is a single swipeable row that snaps to each screen
           and runs to the screen edges (-mx-6 cancels the section's px-6; px-6 puts the first and last screens back on the gutter). */}
-      <div className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 pb-2 [scrollbar-width:none] sm:mx-auto sm:max-w-[708px] sm:snap-none sm:flex-wrap sm:justify-center sm:gap-6 sm:overflow-visible sm:px-0 sm:pb-0 lg:max-w-[952px] [&::-webkit-scrollbar]:hidden">
-        {APP_SCREENS.map((screen, i) => (
-          <PhoneFrame key={screen.label} screen={screen} onOpen={() => setOpenIndex(i)} />
+      <div className={`${compact ? "grid grid-cols-2 gap-3 sm:flex" : "-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 pb-2 [scrollbar-width:none] sm:mx-auto sm:max-w-[708px] sm:snap-none sm:flex-wrap sm:justify-center sm:gap-6 sm:overflow-visible sm:px-0 sm:pb-0 lg:max-w-[952px] [&::-webkit-scrollbar]:hidden"} sm:mx-auto sm:max-w-[708px] sm:flex-wrap sm:justify-center sm:gap-6 lg:max-w-[952px]`}>
+        {screens.map((screen, i) => (
+          <div key={screen.label} className={compact && i >= 2 ? "max-sm:hidden" : undefined}>
+            <PhoneFrame screen={screen} onOpen={() => setOpenIndex(i)} compact={compact} />
+          </div>
         ))}
       </div>
-      {openIndex !== null ? <ScreenLightbox screen={APP_SCREENS[openIndex]} onClose={() => setOpenIndex(null)} /> : null}
+      {openIndex !== null ? <ScreenLightbox screen={screens[openIndex]} onClose={() => setOpenIndex(null)} /> : null}
     </>
   );
 }
@@ -215,24 +220,28 @@ function StoreBadge({ store }: { store: "apple" | "google" }) {
 
 // `children` renders between the screenshots and the launch line (the page
 // puts the expandable full feature list there).
-export function AppShowcase({ children }: { children?: ReactNode }) {
+export function AppShowcase({ children, compact = false }: { children?: ReactNode; compact?: boolean }) {
+  const screens = compact ? APP_SCREENS.filter((s) => HOME_PREVIEW.includes(s.label)) : APP_SCREENS;
   return (
     <div>
-      <AppScreensGrid />
+      <AppScreensGrid screens={screens} compact={compact} />
 
       {children}
 
+      {compact ? null : <>
       <div className="mt-10 flex flex-col items-start gap-4 border-t border-white/[0.08] pt-8 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-[60ch] text-base leading-relaxed text-zinc-300">
-          Free to download, with workout, meal and check-in logging included. The App Subscription adds the Nutrition Coach, Ask the app,
-          adaptive targets and programmes: <span className="font-semibold text-zinc-100">€12.99 a month or €119.99 a year</span>, 7-day free trial. No gym visit
-          needed, and it&apos;s included with a gym Membership.
+          Free to download, with workout, meal and check-in logging included. Unlock the whole coaching toolkit with the App Subscription: the
+          Nutrition Coach, Ask the app, adaptive targets that move with your training, full programmes, and much, much more.{" "}
+          <span className="font-semibold text-zinc-100">€12.99 a month or €119.99 a year</span>, with a 7-day free trial. No gym visit
+          needed, and it&apos;s all included with a gym Membership.
         </p>
         <div className="flex flex-wrap gap-3">
           <StoreBadge store="apple" />
           <StoreBadge store="google" />
         </div>
       </div>
+      </>}
     </div>
   );
 }

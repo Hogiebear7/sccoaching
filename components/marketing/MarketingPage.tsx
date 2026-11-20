@@ -11,7 +11,7 @@ import { SiteHeader } from "./SiteHeader";
 // /faq), so they share the homepage's frame, type scale and buttons. See
 // DESIGN.md "Website pages".
 
-export const SECTION = "mx-auto max-w-6xl px-6 py-24 lg:py-32";
+export const SECTION = "mx-auto max-w-6xl px-6 py-16 sm:py-24 lg:py-32";
 export const H2 = "text-headline text-[44px] sm:text-[60px]";
 export const BUTTON_PRIMARY =
   "group inline-flex h-12 items-center justify-center gap-2 rounded-[3px] bg-primary px-7 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px";

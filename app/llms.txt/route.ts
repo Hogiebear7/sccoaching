@@ -33,6 +33,7 @@ ${classes}
 
 - [Classes](${url}/classes)
 - [About](${url}/about)
+- [The app](${url}/the-app)
 - [FAQ](${url}/faq)
 - [Contact](${url}/contact)
 `;
