@@ -43,8 +43,8 @@ export function ChalkDust({ className }: { className?: string }) {
         className="absolute inset-0"
         style={{
           backgroundImage: [
-            `radial-gradient(40% 55% at 20% 35%, rgb(195 205 219 / ${narrow ? 0.24 : 0.14}), transparent 70%)`,
-            `radial-gradient(35% 45% at 45% 75%, rgb(195 205 219 / ${narrow ? 0.16 : 0.09}), transparent 70%)`,
+            `radial-gradient(40% 55% at 20% 35%, rgb(195 205 219 / ${narrow ? 0.18 : 0.14}), transparent 70%)`,
+            `radial-gradient(35% 45% at 45% 75%, rgb(195 205 219 / ${narrow ? 0.12 : 0.09}), transparent 70%)`,
           ].join(", "),
         }}
       />
