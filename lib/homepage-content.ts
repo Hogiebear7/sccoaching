@@ -1,8 +1,8 @@
 // Copy for the public homepage, kept as plain data (separate from layout) so
 // it can later be edited from the back end/CMS. Trust here comes from how the
 // coaching works (process, programming, what's included), not from proof we
-// don't have yet: no statistics, qualifications, testimonials or results are
-// stated. Facts about booking, pausing and cancelling mirror the FAQ and the
+// don't have yet: no statistics, testimonials or results are stated. The one
+// exception is the coach bio in HOME_APPROACH, supplied by the owner. Facts about booking, pausing and cancelling mirror the FAQ and the
 // app's real rules.
 
 export const HOME_HERO = {
@@ -31,6 +31,10 @@ export const HOME_APPROACH = {
   title: "This is a coaching floor, not a workout class.",
   intro:
     "Every member is assessed in the warm-up and first class, which sets your goals and starting point. From there, your coach writes the block that follows and adjusts it as you progress.",
+  bio: {
+    label: "Your coach",
+    text: "15 years in the gym, fitness and health industry across commercial, private and corporate settings, working with athletes, Oscar-winning actors and everyday people. Trained in sports science and kinesiology, with a master's in performance nutrition.",
+  },
   pillars: [
     {
       title: "Your goals, not a template",
