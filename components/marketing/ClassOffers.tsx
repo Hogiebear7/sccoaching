@@ -7,15 +7,14 @@ import { HeadlineText } from "@/components/ui/HeadlineText";
 import { MARKETING_CLASSES } from "@/lib/marketing-classes";
 
 // The three classes as typographic cards (no stock photography): Teko name,
-// "From €x" price and a one-line summary are always visible. The fuller
-// description fades in over the summary area on hover or keyboard focus
-// (pointer devices) and via the Details toggle on touch, inside a fixed-height
-// area so revealing it never shifts the row.
+// "From €x" price and a one-line summary are always visible. The Details button
+// slides the fuller description open and closed (a height transition, skipped
+// for reduced motion); on a wide screen only the clicked card grows.
 export function ClassOffers() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <ul className="grid gap-3 lg:grid-cols-3 lg:gap-5">
+    <ul className="grid gap-3 lg:grid-cols-3 lg:items-start lg:gap-5">
       {MARKETING_CLASSES.map((cls, i) => {
         const isOpen = open === i;
         const descId = `class-offer-${i}`;
@@ -36,26 +35,23 @@ export function ClassOffers() {
                 <span>/ {cls.price.per}</span>
               </p>
 
-              <div className="mt-4 mb-2 grid border-t lg:mt-6 lg:mb-3 border-white/[0.08] pt-5">
-                <p
-                  className={`col-start-1 row-start-1 text-sm leading-relaxed text-zinc-300 lg:text-base transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0 ${
-                    isOpen ? "opacity-0 max-lg:hidden" : "opacity-100"
-                  }`}
-                >
-                  {cls.tagline}
-                </p>
-                <p
+              <div className="mt-4 border-t border-white/[0.08] pt-4 lg:mt-6 lg:pt-5">
+                <p className="text-sm leading-relaxed text-zinc-300 lg:text-base">{cls.tagline}</p>
+                {/* The fuller description slides open (and closed) by animating the row height from 0 to its natural size. */}
+                <div
                   id={descId}
-                  className={`col-start-1 row-start-1 text-base leading-relaxed text-zinc-100 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 ${
-                    isOpen ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0 max-lg:hidden"
+                  className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
+                    isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
                   }`}
                 >
-                  {cls.description}
-                </p>
+                  <div className="overflow-hidden">
+                    <p className="pt-3 text-sm leading-relaxed text-zinc-100 lg:text-base">{cls.description}</p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-4 px-5 pb-4 lg:px-8 lg:pb-6">
+            <div className="flex items-center justify-between gap-4 px-5 pb-3 pt-1 lg:px-8 lg:pb-5">
               <button
                 type="button"
                 aria-expanded={isOpen}
