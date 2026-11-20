@@ -274,7 +274,7 @@ export function bookingConfirmationEmail(opts: BookingConfirmationEmailOpts): {
   const eCoach = coachName ? escapeHtml(coachName) : null;
   const actionUrl = `${APP_URL}/dashboard/bookings`;
   const subject = `Booking confirmed: ${className}`;
-  const cancellationPolicy = `Cancel at least ${cancellationCutoffHours} hour${cancellationCutoffHours === 1 ? "" : "s"} before the class starts and your session credit is returned automatically. Cancelling later than that forfeits the credit.`;
+  const cancellationPolicy = `Cancel at least ${cancellationCutoffHours} hour${cancellationCutoffHours === 1 ? "" : "s"} before the class starts and your session credit is returned automatically. Cancelling later than that may forfeit the credit.`;
 
   const html = emailWrapper(`Booking confirmed: ${eClass}`, `
     <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Booking confirmed</p>
