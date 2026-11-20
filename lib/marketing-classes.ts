@@ -28,7 +28,7 @@ export const MARKETING_CLASSES: MarketingClass[] = [
     name: "Semi-Private Personal Training",
     tagline: "Strength, technique and progression, with individual attention in a small group.",
     description:
-      "Built around your goals from the first session. For beginners who want to learn the basics properly, and experienced lifters working toward a specific strength or performance goal.",
+      "Every block is built around your goals, whether you are a beginner learning the basics properly or an experienced lifter chasing a specific strength or performance goal.",
     price: { from: "€160", per: "month" },
     forWho: [
       "You're new to lifting and want to learn it properly",
@@ -50,7 +50,7 @@ export const MARKETING_CLASSES: MarketingClass[] = [
     name: "Parent & Baby Classes",
     tagline: "Rebuild strength after birth, with your baby beside you.",
     description:
-      "A supportive session for the postnatal period: rebuild strength, improve movement and return to training safely, without needing childcare sorted first.",
+      "A supportive session for the postnatal period, to improve movement and return to training safely, without needing childcare sorted first.",
     price: { from: "€15", per: "class" },
     forWho: [
       "You're in the postnatal period and ready to return to training",
@@ -72,7 +72,7 @@ export const MARKETING_CLASSES: MarketingClass[] = [
     name: "Over 50s",
     tagline: "Stay strong, mobile and independent for the long term.",
     description:
-      "Strength, balance and mobility training for older adults who want to protect their independence: stronger joints and confidence in everyday movement.",
+      "Strength, balance and mobility training that builds stronger joints and confidence in everyday movement, so you can protect your independence.",
     price: { from: "€15", per: "class" },
     forWho: [
       "You're over 50 and want to stay strong and capable",

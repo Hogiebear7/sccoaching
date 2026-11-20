@@ -9,17 +9,17 @@ export default function ChalkDustCanvas({ onReady, strong = false }: { onReady?:
   return (
     <div className="absolute left-0 top-0 h-1/2 w-1/2 origin-top-left scale-200">
       <Shader className="h-full w-full" disableTelemetry onReady={onReady}>
-        <FractalNoise colorA="#000000" colorB="#c3cddb" octaves={3} contrast={0.6} speed={0.06} opacity={strong ? 0.16 : 0.1} blendMode="screen" />
+        <FractalNoise colorA="#000000" colorB="#c3cddb" octaves={3} contrast={0.6} speed={0.06} opacity={strong ? 0.12 : 0.1} blendMode="screen" />
         <FloatingParticles
-          count={strong ? 220 : 140}
+          count={strong ? 170 : 140}
           speed={0.04}
           angle={90}
           angleVariance={40}
-          particleSize={strong ? 1.1 : 0.7}
+          particleSize={strong ? 0.85 : 0.7}
           softness={0.5}
           twinkle={0.3}
           particleColor="#dfe4ec"
-          opacity={strong ? 0.8 : 0.45}
+          opacity={strong ? 0.55 : 0.45}
           blendMode="screen"
         />
       </Shader>

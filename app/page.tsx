@@ -68,7 +68,7 @@ export default async function Root() {
           className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#08101e_0%,rgba(8,16,30,0.92)_32%,rgba(8,16,30,0.45)_62%,rgba(8,16,30,0.2)_100%),linear-gradient(to_bottom,rgba(8,16,30,0.55)_0%,transparent_22%,transparent_70%,#08101e_100%)] max-lg:bg-[linear-gradient(to_bottom,rgba(8,16,30,0.82)_0%,rgba(8,16,30,0.55)_45%,rgba(8,16,30,0.3)_70%,rgba(8,16,30,0.85)_100%)]"
         />
         {/* Chalk dust: strongest on the dark left, fading out as the photo brightens. */}
-        <ChalkDust className="pointer-events-none absolute inset-0 -z-[5] [mask-image:linear-gradient(to_right,black_0%,black_30%,transparent_75%)] max-lg:[mask-image:linear-gradient(to_bottom,black_0%,black_75%,transparent_100%)]" />
+        <ChalkDust className="pointer-events-none absolute inset-0 -z-[5] [mask-image:linear-gradient(to_right,black_0%,black_30%,transparent_75%)] max-lg:[mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_100%)]" />
       <div className="relative mx-auto max-w-6xl px-6 pb-24 pt-16 lg:pb-36 lg:pt-32">
         <div className="max-w-xl">
           <h1 className="anim-rise text-headline text-[64px] text-zinc-50 max-lg:[text-shadow:0_2px_16px_rgba(5,10,20,0.85)] sm:text-[96px]" style={{ animationDelay: "60ms" }}>
@@ -145,7 +145,6 @@ export default async function Root() {
               Our approach
             </p>
             <h2 className={`mt-4 ${H2}`}>{HOME_APPROACH.title}</h2>
-            <p className="mt-6 max-w-md text-lg leading-relaxed text-[#2c3a52]">{HOME_APPROACH.intro}</p>
             <div className="mt-8 max-w-md border-l-2 border-[#c6a15b] pl-5">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8a6a2f]">{HOME_APPROACH.bio.label}</p>
               <p className="mt-2 text-base leading-relaxed text-[#2c3a52]">{HOME_APPROACH.bio.text}</p>

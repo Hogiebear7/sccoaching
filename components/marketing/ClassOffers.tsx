@@ -1,21 +1,62 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { HeadlineText } from "@/components/ui/HeadlineText";
 import { MARKETING_CLASSES } from "@/lib/marketing-classes";
 
 // The three classes as typographic cards (no stock photography): Teko name,
-// "From €x" price and a one-line summary are always visible. The fuller
-// description fades in over the summary area on hover or keyboard focus
-// (pointer devices) and via the Details toggle on touch, inside a fixed-height
-// area so revealing it never shifts the row.
+// "From €x" price and a one-line summary are always visible. The Details button
+// continues the summary sentence with the fuller description, sliding open and
+// closed (a height transition, skipped for reduced motion); on a wide screen
+// only the clicked card grows.
+// The summary and the fuller description are one paragraph: opening Details carries the sentence on from where the summary ends. A hidden
+// copy of the summary alone gives the closed height (on a wide screen the three summaries reserve the same height so the cards line up),
+// and the visible paragraph's own height is the open one; the wrapper animates between them.
+function ClassText({ id, tagline, description, isOpen }: { id: string; tagline: string; description: string; isOpen: boolean }) {
+  const ghost = useRef<HTMLParagraphElement>(null);
+  const full = useRef<HTMLParagraphElement>(null);
+  const [heights, setHeights] = useState<{ closed: number; open: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (ghost.current && full.current) setHeights({ closed: ghost.current.offsetHeight, open: full.current.offsetHeight });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (ghost.current) observer.observe(ghost.current);
+    return () => observer.disconnect();
+  }, [tagline, description]);
+
+  const TEXT = "text-sm leading-relaxed text-zinc-300 lg:text-base";
+  return (
+    <div className="relative">
+      <p ref={ghost} aria-hidden className={`invisible absolute inset-x-0 top-0 ${TEXT} lg:min-h-[4.9em]`}>
+        {tagline}
+      </p>
+      <div
+        id={id}
+        className="overflow-hidden transition-[height] duration-300 ease-out motion-reduce:transition-none"
+        style={heights ? { height: isOpen ? heights.open : heights.closed } : undefined}
+      >
+        <p ref={full} className={`${TEXT} lg:min-h-[4.9em]`}>
+          {tagline}
+          <span aria-hidden={!isOpen} className={`transition-opacity duration-300 motion-reduce:transition-none ${isOpen ? "opacity-100" : "opacity-0"}`}>
+            {" "}
+            {description}
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ClassOffers() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <ul className="grid gap-3 lg:grid-cols-3 lg:gap-5">
+    <ul className="grid gap-3 lg:grid-cols-3 lg:items-start lg:gap-5">
       {MARKETING_CLASSES.map((cls, i) => {
         const isOpen = open === i;
         const descId = `class-offer-${i}`;
@@ -36,26 +77,12 @@ export function ClassOffers() {
                 <span>/ {cls.price.per}</span>
               </p>
 
-              <div className="mt-4 mb-2 grid border-t lg:mt-6 lg:mb-3 border-white/[0.08] pt-5">
-                <p
-                  className={`col-start-1 row-start-1 text-sm leading-relaxed text-zinc-300 lg:text-base transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0 ${
-                    isOpen ? "opacity-0 max-lg:hidden" : "opacity-100"
-                  }`}
-                >
-                  {cls.tagline}
-                </p>
-                <p
-                  id={descId}
-                  className={`col-start-1 row-start-1 text-base leading-relaxed text-zinc-100 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 ${
-                    isOpen ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0 max-lg:hidden"
-                  }`}
-                >
-                  {cls.description}
-                </p>
+              <div className="mt-4 border-t border-white/[0.08] pt-4 lg:mt-6 lg:pt-5">
+                <ClassText id={descId} tagline={cls.tagline} description={cls.description} isOpen={isOpen} />
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-4 px-5 pb-4 lg:px-8 lg:pb-6">
+            <div className="flex items-center justify-between gap-4 px-5 pb-3 pt-1 lg:px-8 lg:pb-5">
               <button
                 type="button"
                 aria-expanded={isOpen}
