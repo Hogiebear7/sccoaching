@@ -9,11 +9,9 @@ import { HOME_APPROACH, HOME_CONTACT, HOME_HERO, HOME_INCLUDED, HOME_PROGRESS, H
 import { verifySession } from "@/lib/session";
 import { healthClubJsonLd, jsonLdScript } from "@/lib/structured-data";
 import { SiteAnalytics } from "@/components/analytics/SiteAnalytics";
-import { AppFeatureGrid } from "@/components/marketing/AppFeatureGrid";
 import { AppShowcase } from "@/components/marketing/AppShowcase";
 import { ClassOffers } from "@/components/marketing/ClassOffers";
 import { ContactForm } from "@/components/marketing/ContactForm";
-import { FaqSection } from "@/components/marketing/FaqSection";
 import { HeroShader } from "@/components/marketing/HeroShader";
 import { H2, SECTION } from "@/components/marketing/MarketingPage";
 import { MemberPreviewStack } from "@/components/marketing/MemberPreviewStack";
@@ -218,39 +216,18 @@ export default async function Root() {
           </div>
 
           <ScrollReveal className="mt-12">
-            <AppShowcase>
-              <details className="group mt-12 border-t border-white/[0.08] pt-8">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
-                  <span className="text-headline text-[32px] text-zinc-50">See everything in the app</span>
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-5 w-5 shrink-0 text-gold transition-transform duration-200 group-open:rotate-180">
-                    <path d="M4 6l4 4 4-4" />
-                  </svg>
-                </summary>
-                <div className="details-reveal">
-                  <p className="mt-3 max-w-[60ch] text-base leading-relaxed text-zinc-300">
-                    Every tool below is live in the app today — training, nutrition, recovery, and planning, all connected.
-                  </p>
-                  <div className="mt-10">
-                    <AppFeatureGrid />
-                  </div>
-                </div>
-              </details>
-            </AppShowcase>
+            <AppShowcase compact />
           </ScrollReveal>
-        </div>
-      </section>
 
-      {/* FAQ — resolves the common objections right before the final CTA. */}
-      <section id="faq" className="relative scroll-mt-20 border-t border-white/[0.06]">
-        <div className="mx-auto max-w-3xl px-6 py-24 lg:py-32">
-          <h2 className={`${H2} text-zinc-50`}>Common questions.</h2>
-          <div className="mt-12">
-            <FaqSection />
+          <div className="mt-12 flex flex-col items-start gap-4 border-t border-white/[0.08] pt-8 sm:flex-row sm:items-center sm:justify-between">
+            <p className="max-w-[52ch] text-base leading-relaxed text-zinc-300">
+              Free to download. Unlock the Nutrition Coach, Ask the app, adaptive targets, programmes and much, much more with the App Subscription, or get it all included with a gym Membership.
+            </p>
+            <Link href="/the-app" className="group inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[3px] bg-primary px-7 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px">
+              See everything in the app
+              <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
+            </Link>
           </div>
-          <Link href="/faq" className={`mt-10 ${MORE_LINK}`}>
-            See all questions
-            <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
-          </Link>
         </div>
       </section>
 

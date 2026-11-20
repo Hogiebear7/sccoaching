@@ -21,7 +21,7 @@ export const HOME_HERO = {
 
 // Short markers for the strip under the hero: how the coaching works.
 export const HOME_PROOF = [
-  { value: "Baseline", label: "Your first session measures where you start" },
+  { value: "Assessed", label: "We assess you in the warm-up and your first class" },
   { value: "Capped", label: "Small groups, so every rep is coached" },
   { value: "1:1", label: "Programming written for you, inside a group" },
   { value: "1 app", label: "Booking, coach messaging and tracking included" },
@@ -30,11 +30,11 @@ export const HOME_PROOF = [
 export const HOME_APPROACH = {
   title: "This is a coaching floor, not a workout class.",
   intro:
-    "Every member starts with a baseline session that sets your goals and starting point. From there, your coach writes the block that follows and adjusts it as you progress.",
+    "Every member is assessed in the warm-up and first class, which sets your goals and starting point. From there, your coach writes the block that follows and adjusts it as you progress.",
   pillars: [
     {
       title: "Your goals, not a template",
-      body: "No member starts on a generic plan. Your first session sets your goals and baseline, then shapes the block that follows.",
+      body: "No member starts on a generic plan. Your warm-up and first class set your goals and starting point, then shape the block that follows.",
     },
     {
       title: "Capped coaching ratios",
@@ -46,7 +46,7 @@ export const HOME_APPROACH = {
     },
     {
       title: "Calm, focused sessions",
-      body: "Members, athletes and everyone in between train side by side, without the noise of a crowded gym.",
+      body: "Beginners, athletes and everyone in between train side by side, without the noise of a crowded gym.",
     },
   ],
 } as const;
@@ -56,7 +56,7 @@ export const HOME_PROGRESS = {
   intro:
     "Your training doesn't disappear when you leave the floor. Every session, check-in and meal is logged against your plan, so you and your coach can see what's working.",
   points: [
-    { title: "A baseline on day one", body: "Your first session measures where you start, so every change after it is visible." },
+    { title: "A starting point on day one", body: "Your first class measures where you start, so every change after it is visible." },
     { title: "Readiness before you train", body: "A short daily check-in on sleep, soreness and fatigue shapes the session ahead." },
     { title: "Lifts and targets, tracked", body: "Weekly volume, personal bests and nutrition targets update as you progress." },
   ],
@@ -73,11 +73,11 @@ export const HOME_INCLUDED = [
 export const HOME_CONTACT = {
   title: "Book your first session.",
   intro:
-    "Tell us what you're training for. We'll book your baseline session and you'll leave with a plan and a coach who already knows your goals.",
+    "Tell us what you're training for. We'll book your first class and you'll leave with a plan and a coach who already knows your goals.",
   steps: [
     { title: "Send an enquiry", body: "A few lines about your goals. We reply within one working day." },
-    { title: "Baseline session", body: "We assess where you're starting from. Bring training clothes, trainers, a towel and water." },
-    { title: "Your plan begins", body: "Your first block is written and waiting in the app." },
+    { title: "Your first class", body: "We assess where you're starting from in the warm-up and the class itself. Bring training clothes, trainers, a towel and water." },
+    { title: "Your plan begins", body: "Your first block is tailored for you and stored in the app whenever you need it." },
   ],
   primaryCta: "Email to book",
   secondaryCta: "Call the floor",

@@ -36,7 +36,7 @@ export const MARKETING_CLASSES: MarketingClass[] = [
       "You're working toward a specific strength or performance goal",
     ],
     includes: [
-      "A baseline session to set your goals and starting point",
+      "Assessed in your warm-up and first class, to set your goals and starting point",
       "Programming written for you and adjusted as you progress",
       "Coaching on every set, in a small group",
       "The member app: booking, coach messaging and tracking",

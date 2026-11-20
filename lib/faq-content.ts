@@ -31,7 +31,7 @@ const GETTING_STARTED: FaqItem[] = [
   {
     question: "Do I need experience to start?",
     answer:
-      "No. Every class is built around your own starting point. Your first session sets a baseline and shapes the block that follows, whether it's your first time lifting or you're returning to training with years behind you.",
+      "No. Every class is built around your own starting point. We assess you during the warm-up and the first class itself, and that shapes the block that follows, whether it's your first time lifting or you're returning to training with years behind you.",
   },
   {
     question: "Which class is right for me?",
@@ -41,7 +41,7 @@ const GETTING_STARTED: FaqItem[] = [
   {
     question: "What happens after I enquire?",
     answer:
-      "A coach replies by email or phone within one working day to arrange your baseline session. In that session we talk through your goals and assess how you move, then your first block of training is written for you and set up in the app.",
+      "A coach replies by email or phone within one working day to book your first class. We talk through your goals and assess how you move during the warm-up and the class itself, then your first block of training is tailored for you and stored in the app whenever you need it.",
   },
   {
     question: "What should I bring to my first session?",

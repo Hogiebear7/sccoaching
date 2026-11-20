@@ -6,7 +6,7 @@
 export const SITE_NAV = [
   { label: "Classes", href: "/classes" },
   { label: "About", href: "/about" },
-  { label: "The app", href: "/#app" },
+  { label: "The app", href: "/the-app" },
   { label: "FAQ", href: "/faq" },
   { label: "Contact", href: "/contact" },
 ] as const;
@@ -18,7 +18,7 @@ export const PRIMARY_CTA = { label: "Book a session", href: "/contact" } as cons
 
 // The reply promise, shown with the enquiry form and in the steps below.
 export const RESPONSE_TIME = "We'll reply by email or phone within one working day.";
-export const ENQUIRY_SENT = "We'll reply by email or phone within one working day to arrange your baseline session.";
+export const ENQUIRY_SENT = "We'll reply by email or phone within one working day to book your first class.";
 
 // The member's path from enquiry to training; shared by /classes and /contact
 // (the homepage's shorter version lives in HOME_CONTACT.steps).
@@ -28,16 +28,16 @@ export const START_STEPS = [
     body: "Tell us what you're training for and which class interests you. Not sure? Say so, and we'll help you choose.",
   },
   {
-    title: "We reply to arrange a baseline",
+    title: "We reply to book your first class",
     body: "A coach replies by email or phone within one working day to book your first session at a time that suits.",
   },
   {
-    title: "Baseline session",
-    body: "We talk through your goals and history, then assess how you move. Bring training clothes, trainers, a towel and water.",
+    title: "Your first class",
+    body: "We talk through your goals and history, then assess how you move in the warm-up and the class. Bring training clothes, trainers, a towel and water.",
   },
   {
     title: "Your plan begins",
-    body: "Your first block is written for you and waiting in the app, along with booking and coach messaging.",
+    body: "Your first block is tailored for you and stored in the app whenever you need it, along with booking and coach messaging.",
   },
 ] as const;
 
@@ -100,7 +100,7 @@ export const ABOUT_PAGE = {
   structureIntro:
     "Training runs in blocks. Each one has a purpose, and each one is built from what the last one showed us.",
   structure: [
-    { title: "Baseline", body: "Your first session sets your goals and measures where you start." },
+    { title: "Assessment", body: "Your warm-up and first class set your goals and measure where you start." },
     { title: "Block", body: "Your coach writes the next few weeks of training around that starting point." },
     { title: "Coached sessions", body: "You train in a small group, with cues specific to you." },
     { title: "Review and adjust", body: "What you log in the app shapes the next block." },
@@ -110,7 +110,7 @@ export const ABOUT_PAGE = {
   different: [
     {
       gym: "Join and work it out yourself",
-      us: "A baseline session and a plan from day one",
+      us: "A plan from day one, just for you",
     },
     {
       gym: "Classes sized to fill the room",
@@ -126,14 +126,14 @@ export const ABOUT_PAGE = {
     },
   ],
   placeBody: "A strength floor with racks, plates and kettlebells, set up for coached small-group training.",
-  ctaTitle: "Start with a baseline session.",
+  ctaTitle: "Start with your first class.",
   ctaBody: "Tell us what you're training for, and we'll take it from there.",
 } as const;
 
 export const CONTACT_PAGE = {
   title: "Book your first session.",
   intro:
-    "Send a few lines about your goals and when you can train. A coach will reply within one working day to arrange your baseline session.",
+    "Send a few lines about your goals and when you can train. A coach will reply within one working day to book your first class.",
   formTitle: "Send an enquiry",
   formNote: "Only your name, email and a message are needed.",
   stepsTitle: "What happens next.",

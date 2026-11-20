@@ -10,7 +10,7 @@ function UpNextPreview() {
     <div className={CARD}>
       <div className="mb-4 flex items-baseline justify-between">
         <span className="text-headline text-[26px] text-zinc-50">Up next</span>
-        <span className="text-sm text-zinc-400 underline underline-offset-4">Schedule</span>
+        <span className="text-sm text-zinc-400">Schedule</span>
       </div>
       <div className="flex items-center gap-4 rounded-2xl bg-[#0b1527] p-3">
         <div className="rounded-xl bg-[#17263f] px-3 py-2 text-center">
