@@ -20,6 +20,9 @@ const PAID_FEATURES = [
   { title: "Ask the app", body: "Ask a question any time and get an answer based on your own training, recovery and nutrition." },
   { title: "Adaptive targets", body: "Calorie and macro targets that move with your training load, week by week." },
   { title: "Full programmes", body: "Multi-week programmes written around your goals and your equipment, adjusted as you log." },
+  { title: "Meal ideas", body: "Photograph your ingredients or describe what is in the fridge and get meals built from what you actually have." },
+  { title: "Cycle-phase guidance", body: "Training and recovery guidance that follows your cycle, private to you." },
+  { title: "Community leaderboards", body: "See where you rank among friends and your gym, and celebrate every personal best." },
   { title: "Full history", body: "Every session, lift and check-in kept, so you can see how far you've come." },
   { title: "And much, much more", body: "Every tool in the app is unlocked, with new ones arriving as we build them." },
 ] as const;
@@ -71,8 +74,8 @@ export default function TheAppPage() {
           </p>
           <ul className="mt-12 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
             {PAID_FEATURES.map((f) => (
-              <li key={f.title} className="border-t-2 border-primary pt-5">
-                <h3 className="text-headline text-[28px] text-zinc-50">{f.title}</h3>
+              <li key={f.title} className="rounded-[4px] border border-white/[0.1] border-t-2 border-t-gold bg-[var(--surface-1)] p-6 transition-colors duration-200 hover:border-primary/40">
+                <h3 className="text-headline text-[28px] text-gold">{f.title}</h3>
                 <p className="mt-2 text-base leading-relaxed text-zinc-300">{f.body}</p>
               </li>
             ))}

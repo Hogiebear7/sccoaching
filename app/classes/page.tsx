@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ClassJumpList } from "@/components/marketing/ClassJumpList";
 import { Accordion } from "@/components/marketing/FaqSection";
 import {
   BUTTON_PRIMARY,
@@ -41,24 +42,7 @@ export default function ClassesPage() {
     <MarketingPage>
       <PageIntro label="Classes and pricing" title={CLASSES_PAGE.title} intro={CLASSES_PAGE.intro}>
         <p className={LIST_HEADING}>{CLASSES_PAGE.selectLabel}</p>
-        <ul className="mt-4 grid gap-3 lg:grid-cols-3">
-          {MARKETING_CLASSES.map((cls) => (
-            <li key={cls.slug}>
-              <a
-                href={`#${cls.slug}`}
-                className="group flex h-full items-start justify-between gap-4 rounded-[4px] border border-white/[0.1] bg-[var(--surface-1)] p-5 transition-colors duration-150 hover:border-primary/40"
-              >
-                <span>
-                  <span className="block text-headline text-[26px] text-zinc-50">
-                    <HeadlineText text={cls.name} />
-                  </span>
-                  <span className="mt-1 block text-sm leading-relaxed text-zinc-400">{cls.forWho[0]}</span>
-                </span>
-                <span aria-hidden className="mt-1 text-gold transition-transform duration-150 group-hover:translate-y-0.5">↓</span>
-              </a>
-            </li>
-          ))}
-        </ul>
+        <ClassJumpList />
       </PageIntro>
 
       {MARKETING_CLASSES.map((cls, i) => (
@@ -66,9 +50,9 @@ export default function ClassesPage() {
           key={cls.slug}
           id={cls.slug}
           aria-labelledby={`${cls.slug}-title`}
-          className={`relative scroll-mt-20 border-t border-white/[0.06] ${i % 2 === 0 ? "bg-[var(--surface-1)]" : ""}`}
+          className={`relative flex min-h-[calc(100svh-5rem)] scroll-mt-20 items-center border-t border-white/[0.06] ${i % 2 === 0 ? "bg-[var(--surface-1)]" : ""}`}
         >
-          <div className={`${SECTION} grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20`}>
+          <div className={`${SECTION} grid w-full gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20`}>
             <div className="lg:sticky lg:top-28 lg:self-start">
               <p className="text-headline text-[28px] text-gold">{String(i + 1).padStart(2, "0")}</p>
               <h2 id={`${cls.slug}-title`} className={`mt-2 ${H2} text-zinc-50`}>

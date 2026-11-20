@@ -225,8 +225,8 @@ export default async function Root() {
             <AppShowcase compact />
           </ScrollReveal>
 
-          <div className="mt-12 flex flex-col items-start gap-4 border-t border-white/[0.08] pt-8 sm:flex-row sm:items-center sm:justify-between">
-            <p className="max-w-[52ch] text-base leading-relaxed text-zinc-300">
+          <div className="mt-12 flex flex-col items-start gap-6 border-t border-white/[0.08] pt-8">
+            <p className="max-w-[60ch] text-base leading-relaxed text-zinc-300">
               Free to download. Unlock the Nutrition Coach, Ask the app, adaptive targets, programmes and much, much more with the App Subscription, or get it all included with a gym Membership.
             </p>
             <Link href="/the-app" className="group inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[3px] bg-primary px-7 text-sm font-semibold text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-[var(--primary-hover)] active:translate-y-px">

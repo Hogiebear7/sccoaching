@@ -41,7 +41,7 @@ const GETTING_STARTED: FaqItem[] = [
   {
     question: "What happens after I enquire?",
     answer:
-      "A coach replies by email or phone within one working day to book your first class. We talk through your goals and assess how you move during the warm-up and the class itself, then your first block of training is tailored for you and stored in the app whenever you need it.",
+      "A coach replies by email or phone within one working day to book your first class. We talk through your goals, assess how you move and bring you through your class, then your first block of training is tailored for you and stored in the app whenever you need it.",
   },
   {
     question: "What should I bring to my first session?",
@@ -75,7 +75,7 @@ const BOOKING_AND_MEMBERSHIP: FaqItem[] = [
   {
     question: "What's the cancellation policy?",
     answer:
-      "Cancel at least 3 hours before a class starts and your session credit is returned automatically. Cancelling later than that forfeits the credit for that session.",
+      "Cancel at least 3 hours before a class starts and your session credit is returned automatically. Cancelling later than that may forfeit the credit for that session.",
   },
   {
     question: "Can I pause my membership?",
@@ -90,7 +90,7 @@ const THE_APP: FaqItem[] = [
   {
     question: "What's included with the app?",
     answer:
-      "The App Subscription adds the Nutrition Coach and Ask the app, food logging from a photo or a description, daily calorie and macro targets that adapt to your training, programmes and the weekly planner, and your full history and personal bests. Logging workouts, meals and check-ins is free for everyone.",
+      "The App Subscription is the full coaching suite: the Nutrition Coach and Ask the app, food logging from a photo, barcode or description, meal ideas from whatever is in your fridge, calorie and macro targets that adapt to your training (with the reasoning behind every number), multi-week programmes and the weekly planner, cycle-phase guidance, community leaderboards and highlights, and your full history and personal bests. Logging workouts, meals and check-ins is free for everyone.",
   },
   {
     question: "How is this different from the in-person membership?",

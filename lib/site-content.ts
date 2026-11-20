@@ -33,7 +33,7 @@ export const START_STEPS = [
   },
   {
     title: "Your first class",
-    body: "We talk through your goals and history, then assess how you move in the warm-up and the class. Bring training clothes, trainers, a towel and water.",
+    body: "We talk through your goals and history, then assess how you move and bring you through your class. Bring training clothes, trainers, a towel and water.",
   },
   {
     title: "Your plan begins",
@@ -62,6 +62,11 @@ export const ABOUT_PAGE = {
   title: "Coaching, done properly.",
   intro:
     "S&C Performance Coaching is a small strength and conditioning studio in Navan, Co. Meath. We coach people, not a room: every member trains on a plan written for them, with a coach watching every rep.",
+  coachTitle: "Meet your coach.",
+  coach: [
+    "Fifteen years in the gym, fitness and health industry, across commercial, private and corporate settings, working with athletes, Oscar-winning actors and everyday people. Whoever walks in, the principle is the same: the plan has to fit the person.",
+    "That approach is built on a background in sports science and kinesiology and a master's degree in performance nutrition, with a PhD in the plans for the coming years. It is why every class is programmed individually, and every session is coached rather than just supervised.",
+  ],
   whoTitle: "Who we coach.",
   who: [
     {
@@ -93,7 +98,7 @@ export const ABOUT_PAGE = {
     },
     {
       title: "Recovery is part of training",
-      body: "Sleep, soreness and stress shape what a session should look like. We ask, and we adjust.",
+      body: "Sleep, soreness, recent activity and stress shape what a session should look like. We ask, and we adjust.",
     },
   ],
   structureTitle: "How coaching is structured.",
@@ -125,7 +130,7 @@ export const ABOUT_PAGE = {
       us: "Training, readiness and nutrition tracked in the app",
     },
   ],
-  placeBody: "A strength floor with racks, plates and kettlebells, set up for coached small-group training.",
+  placeBody: "A fully equipped strength studio in Navan, built for coached small-group training. Small groups mean every session is coached, adjusted and personal to you.",
   ctaTitle: "Start with your first class.",
   ctaBody: "Tell us what you're training for, and we'll take it from there.",
 } as const;
