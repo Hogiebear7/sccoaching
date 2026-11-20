@@ -23,6 +23,21 @@ export default function AboutPage() {
     <MarketingPage>
       <PageIntro label="About S&C" title={ABOUT_PAGE.title} intro={ABOUT_PAGE.intro} />
 
+      {/* Your coach — the longer version of the homepage bio. */}
+      <section className="relative border-t border-white/[0.06]">
+        <div className={`${SECTION} grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20`}>
+          <div>
+            <SectionLabel>Your coach</SectionLabel>
+            <h2 className={`mt-4 ${H2} text-zinc-50`}>{ABOUT_PAGE.coachTitle}</h2>
+          </div>
+          <div className="grid max-w-xl gap-5 border-l-2 border-primary pl-6">
+            {ABOUT_PAGE.coach.map((paragraph) => (
+              <p key={paragraph} className="text-lg leading-relaxed text-zinc-300">{paragraph}</p>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Who we coach — each links to its class. */}
       <section className="relative border-t border-white/[0.06] bg-[var(--surface-1)]">
         <div className={SECTION}>

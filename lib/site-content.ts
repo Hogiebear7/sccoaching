@@ -62,6 +62,11 @@ export const ABOUT_PAGE = {
   title: "Coaching, done properly.",
   intro:
     "S&C Performance Coaching is a small strength and conditioning studio in Navan, Co. Meath. We coach people, not a room: every member trains on a plan written for them, with a coach watching every rep.",
+  coachTitle: "Meet your coach.",
+  coach: [
+    "Fifteen years in the gym, fitness and health industry, across commercial, private and corporate settings, working with athletes, Oscar-winning actors and everyday people. Whoever walks in, the principle is the same: the plan has to fit the person.",
+    "That approach is built on a background in sports science and kinesiology and a master's degree in performance nutrition, with a PhD in the plans for the coming years. It is why every class is programmed individually, and every session is coached rather than just supervised.",
+  ],
   whoTitle: "Who we coach.",
   who: [
     {
