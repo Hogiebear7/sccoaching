@@ -78,7 +78,7 @@ export const HOME_CONTACT = {
     "Tell us what you're training for. We'll book your first class and you'll leave with a plan and a coach who already knows your goals.",
   steps: [
     { title: "Send an enquiry", body: "A few lines about your goals. We reply within one working day." },
-    { title: "Your first class", body: "We assess where you're starting from in the warm-up and the class itself. Bring training clothes, trainers, a towel and water." },
+    { title: "Your first class", body: "We talk through your goals and history, then assess how you move and bring you through your class. Bring training clothes, trainers, a towel and water." },
     { title: "Your plan begins", body: "Your first block is tailored for you and stored in the app whenever you need it." },
   ],
   primaryCta: "Email to book",

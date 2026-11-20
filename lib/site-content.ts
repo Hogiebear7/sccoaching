@@ -33,7 +33,7 @@ export const START_STEPS = [
   },
   {
     title: "Your first class",
-    body: "We talk through your goals and history, then assess how you move in the warm-up and the class. Bring training clothes, trainers, a towel and water.",
+    body: "We talk through your goals and history, then assess how you move and bring you through your class. Bring training clothes, trainers, a towel and water.",
   },
   {
     title: "Your plan begins",
@@ -93,7 +93,7 @@ export const ABOUT_PAGE = {
     },
     {
       title: "Recovery is part of training",
-      body: "Sleep, soreness and stress shape what a session should look like. We ask, and we adjust.",
+      body: "Sleep, soreness, recent activity and stress shape what a session should look like. We ask, and we adjust.",
     },
   ],
   structureTitle: "How coaching is structured.",
@@ -125,7 +125,7 @@ export const ABOUT_PAGE = {
       us: "Training, readiness and nutrition tracked in the app",
     },
   ],
-  placeBody: "A strength floor with racks, plates and kettlebells, set up for coached small-group training.",
+  placeBody: "A fully equipped strength studio in Navan, built for coached small-group training. Small groups mean every session is coached, adjusted and personal to you.",
   ctaTitle: "Start with your first class.",
   ctaBody: "Tell us what you're training for, and we'll take it from there.",
 } as const;

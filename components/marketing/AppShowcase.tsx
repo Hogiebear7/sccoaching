@@ -57,8 +57,8 @@ const APP_SCREENS: { src: string; alt: string; label: string; description: strin
 
 type AppScreen = (typeof APP_SCREENS)[number];
 
-// The homepage shows just these three; the full set is on /the-app.
-const HOME_PREVIEW = ["Home", "Nutrition", "Recovery"];
+// On a phone the homepage shows just these two (to keep the page short); wider screens show every screen. The full feature list is on /the-app.
+const HOME_PREVIEW = ["Home", "Nutrition"];
 
 // Plain rounded-rect device frame rather than a fake notch/camera cutout —
 // the screenshots themselves already read clearly as a phone UI, so a
@@ -177,7 +177,7 @@ function AppScreensGrid({ screens = APP_SCREENS, compact = false }: { screens?: 
           and runs to the screen edges (-mx-6 cancels the section's px-6; px-6 puts the first and last screens back on the gutter). */}
       <div className={`${compact ? "grid grid-cols-2 gap-3 sm:flex" : "-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 pb-2 [scrollbar-width:none] sm:mx-auto sm:max-w-[708px] sm:snap-none sm:flex-wrap sm:justify-center sm:gap-6 sm:overflow-visible sm:px-0 sm:pb-0 lg:max-w-[952px] [&::-webkit-scrollbar]:hidden"} sm:mx-auto sm:max-w-[708px] sm:flex-wrap sm:justify-center sm:gap-6 lg:max-w-[952px]`}>
         {screens.map((screen, i) => (
-          <div key={screen.label} className={compact && i >= 2 ? "max-sm:hidden" : undefined}>
+          <div key={screen.label} className={compact && !HOME_PREVIEW.includes(screen.label) ? "max-sm:hidden" : undefined}>
             <PhoneFrame screen={screen} onOpen={() => setOpenIndex(i)} compact={compact} />
           </div>
         ))}
@@ -221,12 +221,10 @@ function StoreBadge({ store }: { store: "apple" | "google" }) {
 // `children` renders between the screenshots and the launch line (the page
 // puts the expandable full feature list there).
 export function AppShowcase({ children, compact = false }: { children?: ReactNode; compact?: boolean }) {
-  const screens = compact ? APP_SCREENS.filter((s) => HOME_PREVIEW.includes(s.label)) : APP_SCREENS;
+  const screens = APP_SCREENS;
   return (
     <div>
       <AppScreensGrid screens={screens} compact={compact} />
-
-      {children}
 
       {compact ? null : <>
       <div className="mt-10 flex flex-col items-start gap-4 border-t border-white/[0.08] pt-8 sm:flex-row sm:items-center sm:justify-between">
@@ -242,6 +240,8 @@ export function AppShowcase({ children, compact = false }: { children?: ReactNod
         </div>
       </div>
       </>}
+
+      {children}
     </div>
   );
 }
