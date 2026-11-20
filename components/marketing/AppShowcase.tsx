@@ -24,7 +24,7 @@ const APP_SCREENS: { src: string; alt: string; label: string; description: strin
     description: "Book classes in seconds: see what's on at the gym and grab your spot.",
   },
   {
-    src: "/marketing/app/2026-10/workouts.jpg",
+    src: "/marketing/app/2026-10/train-2.jpg",
     alt: "App training screen showing logged sessions and lifts over time",
     label: "Train",
     description: "Every set, every PB: log your sessions and watch your lifts climb week by week.",
