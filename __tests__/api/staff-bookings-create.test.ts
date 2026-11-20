@@ -17,6 +17,16 @@ let seq = 0;
 
 const future = (days = 7) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 
+// A class that began `minutesAgo` minutes ago, in the gym's own (Dublin) clock.
+function startedAgo(minutesAgo: number, durationMins = 50) {
+  const at = new Date(Date.now() - minutesAgo * 60_000);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(at).map((p) => [p.type, p.value])
+  );
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, startTime: `${parts.hour}:${parts.minute}`, durationMins };
+}
+
 function makeClass(over: Record<string, unknown> = {}, coachId = coach.id, gymId: string | null = null) {
   const id = `class-${++seq}`;
   fx.db.saveClass({
@@ -128,11 +138,31 @@ describe("every member rule still applies", () => {
     nothingWritten(classId);
   });
 
-  it("refuses a class that has already started", async () => {
+  it("refuses a class that has already finished", async () => {
     const m = makeMember();
     const classId = makeClass({ date: "2020-01-01" });
-    expect((await book(fx.adminA.id, { classId, userId: m.id })).status).toBe(409);
+    const res = await book(fx.adminA.id, { classId, userId: m.id });
+    expect(res.status).toBe(409);
+    expect((await res.json()).message).toMatch(/already finished/);
     nothingWritten(classId);
+  });
+
+  it("books a member into a class that is already under way", async () => {
+    const m = makeMember();
+    const classId = makeClass(startedAgo(10));
+    const res = await book(fx.adminA.id, { classId, userId: m.id });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ success: true, outcome: "booked" });
+    expect(fx.db.findBookingsByClassId(classId)).toHaveLength(1);
+  });
+
+  it("does not waitlist for a full class that is already under way", async () => {
+    const classId = makeClass({ ...startedAgo(10), capacity: 1 });
+    expect((await book(fx.adminA.id, { classId, userId: makeMember().id })).status).toBe(201);
+    const res = await book(fx.adminA.id, { classId, userId: makeMember().id });
+    expect(res.status).toBe(409);
+    expect(fx.db.findWaitlistEntriesByClassId(classId)).toHaveLength(0);
+    expect(fx.db.findBookingsByClassId(classId)).toHaveLength(1);
   });
 
   it("refuses a duplicate booking", async () => {

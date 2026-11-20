@@ -90,8 +90,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "This class no longer exists." }, { status: 404 });
   }
 
-  if (classStartDate(classRecord.date, classRecord.startTime).getTime() < Date.now()) {
-    return NextResponse.json({ success: false, message: "This class has already started." }, { status: 409 });
+  // Staff can add someone to a class that is already under way (a late arrival, or a walk-in), right up
+  // until it finishes. Members booking themselves still stop at the start time.
+  const classStartMs = classStartDate(classRecord.date, classRecord.startTime).getTime();
+  const classEndMs = classStartMs + classRecord.durationMins * 60_000;
+  const classInProgress = classStartMs < Date.now();
+  if (classEndMs < Date.now()) {
+    return NextResponse.json({ success: false, message: "This class has already finished." }, { status: 409 });
   }
 
   if (membershipIsRequired() && !hasActiveMembership(member.id)) {
@@ -144,6 +149,12 @@ export async function POST(request: NextRequest) {
 
   // Full class: waitlist (same cap as a member joining; a live offer adds one bonus slot).
   if (currentBookings + offeredCount >= classRecord.capacity) {
+    if (classInProgress) {
+      return NextResponse.json(
+        { success: false, message: "This class has already started and is full, so this member can't be added." },
+        { status: 409 }
+      );
+    }
     if (findWaitlistEntryByClassAndUser(classId, member.id)) {
       return NextResponse.json({ success: false, message: "This member is already on the waitlist for this class." }, { status: 409 });
     }
@@ -226,7 +237,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  sendBookingConfirmationEmail(member.id, classRecord);
+  // No confirmation email or push for a class that is already under way; the member is in the room.
+  if (!classInProgress) sendBookingConfirmationEmail(member.id, classRecord);
 
   const notification: NotificationRecord = {
     id: randomUUID(),
@@ -245,7 +257,7 @@ export async function POST(request: NextRequest) {
   };
   createNotification(notification);
 
-  if (memberProfile.pushNotificationsEnabled !== false) {
+  if (!classInProgress && memberProfile.pushNotificationsEnabled !== false) {
     void sendPush(member.id, { title: notification.title, body: notification.body, linkHref: notification.linkHref ?? "/dashboard/bookings" });
   }
 
