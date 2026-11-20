@@ -65,13 +65,13 @@ const HOME_PREVIEW = ["Home", "Nutrition", "Recovery"];
 // heavier mockup would add visual noise without adding believability.
 // Hovering (or focusing, for keyboard/touch users) fades in the
 // description over the screenshot; clicking opens it full-size.
-function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void }) {
+function PhoneFrame({ screen, onOpen, compact = false }: { screen: AppScreen; onOpen: () => void; compact?: boolean }) {
   return (
     // Under sm: each screen takes most of the row's width so the next one
     // peeks in, which is what shows the row can be swiped. A fixed 220px at
     // sm: and up, matching the row widths set in AppScreensGrid (3 per row at
     // tablet width, 4 from lg:).
-    <div className="w-[72%] max-w-[280px] flex-none snap-center sm:w-[220px] sm:max-w-[220px]">
+    <div className={compact ? "w-full sm:w-[220px] sm:max-w-[220px] sm:flex-none" : "w-[72%] max-w-[280px] flex-none snap-center sm:w-[220px] sm:max-w-[220px]"}>
       <button
         type="button"
         onClick={onOpen}
@@ -86,7 +86,7 @@ function PhoneFrame({ screen, onOpen }: { screen: AppScreen; onOpen: () => void 
       </button>
       <p className="mt-3 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">{screen.label}</p>
       {/* A phone has no hover, so the description that fades in over the screenshot on a wide screen is written out here instead. */}
-      <p className="mt-1 text-center text-sm leading-relaxed text-zinc-400 sm:hidden">{screen.description}</p>
+      {compact ? null : <p className="mt-1 text-center text-sm leading-relaxed text-zinc-400 sm:hidden">{screen.description}</p>}
     </div>
   );
 }
@@ -167,7 +167,7 @@ function ScreenLightbox({ screen, onClose }: { screen: AppScreen; onClose: () =>
   );
 }
 
-function AppScreensGrid({ screens = APP_SCREENS }: { screens?: AppScreen[] }) {
+function AppScreensGrid({ screens = APP_SCREENS, compact = false }: { screens?: AppScreen[]; compact?: boolean }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
@@ -175,9 +175,11 @@ function AppScreensGrid({ screens = APP_SCREENS }: { screens?: AppScreen[] }) {
       {/* The row width decides how many screens sit side by side (each is 220px from sm:, gap-6 = 24px): 708px = 3 per row at tablet
           width, 952px = 4 per row from lg: (7 screens read as 4 + 3). Below sm: it is a single swipeable row that snaps to each screen
           and runs to the screen edges (-mx-6 cancels the section's px-6; px-6 puts the first and last screens back on the gutter). */}
-      <div className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 pb-2 [scrollbar-width:none] sm:mx-auto sm:max-w-[708px] sm:snap-none sm:flex-wrap sm:justify-center sm:gap-6 sm:overflow-visible sm:px-0 sm:pb-0 lg:max-w-[952px] [&::-webkit-scrollbar]:hidden">
+      <div className={`${compact ? "grid grid-cols-2 gap-3 sm:flex" : "-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 pb-2 [scrollbar-width:none] sm:mx-auto sm:max-w-[708px] sm:snap-none sm:flex-wrap sm:justify-center sm:gap-6 sm:overflow-visible sm:px-0 sm:pb-0 lg:max-w-[952px] [&::-webkit-scrollbar]:hidden"} sm:mx-auto sm:max-w-[708px] sm:flex-wrap sm:justify-center sm:gap-6 lg:max-w-[952px]`}>
         {screens.map((screen, i) => (
-          <PhoneFrame key={screen.label} screen={screen} onOpen={() => setOpenIndex(i)} />
+          <div key={screen.label} className={compact && i >= 2 ? "max-sm:hidden" : undefined}>
+            <PhoneFrame screen={screen} onOpen={() => setOpenIndex(i)} compact={compact} />
+          </div>
         ))}
       </div>
       {openIndex !== null ? <ScreenLightbox screen={screens[openIndex]} onClose={() => setOpenIndex(null)} /> : null}
@@ -222,7 +224,7 @@ export function AppShowcase({ children, compact = false }: { children?: ReactNod
   const screens = compact ? APP_SCREENS.filter((s) => HOME_PREVIEW.includes(s.label)) : APP_SCREENS;
   return (
     <div>
-      <AppScreensGrid screens={screens} />
+      <AppScreensGrid screens={screens} compact={compact} />
 
       {children}
 

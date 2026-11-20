@@ -33,7 +33,7 @@ export const HOME_APPROACH = {
     "Every member is assessed in the warm-up and first class, which sets your goals and starting point. From there, your coach writes the block that follows and adjusts it as you progress.",
   bio: {
     label: "Your coach",
-    text: "15 years in the gym, fitness and health industry across commercial, private and corporate settings, working with athletes, Oscar-winning actors and everyday people. Trained in sports science and kinesiology, with a master's in performance nutrition.",
+    text: "15 years in the gym, fitness and health industry across commercial, private and corporate settings, working with athletes, Oscar-winning actors and everyday people. Trained in sports science and kinesiology, with a master's in performance nutrition, and a PhD in the plans for the coming years.",
   },
   pillars: [
     {

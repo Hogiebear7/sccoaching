@@ -15,31 +15,31 @@ export function ClassOffers() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <ul className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 pb-2 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden">
+    <ul className="grid gap-3 lg:grid-cols-3 lg:gap-5">
       {MARKETING_CLASSES.map((cls, i) => {
         const isOpen = open === i;
         const descId = `class-offer-${i}`;
         return (
           <li
             key={cls.name}
-            className="group relative flex w-[82%] max-w-[340px] flex-none snap-center flex-col rounded-[4px] lg:w-auto lg:max-w-none border border-white/[0.08] bg-[var(--surface-1)] transition-[border-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/40 focus-within:border-primary/40"
+            className="group relative flex flex-col rounded-[4px] border border-white/[0.08] bg-[var(--surface-1)] transition-[border-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/40 focus-within:border-primary/40"
           >
             <div className="absolute inset-x-0 top-0 h-[2px] rounded-t-[4px] bg-primary" aria-hidden />
 
             <div className="flex flex-1 flex-col p-5 pb-0 lg:p-8 lg:pb-0">
-              <h3 className="text-headline text-[30px] text-zinc-50 lg:min-h-[2em] lg:text-[36px]">
+              <h3 className="text-headline text-[28px] text-zinc-50 lg:min-h-[2em] lg:text-[36px]">
                 <HeadlineText text={cls.name} />
               </h3>
-              <p className="mt-3 flex items-baseline gap-1.5 text-sm text-zinc-400">
+              <p className="mt-1 flex items-baseline gap-1.5 text-sm text-zinc-400 lg:mt-3">
                 From
-                <span className="text-headline text-[44px] leading-none text-gold">{cls.price.from}</span>
+                <span className="text-headline text-[36px] leading-none text-gold lg:text-[44px]">{cls.price.from}</span>
                 <span>/ {cls.price.per}</span>
               </p>
 
               <div className="mt-4 mb-2 grid border-t lg:mt-6 lg:mb-3 border-white/[0.08] pt-5">
                 <p
-                  className={`col-start-1 row-start-1 text-base leading-relaxed text-zinc-300 transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0 ${
-                    isOpen ? "opacity-0" : "opacity-100"
+                  className={`col-start-1 row-start-1 text-sm leading-relaxed text-zinc-300 lg:text-base transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0 ${
+                    isOpen ? "opacity-0 max-lg:hidden" : "opacity-100"
                   }`}
                 >
                   {cls.tagline}
@@ -47,7 +47,7 @@ export function ClassOffers() {
                 <p
                   id={descId}
                   className={`col-start-1 row-start-1 text-base leading-relaxed text-zinc-100 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 ${
-                    isOpen ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+                    isOpen ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0 max-lg:hidden"
                   }`}
                 >
                   {cls.description}

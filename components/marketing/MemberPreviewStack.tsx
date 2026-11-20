@@ -3,7 +3,7 @@
 
 const READINESS_WEEK = [70, 78, 74, 81, 76, 72, 75];
 
-const CARD = "rounded-[22px] border border-white/[0.06] bg-[#111e34] p-5 max-lg:w-[86%] max-lg:flex-none max-lg:snap-center";
+const CARD = "rounded-[22px] border border-white/[0.06] bg-[#111e34] p-5";
 
 function UpNextPreview() {
   return (
@@ -100,8 +100,10 @@ function ReadinessPreview() {
 
 export function MemberPreviewStack() {
   return (
-    <div className="space-y-4 max-lg:-mx-6 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:gap-4 max-lg:space-y-0 max-lg:overflow-x-auto max-lg:px-6 max-lg:pb-2 max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
-      <UpNextPreview />
+    <div className="space-y-4">
+      <div className="max-lg:hidden">
+        <UpNextPreview />
+      </div>
       <FuelPreview />
       <ReadinessPreview />
     </div>
