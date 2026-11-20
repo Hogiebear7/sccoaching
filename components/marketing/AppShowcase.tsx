@@ -42,7 +42,7 @@ const APP_SCREENS: { src: string; alt: string; label: string; description: strin
     description: "Train when you're ready: quick daily check-ins turn into a readiness score.",
   },
   {
-    src: "/marketing/app/2026-10/community.jpg",
+    src: "/marketing/app/2026-10/community-2.jpg",
     alt: "App community screen showing members' shared sessions and personal bests",
     label: "Community",
     description: "Train together: share sessions, celebrate PBs and climb the leaderboard.",
