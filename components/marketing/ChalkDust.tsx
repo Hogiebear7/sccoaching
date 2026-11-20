@@ -5,6 +5,9 @@ import { useState, useSyncExternalStore } from "react";
 
 const ChalkDustCanvas = dynamic(() => import("./ChalkDustCanvas"), { ssr: false });
 
+// Start downloading the effect the moment this file loads, rather than waiting for the page to finish hydrating, so it is ready sooner.
+if (typeof window !== "undefined") void import("./ChalkDustCanvas");
+
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 
 function subscribe(onChange: () => void) {
@@ -14,7 +17,7 @@ function subscribe(onChange: () => void) {
 }
 
 // The old chalk-dust haze, laid over the hero photo. A soft static mist is always there (and is all that reduced-motion visitors or
-// browsers without WebGPU see); the drifting specks fade in on top once the shader is ready. The parent masks it so it is strongest on the
+// browsers without WebGPU see); the drifting specks fade in slowly (3 seconds) on top once the shader is ready. The parent masks it so it is strongest on the
 // dark left side and fades out as the photo gets brighter.
 export function ChalkDust({ className }: { className?: string }) {
   const reducedMotion = useSyncExternalStore(
@@ -36,7 +39,7 @@ export function ChalkDust({ className }: { className?: string }) {
         }}
       />
       {reducedMotion ? null : (
-        <div className={`absolute inset-0 transition-opacity duration-1000 ease-out ${ready ? "opacity-100" : "opacity-0"}`}>
+        <div className={`absolute inset-0 transition-opacity duration-[3000ms] ease-in-out ${ready ? "opacity-100" : "opacity-0"}`}>
           <ChalkDustCanvas onReady={() => setReady(true)} />
         </div>
       )}
