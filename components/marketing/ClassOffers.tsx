@@ -1,15 +1,57 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { HeadlineText } from "@/components/ui/HeadlineText";
 import { MARKETING_CLASSES } from "@/lib/marketing-classes";
 
 // The three classes as typographic cards (no stock photography): Teko name,
 // "From €x" price and a one-line summary are always visible. The Details button
-// slides the fuller description open and closed (a height transition, skipped
-// for reduced motion); on a wide screen only the clicked card grows.
+// continues the summary sentence with the fuller description, sliding open and
+// closed (a height transition, skipped for reduced motion); on a wide screen
+// only the clicked card grows.
+// The summary and the fuller description are one paragraph: opening Details carries the sentence on from where the summary ends. A hidden
+// copy of the summary alone gives the closed height (on a wide screen the three summaries reserve the same height so the cards line up),
+// and the visible paragraph's own height is the open one; the wrapper animates between them.
+function ClassText({ id, tagline, description, isOpen }: { id: string; tagline: string; description: string; isOpen: boolean }) {
+  const ghost = useRef<HTMLParagraphElement>(null);
+  const full = useRef<HTMLParagraphElement>(null);
+  const [heights, setHeights] = useState<{ closed: number; open: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (ghost.current && full.current) setHeights({ closed: ghost.current.offsetHeight, open: full.current.offsetHeight });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (ghost.current) observer.observe(ghost.current);
+    return () => observer.disconnect();
+  }, [tagline, description]);
+
+  const TEXT = "text-sm leading-relaxed text-zinc-300 lg:text-base";
+  return (
+    <div className="relative">
+      <p ref={ghost} aria-hidden className={`invisible absolute inset-x-0 top-0 ${TEXT} lg:min-h-[4.9em]`}>
+        {tagline}
+      </p>
+      <div
+        id={id}
+        className="overflow-hidden transition-[height] duration-300 ease-out motion-reduce:transition-none"
+        style={heights ? { height: isOpen ? heights.open : heights.closed } : undefined}
+      >
+        <p ref={full} className={`${TEXT} lg:min-h-[4.9em]`}>
+          {tagline}
+          <span aria-hidden={!isOpen} className={`transition-opacity duration-300 motion-reduce:transition-none ${isOpen ? "opacity-100" : "opacity-0"}`}>
+            {" "}
+            {description}
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ClassOffers() {
   const [open, setOpen] = useState<number | null>(null);
 
@@ -36,19 +78,7 @@ export function ClassOffers() {
               </p>
 
               <div className="mt-4 border-t border-white/[0.08] pt-4 lg:mt-6 lg:pt-5">
-                {/* The three taglines reserve the same height on a wide screen, so the cards line up when closed. */}
-                <p className="text-sm leading-relaxed text-zinc-300 lg:min-h-[4.9em] lg:text-base">{cls.tagline}</p>
-                {/* The fuller description slides open (and closed) by animating the row height from 0 to its natural size. */}
-                <div
-                  id={descId}
-                  className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
-                    isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                  }`}
-                >
-                  <div className="overflow-hidden">
-                    <p className="text-sm leading-relaxed text-zinc-300 lg:text-base">{cls.description}</p>
-                  </div>
-                </div>
+                <ClassText id={descId} tagline={cls.tagline} description={cls.description} isOpen={isOpen} />
               </div>
             </div>
 
