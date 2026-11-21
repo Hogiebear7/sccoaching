@@ -188,10 +188,24 @@ function AppScreensGrid({ screens = APP_SCREENS, compact = false }: { screens?: 
 }
 
 // Store badges: "Coming soon on" until a listing is public, then a link to it (lib/app-links.ts storeListingsLive, set at build time).
-// Deliberately not styled as the official Apple/Google trademarked badge artwork.
+// While a listing is not live yet it shows a plain "coming soon" pill; once live it uses the official badge artwork.
 function StoreBadge({ store }: { store: "apple" | "google" }) {
   const label = store === "apple" ? "App Store" : "Google Play";
   const live = storeListingsLive()[store === "apple" ? "appStore" : "googlePlay"];
+  // Once a listing is public, use the store's own badge artwork (Apple's and Google's brand guidelines ask for the unmodified badges).
+  if (live) {
+    return (
+      <a href={store === "apple" ? appStoreListingUrl() : playStoreListingUrl()} rel="noopener" className="inline-block transition-opacity duration-150 hover:opacity-85">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={store === "apple" ? "/marketing/badges/app-store-badge.svg" : "/marketing/badges/google-play-badge.png"}
+          alt={store === "apple" ? "Download on the App Store" : "Get it on Google Play"}
+          height={48}
+          className="block h-12 w-auto"
+        />
+      </a>
+    );
+  }
   const Tag = live ? "a" : "span";
   return (
     <Tag
