@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { SiteAnalytics } from "@/components/analytics/SiteAnalytics";
 import { STATIC_HAZE } from "@/components/marketing/haze";
@@ -41,18 +42,18 @@ export default function LinksPage() {
         </p>
 
         <div className="mt-9 flex w-full flex-col gap-3">
-          <a href="/contact" className={`${BUTTON_PRIMARY} w-full`}>
+          <Link href="/contact" className={`${BUTTON_PRIMARY} w-full`}>
             Enquire or book your first class
-          </a>
+          </Link>
           <a href={`mailto:${CONTACT_INFO.email}`} className={LINK_BUTTON}>
             Email us
           </a>
           <a href={`tel:${CONTACT_INFO.phoneHref}`} className={LINK_BUTTON}>
             Call {CONTACT_INFO.phone}
           </a>
-          <a href="/classes" className={LINK_BUTTON}>
+          <Link href="/classes" className={LINK_BUTTON}>
             See our classes
-          </a>
+          </Link>
         </div>
 
         <div className="mt-12 w-full border-t border-white/[0.1] pt-10">
@@ -76,9 +77,9 @@ export default function LinksPage() {
               )}
             </div>
           ) : (
-            <a href="/the-app" className={`${LINK_BUTTON} mt-6`}>
+            <Link href="/the-app" className={`${LINK_BUTTON} mt-6`}>
               About the app
-            </a>
+            </Link>
           )}
         </div>
 
@@ -91,9 +92,9 @@ export default function LinksPage() {
               Facebook
             </a>
           )}
-          <a href="/" className={LINK_BUTTON}>
+          <Link href="/" className={LINK_BUTTON}>
             Visit our website
-          </a>
+          </Link>
         </div>
       </div>
       <SiteAnalytics />
