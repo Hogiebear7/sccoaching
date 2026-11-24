@@ -21,6 +21,7 @@ import {
   type LeaderboardMetric,
   type LeaderboardRange,
 } from "@/lib/leaderboard";
+import { isGymStaff } from "@/lib/community-gym";
 import { hiddenFromViewer } from "@/lib/community-moderation";
 import { hasAccess } from "@/lib/member-access";
 import { requireFeature } from "@/lib/member-access-response";
@@ -102,7 +103,8 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  const entries = computeLeaderboard(metric, members).slice(0, MAX_ENTRIES);
+  // Gym staff see real names for everyone, hidden or not; members see aliases where chosen and nothing for members who hid themselves.
+  const entries = computeLeaderboard(metric, members, { id: me.id, isStaff: isGymStaff(me) }).slice(0, MAX_ENTRIES);
 
   return NextResponse.json({ success: true, data: { metric, range, scope, followingCount, entries, myUserId: me.id } });
 }

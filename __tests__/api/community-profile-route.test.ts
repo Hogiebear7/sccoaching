@@ -117,11 +117,25 @@ describe("GET /api/mobile/community/profile/[userId]", () => {
     expect((await (await getProfile("other")).json()).data.displayName).toBe("Alex M.");
   });
 
-  it("keeps volume off the card for someone hidden from the leaderboard", async () => {
+  it("keeps the whole card detail private for an aliased or hidden member, whatever their profile setting", async () => {
+    for (const mode of ["alias", "hidden"]) {
+      privacyOf.other = { profileVisibility: "everyone", leaderboardMode: mode };
+      following.add("me>other");
+      const { data } = await (await getProfile("other")).json();
+      expect(data).toMatchObject({ detailHidden: true, detailLocked: true, detail: null });
+    }
+    // The old on/off switch counts too.
     privacyOf.other = { profileVisibility: "everyone", leaderboardVisible: false };
-    const { data } = await (await getProfile("other")).json();
-    expect(data.detail.stats).toBeNull();
-    expect(data.detail.recent).toHaveLength(1);
+    expect((await (await getProfile("other")).json()).data.detailLocked).toBe(true);
+  });
+
+  it("lets gym staff and the member themselves see an aliased member's detail", async () => {
+    privacyOf.other = { profileVisibility: "followers", leaderboardMode: "alias" };
+    const staff = (await (await getProfile("other", "coach")).json()).data;
+    expect(staff).toMatchObject({ detailHidden: false, detailLocked: false });
+    expect(staff.detail.stats).not.toBeNull();
+    const self = (await (await getProfile("other", "other")).json()).data;
+    expect(self.detailHidden).toBe(false);
   });
 
   it("explains a closed door", async () => {

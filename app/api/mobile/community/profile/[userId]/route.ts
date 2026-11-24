@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { leaderboardModeOf } from "@/lib/community-alias";
 import { isGymStaff } from "@/lib/community-gym";
 import { communityDisplayName } from "@/lib/community-display-name";
 import { isBlockedEitherWay } from "@/lib/community-moderation";
@@ -46,7 +47,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const followsYou = isSelf ? false : isFollowing(target.id, me.id);
   const viewerIsGymMember = isGymMemberOrStaff(me);
 
-  const detailVisible = canSeeProfileDetail(profileVisibilityOf(privacy), { isSelf, isFollower: alreadyFollowing, isGymMember: viewerIsGymMember });
+  // A member who uses an alias or hides from leaderboards keeps their card detail private from everyone but themselves and gym staff, whatever their
+  // profile setting says (owner decision 2026-11-24).
+  const viewerIsStaff = isGymStaff(me);
+  const detailLocked = leaderboardModeOf(privacy) !== "named" && !isSelf && !viewerIsStaff;
+  const detailVisible = !detailLocked && (viewerIsStaff || canSeeProfileDetail(profileVisibilityOf(privacy), { isSelf, isFollower: alreadyFollowing, isGymMember: viewerIsGymMember }));
   const follow = followDecision(whoCanFollowOf(privacy), { isSelf, alreadyFollowing, isGymMember: viewerIsGymMember });
 
   const targetIsStaff = isGymStaff(target);
@@ -63,8 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const sessions = findWorkoutSessionsByUserId(target.id);
     detail = {
       memberSince: memberSinceMonth(target.createdAt),
-      // Volume totals are ranked-style numbers, so a member who has hidden themselves from the leaderboard keeps them off their card too.
-      stats: privacy?.leaderboardVisible === false && !isSelf ? null : profileStats(sessions),
+      stats: profileStats(sessions),
       recent: recentActivities(sessions),
     };
   } else if (detailVisible) {
@@ -83,6 +87,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       canFollow: follow.allowed && !alreadyFollowing,
       followBlockedReason: follow.allowed ? null : follow.reason,
       detailHidden: !detailVisible,
+      // True when the detail is private whatever the viewer does (an alias or hidden member), so the app does not suggest following to see it.
+      detailLocked,
       detail,
     },
   });

@@ -1678,6 +1678,10 @@ export interface CommunityPrivacyRecord {
   profileVisibility?: "followers" | "followers_gym" | "everyone";
   /** Who may start following this member. Absent = "anyone". Existing followers are always kept. */
   whoCanFollow?: "anyone" | "gym" | "nobody";
+  /** How this member appears on leaderboards and challenges (lib/community-alias.ts). Absent = from leaderboardVisible (false = "hidden", else "named"). */
+  leaderboardMode?: "named" | "alias" | "hidden";
+  /** The alias shown when leaderboardMode is "alias", from a fixed list. Absent = "Hidden user". */
+  leaderboardAlias?: string;
   createdAt: string;
   updatedAt: string;
 }

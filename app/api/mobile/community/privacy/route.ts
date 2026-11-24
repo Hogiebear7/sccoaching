@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { isLeaderboardAlias, isLeaderboardMode, LEADERBOARD_ALIASES, leaderboardAliasOf, leaderboardModeOf } from "@/lib/community-alias";
 import { isProfileVisibility, isWhoCanFollow, profileVisibilityOf, whoCanFollowOf } from "@/lib/community-profile";
 import { findCommunityPrivacyByUserId, findUserById, saveCommunityPrivacy } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -30,6 +31,10 @@ export async function GET(request: NextRequest) {
       // Who sees the detail on the profile card, and who may start following. Defaults: followers only, anyone may follow.
       profileVisibility: profileVisibilityOf(prefs),
       whoCanFollow: whoCanFollowOf(prefs),
+      // How the member appears on leaderboards: named, alias (stays ranked under an alias) or hidden. The alias list is what they may pick from.
+      leaderboardMode: leaderboardModeOf(prefs),
+      leaderboardAlias: leaderboardAliasOf(prefs),
+      leaderboardAliases: LEADERBOARD_ALIASES,
     },
   });
 }
@@ -51,7 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { discoverable, leaderboardVisible, showRealName, communityOptIn, profileVisibility, whoCanFollow } = (body ?? {}) as Record<
+  const { discoverable, leaderboardVisible, showRealName, communityOptIn, profileVisibility, whoCanFollow, leaderboardMode, leaderboardAlias } = (body ?? {}) as Record<
     string,
     unknown
   >;
@@ -75,20 +80,39 @@ export async function POST(request: NextRequest) {
   if (whoCanFollow !== undefined && !isWhoCanFollow(whoCanFollow)) {
     return NextResponse.json({ success: false, message: "whoCanFollow must be anyone, gym or nobody." }, { status: 400 });
   }
+  if (leaderboardMode !== undefined && !isLeaderboardMode(leaderboardMode)) {
+    return NextResponse.json({ success: false, message: "leaderboardMode must be named, alias or hidden." }, { status: 400 });
+  }
+  if (leaderboardAlias !== undefined && !isLeaderboardAlias(leaderboardAlias)) {
+    return NextResponse.json({ success: false, message: "Pick an alias from the list." }, { status: 400 });
+  }
   const existing = findCommunityPrivacyByUserId(me.id);
+  // An older app only sends the on/off switch. If it changed, that wins; if it did not, the stored mode stands (so an old app saving something else
+  // never turns an alias back into a name).
+  const existingMode = leaderboardModeOf(existing);
+  const resolvedMode = isLeaderboardMode(leaderboardMode)
+    ? leaderboardMode
+    : leaderboardVisible !== (existingMode !== "hidden")
+      ? leaderboardVisible
+        ? "named"
+        : "hidden"
+      : existingMode;
   const resolvedCommunityOptIn = typeof communityOptIn === "boolean" ? communityOptIn : existing?.communityOptIn ?? false;
 
   const now = new Date().toISOString();
   saveCommunityPrivacy({
     userId: me.id,
     discoverable,
-    leaderboardVisible,
+    // Kept in step with the mode so anything still reading the old switch agrees (false only when fully hidden).
+    leaderboardVisible: resolvedMode !== "hidden",
     showRealName,
     communityOptIn: resolvedCommunityOptIn,
     // Saving privacy choices must never wipe the 18+ confirmation.
     adultConfirmedAt: existing?.adultConfirmedAt ?? null,
     profileVisibility: isProfileVisibility(profileVisibility) ? profileVisibility : profileVisibilityOf(existing),
     whoCanFollow: isWhoCanFollow(whoCanFollow) ? whoCanFollow : whoCanFollowOf(existing),
+    leaderboardMode: resolvedMode,
+    leaderboardAlias: isLeaderboardAlias(leaderboardAlias) ? leaderboardAlias : leaderboardAliasOf(existing),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });

@@ -2,10 +2,9 @@
 // log. Strength: volume and the three big lifts are exactly the leaderboard's (lib/leaderboard.ts). Everything else is worked out here from what a member
 // logged: days trained and total training time, and distance and time from their run and cardio entries. Pure and DB-free: the route builds the member
 // inputs, this module only computes.
-import { communityDisplayName } from "./community-display-name";
 import type { ChallengeRecord, WorkoutRunEntry, WorkoutSessionRecord } from "./db";
 import { CARDIO_TYPES, type CardioType } from "./workout-entries";
-import { computeLeaderboard, filterSessionsByRange, type LeaderboardEntry, type LeaderboardMemberInput } from "./leaderboard";
+import { computeLeaderboard, filterSessionsByRange, maskAliasIds, presentMember, type LeaderboardEntry, type LeaderboardMemberInput, type LeaderboardViewer } from "./leaderboard";
 
 /** Challenge metrics, grouped for display. The order here is the order the apps show them in. */
 export const CHALLENGE_CATEGORIES = [
@@ -288,31 +287,35 @@ export function isOpenChallenge(c: Pick<ChallengeRecord, "endDate" | "canceledAt
 }
 
 /**
- * Ranks members for one challenge. Only workouts dated inside [startDate, endDate] count. Members who switched the leaderboard off are left out, names follow
- * each member's own real-name setting, and a member with nothing scored yet is not listed (all the same as the main leaderboard).
+ * Ranks members for one challenge. Only workouts dated inside [startDate, endDate] count. Members who chose an alias stay ranked under it, members who hid
+ * themselves are left out (gym staff see both by real name), names follow each member's own real-name setting, and a member with nothing scored yet is not
+ * listed (all the same as the main leaderboard).
  */
 export function scoreChallenge(
   metric: ChallengeMetric,
   members: LeaderboardMemberInput[],
   startDate: string,
   endDate: string,
-  custom?: CustomChallenge | null
+  custom?: CustomChallenge | null,
+  viewer?: LeaderboardViewer
 ): LeaderboardEntry[] {
   const inRange = members.map((m) => ({ ...m, sessions: filterSessionsByRange(m.sessions, "custom", startDate, endDate) }));
-  if (metric === "volume" || metric === "squat" || metric === "bench" || metric === "deadlift") return computeLeaderboard(metric, inRange);
+  if (metric === "volume" || metric === "squat" || metric === "bench" || metric === "deadlift") return computeLeaderboard(metric, inRange, viewer);
   // A custom challenge whose definition is missing scores nobody rather than guessing.
   if (metric === CUSTOM_METRIC && !custom) return [];
 
   const entries: LeaderboardEntry[] = [];
-  for (const { userId, fullName, sessions, privacy } of inRange) {
-    if (privacy?.leaderboardVisible === false) continue;
+  for (const member of inRange) {
+    const { sessions } = member;
+    const shown = presentMember(member, viewer);
+    if (!shown) continue;
     const value = metric === CUSTOM_METRIC ? scoreCustom(custom as CustomChallenge, sessions) : scoreSessions(metric, sessions);
     if (value <= 0) continue;
-    entries.push({ userId, displayName: communityDisplayName(fullName, privacy), value, bodyweightPct: null });
+    entries.push({ ...shown, value, bodyweightPct: null });
   }
   // Highest first, except a time to beat, where the lowest is first.
   const lower = challengeLowerIsBetter(metric, custom);
-  return entries.sort((a, b) => (lower ? a.value - b.value : b.value - a.value));
+  return maskAliasIds(entries.sort((a, b) => (lower ? a.value - b.value : b.value - a.value)), viewer);
 }
 
 // ── Scoring from logged sessions ───────────────────────────────────────────────────────────────────────────────────────────────────────────────

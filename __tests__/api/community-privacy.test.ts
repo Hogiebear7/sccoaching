@@ -76,6 +76,9 @@ describe("GET /api/mobile/community/privacy", () => {
         adultConfirmed: false,
         profileVisibility: "followers",
         whoCanFollow: "anyone",
+        leaderboardMode: "named",
+        leaderboardAlias: "Hidden user",
+        leaderboardAliases: expect.any(Array),
       },
     });
   });
@@ -102,6 +105,10 @@ describe("GET /api/mobile/community/privacy", () => {
       adultConfirmed: false,
       profileVisibility: "followers",
       whoCanFollow: "anyone",
+      // The stored record has leaderboardVisible false and no mode, so it reads as the old "off": hidden.
+      leaderboardMode: "hidden",
+      leaderboardAlias: "Hidden user",
+      leaderboardAliases: expect.any(Array),
     });
   });
 
@@ -137,6 +144,26 @@ describe("POST /api/mobile/community/privacy", () => {
     h.findCommunityPrivacyByUserId.mockReturnValue({ userId: CALLER.id, discoverable: true, leaderboardVisible: true, showRealName: true, profileVisibility: "followers_gym", whoCanFollow: "nobody", createdAt: "x", updatedAt: "x" });
     await post(VALID_BODY, CALLER.id);
     expect(h.saveCommunityPrivacy).toHaveBeenLastCalledWith(expect.objectContaining({ profileVisibility: "followers_gym", whoCanFollow: "nobody" }));
+  });
+
+  it("saves an alias choice and keeps the old switch in step (alias still counts as shown)", async () => {
+    await post({ ...VALID_BODY, leaderboardVisible: true, leaderboardMode: "alias", leaderboardAlias: "Shadow user" }, CALLER.id);
+    expect(h.saveCommunityPrivacy).toHaveBeenLastCalledWith(expect.objectContaining({ leaderboardMode: "alias", leaderboardAlias: "Shadow user", leaderboardVisible: true }));
+    await post({ ...VALID_BODY, leaderboardVisible: true, leaderboardMode: "hidden" }, CALLER.id);
+    expect(h.saveCommunityPrivacy).toHaveBeenLastCalledWith(expect.objectContaining({ leaderboardMode: "hidden", leaderboardVisible: false }));
+  });
+
+  it("an older app that only flips the switch changes the mode; one that does not touch it keeps an alias", async () => {
+    h.findCommunityPrivacyByUserId.mockReturnValue({ userId: CALLER.id, discoverable: true, leaderboardVisible: true, showRealName: true, leaderboardMode: "alias", leaderboardAlias: "Shadow user", createdAt: "x", updatedAt: "x" });
+    await post({ ...VALID_BODY, leaderboardVisible: true }, CALLER.id);
+    expect(h.saveCommunityPrivacy).toHaveBeenLastCalledWith(expect.objectContaining({ leaderboardMode: "alias", leaderboardAlias: "Shadow user" }));
+    await post({ ...VALID_BODY, leaderboardVisible: false }, CALLER.id);
+    expect(h.saveCommunityPrivacy).toHaveBeenLastCalledWith(expect.objectContaining({ leaderboardMode: "hidden", leaderboardVisible: false }));
+  });
+
+  it("refuses a bad leaderboard mode or an alias that is not on the list", async () => {
+    expect((await post({ ...VALID_BODY, leaderboardMode: "ghost" }, CALLER.id)).status).toBe(400);
+    expect((await post({ ...VALID_BODY, leaderboardAlias: "Definitely Someone Else" }, CALLER.id)).status).toBe(400);
   });
 
   it("refuses an invalid profile setting", async () => {

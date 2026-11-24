@@ -6,6 +6,7 @@
 // layer — recomputed per request, same as lib/workouts.ts's
 // computePersonalBests, which is fine at single-gym scale.
 
+import { leaderboardAliasOf, leaderboardModeOf } from "./community-alias";
 import { communityDisplayName } from "./community-display-name";
 import { workoutVolumeKg } from "./member-stats";
 import { computePersonalBests, findPersonalBestByKeywords } from "./workouts";
@@ -83,25 +84,66 @@ export interface LeaderboardEntry {
       "volume" (a bodyweight ratio isn't meaningful there) or when the
       member has no current weight on file. */
   bodyweightPct: number | null;
+  /** True when this member is shown under an alias. Absent for everyone shown by name. */
+  isAlias?: boolean;
+  /** The alias the member chose. Only sent to that member and to gym staff; null for everyone else (who just see it as the name). */
+  alias?: string | null;
+  /** Only sent to gym staff: this member has hidden themselves from other members entirely. */
+  hiddenFromMembers?: boolean;
+}
+
+/** Who is looking. Gym staff see real names for everyone; a member always sees themselves. Without a viewer, nothing private is revealed. */
+export interface LeaderboardViewer {
+  id: string;
+  isStaff: boolean;
+}
+
+type Presented = Pick<LeaderboardEntry, "userId" | "displayName" | "isAlias" | "alias" | "hiddenFromMembers">;
+
+/** How one member appears to this viewer, or null when they are not shown. Shared by the main leaderboard and challenge standings. */
+export function presentMember(
+  member: Pick<LeaderboardMemberInput, "userId" | "fullName" | "privacy">,
+  viewer?: LeaderboardViewer
+): Presented | null {
+  const { userId, fullName, privacy } = member;
+  const mode = leaderboardModeOf(privacy);
+  const realName = communityDisplayName(fullName, privacy);
+  const isSelf = viewer?.id === userId;
+  const staff = viewer?.isStaff === true;
+
+  if (mode === "named") return { userId, displayName: realName };
+  if (mode === "hidden") return staff && !isSelf ? { userId, displayName: realName, hiddenFromMembers: true } : null;
+
+  const alias = leaderboardAliasOf(privacy);
+  return staff || isSelf ? { userId, displayName: realName, isAlias: true, alias } : { userId, displayName: alias, isAlias: true, alias: null };
+}
+
+/**
+ * Last step, after sorting: an aliased entry the viewer may not identify gets an opaque id (its place in this list), so the response never carries the real
+ * id of someone hiding behind an alias. Staff and the member themselves keep real ids (the app uses them to highlight "you" and open the profile card).
+ */
+export function maskAliasIds(entries: LeaderboardEntry[], viewer?: LeaderboardViewer): LeaderboardEntry[] {
+  return entries.map((e, i) => (e.isAlias && !viewer?.isStaff && e.userId !== viewer?.id ? { ...e, userId: `alias-${i}` } : e));
 }
 
 export function computeLeaderboard(
   metric: LeaderboardMetric,
-  members: LeaderboardMemberInput[]
+  members: LeaderboardMemberInput[],
+  viewer?: LeaderboardViewer
 ): LeaderboardEntry[] {
   const entries: LeaderboardEntry[] = [];
 
-  for (const { userId, fullName, sessions, currentWeightKg, privacy } of members) {
-    // Absence of a CommunityPrivacyRecord means visible-by-default —
-    // confirmed with the member; only an explicit false hides them.
-    if (privacy?.leaderboardVisible === false) continue;
-
-    const displayName = communityDisplayName(fullName, privacy);
+  for (const member of members) {
+    const { userId, sessions, currentWeightKg } = member;
+    // Absence of a CommunityPrivacyRecord means shown by name — confirmed
+    // with the member; only an explicit choice changes how they appear.
+    const shown = presentMember(member, viewer);
+    if (!shown) continue;
 
     if (metric === "volume") {
       const value = sessions.reduce((sum, session) => sum + workoutVolumeKg(session), 0);
       if (value <= 0) continue;
-      entries.push({ userId, displayName, value, bodyweightPct: null });
+      entries.push({ ...shown, value, bodyweightPct: null });
       continue;
     }
 
@@ -111,8 +153,8 @@ export function computeLeaderboard(
     const value = best.heaviestWeight.value;
     const bodyweightPct =
       currentWeightKg && currentWeightKg > 0 ? Math.round((value / currentWeightKg) * 1000) / 10 : null;
-    entries.push({ userId, displayName, value, bodyweightPct });
+    entries.push({ ...shown, userId, value, bodyweightPct });
   }
 
-  return entries.sort((a, b) => b.value - a.value);
+  return maskAliasIds(entries.sort((a, b) => b.value - a.value), viewer);
 }
