@@ -31,7 +31,10 @@ export interface CommunityNotice {
   dedupeKey?: string;
 }
 
-const IN_APP_ONLY_TYPES: ReadonlySet<NotificationType> = new Set<NotificationType>(["challenge_created", "challenge_started", "challenge_ended"]);
+/** Challenge notices (new, started, finished) are saved in the app but never pushed. */
+function isInAppOnly(type: NotificationType): boolean {
+  return type === "challenge_created" || type === "challenge_started" || type === "challenge_ended";
+}
 
 /** Sends one notice to one person. Returns false when it was skipped because they already had it. Never throws. */
 export function notifyCommunityUser(userId: string, notice: CommunityNotice): boolean {
@@ -49,7 +52,7 @@ export function notifyCommunityUser(userId: string, notice: CommunityNotice): bo
       createdAt: new Date().toISOString(),
     });
     // Challenge notices (new, started, finished) stay in the app: no push to the lock screen.
-    if (!IN_APP_ONLY_TYPES.has(notice.type) && findProfileByUserId(userId)?.pushNotificationsEnabled !== false) {
+    if (!isInAppOnly(notice.type) && findProfileByUserId(userId)?.pushNotificationsEnabled !== false) {
       void sendPush(userId, { title: notice.title, body: notice.body, linkHref: notice.linkHref });
     }
     return true;
