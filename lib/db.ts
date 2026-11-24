@@ -1674,6 +1674,10 @@ export interface CommunityPrivacyRecord {
   communityOptIn?: boolean;
   /** When the member confirmed they are 18 or over (required for groups and the gym community). Absent = not confirmed. */
   adultConfirmedAt?: string | null;
+  /** Who sees the detail on this member's profile card (lib/community-profile.ts). Absent = "followers". */
+  profileVisibility?: "followers" | "followers_gym" | "everyone";
+  /** Who may start following this member. Absent = "anyone". Existing followers are always kept. */
+  whoCanFollow?: "anyone" | "gym" | "nobody";
   createdAt: string;
   updatedAt: string;
 }

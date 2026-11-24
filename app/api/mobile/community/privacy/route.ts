@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { isProfileVisibility, isWhoCanFollow, profileVisibilityOf, whoCanFollowOf } from "@/lib/community-profile";
 import { findCommunityPrivacyByUserId, findUserById, saveCommunityPrivacy } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
       communityOptIn: prefs?.communityOptIn ?? false,
       // Whether the member has confirmed they are 18 or over (needed for groups and the gym community).
       adultConfirmed: !!prefs?.adultConfirmedAt,
+      // Who sees the detail on the profile card, and who may start following. Defaults: followers only, anyone may follow.
+      profileVisibility: profileVisibilityOf(prefs),
+      whoCanFollow: whoCanFollowOf(prefs),
     },
   });
 }
@@ -47,7 +51,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { discoverable, leaderboardVisible, showRealName, communityOptIn } = (body ?? {}) as Record<
+  const { discoverable, leaderboardVisible, showRealName, communityOptIn, profileVisibility, whoCanFollow } = (body ?? {}) as Record<
     string,
     unknown
   >;
@@ -64,6 +68,13 @@ export async function POST(request: NextRequest) {
   // Optional and lenient (unlike the three above) — already-shipped mobile
   // clients don't send it yet, and it's only ever meaningful for staff.
   // Falls back to whatever was already stored, defaulting false.
+  // The two profile settings are optional too (older app builds do not send them) but, when sent, must be valid values.
+  if (profileVisibility !== undefined && !isProfileVisibility(profileVisibility)) {
+    return NextResponse.json({ success: false, message: "profileVisibility must be followers, followers_gym or everyone." }, { status: 400 });
+  }
+  if (whoCanFollow !== undefined && !isWhoCanFollow(whoCanFollow)) {
+    return NextResponse.json({ success: false, message: "whoCanFollow must be anyone, gym or nobody." }, { status: 400 });
+  }
   const existing = findCommunityPrivacyByUserId(me.id);
   const resolvedCommunityOptIn = typeof communityOptIn === "boolean" ? communityOptIn : existing?.communityOptIn ?? false;
 
@@ -76,6 +87,8 @@ export async function POST(request: NextRequest) {
     communityOptIn: resolvedCommunityOptIn,
     // Saving privacy choices must never wipe the 18+ confirmation.
     adultConfirmedAt: existing?.adultConfirmedAt ?? null,
+    profileVisibility: isProfileVisibility(profileVisibility) ? profileVisibility : profileVisibilityOf(existing),
+    whoCanFollow: isWhoCanFollow(whoCanFollow) ? whoCanFollow : whoCanFollowOf(existing),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });

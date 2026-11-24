@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => h);
 vi.mock("@/lib/push", () => ({ sendPush: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/community-profile-access", () => ({ isGymMemberOrStaff: () => true }));
 
 const GYM_A_CALLER = { id: "caller-a", email: "caller@x.test", role: "member" as const, gymId: null };
 const GYM_A_TARGET = { id: "target-a", email: "targeta@x.test", role: "member" as const, gymId: null };

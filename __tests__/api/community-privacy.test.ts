@@ -68,7 +68,15 @@ describe("GET /api/mobile/community/privacy", () => {
     expect(res.status).toBe(200);
     expect(data).toEqual({
       success: true,
-      data: { discoverable: true, leaderboardVisible: true, showRealName: true, communityOptIn: false, adultConfirmed: false },
+      data: {
+        discoverable: true,
+        leaderboardVisible: true,
+        showRealName: true,
+        communityOptIn: false,
+        adultConfirmed: false,
+        profileVisibility: "followers",
+        whoCanFollow: "anyone",
+      },
     });
   });
 
@@ -92,7 +100,24 @@ describe("GET /api/mobile/community/privacy", () => {
       showRealName: false,
       communityOptIn: true,
       adultConfirmed: false,
+      profileVisibility: "followers",
+      whoCanFollow: "anyone",
     });
+  });
+
+  it("returns the stored profile settings", async () => {
+    h.findCommunityPrivacyByUserId.mockReturnValue({
+      userId: CALLER.id,
+      discoverable: true,
+      leaderboardVisible: true,
+      showRealName: true,
+      profileVisibility: "everyone",
+      whoCanFollow: "gym",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const data = await (await get(CALLER.id)).json();
+    expect(data.data).toMatchObject({ profileVisibility: "everyone", whoCanFollow: "gym" });
   });
 
   it("only ever reads the caller's own record, regardless of what the session resolves to", async () => {
@@ -104,6 +129,23 @@ describe("GET /api/mobile/community/privacy", () => {
 
 describe("POST /api/mobile/community/privacy", () => {
   const VALID_BODY = { discoverable: true, leaderboardVisible: false, showRealName: true };
+
+  it("saves the two profile settings, and keeps what was stored when an older app omits them", async () => {
+    await post({ ...VALID_BODY, profileVisibility: "everyone", whoCanFollow: "gym" }, CALLER.id);
+    expect(h.saveCommunityPrivacy).toHaveBeenLastCalledWith(expect.objectContaining({ profileVisibility: "everyone", whoCanFollow: "gym" }));
+
+    h.findCommunityPrivacyByUserId.mockReturnValue({ userId: CALLER.id, discoverable: true, leaderboardVisible: true, showRealName: true, profileVisibility: "followers_gym", whoCanFollow: "nobody", createdAt: "x", updatedAt: "x" });
+    await post(VALID_BODY, CALLER.id);
+    expect(h.saveCommunityPrivacy).toHaveBeenLastCalledWith(expect.objectContaining({ profileVisibility: "followers_gym", whoCanFollow: "nobody" }));
+  });
+
+  it("refuses an invalid profile setting", async () => {
+    const a = await post({ ...VALID_BODY, profileVisibility: "public" }, CALLER.id);
+    const b = await post({ ...VALID_BODY, whoCanFollow: "friends" }, CALLER.id);
+    expect(a.status).toBe(400);
+    expect(b.status).toBe(400);
+    expect(h.saveCommunityPrivacy).not.toHaveBeenCalled();
+  });
 
   it("rejects an unauthenticated request and does not save", async () => {
     const res = await post(VALID_BODY);
