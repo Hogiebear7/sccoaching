@@ -31,6 +31,11 @@ export async function POST(request: NextRequest) {
     showRealName: existing?.showRealName ?? true,
     communityOptIn: existing?.communityOptIn ?? false,
     adultConfirmedAt: existing?.adultConfirmedAt ?? now,
+    // Confirming must never wipe the other Community choices.
+    profileVisibility: existing?.profileVisibility,
+    whoCanFollow: existing?.whoCanFollow,
+    leaderboardMode: existing?.leaderboardMode,
+    leaderboardAlias: existing?.leaderboardAlias,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { challengeView, scoreChallenge, todayIso } from "@/lib/challenges";
+import { leaderboardModeOf } from "@/lib/community-alias";
 import { gymCommunityAccess, gymScopeId, sameGymId } from "@/lib/community-gym";
 import { hiddenFromViewer } from "@/lib/community-moderation";
 import {
@@ -49,9 +50,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     success: true,
     data: {
       challenge: challengeView(challenge, todayIso()),
-      entries: scoreChallenge(challenge.metric, members, challenge.startDate, challenge.endDate, challenge.custom),
+      entries: scoreChallenge(challenge.metric, members, challenge.startDate, challenge.endDate, challenge.custom, { id: access.user.id, isStaff: access.isStaff }),
       myUserId: access.user.id,
-      iAmHidden: !access.isStaff && findCommunityPrivacyByUserId(access.user.id)?.leaderboardVisible === false,
+      iAmHidden: !access.isStaff && leaderboardModeOf(findCommunityPrivacyByUserId(access.user.id)) === "hidden",
     },
   });
 }

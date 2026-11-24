@@ -14,6 +14,8 @@ import {
   type NotificationRecord,
 } from "@/lib/db";
 import { communityDisplayName, isDiscoverable } from "@/lib/community-display-name";
+import { followDecision, whoCanFollowOf } from "@/lib/community-profile";
+import { isGymMemberOrStaff } from "@/lib/community-profile-access";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { isBlockedEitherWay } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -60,6 +62,16 @@ export async function POST(request: NextRequest) {
   const targetPrivacy = findCommunityPrivacyByUserId(target.id);
   if (!isDiscoverable(targetPrivacy) && !isFollowing(me.id, target.id)) {
     return NextResponse.json({ success: false, message: "This member isn't discoverable." }, { status: 403 });
+  }
+
+  // The target's own "who can follow" choice. Someone already following is grandfathered, as with `discoverable`.
+  const decision = followDecision(whoCanFollowOf(targetPrivacy), {
+    isSelf: false,
+    alreadyFollowing: isFollowing(me.id, target.id),
+    isGymMember: isGymMemberOrStaff(me),
+  });
+  if (!decision.allowed) {
+    return NextResponse.json({ success: false, message: decision.reason ?? "You can't follow this member." }, { status: 403 });
   }
 
   followUser(me.id, userId);

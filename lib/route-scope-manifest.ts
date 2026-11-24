@@ -121,6 +121,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "mobile/community/gym/challenges/[challengeId]", scope: "self-tenant-checked", evidence: ["gymScopeId", "sameGymId("] },
   { route: "mobile/community/gym/challenges/[challengeId]/cancel", scope: "self-tenant-checked", evidence: ["gymScopeId"] },
   { route: "mobile/community/privacy", scope: "self" },
+  { route: "mobile/community/profile/[userId]", scope: "self-tenant-checked", evidence: ["sameGymAsStaff"] },
   { route: "mobile/community/search", scope: "self-tenant-checked", evidence: ["sameGym(", "getStaffMembersData"] },
   { route: "mobile/community/unblock", scope: "self-tenant-checked", evidence: ["blockedUserIds"] },
   { route: "mobile/community/unfollow", scope: "self-tenant-checked", evidence: ["sameGymAsStaff"] },

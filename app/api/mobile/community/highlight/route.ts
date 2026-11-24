@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-  const entries = computeLeaderboard("volume", leaderboardMembers);
+  const entries = computeLeaderboard("volume", leaderboardMembers, { id: me.id, isStaff: false });
   const myRank = entries.findIndex((e) => e.userId === me.id);
   if (myRank !== -1) {
     return NextResponse.json({

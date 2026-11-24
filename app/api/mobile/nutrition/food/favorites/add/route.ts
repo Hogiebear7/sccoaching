@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 
 import { createFoodFavorite, findFoodFavoritesByUserId, findUserById, type FoodFavoriteRecord, type MealType } from "@/lib/db";
 import { FREE_SAVED_MEAL_LIMIT } from "@/lib/member-access";
+import { parseNutrientExtras } from "@/lib/nutrition-diary";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { requireUnderFreeLimit } from "@/lib/member-access-response";
 
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
     fatG: num(fatG),
     servingLabel: typeof servingLabel === "string" && servingLabel.trim() ? servingLabel.trim().slice(0, 100) : null,
     servingGrams: typeof servingGrams === "number" && Number.isFinite(servingGrams) && servingGrams > 0 ? servingGrams : null,
+    ...parseNutrientExtras((body ?? {}) as Record<string, unknown>),
     createdAt: new Date().toISOString(),
   };
 

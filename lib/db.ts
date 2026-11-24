@@ -542,6 +542,11 @@ export interface FoodEntryRecord {
   servingLabel?: string | null;
   servingGrams?: number | null;
   quantity?: number | null;
+  /** Extra nutrients for this entry (fibre, total sugars, sodium, saturated fat). Absent = not known for this food: never treated as zero. */
+  fiberG?: number;
+  sugarG?: number;
+  sodiumMg?: number;
+  saturatedFatG?: number;
 }
 
 // A member's own curated shortlist of regularly-eaten foods, organized by
@@ -561,6 +566,11 @@ export interface FoodFavoriteRecord {
   fatG: number;
   servingLabel: string | null;
   servingGrams: number | null;
+  /** Extra nutrients, as on FoodEntryRecord. Absent = not known. */
+  fiberG?: number;
+  sugarG?: number;
+  sodiumMg?: number;
+  saturatedFatG?: number;
   createdAt: string;
 }
 
@@ -1674,6 +1684,14 @@ export interface CommunityPrivacyRecord {
   communityOptIn?: boolean;
   /** When the member confirmed they are 18 or over (required for groups and the gym community). Absent = not confirmed. */
   adultConfirmedAt?: string | null;
+  /** Who sees the detail on this member's profile card (lib/community-profile.ts). Absent = "followers". */
+  profileVisibility?: "followers" | "followers_gym" | "everyone";
+  /** Who may start following this member. Absent = "anyone". Existing followers are always kept. */
+  whoCanFollow?: "anyone" | "gym" | "nobody";
+  /** How this member appears on leaderboards and challenges (lib/community-alias.ts). Absent = from leaderboardVisible (false = "hidden", else "named"). */
+  leaderboardMode?: "named" | "alias" | "hidden";
+  /** The alias shown when leaderboardMode is "alias", from a fixed list. Absent = "Hidden user". */
+  leaderboardAlias?: string;
   createdAt: string;
   updatedAt: string;
 }
