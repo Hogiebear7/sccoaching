@@ -285,6 +285,30 @@ describe("enforced on every member AI route, before the provider is reached", ()
     { name: "tracker import", run: async (u) => (await import("@/app/api/mobile/tracker-import/scan/route")).POST(call("POST", "/api/mobile/tracker-import/scan", u, { imageBase64: "AAAA" })) },
   ];
 
+  it("AI coach chat: a red-flag message over the allowance still gets the fixed safety reply, saved to history, and the provider is never called", async () => {
+    const user = fx.db.createUserWithRole("flag@example.test", "x", "member", null);
+    await consenting(user.id);
+    await grant(user.id);
+    log(user.id, 5, 0, "paid");
+    const res = await (await import("@/app/api/ai/chat/route")).POST(call("POST", "/api/ai/chat", user.id, { content: "I have chest pain after sprints" }));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toMatch(/112 or 999/);
+    expect(reached.calls).toEqual([]);
+    expect(fx.db.findAiMessagesByUserId(user.id).map((m) => m.role)).toEqual(["user", "assistant"]);
+  });
+
+  it("AI nutrition coach: a red-flag message over the allowance also gets the fixed safety reply, saved to the nutrition history, with no provider call", async () => {
+    const user = fx.db.createUserWithRole("flag2@example.test", "x", "member", null);
+    await consenting(user.id);
+    await grant(user.id);
+    log(user.id, 5, 0, "paid");
+    const res = await (await import("@/app/api/ai/nutrition-coach/route")).POST(call("POST", "/api/ai/nutrition-coach", user.id, { content: "I fainted after skipping lunch" }));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toMatch(/112 or 999/);
+    expect(reached.calls).toEqual([]);
+    expect(fx.db.findAiMessagesByUserId(user.id, "nutrition").map((m) => m.role)).toEqual(["user", "assistant"]);
+  });
+
   it.each(PLAN_ROUTES.map((r) => [r.name, r] as const))("%s: a member over the allowance gets 429 ai_allowance_reached and the provider is never called", async (_name, route) => {
     const user = fx.db.createUserWithRole("heavy@example.test", "x", "member", null);
     await consenting(user.id);

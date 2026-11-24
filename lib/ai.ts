@@ -27,6 +27,7 @@ import {
 } from "@/lib/db";
 import { configuredAiModel } from "@/lib/ai-model";
 import { CHAT_DATES_RULE, stampTurns, todayLine } from "@/lib/ai-turns";
+import { INJURY_GUIDANCE_RULE } from "@/lib/injury-triage";
 import { meteredCreate, meteredStream } from "@/lib/ai-metering";
 import { formatWorkoutReviewContext, type WorkoutReviewData } from "@/lib/workout-review";
 import type { SplitMode } from "@/lib/programme-exercise-picker";
@@ -83,6 +84,8 @@ Coaching stance:
 - ${SCIENTIFIC_GROUNDING_CLAUSE}
 
 ${CHAT_DATES_RULE}
+
+${INJURY_GUIDANCE_RULE}
 
 Boundaries:
 - You are not a doctor, physiotherapist, or dietitian. For pain, injury, illness, or medication questions, briefly recommend a qualified professional and keep training advice general. Do not diagnose.
@@ -178,6 +181,8 @@ Coaching stance:
 - ${SCIENTIFIC_GROUNDING_CLAUSE}
 
 ${CHAT_DATES_RULE}
+
+${INJURY_GUIDANCE_RULE}
 
 Boundaries:
 - You are not a doctor or registered dietitian. For medical nutrition questions (coeliac disease, diagnosed conditions, medication interactions), keep advice general and recommend a qualified professional. Do not diagnose.
