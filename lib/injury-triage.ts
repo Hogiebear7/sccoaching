@@ -5,7 +5,7 @@
 // Deliberately cautious: it leans towards sending someone to get checked. A false alarm costs one reply ("tell me more and I'll help"); a miss could cost much more.
 // It is a safety net, not a diagnosis, and it never says what the problem is.
 //
-// Wording is Irish (112 or 999, emergency department, GP). The exact text is in docs/injury-guidance-legal-review-2026-11-24.md for review before release.
+// Wording is Irish (112 or 999, emergency department, GP). The exact text is in the owner's review pack, injury-guidance-legal-review-2026-11-24.md (in the App Design Overhaul folder) for review before release.
 
 export type TriageLevel = "emergency" | "urgent" | "pregnancy";
 
@@ -99,7 +99,7 @@ export function triageReplyFor(level: TriageLevel): string {
 
 /**
  * What the AI coach may and may not say about pain and injury. Added to the coach's instructions (lib/ai.ts). The wording is in
- * docs/injury-guidance-legal-review-2026-11-24.md for review before release. Serious symptoms never reach the model: injury-triage.ts replies first.
+ * the owner's review pack, injury-guidance-legal-review-2026-11-24.md (in the App Design Overhaul folder) for review before release. Serious symptoms never reach the model: injury-triage.ts replies first.
  */
 export const INJURY_GUIDANCE_RULE = `Sore or injured members (follow strictly):
 - The first time pain or injury comes up in a conversation, say briefly that this is general information and not medical advice, and that you can't examine them.
