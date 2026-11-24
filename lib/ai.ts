@@ -440,7 +440,7 @@ Grounding rules — strict:
 - If the photo is blurry, too dark, or doesn't clearly show food, do your best with what's visible; only return an empty list if truly nothing food-related is identifiable.
 
 Reply with ONLY a JSON array — no prose before or after, no markdown code fence. 2-4 suggestions, most realistic/appealing first. Each item exactly this shape:
-{"title": string, "description": string (one plain, appetizing sentence — no marketing language), "ingredientsUsed": string[] (drawn from what was shown/listed), "estimatedCalories": number, "estimatedProteinG": number, "estimatedCarbsG": number, "estimatedFatG": number, "crossSuggestion": string|null (one sentence naming ONE additional ingredient that would unlock a genuinely different extra meal idea — null if nothing sensible to add)}
+{"title": string, "description": string (one plain, appetizing sentence — no marketing language), "ingredientsUsed": string[] (drawn from what was shown/listed), "estimatedCalories": number, "estimatedProteinG": number, "estimatedCarbsG": number, "estimatedFatG": number, "estimatedFiberG": number (grams of fibre, one decimal), "estimatedSugarG": number (grams of total sugars, one decimal), "crossSuggestion": string|null (one sentence naming ONE additional ingredient that would unlock a genuinely different extra meal idea — null if nothing sensible to add)}
 
 If nothing food-related is identifiable in the photo or text, reply with exactly: []`;
 
@@ -452,6 +452,9 @@ export interface MealSuggestion {
   estimatedProteinG: number;
   estimatedCarbsG: number;
   estimatedFatG: number;
+  /** Fibre and total sugars, an estimate like the rest. Null when the model did not give one. */
+  estimatedFiberG: number | null;
+  estimatedSugarG: number | null;
   crossSuggestion: string | null;
 }
 
@@ -480,6 +483,11 @@ export function parseMealSuggestions(text: string): MealSuggestion[] {
     return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
   }
 
+  // One decimal place, or null when the model left it out or gave something unusable (so it is never shown as a made-up zero).
+  function grams1(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 500 ? Math.round(value * 10) / 10 : null;
+  }
+
   return parsed
     .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
     .map((item) => ({
@@ -492,6 +500,8 @@ export function parseMealSuggestions(text: string): MealSuggestion[] {
       estimatedProteinG: num(item.estimatedProteinG),
       estimatedCarbsG: num(item.estimatedCarbsG),
       estimatedFatG: num(item.estimatedFatG),
+      estimatedFiberG: grams1(item.estimatedFiberG),
+      estimatedSugarG: grams1(item.estimatedSugarG),
       crossSuggestion:
         typeof item.crossSuggestion === "string" && item.crossSuggestion.trim()
           ? item.crossSuggestion.trim().slice(0, 200)
@@ -582,7 +592,9 @@ Grounding rules — strict:
 - Return at most 8 items. If the photo is blurry, too dark, or genuinely shows nothing food/label-related, return an empty array — never invent a plausible-sounding food that isn't actually shown.
 
 Reply with ONLY a JSON array — no prose before or after, no markdown code fence. Each item exactly this shape:
-{"name": string, "servingDescription": string (e.g. "1 medium (about 118g)", "150g", "1 bar (60g)"), "calories": number, "proteinG": number, "carbsG": number, "fatG": number, "source": "label"|"estimate"}
+{"name": string, "servingDescription": string (e.g. "1 medium (about 118g)", "150g", "1 bar (60g)"), "calories": number, "proteinG": number, "carbsG": number, "fatG": number, "fiberG": number|null, "sugarG": number|null, "sodiumMg": number|null, "saturatedFatG": number|null, "source": "label"|"estimate"}
+
+For the four extra fields (grams of fibre, grams of total sugars, milligrams of sodium, grams of saturated fat): when a label is read, give the stated values per the same serving you used (if only salt is printed, sodiumMg = salt in grams x 400), and null for anything the label does not show. When estimating from the photo, give a best-guess for fibre and sugars only and null for sodium and saturated fat. Use null rather than guessing wildly.
 
 If nothing identifiable, reply with exactly: []`;
 
@@ -593,6 +605,11 @@ export interface IdentifiedFoodItem {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  /** Fibre, total sugars, sodium and saturated fat when known. Absent or null = not known (never zero). */
+  fiberG?: number | null;
+  sugarG?: number | null;
+  sodiumMg?: number | null;
+  saturatedFatG?: number | null;
   source: "label" | "estimate";
 }
 
@@ -620,6 +637,14 @@ export function parseIdentifiedFoodItems(text: string): IdentifiedFoodItem[] {
     return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
   }
 
+  // The extra nutrients are null unless the model gave a sensible number: a missing value is never turned into a made-up zero.
+  function extra1(value: unknown, max: number): number | null {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= max ? Math.round(value * 10) / 10 : null;
+  }
+  function extraWhole(value: unknown, max: number): number | null {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= max ? Math.round(value) : null;
+  }
+
   return parsed
     .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
     .map((item) => ({
@@ -629,6 +654,10 @@ export function parseIdentifiedFoodItems(text: string): IdentifiedFoodItem[] {
       proteinG: num(item.proteinG),
       carbsG: num(item.carbsG),
       fatG: num(item.fatG),
+      fiberG: extra1(item.fiberG, 500),
+      sugarG: extra1(item.sugarG, 1000),
+      sodiumMg: extraWhole(item.sodiumMg, 100000),
+      saturatedFatG: extra1(item.saturatedFatG, 500),
       source: (item.source === "label" ? "label" : "estimate") as "label" | "estimate",
     }))
     .slice(0, 8);
@@ -688,7 +717,9 @@ Grounding rules — strict:
 - Return at most 8 items. If the text doesn't describe food at all, return an empty array — never invent a plausible-sounding food that wasn't actually described.
 
 Reply with ONLY a JSON array — no prose before or after, no markdown code fence. Each item exactly this shape:
-{"name": string, "servingDescription": string (e.g. "1 medium (about 118g)", "150g", "2 slices"), "calories": number, "proteinG": number, "carbsG": number, "fatG": number}
+{"name": string, "servingDescription": string (e.g. "1 medium (about 118g)", "150g", "2 slices"), "calories": number, "proteinG": number, "carbsG": number, "fatG": number, "fiberG": number|null, "sugarG": number|null}
+
+fiberG and sugarG are your best-guess grams of fibre and total sugars for that serving, or null if you cannot say. Do not give sodium or saturated fat.
 
 If nothing identifiable, reply with exactly: []`;
 
