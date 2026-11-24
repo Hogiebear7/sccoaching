@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 import { MAX_OPEN_CHALLENGES_PER_SCOPE, challengeView, parseChallengeInput, todayIso } from "@/lib/challenges";
 import { findGroupVisibleToMember, requireGroupAccess } from "@/lib/community-groups";
 import { violatesCommunityRules } from "@/lib/community-moderation";
+import { notifyGroupOfNewChallenge } from "@/lib/community-notify";
 import { createChallengeIfUnderLimit, findChallengesByScope, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 
@@ -77,6 +78,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       { status: 409 }
     );
   }
+
+  // Tell the rest of the group (a notice never stops the challenge from being created).
+  notifyGroupOfNewChallenge(challenge, group.name, me.id);
 
   return NextResponse.json({ success: true, data: challengeView(challenge, today) }, { status: 201 });
 }
