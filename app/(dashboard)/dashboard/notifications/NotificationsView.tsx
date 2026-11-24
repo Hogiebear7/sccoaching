@@ -27,6 +27,7 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   mentioned_in_comment: "Mentioned you",
   gym_post: "Gym community",
   gym_comment: "New comment",
+  challenge_created: "New challenge",
   challenge_started: "Challenge started",
   challenge_ended: "Challenge finished",
   nutrition_update: "Nutrition",
@@ -72,6 +73,7 @@ const TYPE_ICON: Record<NotificationType, string> = {
   gym_post: "M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z",
   gym_comment:
     "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+  challenge_created: "M13 10V3L4 14h7v7l9-11h-7z",
   challenge_started: "M13 10V3L4 14h7v7l9-11h-7z",
   challenge_ended: "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z",
   nutrition_update: "M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z",
@@ -108,6 +110,7 @@ const TYPE_IS_URGENT: Record<NotificationType, boolean> = {
   mentioned_in_comment: false,
   gym_post: false,
   gym_comment: false,
+  challenge_created: false,
   challenge_started: false,
   challenge_ended: false,
   nutrition_update: false,

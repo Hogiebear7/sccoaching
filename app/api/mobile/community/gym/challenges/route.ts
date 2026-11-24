@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 
 import { MAX_OPEN_CHALLENGES_PER_SCOPE, challengeView, parseChallengeInput, todayIso } from "@/lib/challenges";
 import { gymCommunityAccess, gymScopeId } from "@/lib/community-gym";
+import { notifyGymOfNewChallenge } from "@/lib/community-notify";
 import { violatesCommunityRules } from "@/lib/community-moderation";
 import { createChallengeIfUnderLimit, findChallengesByScope } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -61,5 +62,8 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
+  // Tell the whole gym (a notice never stops the challenge from being created).
+  notifyGymOfNewChallenge(challenge, access.gymId, access.user.id);
+
   return NextResponse.json({ success: true, data: challengeView(challenge, today) }, { status: 201 });
 }

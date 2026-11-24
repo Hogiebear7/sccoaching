@@ -1874,6 +1874,7 @@ export type NotificationType =
   // (group or gym) starting or finishing.
   | "gym_post"
   | "gym_comment"
+  | "challenge_created"
   | "challenge_started"
   | "challenge_ended"
   // Calorie target changes the member should know about (pregnancy pausing

@@ -119,6 +119,121 @@ describe("a comment on a gym post", () => {
   });
 });
 
+describe("a new group challenge", () => {
+  async function groupWith(...members: { id: string }[]) {
+    const organiser = person({ membership: false, app: true, name: "Org Anna" });
+    const g = await (await call("groups", organiser.id, { name: "Morning Crew", description: "" })).json();
+    for (const m of members) expect((await call("groups/join", m.id, { code: g.data.inviteCode })).status).toBe(200);
+    return { organiser, groupId: g.data.id as string };
+  }
+  const setChallenge = (organiserId: string, groupId: string, over: Record<string, unknown> = {}) =>
+    call("groups/[id]/challenges", organiserId, { title: "November volume", metric: "volume", startDate: isoDay(0), endDate: isoDay(20), ...over }, { id: groupId });
+
+  it("tells the rest of the group straight away, naming the group and not the person, with a link to the challenge", async () => {
+    const a = person({ membership: false, app: true });
+    const b = person({ membership: false, app: true });
+    const { organiser, groupId } = await groupWith(a, b);
+    const res = await setChallenge(organiser.id, groupId);
+    expect(res.status).toBe(201);
+    const challengeId = (await res.json()).data.id as string;
+    for (const u of [a, b]) {
+      const got = inbox(u.id, "challenge_created");
+      expect(got).toHaveLength(1);
+      expect(got[0].title).toBe("New challenge in Morning Crew");
+      expect(got[0].body).toContain("November volume");
+      expect(got[0].title + got[0].body).not.toContain("Org Anna");
+      expect(got[0].linkHref).toBe(`/community/challenge?scope=group&groupId=${groupId}&challengeId=${challengeId}`);
+    }
+  });
+
+  it("does not tell the organiser, anyone blocked either way with them, or anyone outside the group", async () => {
+    const inGroup = person({ membership: false, app: true });
+    const blocker = person({ membership: false, app: true });
+    const outsider = person({ membership: false, app: true });
+    const { organiser, groupId } = await groupWith(inGroup, blocker);
+    fx.db.saveProfile({ userId: blocker.id, fullName: "Blocker", email: blocker.email, blockedUserIds: [organiser.id], createdAt: T, updatedAt: T } as never);
+    await setChallenge(organiser.id, groupId);
+    expect(inbox(inGroup.id, "challenge_created")).toHaveLength(1);
+    for (const nobody of [organiser, blocker, outsider]) expect(inbox(nobody.id, "challenge_created")).toEqual([]);
+  });
+
+  it("tells nobody when the challenge is refused (bad dates), and a challenge set for today is not announced a second time as 'started'", async () => {
+    const a = person({ membership: false, app: true });
+    const { organiser, groupId } = await groupWith(a);
+    expect((await setChallenge(organiser.id, groupId, { startDate: isoDay(-3) })).status).toBe(400);
+    expect(inbox(a.id, "challenge_created")).toEqual([]);
+
+    expect((await setChallenge(organiser.id, groupId)).status).toBe(201);
+    const { notifyCommunityChallengesJob } = await import("@/lib/jobs/notify-community-challenges");
+    await notifyCommunityChallengesJob.run();
+    expect(inbox(a.id, "challenge_created")).toHaveLength(1);
+    expect(inbox(a.id, "challenge_started")).toEqual([]);
+  });
+
+  it("a challenge set for a later day still gets its start-day notice from the job", async () => {
+    const a = person({ membership: false, app: true });
+    const { organiser, groupId } = await groupWith(a);
+    expect((await setChallenge(organiser.id, groupId, { startDate: isoDay(5), endDate: isoDay(12) })).status).toBe(201);
+    expect(inbox(a.id, "challenge_created")).toHaveLength(1);
+    // Nothing is due to start yet, so the job sends nothing today; the notice is still sent later when the start date arrives.
+    const { notifyCommunityChallengesJob } = await import("@/lib/jobs/notify-community-challenges");
+    await notifyCommunityChallengesJob.run();
+    expect(inbox(a.id, "challenge_started")).toEqual([]);
+  });
+});
+
+describe("a new gym challenge", () => {
+  const setGymChallenge = (staffId: string, over: Record<string, unknown> = {}) =>
+    call("gym/challenges", staffId, { title: "Winter strength", metric: "volume", startDate: isoDay(0), endDate: isoDay(20), ...over });
+
+  it("tells the whole gym straight away: members who can open the gym community, not the coach, not another gym, not people without access", async () => {
+    const coach = person({ role: "coach", name: "Coach Cathy" });
+    const a = person();
+    const b = person();
+    const noAdult = person({ adult: false });
+    const noMembership = person({ membership: false });
+    const otherGym = person({ gymId: GYM_B });
+
+    const res = await setGymChallenge(coach.id);
+    expect(res.status).toBe(201);
+    const challengeId = (await res.json()).data.id as string;
+
+    for (const u of [a, b]) {
+      const got = inbox(u.id, "challenge_created");
+      expect(got).toHaveLength(1);
+      expect(got[0].title).toBe("New gym challenge");
+      expect(got[0].body).toContain("Winter strength");
+      expect(got[0].linkHref).toBe(`/community/challenge?scope=gym&challengeId=${challengeId}`);
+    }
+    for (const nobody of [coach, noAdult, noMembership, otherGym]) expect(inbox(nobody.id, "challenge_created")).toEqual([]);
+  });
+
+  it("a challenge set inside a custom group tells only that group, never the gym", async () => {
+    const inGroup = person({ membership: false, app: true });
+    const gymMember = person();
+    const organiser = person({ membership: false, app: true, name: "Org" });
+    const g = await (await call("groups", organiser.id, { name: "Crew", description: "" })).json();
+    expect((await call("groups/join", inGroup.id, { code: g.data.inviteCode })).status).toBe(200);
+    expect((await call("groups/[id]/challenges", organiser.id, { title: "Crew test", metric: "volume", startDate: isoDay(0), endDate: isoDay(10) }, { id: g.data.id })).status).toBe(201);
+    expect(inbox(inGroup.id, "challenge_created")).toHaveLength(1);
+    expect(inbox(gymMember.id, "challenge_created")).toEqual([]);
+  });
+
+  it("a member cannot set one, and nobody is told when it is refused; a gym challenge set for today is not announced again as 'started'", async () => {
+    const member = person();
+    const other = person();
+    expect((await setGymChallenge(member.id)).status).toBe(403);
+    expect(inbox(other.id, "challenge_created")).toEqual([]);
+
+    const coach = person({ role: "coach" });
+    expect((await setGymChallenge(coach.id)).status).toBe(201);
+    const { notifyCommunityChallengesJob } = await import("@/lib/jobs/notify-community-challenges");
+    await notifyCommunityChallengesJob.run();
+    expect(inbox(other.id, "challenge_created")).toHaveLength(1);
+    expect(inbox(other.id, "challenge_started")).toEqual([]);
+  });
+});
+
 describe("the challenge job", () => {
   async function run() {
     const { notifyCommunityChallengesJob } = await import("@/lib/jobs/notify-community-challenges");
