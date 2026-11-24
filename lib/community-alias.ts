@@ -11,10 +11,28 @@ export type LeaderboardMode = (typeof LEADERBOARD_MODES)[number];
 
 export const DEFAULT_ALIAS = "Hidden user";
 
-// The owner supplies 6 to 8 male and 6 to 8 female names to add here. Members can only pick from this list, never type their own, so an alias can never
-// be offensive or pass for another real member.
-export const MALE_ALIAS_NAMES: readonly string[] = [];
-export const FEMALE_ALIAS_NAMES: readonly string[] = [];
+// The owner's list (2026-11-24): 8 male and 8 female alias names. Members can only pick from this list, never type their own, so an alias can never be
+// offensive or pass for another real member. Changing a name here means anyone who picked it falls back to "Hidden user" until they pick again.
+export const MALE_ALIAS_NAMES: readonly string[] = [
+  "Patrick Bateman",
+  "Luke Skywalker",
+  "Bruce Wayne",
+  "Marty McFly",
+  "Don Draper",
+  "Toto Schillachi",
+  "Eren Yeager",
+  "Goku",
+];
+export const FEMALE_ALIAS_NAMES: readonly string[] = [
+  "Sarah Connor",
+  "Ellen Ripley",
+  "Lara Croft",
+  "Buffy Summers",
+  "Mia Wallace",
+  "Chung Li",
+  "Daenerys Targaryen",
+  "Dana Scully",
+];
 
 export const LEADERBOARD_ALIASES: readonly string[] = [DEFAULT_ALIAS, "Shadow user", ...MALE_ALIAS_NAMES, ...FEMALE_ALIAS_NAMES];
 
