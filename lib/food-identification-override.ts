@@ -46,6 +46,11 @@ export function applyFoodIdentificationOverrides(
       proteinG: match.preferredFood.proteinG,
       carbsG: match.preferredFood.carbsG,
       fatG: match.preferredFood.fatG,
+      // The correction only stores calories and macros, so the extras from the original read no longer match this food.
+      fiberG: null,
+      sugarG: null,
+      sodiumMg: null,
+      saturatedFatG: null,
       overridden: true,
     };
   });

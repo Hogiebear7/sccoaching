@@ -248,7 +248,7 @@ export function matchIdentifiedItemToCatalog<T extends { name: string; source: "
 // (330ml)" — rather than trying to reconcile the AI's rough visual gram
 // estimate against per-100g catalog data) and relabeling them "label" since
 // the numbers are now catalog-verified, not a visual guess.
-export function applyCatalogMatches<T extends { name: string; servingDescription: string; calories: number; proteinG: number; carbsG: number; fatG: number; source: "label" | "estimate" }>(
+export function applyCatalogMatches<T extends { name: string; servingDescription: string; calories: number; proteinG: number; carbsG: number; fatG: number; fiberG?: number | null; sugarG?: number | null; sodiumMg?: number | null; saturatedFatG?: number | null; source: "label" | "estimate" }>(
   items: T[],
   commonFoods: FoodRecord[],
   brandedFoods: FoodRecord[]
@@ -264,6 +264,11 @@ export function applyCatalogMatches<T extends { name: string; servingDescription
       proteinG: nutrition.proteinG,
       carbsG: nutrition.carbsG,
       fatG: nutrition.fatG,
+      // The catalogue's own values, or null where it does not list one: the AI's guess is replaced along with the macros so the two always agree.
+      fiberG: nutrition.fiberG,
+      sugarG: nutrition.sugarG,
+      sodiumMg: nutrition.sodiumMg,
+      saturatedFatG: nutrition.saturatedFatG,
       source: "label" as const,
     };
   });
