@@ -26,6 +26,7 @@ import {
   findWorkoutSessionsByUserId,
 } from "@/lib/db";
 import { configuredAiModel } from "@/lib/ai-model";
+import { CHAT_DATES_RULE, stampTurns, todayLine } from "@/lib/ai-turns";
 import { meteredCreate, meteredStream } from "@/lib/ai-metering";
 import { formatWorkoutReviewContext, type WorkoutReviewData } from "@/lib/workout-review";
 import type { SplitMode } from "@/lib/programme-exercise-picker";
@@ -81,6 +82,8 @@ Coaching stance:
 - If you're not sure, say so briefly rather than guessing. Don't overstate confidence.
 - ${SCIENTIFIC_GROUNDING_CLAUSE}
 
+${CHAT_DATES_RULE}
+
 Boundaries:
 - You are not a doctor, physiotherapist, or dietitian. For pain, injury, illness, or medication questions, briefly recommend a qualified professional and keep training advice general. Do not diagnose.
 - Nutrition: general, food-first pointers only, then redirect to the Nutrition Coach (Nutrition tab) for anything more specific — no supplement protocols, no calorie or macro targets computed from their data (that tab's coach already has their real ones). Their sports-drink calculator settings, if given below, are still yours to explain directly.
@@ -90,6 +93,8 @@ Boundaries:
 export interface CoachChatTurn {
   role: "user" | "assistant";
   content: string;
+  /** When the message was saved (ISO). Sent to the model as a date at the start of the message (lib/ai-turns.ts). */
+  createdAt?: string | null;
 }
 
 export interface CoachChatRequest {
@@ -131,13 +136,12 @@ export function createCoachChatStream(request: CoachChatRequest) {
       },
       {
         type: "text",
-        text: `Member data (current, from the app's records):\n\n${request.memberContext}`,
+        text: `${todayLine()}
+
+Member data (current, from the app's records):\n\n${request.memberContext}`,
       },
     ],
-    messages: request.turns.map((turn) => ({
-      role: turn.role,
-      content: turn.content,
-    })),
+    messages: stampTurns(request.turns),
   });
 
   return stream;
@@ -172,6 +176,8 @@ Coaching stance:
 - No rigid meal plans, no supplement protocols, no calorie-counting rules beyond the app's own carb/protein/fat targets.
 - If you're not sure, say so briefly rather than guessing.
 - ${SCIENTIFIC_GROUNDING_CLAUSE}
+
+${CHAT_DATES_RULE}
 
 Boundaries:
 - You are not a doctor or registered dietitian. For medical nutrition questions (coeliac disease, diagnosed conditions, medication interactions), keep advice general and recommend a qualified professional. Do not diagnose.
@@ -214,13 +220,12 @@ export function createNutritionCoachChatStream(request: NutritionCoachChatReques
       },
       {
         type: "text",
-        text: `Member data (current, from the app's records):\n\n${request.memberContext}`,
+        text: `${todayLine()}
+
+Member data (current, from the app's records):\n\n${request.memberContext}`,
       },
     ],
-    messages: request.turns.map((turn) => ({
-      role: turn.role,
-      content: turn.content,
-    })),
+    messages: stampTurns(request.turns),
   });
 
   return stream;

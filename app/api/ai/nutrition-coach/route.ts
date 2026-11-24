@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
   // stays separate (see findAiMessagesByUserId's channel filter).
   const turns = findAiMessagesByUserId(user.id, "nutrition")
     .slice(-20)
-    .map((m) => ({ role: m.role, content: m.content }));
+    .map((m) => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
 
   function persistAssistant(text: string) {
     createAiMessage({
