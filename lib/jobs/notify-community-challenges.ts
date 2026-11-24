@@ -39,8 +39,8 @@ export const notifyCommunityChallengesJob: JobDefinition = {
       if (c.canceledAt) continue;
       const sinceStart = daysBetween(c.startDate, today);
       const sinceEnd = daysBetween(c.endDate, today);
-      // A group challenge set on the day it starts has already told the group ("New challenge in ..."), so it is not announced a second time.
-      const toldAtCreation = c.scopeType === "group" && c.createdAt.slice(0, 10) >= c.startDate;
+      // A challenge set on the day it starts has already told its group or gym ("New challenge ..."), so it is not announced a second time.
+      const toldAtCreation = c.createdAt.slice(0, 10) >= c.startDate;
       const announceStart = sinceStart >= 0 && sinceStart <= START_WINDOW_DAYS && sinceEnd <= 0 && !toldAtCreation;
       const announceEnd = sinceEnd >= 1 && sinceEnd <= END_WINDOW_DAYS;
       if (!announceStart && !announceEnd) continue;

@@ -113,6 +113,32 @@ export function notifyGroupOfNewChallenge(challenge: ChallengeRecord, groupName:
   return sent;
 }
 
+/**
+ * A coach or admin setting a gym challenge tells the whole gym straight away ("New gym challenge"), once each. A challenge set inside a custom group
+ * only tells that group (notifyGroupOfNewChallenge), never the gym. The staff member who set it, and anyone blocked either way with them, are left out.
+ */
+export function notifyGymOfNewChallenge(challenge: ChallengeRecord, gymId: string | null, staffId: string): number {
+  let sent = 0;
+  try {
+    for (const userId of gymCommunityAudience(gymId, staffId)) {
+      if (
+        notifyCommunityUser(userId, {
+          type: "challenge_created",
+          title: "New gym challenge",
+          body: `${clip(challenge.title, 60)}: ${challengeLabel(challenge.metric, challenge.custom)}. ${challenge.startDate} to ${challenge.endDate}.`,
+          linkHref: challengeLink(challenge),
+          dedupeKey: `challenge-new:${challenge.id}`,
+        })
+      ) {
+        sent++;
+      }
+    }
+  } catch (err) {
+    console.error("[community-notify] could not notify the gym of a new challenge", err);
+  }
+  return sent;
+}
+
 const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`);
 
 /** A coach's or admin's post in the gym feed tells the gym's members. Member posts do not (one post must not buzz a whole gym). */
