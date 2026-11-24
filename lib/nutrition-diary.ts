@@ -18,7 +18,32 @@ function nonNegativeDecimal(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-export interface ParsedFoodEntryInput {
+/** Fibre, total sugars, sodium and saturated fat for an entry. A key is present only when the value is known, so "not listed" is never read as zero. */
+export interface NutrientExtras {
+  fiberG?: number;
+  sugarG?: number;
+  sodiumMg?: number;
+  saturatedFatG?: number;
+}
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Reads the optional extras from a request body. Anything missing, negative, not a number or absurdly large is left out. */
+export function parseNutrientExtras(body: Record<string, unknown>): NutrientExtras {
+  const out: NutrientExtras = {};
+  const grams = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 2000 ? round1(v) : null);
+  const fiber = grams(body.fiberG);
+  const sugar = grams(body.sugarG);
+  const satFat = grams(body.saturatedFatG);
+  const sodium = typeof body.sodiumMg === "number" && Number.isFinite(body.sodiumMg) && body.sodiumMg >= 0 && body.sodiumMg <= 200000 ? Math.round(body.sodiumMg) : null;
+  if (fiber !== null) out.fiberG = fiber;
+  if (sugar !== null) out.sugarG = sugar;
+  if (sodium !== null) out.sodiumMg = sodium;
+  if (satFat !== null) out.saturatedFatG = satFat;
+  return out;
+}
+
+export interface ParsedFoodEntryInput extends NutrientExtras {
   date: string;
   mealType: MealType;
   name: string;
@@ -77,6 +102,7 @@ export function parseFoodEntryInput(body: Record<string, unknown>): { ok: true; 
       servingLabel: typeof servingLabel === "string" && servingLabel.trim() ? servingLabel.trim() : null,
       servingGrams: nonNegativeDecimal(servingGrams),
       quantity: nonNegativeDecimal(quantity),
+      ...parseNutrientExtras(body),
     },
   };
 }
@@ -98,6 +124,40 @@ export function sumDailyTotals(entries: FoodEntryRecord[]): DailyTotals {
     }),
     { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
   );
+}
+
+export interface ExtraTotals {
+  fiberG: number;
+  sugarG: number;
+  sodiumMg: number;
+  saturatedFatG: number;
+  /** How many of the day's entries have no value for each nutrient. Above zero means the total is a minimum, not the full amount. */
+  missing: { fiberG: number; sugarG: number; sodiumMg: number; saturatedFatG: number };
+  totalEntries: number;
+}
+
+/** The day's fibre, sugar, sodium and saturated fat from entries that list them, and how many entries did not (so the app can say "at least"). */
+export function sumExtraTotals(entries: FoodEntryRecord[]): ExtraTotals {
+  const out: ExtraTotals = {
+    fiberG: 0,
+    sugarG: 0,
+    sodiumMg: 0,
+    saturatedFatG: 0,
+    missing: { fiberG: 0, sugarG: 0, sodiumMg: 0, saturatedFatG: 0 },
+    totalEntries: entries.length,
+  };
+  for (const e of entries) {
+    for (const key of ["fiberG", "sugarG", "sodiumMg", "saturatedFatG"] as const) {
+      const v = e[key];
+      if (typeof v === "number") out[key] += v;
+      else out.missing[key] += 1;
+    }
+  }
+  out.fiberG = round1(out.fiberG);
+  out.sugarG = round1(out.sugarG);
+  out.saturatedFatG = round1(out.saturatedFatG);
+  out.sodiumMg = Math.round(out.sodiumMg);
+  return out;
 }
 
 // Most-recently-logged distinct foods (by name, case-insensitive) — the

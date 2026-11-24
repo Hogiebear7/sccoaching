@@ -435,7 +435,7 @@ Grounding rules — strict:
 - If the photo is blurry, too dark, or doesn't clearly show food, do your best with what's visible; only return an empty list if truly nothing food-related is identifiable.
 
 Reply with ONLY a JSON array — no prose before or after, no markdown code fence. 2-4 suggestions, most realistic/appealing first. Each item exactly this shape:
-{"title": string, "description": string (one plain, appetizing sentence — no marketing language), "ingredientsUsed": string[] (drawn from what was shown/listed), "estimatedCalories": number, "estimatedProteinG": number, "estimatedCarbsG": number, "estimatedFatG": number, "crossSuggestion": string|null (one sentence naming ONE additional ingredient that would unlock a genuinely different extra meal idea — null if nothing sensible to add)}
+{"title": string, "description": string (one plain, appetizing sentence — no marketing language), "ingredientsUsed": string[] (drawn from what was shown/listed), "estimatedCalories": number, "estimatedProteinG": number, "estimatedCarbsG": number, "estimatedFatG": number, "estimatedFiberG": number (grams of fibre, one decimal), "estimatedSugarG": number (grams of total sugars, one decimal), "crossSuggestion": string|null (one sentence naming ONE additional ingredient that would unlock a genuinely different extra meal idea — null if nothing sensible to add)}
 
 If nothing food-related is identifiable in the photo or text, reply with exactly: []`;
 
@@ -447,6 +447,9 @@ export interface MealSuggestion {
   estimatedProteinG: number;
   estimatedCarbsG: number;
   estimatedFatG: number;
+  /** Fibre and total sugars, an estimate like the rest. Null when the model did not give one. */
+  estimatedFiberG: number | null;
+  estimatedSugarG: number | null;
   crossSuggestion: string | null;
 }
 
@@ -475,6 +478,11 @@ export function parseMealSuggestions(text: string): MealSuggestion[] {
     return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
   }
 
+  // One decimal place, or null when the model left it out or gave something unusable (so it is never shown as a made-up zero).
+  function grams1(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 500 ? Math.round(value * 10) / 10 : null;
+  }
+
   return parsed
     .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
     .map((item) => ({
@@ -487,6 +495,8 @@ export function parseMealSuggestions(text: string): MealSuggestion[] {
       estimatedProteinG: num(item.estimatedProteinG),
       estimatedCarbsG: num(item.estimatedCarbsG),
       estimatedFatG: num(item.estimatedFatG),
+      estimatedFiberG: grams1(item.estimatedFiberG),
+      estimatedSugarG: grams1(item.estimatedSugarG),
       crossSuggestion:
         typeof item.crossSuggestion === "string" && item.crossSuggestion.trim()
           ? item.crossSuggestion.trim().slice(0, 200)
