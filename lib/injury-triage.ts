@@ -66,15 +66,15 @@ const SIGN_OFF =
 const REPLIES: Record<TriageLevel, string> = {
   emergency:
     "What you've described can sometimes be serious. Please call 112 or 999 now, or go to your nearest emergency department. If someone is with you, ask them to stay with you and help." +
-    "\n\nPlease don't train until you've been seen. When you're ok, come back and tell me, and I'll help you work out training around it." +
+    "\n\nPlease don't train until you've been seen. When you're ok, the Workout Generator in Train can build a session that works around any sore area you tick." +
     SIGN_OFF,
   urgent:
     "What you've described is worth getting checked soon. Please get seen today: go to an urgent care or injury unit or an emergency department, or phone your GP and tell them it's new or getting worse. If it gets worse, or you feel unwell, call 112 or 999." +
-    "\n\nPlease don't train the affected area until you've been seen. When you've had it looked at, come back and tell me what they said, and I'll help you plan training around it." +
+    "\n\nPlease don't train the affected area until you've been seen. After that, the Workout Generator in Train can build sessions that work around any sore area you tick." +
     SIGN_OFF,
   pregnancy:
     "What you've described in pregnancy needs checking straight away. Please contact your maternity unit or GP now. If you're bleeding heavily, in severe pain, or feel very unwell, call 112 or 999 or go to your nearest emergency department." +
-    "\n\nPlease don't train until you've been seen. I'm happy to help you plan gentle training afterwards, with your midwife or doctor's advice." +
+    "\n\nPlease don't train until you've been seen." +
     SIGN_OFF,
 };
 
@@ -98,13 +98,12 @@ export function triageReplyFor(level: TriageLevel): string {
 }
 
 /**
- * What the AI coach may and may not say about pain and injury. Added to the coach's instructions (lib/ai.ts). The wording is in
- * the owner's review pack, injury-guidance-legal-review-2026-11-24.md (in the App Design Overhaul folder) for review before release. Serious symptoms never reach the model: injury-triage.ts replies first.
+ * What the AI coach may say about pain and injury (owner decision 2026-11-24: scaled right back): NOTHING in the way of advice. It does not say whether it is safe
+ * to train, what something might be, how to treat it, how long it takes, or which exercises to do. It points to a physio or GP and to the Workout Generator, where
+ * the member's own "anything sore?" choice shapes the session. Serious symptoms never reach the model: injury-triage.ts replies first. The wording is in the owner's
+ * review pack, injury-guidance-legal-review-2026-11-24.md (in the App Design Overhaul folder).
  */
-export const INJURY_GUIDANCE_RULE = `Sore or injured members (follow strictly):
-- The first time pain or injury comes up in a conversation, say briefly that this is general information and not medical advice, and that you can't examine them.
-- Explain in plain language the kinds of things that commonly cause that sort of soreness, as general information only. Never say or imply which one they have. Never diagnose, never name a condition as what they have, never judge how severe it is.
-- Never give a recovery time, a healing timeline, or any outlook for how it will go. Never write a rehab programme or prescribe exercises for an injury or condition. If they have exercises from a physio or doctor, tell them to follow those exactly, and mention they can track them in Train, under More training, in Rehab.
-- Recommend seeing a physio or GP for anything that is new, getting worse, not settling after a week or two, or limiting daily life.
-- If they feel able to train: suggest going easy on or skipping the sore area, only pain-free movement, and stopping anything that hurts. Point them to the Workout Generator in Train, where they can tick "anything sore?" so the session works around it. You may talk generally about training the parts of the body that are not affected.
+export const INJURY_GUIDANCE_RULE = `Pain, injury and health problems (follow strictly): you give no advice about these at all.
+- If a member mentions pain, soreness, an injury or a health problem, or asks whether they can or should train, do not say whether it is safe, what it might be, how to treat it, how long it will take, or which exercises to do or avoid for it. Say in one or two plain sentences that you can't advise on injuries, and that a physio or GP is the right person to ask.
+- The only practical thing you may offer is the Workout Generator in Train: they can tick the sore area under "anything sore?" and it builds a session that leaves out exercises that load that area. Do not describe the session as safe or suitable for the injury.
 - If they describe anything that could be serious (chest pain, trouble breathing, fainting, a head injury, numbness, unable to put weight on a limb, a joint that locks, a hot swollen calf, severe pain, anything in pregnancy such as bleeding), tell them to seek urgent medical help (112 or 999, an emergency department, or their GP the same day) and not to train until they have been seen.`;

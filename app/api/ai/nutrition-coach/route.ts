@@ -15,6 +15,7 @@ import {
 import { resolveBookingsForUser } from "@/lib/bookings";
 import { normalizeDrinkSettings } from "@/lib/drink-settings";
 import { buildNutritionCoachContext } from "@/lib/ai-context";
+import { triageInjuryMessage } from "@/lib/injury-triage";
 import { createNutritionCoachChatStream, isAiConfigured } from "@/lib/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { AI_UNAVAILABLE_CODE, AI_UNAVAILABLE_MESSAGE, primeAiStream } from "@/lib/ai-stream";
@@ -75,6 +76,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let body: unknown;
+
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { success: false, configured: true, message: "Invalid JSON body." },
+      { status: 400 }
+    );
+  }
+
+  const { content, tomorrow, drinkSettings } = (body ?? {}) as Record<string, unknown>;
+
+  if (typeof content !== "string" || !content.trim()) {
+    return NextResponse.json(
+      { success: false, configured: true, message: "Message content is required." },
+      { status: 400 }
+    );
+  }
+
+  // Red flags (lib/injury-triage.ts): a message describing something that can be serious gets the fixed reply with no call to the AI, before the allowance and
+  // rate-limit checks, exactly as in the coach chat. Saved to the nutrition chat history like any other exchange.
+  const redFlag = triageInjuryMessage(content.trim().slice(0, 4000));
+  if (redFlag) {
+    createAiMessage({ id: randomUUID(), userId: user.id, role: "user", content: content.trim().slice(0, 4000), createdAt: new Date().toISOString(), channel: "nutrition" });
+    createAiMessage({ id: randomUUID(), userId: user.id, role: "assistant", content: redFlag.reply, createdAt: new Date().toISOString(), channel: "nutrition" });
+    return new Response(redFlag.reply, {
+      status: 200,
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Accel-Buffering": "no" },
+    });
+  }
+
   // A bounded AI allowance, checked before anything is sent to the provider (lib/ai-allowance.ts).
   const allowanceRefusal = aiAllowanceRefusal(user.id);
   if (allowanceRefusal) return allowanceRefusal;
@@ -96,26 +129,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, configured: true, message: "No profile found for this account." },
       { status: 404 }
-    );
-  }
-
-  let body: unknown;
-
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { success: false, configured: true, message: "Invalid JSON body." },
-      { status: 400 }
-    );
-  }
-
-  const { content, tomorrow, drinkSettings } = (body ?? {}) as Record<string, unknown>;
-
-  if (typeof content !== "string" || !content.trim()) {
-    return NextResponse.json(
-      { success: false, configured: true, message: "Message content is required." },
-      { status: 400 }
     );
   }
 

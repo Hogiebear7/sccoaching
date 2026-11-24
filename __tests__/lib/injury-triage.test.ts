@@ -100,14 +100,17 @@ describe("ordinary training talk is left to the coach", () => {
   });
 });
 
-describe("the AI's injury rule", () => {
-  it("forbids diagnosis, timelines and AI-written rehab, and points to a professional and the Rehab section", () => {
-    expect(INJURY_GUIDANCE_RULE).toMatch(/not medical advice/);
-    expect(INJURY_GUIDANCE_RULE).toMatch(/Never diagnose/);
-    expect(INJURY_GUIDANCE_RULE).toMatch(/Never give a recovery time/);
-    expect(INJURY_GUIDANCE_RULE).toMatch(/Never write a rehab programme/);
+describe("the AI's injury rule (scaled right back: no advice at all)", () => {
+  it("gives no advice, no diagnosis, no safety judgement, no timeline and no exercises", () => {
+    expect(INJURY_GUIDANCE_RULE).toMatch(/you give no advice/);
+    expect(INJURY_GUIDANCE_RULE).toMatch(/whether it is safe/);
+    expect(INJURY_GUIDANCE_RULE).toMatch(/how long it will take/);
+    expect(INJURY_GUIDANCE_RULE).toMatch(/exercises to do or avoid/);
+    expect(INJURY_GUIDANCE_RULE).not.toMatch(/Explain in plain language|go easy on|pain-free/i);
+  });
+  it("points only to a physio or GP and the Workout Generator, and still sends serious symptoms to urgent care", () => {
     expect(INJURY_GUIDANCE_RULE).toMatch(/physio or GP/);
-    expect(INJURY_GUIDANCE_RULE).toMatch(/Rehab/);
+    expect(INJURY_GUIDANCE_RULE).toMatch(/Workout Generator/);
     expect(INJURY_GUIDANCE_RULE).toMatch(/112 or 999/);
   });
 });
