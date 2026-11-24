@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
   // Last 20 messages (including the one just saved) for multi-turn context.
   const turns = findAiMessagesByUserId(user.id)
     .slice(-20)
-    .map((m) => ({ role: m.role, content: m.content }));
+    .map((m) => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
 
   function persistAssistant(text: string) {
     createAiMessage({
