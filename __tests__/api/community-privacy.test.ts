@@ -79,6 +79,7 @@ describe("GET /api/mobile/community/privacy", () => {
         leaderboardMode: "named",
         leaderboardAlias: "Hidden user",
         leaderboardAliases: expect.any(Array),
+        leaderboardAliasGroups: expect.any(Object),
       },
     });
   });
@@ -109,6 +110,7 @@ describe("GET /api/mobile/community/privacy", () => {
       leaderboardMode: "hidden",
       leaderboardAlias: "Hidden user",
       leaderboardAliases: expect.any(Array),
+      leaderboardAliasGroups: expect.any(Object),
     });
   });
 
