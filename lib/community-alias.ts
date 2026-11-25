@@ -19,7 +19,7 @@ export const MALE_ALIAS_NAMES: readonly string[] = [
   "Bruce Wayne",
   "Marty McFly",
   "Don Draper",
-  "Toto Schillachi",
+  "Toto Schillaci",
   "Eren Yeager",
   "Goku",
 ];
@@ -29,7 +29,7 @@ export const FEMALE_ALIAS_NAMES: readonly string[] = [
   "Lara Croft",
   "Buffy Summers",
   "Mia Wallace",
-  "Chung Li",
+  "Chun-Li",
   "Daenerys Targaryen",
   "Dana Scully",
 ];
