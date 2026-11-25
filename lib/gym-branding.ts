@@ -65,7 +65,10 @@ export function validateBranding(input: unknown, current: GymBranding | undefine
   if ("logoUrl" in body) {
     const v = body.logoUrl;
     if (v === null) next.logoUrl = null;
-    else if (typeof v === "string") {
+    else if (typeof v === "string" && current?.logoUrl && v.trim() === current.logoUrl) {
+      // Unchanged (for example the gym's own uploaded logo, which is served from this site and has no file extension in its link): keep it.
+      next.logoUrl = current.logoUrl;
+    } else if (typeof v === "string") {
       const url = v.trim();
       let parsed: URL | null = null;
       try {

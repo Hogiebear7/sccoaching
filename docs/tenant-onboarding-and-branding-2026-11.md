@@ -28,6 +28,6 @@ The route is in the route manifest (own-tenant, lockout enforced) and in the run
 
 ## Still the owner's, by design
 
-- Logo upload: today a gym supplies a link to a logo it hosts. A hosted upload would need a controlled asset store and resizing; deferred (see the master plan).
+- Logo upload (built 2026-11-25): a gym's admin uploads a PNG, JPG or WebP up to 1 MB on the Gym setup page (`POST /api/staff/gym/branding`, `DELETE` removes it). The file is checked by its own bytes (never SVG), stored as one file per gym in `<DATA_DIR>/gym-logos/` beside the datastore, and served publicly at `/api/gym-logo/<gymId>`. A link to a logo hosted elsewhere still works. Not done: automatic resizing, so a large logo is shown scaled down by the app.
 - Approval of a new gym stays a platform-operator decision.
 - Custom domains and separate store apps per gym are explicit non-goals (master plan).
