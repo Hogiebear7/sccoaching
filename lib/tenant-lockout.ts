@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 
 import { findGymById, type StoredUser } from "./db";
-import { tenantAccess, type TenantAccess } from "./tenant-billing";
+import { DEFAULT_TENANT_GRACE_DAYS, MAX_TENANT_GRACE_DAYS, tenantAccess, type TenantAccess } from "./tenant-billing";
 import type { TenantContext } from "./tenant-context";
 
 export function tenantLockoutEnabled(): boolean {
@@ -59,6 +59,18 @@ export interface TenantStatusForClient {
   payUrl: string | null;
 }
 
+/**
+ * Who is warned while a gym is in its grace period (owner decision 2026-11-25). The grace is split in two halves: in the first half only the gym's admins get the
+ * warning; in the second half its coaches get it too. Members are never warned (a locked gym still shows them its plain unavailable screen). The warning is shown
+ * every time the app or staff area opens, for as long as it applies.
+ */
+export function graceWarningApplies(role: string, graceDaysLeft: number | null, graceDaysTotal: number): boolean {
+  if (role === "admin" || role === "admin_manager" || role === "staff") return true;
+  if (role !== "coach" || graceDaysLeft === null) return false;
+  const dayOfGrace = graceDaysTotal - graceDaysLeft + 1;
+  return dayOfGrace > Math.ceil(graceDaysTotal / 2);
+}
+
 /** What the apps and pages show about the gym's platform subscription: always "active" while the lockout switch is off. */
 export function tenantStatusFor(user: Pick<StoredUser, "role" | "gymId">, now: Date = new Date()): TenantStatusForClient {
   const none: TenantStatusForClient = { state: "active", graceEndsOn: null, graceDaysLeft: null, payUrl: null };
@@ -66,6 +78,10 @@ export function tenantStatusFor(user: Pick<StoredUser, "role" | "gymId">, now: D
   const gym = findGymById(user.gymId);
   const access = tenantAccess(gym, now);
   if (access.state === "active") return none;
+  if (access.state === "grace") {
+    const total = Math.max(0, Math.min(MAX_TENANT_GRACE_DAYS, Math.floor(gym?.platformBilling?.graceDays ?? DEFAULT_TENANT_GRACE_DAYS)));
+    if (!graceWarningApplies(user.role, access.graceDaysLeft, total)) return none;
+  }
   const staff = user.role === "coach" || user.role === "admin" || user.role === "admin_manager";
   return { state: access.state, graceEndsOn: access.graceEndsOn, graceDaysLeft: access.graceDaysLeft, payUrl: staff ? gym?.platformBilling?.payUrl ?? null : null };
 }
