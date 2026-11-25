@@ -10,6 +10,14 @@
 // addition to an existing collection.
 export type GymStatus = "pending" | "active" | "suspended";
 
+/** What the gym owes S&C for the platform (see lib/tenant-billing.ts). Absent = not billed = never restricted (the primary gym, and any gym not yet on a plan). */
+export interface GymPlatformBilling {
+  /** The last paid day, YYYY-MM-DD. The day after is the first day of the grace period. */
+  paidThrough: string;
+  /** Days of grace after paidThrough before the lockout. Absent = the platform default. */
+  graceDays?: number;
+}
+
 export interface GymRecord {
   id: string;
   /** URL-safe, unique — e.g. "sc-performance-coaching". */
@@ -46,6 +54,8 @@ export interface GymRecord {
       app/api/mobile/gyms/my-gym/visibility/route.ts — no UI reaches this
       yet (backend foundation only; see that route's own header comment). */
   acceptingNewEnquiries?: boolean;
+  /** Platform billing for this tenant. Set only by a platform operator; see lib/tenant-billing.ts. */
+  platformBilling?: GymPlatformBilling;
   createdAt: string;
   updatedAt: string;
 }

@@ -292,6 +292,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/finance/ledger", scope: "platform", capabilities: ["finance.view"] },
   { route: "staff/finance/ledger/delete", scope: "platform", capabilities: ["finance.view"] },
   { route: "staff/gyms/[gymId]/status", scope: "platform", capabilities: ["gyms.moderate"] },
+  { route: "staff/gyms/[gymId]/billing", scope: "platform", capabilities: ["gyms.moderate"] },
   { route: "staff/invites", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff"] },
   { route: "staff/invites/[inviteId]/revoke", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff"] },
   { route: "staff/members/[userId]/ai-pause", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGym("], runtimeTenantContext: true },
