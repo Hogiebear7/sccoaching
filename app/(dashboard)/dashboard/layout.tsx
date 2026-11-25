@@ -3,7 +3,9 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
 
-import { findProfileByUserId, findUnreadNotificationCount, findUserById } from "@/lib/db";
+import { findGymById, findProfileByUserId, findUnreadNotificationCount, findUserById } from "@/lib/db";
+import { resolveBranding } from "@/lib/gym-branding";
+import { PRIMARY_GYM_SLUG } from "@/lib/primary-gym";
 import { isStaffRole } from "@/lib/permissions";
 import { verifySession } from "@/lib/session";
 import { PushServiceWorkerRegister } from "@/components/PushServiceWorkerRegister";
@@ -44,6 +46,13 @@ export default async function DashboardLayout({
   const userId = verifySession(cookieStore.get("session")?.value)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
   if (userInLockedGym(user)) redirect("/gym-unavailable");
+  // A tenant gym's members see the gym's own name, logo and accent colour. The S&C gym (and any gym that has set nothing) keeps the S&C look.
+  const ownGym = user?.gymId ? findGymById(user.gymId) : undefined;
+  const gym = ownGym && ownGym.slug !== PRIMARY_GYM_SLUG ? ownGym : undefined;
+  const brand = gym ? resolveBranding(gym) : null;
+  const brandStyle = brand?.custom
+    ? ({ "--primary": brand.accentColor, "--accent-primary": brand.accentColor, "--primary-foreground": brand.onAccent } as React.CSSProperties)
+    : undefined;
   const profile = user ? findProfileByUserId(user.id) : undefined;
   const unreadNotifications = user ? findUnreadNotificationCount(user.id) : 0;
 
@@ -85,14 +94,14 @@ export default async function DashboardLayout({
 
   return (
     // data-member-app scopes the member-app recipe overrides in globals.css.
-    <div data-member-app="" className="min-h-screen text-foreground" data-palette={palette} data-theme={theme}>
+    <div data-member-app="" className="min-h-screen text-foreground" data-palette={palette} data-theme={theme} style={brandStyle}>
       <div className="grid min-h-screen lg:grid-cols-[248px_minmax(0,1fr)]">
         {/* Sidebar (desktop): solid navy, grouped links with a gold rule on
             the current page, the member's card and log out below. */}
         <aside className="hidden border-r border-white/[0.06] bg-[var(--sidebar)] lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
           <div className="px-6 pb-6 pt-7">
-            <Link href="/dashboard" aria-label="S&C Performance Coaching, home" className="inline-block">
-              <SeasonalLogo width={160} height={74} className="h-11 w-auto" />
+            <Link href="/dashboard" aria-label={`${gym?.name ?? "S&C Performance Coaching"}, home`} className="inline-block">
+              <BrandMark gymName={gym?.name ?? null} logoUrl={brand?.logoUrl ?? null} className="h-11" />
             </Link>
           </div>
 
@@ -145,8 +154,8 @@ export default async function DashboardLayout({
           <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[var(--bg-0)] px-4 sm:px-6">
             <div className="flex h-14 items-center justify-between gap-3 lg:h-16">
               <div className="min-w-0">
-                <Link href="/dashboard" aria-label="S&C Performance Coaching, home" className="flex h-11 items-center lg:hidden">
-                  <SeasonalLogo width={160} height={74} className="h-8 w-auto" />
+                <Link href="/dashboard" aria-label={`${gym?.name ?? "S&C Performance Coaching"}, home`} className="flex h-11 items-center lg:hidden">
+                  <BrandMark gymName={gym?.name ?? null} logoUrl={brand?.logoUrl ?? null} className="h-8" />
                 </Link>
                 <p className="hidden text-sm text-zinc-400 lg:block">
                   Welcome back{firstName ? `, ${firstName}` : ""}.
@@ -198,6 +207,18 @@ export default async function DashboardLayout({
       <PushServiceWorkerRegister />
     </div>
   );
+}
+
+// The S&C logo for the S&C gym (and any gym that has set no branding); a tenant gym with its own logo shows that, and one with only a name shows the name.
+function BrandMark({ gymName, logoUrl, className }: { gymName: string | null; logoUrl: string | null; className: string }) {
+  if (gymName && logoUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={logoUrl} alt={gymName} className={`${className} w-auto max-w-[160px] object-contain`} />;
+  }
+  if (gymName) {
+    return <span className="block max-w-[160px] truncate text-base font-semibold text-zinc-100">{gymName}</span>;
+  }
+  return <SeasonalLogo width={160} height={74} className={`${className} w-auto`} />;
 }
 
 function Avatar({ url, initials, size }: { url: string | null; initials: string; size: "sm" | "md" }) {

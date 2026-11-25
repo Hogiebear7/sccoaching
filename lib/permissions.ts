@@ -95,7 +95,8 @@ export type Capability =
   | "comments.moderate" // review/remove reported Community comments
   | "gyms.moderate" // PLATFORM-ONLY: approve/suspend any OTHER gym in the directory
   | "platform.jobs" // PLATFORM-ONLY: trigger the platform-wide job set from a session
-  | "gym.manageAvailability"; // toggle a gym's own acceptingNewEnquiries flag
+  | "gym.manageAvailability" // toggle a gym's own acceptingNewEnquiries flag
+  | "gym.manageBranding"; // set a gym's own logo and accent colour
 
 // The MINIMUM role each capability requires. Because roles are hierarchical, a
 // higher role automatically satisfies everything a lower one can do.
@@ -149,6 +150,8 @@ const CAPABILITY_MIN_ROLE: Record<Capability, StaffRole> = {
   // Pulling a whole business off the discovery directory is a business-level
   // decision, not a per-coach one — admin, same tier as catalog.manage.
   "gym.manageAvailability": "admin",
+  // A gym's own look (logo and one accent colour), applied to its members' app and web area. Admin, same tier as the listing visibility.
+  "gym.manageBranding": "admin",
 };
 
 // Capabilities that ONLY the platform_operator role satisfies. They are checked
@@ -189,4 +192,6 @@ export const NAV_CAPABILITY: Record<string, Capability> = {
   "/staff/community-reports": "comments.moderate",
   "/staff/gym-community": "comments.moderate",
   "/staff/tenants": "gyms.moderate",
+  "/staff/gym-setup": "gym.manageBranding",
+  "/staff/gym-guide": "staff.access",
 };
