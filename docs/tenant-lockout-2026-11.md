@@ -60,3 +60,11 @@ Status: **built end to end and tested; switched off.** Nothing is ever locked un
 ## Scope note
 
 This covers the platform billing and lockout system. The other parts of the wider multi-tenant plan (per-tenant logo and colours, the tenant's own branded web member area, the sign-up and onboarding flow, and the tenant instruction manual) are separate features that are not part of it.
+
+## Self-serve payment (built 2026-11-25)
+
+A gym's admin pays S&C on the Gym setup page ("Subscribe", then "Pay or renew" and "Manage card, invoices or cancel"), and a locked gym's admin can pay from the gym-unavailable page. It uses S&C's own Stripe account (`lib/tenant-subscription.ts`, route `POST /api/staff/gym/subscription`): the gym's Stripe customer is created once and remembered as `platformBilling.stripeCustomerId`, checkout runs in subscription mode for the one platform price, and the billing portal handles card, invoices and cancellation. The gym is marked paid only by the `invoice.paid` webhook above, never by the page it returns to.
+
+Set up once in Stripe: a Product with one recurring Price (its id in `TENANT_PLATFORM_PRICE_ID`), the Customer Portal switched on, a webhook endpoint for `/api/webhooks/tenant-billing` sending `invoice.paid` (signing secret in `TENANT_BILLING_WEBHOOK_SECRET`). Optional `TENANT_TRIAL_DAYS` (0 to 90, default none). Until the price id is set the page says online payment is not switched on and the manual route above still works.
+
+A gym with no billing record gets today as its paid-through date the first time it starts checkout, so one that starts and walks away is warned and then locked after the grace, not free for ever. Starting again never moves the date.
