@@ -14,6 +14,13 @@ import { intensityMix, weeklyTrainingSummary } from "@/lib/progress";
 import { ScreenHeader } from "@/components/member/ScreenHeader";
 import { readinessGuidance, readinessStatus, trainingLoadForLog } from "@/lib/recovery";
 
+// The earliest date a check-in can be written for: the day before `todayISO` (only today and yesterday can be changed).
+function dayBefore(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 type RecoveryFormValues = {
   date: string;
   sleepHours: string;
@@ -242,6 +249,8 @@ export function RecoveryView({
             <FormField label="Date" error={errors.date}>
               <input
                 type="date"
+                min={dayBefore(todayISO)}
+                max={todayISO}
                 value={values.date}
                 onChange={(e) => handleChange("date", e)}
                 className={inputClass(errors.date)}

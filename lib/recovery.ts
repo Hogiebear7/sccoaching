@@ -4,6 +4,21 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * The check-in dates a member may write to: today and yesterday. Older days are a record and cannot be changed afterwards. One day of slack is allowed on
+ * the future side because the server counts days in UTC and a member's own date can be a day ahead of it near midnight. `now` is injectable for tests.
+ */
+export function checkinDateWindow(now: Date = new Date()): { min: string; max: string } {
+  const day = (offset: number) => new Date(now.getTime() + offset * 86_400_000).toISOString().slice(0, 10);
+  return { min: day(-1), max: day(1) };
+}
+
+export function isEditableCheckinDate(date: string, now: Date = new Date()): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const { min, max } = checkinDateWindow(now);
+  return date >= min && date <= max;
+}
+
 // Coaching-oriented readiness score (0-100), not a medical assessment.
 // Each input contributes up to 25 points: sleep duration (capped at 8h),
 // sleep quality (1-10, higher is better), soreness (1-10) and fatigue

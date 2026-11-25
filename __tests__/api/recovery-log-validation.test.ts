@@ -11,9 +11,30 @@ afterEach(() => fx.cleanup());
 
 async function log(over: Record<string, string>) {
   const { POST } = await import("@/app/api/recovery/log/route");
-  const body = { date: "2026-10-15", sleepHours: "7", sleepQuality: "6", soreness: "4", fatigue: "3", ...over };
+  const body = { date: new Date().toISOString().slice(0, 10), sleepHours: "7", sleepQuality: "6", soreness: "4", fatigue: "3", ...over };
   return POST(new NextRequest("http://localhost/api/recovery/log", { method: "POST", headers: { "Content-Type": "application/json", Cookie: fx.cookie(fx.memberA.id) }, body: JSON.stringify(body) }));
 }
+
+describe("recovery log date window", () => {
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+
+  it("accepts today and yesterday", async () => {
+    expect((await log({ date: day(0) })).status).toBeLessThan(300);
+    expect((await log({ date: day(-1) })).status).toBeLessThan(300);
+  });
+
+  it("refuses an older day, so a past check-in cannot be rewritten", async () => {
+    const res = await log({ date: day(-2) });
+    expect(res.status).toBe(400);
+    expect((await res.json()).message).toBe("You can only log or change a check-in for today or yesterday.");
+    expect((await log({ date: "2026-10-15" })).status).toBe(400);
+  });
+
+  it("refuses a day well in the future and a malformed date", async () => {
+    expect((await log({ date: day(5) })).status).toBe(400);
+    expect((await log({ date: "yesterday" })).status).toBe(400);
+  });
+});
 
 describe("recovery log ranges and their error messages", () => {
   it("accepts 1-10 for sleep quality and soreness and 1-5 for fatigue", async () => {
