@@ -23,7 +23,7 @@ export interface GymPlatformBilling {
   /** When the gym first paid (ISO timestamp). The 14-day money-back window runs from here. */
   firstPaidAt?: string;
   /** Size-based pricing (lib/tenant-pricing.ts): the price band the gym pays for now, the billing interval, and the highest member count seen since the last renewal. */
-  band?: "b50" | "b100" | "b149" | "b150";
+  band?: "b50" | "b100" | "b150" | "b300" | "b500" | "b501";
   interval?: "month" | "year";
   memberHighWater?: { peak: number; since: string };
 }

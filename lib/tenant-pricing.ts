@@ -1,5 +1,5 @@
-// What a gym pays S&C depends on how big it is (owner decision 2026-11-25): up to 50 members, 51 to 100, 101 to 149, and 150 or more, billed monthly or yearly. A "member" is
-// a member account that has not been archived.
+// What a gym pays S&C depends on how big it is (owner decision 2026-11-25): up to 50 members, 51 to 100, 101 to 150, 151 to 300, 301 to 500, and more than 500, billed monthly or yearly. A "member" is
+// a member account that has not been archived. (A gym of exactly 150 is in 101 to 150; exactly 500 is in 301 to 500.)
 //
 // The band a gym pays for in a period is set by the HIGHEST member count seen in the previous period (a daily snapshot, see lib/jobs/tenant-member-high-water.ts), not by the
 // count on renewal day. So taking members off before the month ends and adding them back afterwards does not lower the band. The band can still go down, but only when the whole
@@ -9,13 +9,15 @@
 import type { GymPlatformBilling } from "./gyms-schema";
 
 export type TenantInterval = "month" | "year";
-export type TenantBand = "b50" | "b100" | "b149" | "b150";
+export type TenantBand = "b50" | "b100" | "b150" | "b300" | "b500" | "b501";
 
 export const TENANT_BANDS: { key: TenantBand; label: string; maxMembers: number }[] = [
   { key: "b50", label: "Up to 50 members", maxMembers: 50 },
   { key: "b100", label: "51 to 100 members", maxMembers: 100 },
-  { key: "b149", label: "101 to 149 members", maxMembers: 149 },
-  { key: "b150", label: "150 members or more", maxMembers: Number.POSITIVE_INFINITY },
+  { key: "b150", label: "101 to 150 members", maxMembers: 150 },
+  { key: "b300", label: "151 to 300 members", maxMembers: 300 },
+  { key: "b500", label: "301 to 500 members", maxMembers: 500 },
+  { key: "b501", label: "More than 500 members", maxMembers: Number.POSITIVE_INFINITY },
 ];
 
 export function bandForCount(count: number): TenantBand {
@@ -30,7 +32,7 @@ export function bandLabel(band: TenantBand): string {
 export type TenantPriceMap = Record<TenantInterval, Record<TenantBand, string>>;
 
 /**
- * TENANT_PRICES is JSON: {"month":{"b50":"price_...","b100":"price_...","b149":"price_...","b150":"price_..."},"year":{...same four...}}.
+ * TENANT_PRICES is JSON: {"month":{"b50":"price_...","b100":"price_...","b150":"price_...","b300":"price_...","b500":"price_...","b501":"price_..."},"year":{...same six...}}.
  * Returns null unless every one of the eight Stripe price ids is there and looks like a price id, so a half-filled setting never charges the wrong band.
  */
 export function parseTenantPrices(raw: string | undefined | null): TenantPriceMap | null {
@@ -85,7 +87,7 @@ function bandIndex(band: TenantBand): number {
 
 /**
  * Whether a gym on `currentBand` should be told something about its member count: "crossed" once the count is above the band's limit, "approach" once it is within the
- * last tenth of it (45 of 50, 90 of 100, 135 of 149). The top band has no limit, so it never gets either.
+ * last tenth of it (45 of 50, 90 of 100, 135 of 150, 270 of 300, 450 of 500). The top band has no limit, so it never gets either.
  */
 export function bandNotice(currentBand: TenantBand, count: number): BandNotice {
   const band = TENANT_BANDS[bandIndex(currentBand)];

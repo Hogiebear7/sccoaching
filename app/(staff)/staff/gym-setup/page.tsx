@@ -43,7 +43,7 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
   const returned = (await searchParams)?.subscription;
   const band = gym.platformBilling?.band;
   const planNote = tenantPriceMap()
-    ? `${band ? `Your plan: ${bandLabel(band)}. You have ${memberCount} members now; the most this period is ${Math.max(gym.platformBilling?.memberHighWater?.peak ?? 0, memberCount)}. ` : "Your plan is set by your gym's size: up to 50 members, 51 to 100, 101 to 149, or 150 and over. "}${BAND_RULE_TEXT} You are told by notification and email when you are close to the top of your plan and when you go over it.`
+    ? `${band ? `Your plan: ${bandLabel(band)}. You have ${memberCount} members now; the most this period is ${Math.max(gym.platformBilling?.memberHighWater?.peak ?? 0, memberCount)}. ` : "Your plan is set by your gym's size: up to 50 members, 51 to 100, 101 to 150, 151 to 300, 301 to 500, or more than 500. "}${BAND_RULE_TEXT} You are told by notification and email when you are close to the top of your plan and when you go over it.`
     : null;
   const statusLine = !gym.platformBilling
     ? "You have not subscribed to the S&C platform yet."

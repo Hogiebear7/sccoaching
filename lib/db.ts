@@ -5586,6 +5586,8 @@ export function reserveAiBudget(input: {
   pool?: boolean;
   /** A shared pool for a CLASS of kinds (all users together, rolling 30 days): e.g. trial+free, paid, complimentary. Null/absent: none. */
   classPool?: { kinds: readonly AiAllowanceKind[]; usd: number } | null;
+  /** A tenant gym's own ceiling (lib/ai-gym-cap.ts): everything its users (members and staff) spend or hold over the rolling 30 days, together. Null/absent: none. */
+  gymPool?: { gymId: string; usd: number } | null;
   /** The paid subscribers' pool. When set and this call is not a paid call, the pool's UNUSED remainder is kept out of reach: it is counted against the ceiling,
       so trials, staff, complimentary and free use can never consume capacity allocated to paid subscribers. Null/absent: no reserve. */
   protectPaidPoolUsd?: number | null;
@@ -5627,6 +5629,17 @@ export function reserveAiBudget(input: {
     if (daySpent + heldUsd + input.reserveUsd > input.dailyBudgetUsd + 1e-9) {
       if (changed) writeDb(db);
       return { ok: false, limit: "daily", spentUsd: daySpent, heldUsd };
+    }
+  }
+
+  if (input.gymPool) {
+    const gymUserIds = new Set(db.users.filter((u) => u.gymId === input.gymPool!.gymId).map((u) => u.id));
+    const since = now - AI_POOL_WINDOW_MS;
+    const gymSpent = db.aiUsageLogs.reduce((s, l) => (l.userId && gymUserIds.has(l.userId) && new Date(l.createdAt).getTime() >= since ? s + l.costUsd : s), 0);
+    const gymHeld = live.reduce((s, r) => (r.userId && gymUserIds.has(r.userId) ? s + r.reservedUsd : s), 0);
+    if (gymSpent + gymHeld + input.reserveUsd > input.gymPool.usd + 1e-9) {
+      if (changed) writeDb(db);
+      return { ok: false, limit: "pool", spentUsd: gymSpent, heldUsd: gymHeld };
     }
   }
 

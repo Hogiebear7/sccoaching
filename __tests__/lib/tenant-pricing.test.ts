@@ -4,26 +4,28 @@ import { describe, expect, it } from "vitest";
 
 import { bandForCount, bandForNextPeriod, bandNotice, parseTenantPrices, recordMemberCount, startNewPeriod } from "@/lib/tenant-pricing";
 
-const ids = (p: string) => ({ b50: `${p}50`, b100: `${p}100`, b149: `${p}149`, b150: `${p}150` });
+const ids = (p: string) => ({ b50: `${p}50`, b100: `${p}100`, b150: `${p}150`, b300: `${p}300`, b500: `${p}500`, b501: `${p}501` });
 const VALID = JSON.stringify({ month: ids("price_m"), year: ids("price_y") });
 
 describe("bands", () => {
-  it("up to 50, 51 to 100, 101 to 149, 150 or more", () => {
+  it("up to 50, 51 to 100, 101 to 150, 151 to 300, 301 to 500, more than 500", () => {
     const at = (n: number) => bandForCount(n);
     expect([at(0), at(1), at(50)]).toEqual(["b50", "b50", "b50"]);
     expect([at(51), at(100)]).toEqual(["b100", "b100"]);
-    expect([at(101), at(149)]).toEqual(["b149", "b149"]);
-    expect([at(150), at(151), at(5000)]).toEqual(["b150", "b150", "b150"]);
+    expect([at(101), at(150)]).toEqual(["b150", "b150"]);
+    expect([at(151), at(300)]).toEqual(["b300", "b300"]);
+    expect([at(301), at(500)]).toEqual(["b500", "b500"]);
+    expect([at(501), at(5000)]).toEqual(["b501", "b501"]);
   });
 });
 
 describe("the price setting", () => {
-  it("needs all eight Stripe price ids, in the right shape", () => {
-    expect(parseTenantPrices(VALID)?.year.b149).toBe("price_y149");
+  it("needs all twelve Stripe price ids, in the right shape", () => {
+    expect(parseTenantPrices(VALID)?.year.b300).toBe("price_y300");
     expect(parseTenantPrices(undefined)).toBeNull();
     expect(parseTenantPrices("not json")).toBeNull();
     expect(parseTenantPrices(JSON.stringify({ month: ids("price_m") }))).toBeNull();
-    expect(parseTenantPrices(JSON.stringify({ month: ids("price_m"), year: { ...ids("price_y"), b150: "oops" } }))).toBeNull();
+    expect(parseTenantPrices(JSON.stringify({ month: ids("price_m"), year: { ...ids("price_y"), b500: "oops" } }))).toBeNull();
   });
 });
 
@@ -62,8 +64,12 @@ describe("plan notices", () => {
     expect(bandNotice("b50", 50)).toBe("approach");
     expect(bandNotice("b50", 51)).toBe("crossed");
     expect(bandNotice("b100", 90)).toBe("approach");
-    expect(bandNotice("b149", 135)).toBe("approach");
-    expect(bandNotice("b149", 150)).toBe("crossed");
-    expect(bandNotice("b150", 5000)).toBeNull();
+    expect(bandNotice("b150", 135)).toBe("approach");
+    expect(bandNotice("b150", 150)).toBe("approach");
+    expect(bandNotice("b150", 151)).toBe("crossed");
+    expect(bandNotice("b300", 270)).toBe("approach");
+    expect(bandNotice("b500", 450)).toBe("approach");
+    expect(bandNotice("b500", 501)).toBe("crossed");
+    expect(bandNotice("b501", 5000)).toBeNull();
   });
 });

@@ -73,9 +73,15 @@ Starting checkout gives a gym no free time (owner decision 2026-11-25). Its Stri
 
 ## Size-based pricing (built 2026-11-25)
 
-Four bands by member count (members who are not archived): up to 50, 51 to 100, 101 to 149, 150 or more, billed monthly or yearly (`lib/tenant-pricing.ts`). Eight Stripe prices, one per band and interval, are set in `TENANT_PRICES` (JSON: `{"month":{"b50":"price_...","b100":"price_...","b149":"price_...","b150":"price_..."},"year":{same four}}`). A half-filled setting is ignored; without it the single `TENANT_PLATFORM_PRICE_ID` applies to every gym.
+Six bands by member count (members who are not archived): up to 50, 51 to 100, 101 to 150, 151 to 300, 301 to 500, more than 500 (exactly 150 is in 101 to 150, exactly 500 in 301 to 500), billed monthly or yearly (`lib/tenant-pricing.ts`). Twelve Stripe prices, one per band and interval, are set in `TENANT_PRICES` (JSON: `{"month":{"b50":"price_...","b100":"price_...","b150":"price_...","b300":"price_...","b500":"price_...","b501":"price_..."},"year":{same six}}`). A half-filled setting is ignored; without it the single `TENANT_PLATFORM_PRICE_ID` applies to every gym.
 
 - **First payment:** the band comes from the gym's member count at that moment, and the interval (monthly or yearly) from the length of the period the invoice paid for.
 - **No gaming the threshold:** the job `tenant-member-high-water` records each billed gym's member count daily and keeps the highest in the current period. At each renewal the NEXT period's band comes from that highest count, not from the count on renewal day, so removing members before month end and adding them back after payment does not lower the band. A new period then starts from the members the gym has at that moment. The band can come down only when a whole period stayed lower.
 - **Moving a band:** at renewal the subscription's price is switched to the new band's price with no proration, so it applies from the next invoice. A failed Stripe call keeps the old band and the next renewal tries again.
 - **Yearly gyms:** the band is set at each yearly renewal from the year's peak. Growth part-way through a yearly period is picked up at the next renewal, not mid-year.
+
+## Per-gym AI cap (built 2026-11-25)
+
+The shared AI pools stop total spending, but one very large gym could use up what everyone else (S&C's own members included) was meant to have. `AI_TENANT_GYM_CAPS_EUR` (JSON, euros, all six bands: `{"b50":20,"b100":40,"b150":60,"b300":120,"b500":200,"b501":300}`, example values only) gives each tenant gym its own ceiling over any rolling 30 days, set by the band it pays for. Everything its users spend or have on hold, members and staff together, counts toward it (`lib/ai-gym-cap.ts`, the `gymPool` check in `reserveAiBudget`). A gym with no band yet (unbilled, or size pricing off) is held to the smallest band's cap. S&C's own gym is never capped by it. Unset = no per-gym cap (as before). When a gym reaches its cap, its members see the usual "AI is unavailable" message and never a number.
+
+Choosing the numbers: use the allowance per member and the real cost per member you see in the AI usage logs, and set each band's cap at roughly what that band's price can afford. Revisit after the first few gyms have a month of real usage.

@@ -10,7 +10,7 @@ import { createFixture, GYM_B, type IapFixture } from "../helpers/iap-fixture";
 
 const T = "2026-01-01T00:00:00.000Z";
 const SECRET = "whsec_test_pricing";
-const ids = (p: string) => ({ b50: `${p}50`, b100: `${p}100`, b149: `${p}149`, b150: `${p}150` });
+const ids = (p: string) => ({ b50: `${p}50`, b100: `${p}100`, b150: `${p}150`, b300: `${p}300`, b500: `${p}500`, b501: `${p}501` });
 const PRICES = JSON.stringify({ month: ids("price_m"), year: ids("price_y") });
 const DAY = 86_400;
 let fx: IapFixture;
