@@ -4,6 +4,8 @@ import { createHmac } from "crypto";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GymPlatformBilling } from "@/lib/gyms-schema";
+
 import { createFixture, GYM_B, type IapFixture } from "../helpers/iap-fixture";
 
 const T = "2026-01-01T00:00:00.000Z";
@@ -14,7 +16,7 @@ const DAY = 86_400;
 let fx: IapFixture;
 let calls: { method: string; url: string; body: string }[];
 
-function gymB(billing?: Record<string, unknown>, pending?: string) {
+function gymB(billing?: GymPlatformBilling, pending?: string) {
   fx.db.createGym({
     id: GYM_B, slug: "gym-b", name: "Gym B", tagline: null, description: null, ownerUserId: fx.adminB.id, contactEmail: "b@example.test", contactPhone: null,
     addressLine: "", latitude: null, longitude: null, status: "active", createdAt: T, updatedAt: T,
@@ -106,5 +108,46 @@ describe("size-based pricing", () => {
     fx.db.saveGym({ ...fx.db.findGymById(GYM_B)!, platformBilling: { paidThrough: "2099-01-01", stripeCustomerId: "cus_PRICE0001", memberHighWater: { peak: 0, since: "2026-11-01" } } });
     await tenantMemberHighWaterJob.run();
     expect(fx.db.findGymById(GYM_B)?.platformBilling?.memberHighWater?.peak).toBe(1); // it goes up to today's count
+  });
+
+  describe("plan notices to the gym's admins", () => {
+    const notices = () => fx.db.findNotificationsByUserId(fx.adminB.id).filter((n) => n.type === "tenant_plan_notice");
+    function addMembers(n: number) {
+      for (let i = 0; i < n; i++) fx.db.createUserWithRole(`extra-${Date.now()}-${i}@example.test`, "x", "member", GYM_B);
+    }
+
+    it("tells the admins once when the gym is close to the top of its plan, with the rule in the message", async () => {
+      vi.stubEnv("TENANT_PRICES", PRICES);
+      gymB({ paidThrough: "2099-01-01", stripeCustomerId: "cus_PRICE0001", band: "b50", interval: "month", memberHighWater: { peak: 1, since: "2026-12-01" } });
+      addMembers(44); // 45 with the fixture's member: 45 of 50
+      const { tenantMemberHighWaterJob } = await import("@/lib/jobs/tenant-member-high-water");
+      await tenantMemberHighWaterJob.run();
+      const first = notices();
+      expect(first).toHaveLength(1);
+      expect(first[0].title).toContain("close to 50 members");
+      expect(first[0].body).toContain("Removing members before the end of the period does not lower it");
+      await tenantMemberHighWaterJob.run();
+      expect(notices()).toHaveLength(1); // not repeated
+    });
+
+    it("tells them again, differently, when the gym goes over the limit", async () => {
+      vi.stubEnv("TENANT_PRICES", PRICES);
+      gymB({ paidThrough: "2099-01-01", stripeCustomerId: "cus_PRICE0001", band: "b50", interval: "month", memberHighWater: { peak: 1, since: "2026-12-01" } });
+      addMembers(50); // 51
+      const { tenantMemberHighWaterJob } = await import("@/lib/jobs/tenant-member-high-water");
+      await tenantMemberHighWaterJob.run();
+      const list = notices();
+      expect(list).toHaveLength(1);
+      expect(list[0].title).toContain("gone over 50 members");
+      expect(list[0].body).toContain("51 to 100 members");
+    });
+
+    it("says nothing for a small gym, a gym with no size-based pricing, or the top band", async () => {
+      gymB({ paidThrough: "2099-01-01", stripeCustomerId: "cus_PRICE0001", band: "b50", interval: "month" });
+      addMembers(49);
+      const { tenantMemberHighWaterJob } = await import("@/lib/jobs/tenant-member-high-water");
+      await tenantMemberHighWaterJob.run(); // pricing not switched on
+      expect(notices()).toHaveLength(0);
+    });
   });
 });

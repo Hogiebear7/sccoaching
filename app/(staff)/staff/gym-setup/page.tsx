@@ -4,6 +4,7 @@ import { findClasses, findGymById, findMembersInGym, findStaffUsers } from "@/li
 import { resolveBranding } from "@/lib/gym-branding";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { tenantAccess } from "@/lib/tenant-billing";
+import { BAND_RULE_TEXT, bandLabel, tenantPriceMap } from "@/lib/tenant-pricing";
 import { tenantSubscriptionConfigured } from "@/lib/tenant-subscription";
 import { BrandingForm } from "./BrandingForm";
 import { SubscriptionCard } from "./SubscriptionCard";
@@ -40,6 +41,10 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
   ];
   const doneCount = steps.filter((s) => s.done).length;
   const returned = (await searchParams)?.subscription;
+  const band = gym.platformBilling?.band;
+  const planNote = tenantPriceMap()
+    ? `${band ? `Your plan: ${bandLabel(band)}. You have ${memberCount} members now; the most this period is ${Math.max(gym.platformBilling?.memberHighWater?.peak ?? 0, memberCount)}. ` : "Your plan is set by your gym's size: up to 50 members, 51 to 100, 101 to 149, or 150 and over. "}${BAND_RULE_TEXT} You are told by notification and email when you are close to the top of your plan and when you go over it.`
+    : null;
   const statusLine = !gym.platformBilling
     ? "You have not subscribed to the S&C platform yet."
     : billing.state === "active"
@@ -80,6 +85,7 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
           enabled={tenantSubscriptionConfigured()}
           hasCustomer={Boolean(gym.platformBilling?.stripeCustomerId ?? gym.pendingStripeCustomerId)}
           statusLine={statusLine}
+          planNote={planNote}
           justReturned={returned === "success" || returned === "cancelled" ? returned : null}
         />
       </section>

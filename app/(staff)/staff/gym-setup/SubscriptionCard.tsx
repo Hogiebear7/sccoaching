@@ -4,7 +4,7 @@ import { useState } from "react";
 
 // The gym's platform subscription: start paying, or manage the card, invoices and cancellation. Both buttons only send the browser to a page hosted by the payment provider;
 // the gym is marked paid when the provider confirms the payment, not by this page.
-export function SubscriptionCard({ enabled, hasCustomer, statusLine, justReturned }: { enabled: boolean; hasCustomer: boolean; statusLine: string; justReturned: "success" | "cancelled" | null }) {
+export function SubscriptionCard({ enabled, hasCustomer, statusLine, planNote, justReturned }: { enabled: boolean; hasCustomer: boolean; statusLine: string; planNote?: string | null; justReturned: "success" | "cancelled" | null }) {
   const [busy, setBusy] = useState(false);
   const [billing, setBilling] = useState<"month" | "year">("month");
   const [message, setMessage] = useState<string | null>(
@@ -31,6 +31,7 @@ export function SubscriptionCard({ enabled, hasCustomer, statusLine, justReturne
   return (
     <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
       <p className="text-sm text-zinc-300">{statusLine}</p>
+      {planNote ? <p className="text-xs leading-relaxed text-zinc-400">{planNote}</p> : null}
       {enabled ? (
         <div className="flex flex-wrap items-center gap-3">
           <span role="group" aria-label="Billing" className="inline-flex overflow-hidden rounded-md border border-white/15 text-sm">

@@ -74,6 +74,35 @@ export function bandForNextPeriod(highWater: HighWater | undefined, liveCount: n
   return bandForCount(Math.max(highWater?.peak ?? 0, liveCount));
 }
 
+export type BandNotice = "approach" | "crossed" | null;
+
+/** Share of a band's limit at which a gym is told it is getting close. */
+export const APPROACH_SHARE = 0.9;
+
+function bandIndex(band: TenantBand): number {
+  return TENANT_BANDS.findIndex((b) => b.key === band);
+}
+
+/**
+ * Whether a gym on `currentBand` should be told something about its member count: "crossed" once the count is above the band's limit, "approach" once it is within the
+ * last tenth of it (45 of 50, 90 of 100, 135 of 149). The top band has no limit, so it never gets either.
+ */
+export function bandNotice(currentBand: TenantBand, count: number): BandNotice {
+  const band = TENANT_BANDS[bandIndex(currentBand)];
+  if (!band || !Number.isFinite(band.maxMembers)) return null;
+  if (count > band.maxMembers) return "crossed";
+  return count >= Math.ceil(band.maxMembers * APPROACH_SHARE) ? "approach" : null;
+}
+
+/** The band after `band`, or null for the top one. */
+export function nextBandAfter(band: TenantBand): TenantBand | null {
+  return TENANT_BANDS[bandIndex(band) + 1]?.key ?? null;
+}
+
+/** The plain-English rule, used in every notice, email and on the subscription page so a gym owner is never surprised by it. */
+export const BAND_RULE_TEXT =
+  "Your plan follows the most members you had at any point in your billing period, not the number on the day you pay. Removing members before the end of the period does not lower it. It only comes down when a whole period stayed lower.";
+
 /** A new period starts from the members the gym has right now (not from zero, and not from the old peak). */
 export function startNewPeriod(count: number, today: string): HighWater {
   return { peak: Math.max(0, Math.floor(count)), since: today };

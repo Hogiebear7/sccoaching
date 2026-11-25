@@ -1888,6 +1888,8 @@ export type NotificationType =
   | "newsletter_nudge"
   // To gym managers in the first week of a month: last month's master workbook is ready (lib/jobs/monthly-report-email.ts).
   | "monthly_report"
+  // To a gym's admins: the gym is close to the top of its size band, or has gone over it (lib/jobs/tenant-member-high-water.ts).
+  | "tenant_plan_notice"
   // To a member who came to a class: the coach has finished the class workout, have a look and add how it felt.
   | "class_recap";
 

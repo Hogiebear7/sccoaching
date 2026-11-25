@@ -2,7 +2,7 @@
 // the band (the band for the next period comes from the highest count seen, not the count on renewal day).
 import { describe, expect, it } from "vitest";
 
-import { bandForCount, bandForNextPeriod, parseTenantPrices, recordMemberCount, startNewPeriod } from "@/lib/tenant-pricing";
+import { bandForCount, bandForNextPeriod, bandNotice, parseTenantPrices, recordMemberCount, startNewPeriod } from "@/lib/tenant-pricing";
 
 const ids = (p: string) => ({ b50: `${p}50`, b100: `${p}100`, b149: `${p}149`, b150: `${p}150` });
 const VALID = JSON.stringify({ month: ids("price_m"), year: ids("price_y") });
@@ -52,5 +52,18 @@ describe("keeping a gym on the right band", () => {
 
   it("the band goes up straight away when the live count is above the recorded peak", () => {
     expect(bandForNextPeriod({ peak: 48, since: "2026-12-01" }, 52)).toBe("b100");
+  });
+});
+
+describe("plan notices", () => {
+  it("approach at 90% of the limit, crossed above it, nothing for the top band", () => {
+    expect(bandNotice("b50", 44)).toBeNull();
+    expect(bandNotice("b50", 45)).toBe("approach");
+    expect(bandNotice("b50", 50)).toBe("approach");
+    expect(bandNotice("b50", 51)).toBe("crossed");
+    expect(bandNotice("b100", 90)).toBe("approach");
+    expect(bandNotice("b149", 135)).toBe("approach");
+    expect(bandNotice("b149", 150)).toBe("crossed");
+    expect(bandNotice("b150", 5000)).toBeNull();
   });
 });
