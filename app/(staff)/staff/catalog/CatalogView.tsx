@@ -263,6 +263,7 @@ function packagePayload(pkg: MembershipPackageRecord, overrides: Record<string, 
     deliveryChannel: pkg.deliveryChannel,
     billingChannel: pkg.billingChannel,
     accessType: pkg.accessType,
+    introOnly: pkg.introOnly ?? false,
     ...overrides,
   };
 }
@@ -417,6 +418,7 @@ function PackageForm({
   const [deliveryChannel, setDeliveryChannel] = useState<DeliveryChannel>(pkg?.deliveryChannel ?? "in_person");
   const [billingChannel, setBillingChannel] = useState<BillingChannel>(pkg?.billingChannel ?? "stripe_web");
   const [accessType, setAccessType] = useState<AccessType>(pkg?.accessType ?? "membership");
+  const [introOnly, setIntroOnly] = useState(pkg?.introOnly ?? false);
 
   return (
     <form
@@ -427,7 +429,7 @@ function PackageForm({
           sessionAllowanceType: allowanceType,
           sessionAllowanceCount: allowanceType === "fixed_count" ? Number(count) : null,
           eligibleClassTypes: eligible, visible: pkg?.visible ?? true, sortOrder: Number(sortOrder), stripeProductId, imageUrl, imageAlt,
-          deliveryChannel, billingChannel, accessType,
+          deliveryChannel, billingChannel, accessType, introOnly: packageType === "pass" && introOnly,
         });
         if (!pkg) { setName(""); setCount(""); setImageUrl(null); setImageAlt(""); }
       }}
@@ -453,6 +455,12 @@ function PackageForm({
           <select className={input} value={allowanceType} onChange={(e) => setAllowanceType(e.target.value as typeof allowanceType)}><option value="unlimited">Unlimited</option><option value="fixed_count">Fixed count</option><option value="single_use">Single use</option></select>
         </Field>
       </div>
+      {packageType === "pass" ? (
+        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+          <input type="checkbox" className="mt-0.5" checked={introOnly} onChange={(e) => setIntroOnly(e.target.checked)} />
+          <span><strong className="text-foreground">Trial pass.</strong> Each member can buy it once, and only before they have paid for a membership. Once they have a membership it is hidden from their account.</span>
+        </label>
+      ) : null}
       {allowanceType === "fixed_count" ? (
         <Field label="Number of sessions" hint="How many classes this package includes.">
           <input type="number" min={1} className={input} value={count} onChange={(e) => setCount(e.target.value)} placeholder="e.g. 12" />

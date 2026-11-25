@@ -11,6 +11,7 @@ import { isBillingProviderConfigured } from "@/lib/billing";
 import { sellableWhenOpenedFromApp } from "@/lib/catalog";
 import { isGlobalCatalogPackage, sameGym } from "@/lib/gym-scope";
 import { isPeriodLapsed } from "@/lib/membership-status";
+import { introPassAvailableTo, isIntroPackage } from "@/lib/intro-pass";
 import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { expiringPassSummary, purchasedPassBalance } from "@/lib/payments";
 import { classPassBalance } from "@/lib/scheduling-status";
@@ -75,8 +76,14 @@ export default async function DashboardMembershipPage({
   // and options only nested under categories, so categories are the member
   // gym's own plus those of the surviving (global) packages.
   const allCategories = findMembershipCategories();
+  let introAvailable: boolean | undefined; // worked out only if the catalogue actually has a trial pass
   const packages = findMembershipPackages().filter((p) => {
     if (!p.visible) return false;
+    // The trial pass is hidden once the member has bought it or has had a membership (lib/intro-pass.ts).
+    if (isIntroPackage(p)) {
+      introAvailable ??= introPassAvailableTo(user.id);
+      if (!introAvailable) return false;
+    }
     if (openedFromApp && !sellableWhenOpenedFromApp(p)) return false;
     if (isGlobalCatalogPackage(p)) return true;
     const category = allCategories.find((c) => c.id === p.categoryId);

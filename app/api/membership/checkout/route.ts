@@ -19,6 +19,7 @@ import {
 import { activeBillingProvider, createCatalogCheckout, isPendingCheckoutStale } from "@/lib/billing";
 import { catalogScopesMatch, isGlobalCatalogPackage, ownerGymForCatalogPackage } from "@/lib/gym-scope";
 import { ENTITLEMENT_CONFLICT_MEMBER_MESSAGE, evaluateEntitlementConflict, packageScopeResolver, scopeOfPackage } from "@/lib/iap/entitlement-conflict";
+import { INTRO_PASS_UNAVAILABLE_MESSAGE, introPassAvailableTo, isIntroPackage } from "@/lib/intro-pass";
 import { isPeriodLapsed } from "@/lib/membership-status";
 import { isPurchaseCheckoutReusable } from "@/lib/payments";
 import { inTenant } from "@/lib/tenant-context";
@@ -99,6 +100,10 @@ export async function POST(request: NextRequest) {
 
   // ── One-time: a class pass / top-up purchase ─────────────────────────
   if (option.billingType === "one_time") {
+    // A trial pass: once per member, and only before any membership. Refused here as well as hidden in the catalogue.
+    if (isIntroPackage(pkg) && !introPassAvailableTo(user.id)) {
+      return NextResponse.json({ success: false, message: INTRO_PASS_UNAVAILABLE_MESSAGE }, { status: 409 });
+    }
     const key = `${user.id}:catalog:${option.id}`;
     const existing = findPurchaseByIdempotencyKey(key);
     if (existing && existing.userId === user.id && isPurchaseCheckoutReusable(existing)) {
