@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 
-import { findUserById } from "@/lib/db";
+import { findGymById, findUserById } from "@/lib/db";
 import { verifySession } from "@/lib/session";
 import { tenantStatusFor } from "@/lib/tenant-lockout";
+import { tenantSubscriptionConfigured } from "@/lib/tenant-subscription";
+import { SubscriptionCard } from "@/app/(staff)/staff/gym-setup/SubscriptionCard";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Gym unavailable", robots: { index: false, follow: false } };
@@ -18,6 +20,8 @@ export default async function GymUnavailablePage() {
   const status = user ? tenantStatusFor(user) : null;
   const locked = status?.state === "locked";
   const isStaff = !!user && (user.role === "coach" || user.role === "admin" || user.role === "admin_manager");
+  const isGymAdmin = !!user && (user.role === "admin" || user.role === "admin_manager");
+  const canPayOnline = locked && isGymAdmin && tenantSubscriptionConfigured();
 
   return (
     <main data-theme="navy" data-palette="gold" className="flex min-h-screen flex-col items-center justify-center px-6 py-16 text-center text-zinc-100">
@@ -35,7 +39,12 @@ export default async function GymUnavailablePage() {
           Pay now to restore access
         </a>
       ) : null}
-      {locked && isStaff && !status?.payUrl ? <p className="mt-6 max-w-md text-sm text-zinc-400">Contact S&amp;C Performance Coaching to arrange payment and restore access.</p> : null}
+      {canPayOnline ? (
+        <div className="mt-8 w-full max-w-md text-left">
+          <SubscriptionCard enabled hasCustomer={Boolean(user?.gymId && findGymById(user.gymId)?.platformBilling?.stripeCustomerId)} statusLine="Pay your platform subscription to restore access." justReturned={null} />
+        </div>
+      ) : null}
+      {locked && isStaff && !status?.payUrl && !canPayOnline ? <p className="mt-6 max-w-md text-sm text-zinc-400">Contact S&amp;C Performance Coaching to arrange payment and restore access.</p> : null}
       <Link href={locked ? "/" : "/dashboard"} className="mt-8 text-sm text-zinc-300 underline underline-offset-4">
         {locked ? "Back to the home page" : "Back to your dashboard"}
       </Link>

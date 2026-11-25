@@ -1,6 +1,6 @@
 # Runtime tenant context: adoption status (2026-10-07)
 
-**Status:** partially adopted. **This is not a full migration.** Twenty-six routes derive their tenant through
+**Status:** partially adopted. **This is not a full migration.** Twenty-seven routes derive their tenant through
 `lib/tenant-request.ts` at runtime. The other 221 routes still rely on the existing `sameGym` family of checks, which are
 tested route by route but are not funnelled through one boundary.
 
@@ -37,6 +37,7 @@ route's one 404 never confirms that a guessed id exists elsewhere.
 | `staff/members/bulk-tier` | tenant-staff | session, then `loadTenantUser` for every target |
 | `staff/members/[userId]/subscription` | tenant-staff | session, then `loadTenantUser` for the target |
 | `staff/gym/branding` | own-tenant | session and capability; the gym is always the caller's own, never a client id (added 2026-11-25) |
+| `staff/gym/subscription` | own-tenant | session and capability; the gym is the caller's own; allowed while locked so a gym can pay to unlock (added 2026-11-25) |
 | `staff/members/[userId]/ai-pause` | tenant-staff | session, then `loadTenantUser` for the target (added 2026-10-27) |
 | `staff/members/[userId]/star` | tenant-staff | session, then `loadTenantUser` for the target (added 2026-10-29) |
 | `admin/membership/activate` | tenant-staff | session, then `loadTenantUser` for the target |

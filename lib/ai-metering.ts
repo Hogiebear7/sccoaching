@@ -46,6 +46,7 @@ import {
   isAiPausedFor,
 } from "@/lib/ai-allowance";
 import { UNRECOGNISED_COMPONENT_MARKUP, costFromUsage, costUsdFor, ratesForKnownModel, priceFor, recordAiUsageFromResponse, type ProviderUsage } from "@/lib/ai-usage";
+import { tenantGymAiCap } from "@/lib/ai-gym-cap";
 import { reserveAiBudget, settleAiReservation, type AiAllowanceKind, type AiFeature, type AiUsageLogRecord } from "@/lib/db";
 
 /** A provider call that has not finished by now is given up on. Applies to the whole call, retries (there are none) and streams included. */
@@ -210,6 +211,8 @@ export function beginAiCall(input: BeginInput, nowMs: number = Date.now()): AiCa
       windowMs: windowMsFor(kind) ?? (kind === "staff" ? AI_ALLOWANCE_WINDOW_MS : null),
       pool: !memberCall,
       classPool: classPool && classPool.usd !== null ? { kinds: classPool.kinds, usd: classPool.usd } : null,
+      // A tenant gym's own ceiling over 30 days (lib/ai-gym-cap.ts); none for S&C's own gym or when no caps are set.
+      gymPool: tenantGymAiCap(userId),
       // Everything that is not a paid subscriber leaves the paid pool's unused remainder untouched inside the ceiling.
       protectPaidPoolUsd: pools.paid,
       ceilingUsd: pools.ceiling,

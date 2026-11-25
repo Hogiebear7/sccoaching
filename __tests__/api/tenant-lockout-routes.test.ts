@@ -51,6 +51,7 @@ describe("the lockout flags tell the truth", () => {
         "profile/ai-consent",
         "profile/email-preferences",
         "push/subscribe",
+        "staff/gym/subscription",
       ].sort()
     );
     for (const e of signedIn.filter((x) => x.lockoutExempt)) expect((e.lockoutExempt ?? "").length).toBeGreaterThan(25);

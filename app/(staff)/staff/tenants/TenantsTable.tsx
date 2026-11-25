@@ -15,6 +15,8 @@ export interface TenantRow {
   payUrl: string;
   stripeCustomerId: string;
   billed: boolean;
+  /** Last day of the 14-day money-back, or null when the gym has not paid. */
+  refundUntil: string | null;
 }
 
 const STATE_LABEL: Record<TenantRow["state"], string> = { active: "Active", grace: "In grace", locked: "Locked" };
@@ -50,6 +52,24 @@ function Row({ row }: { row: TenantRow }) {
       setSaving(false);
     }
   }
+
+  async function refund() {
+    if (!window.confirm(`Refund ${row.name}'s payment in full, cancel the subscription and end its access now?`)) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/staff/gyms/${encodeURIComponent(row.id)}/refund`, { method: "POST" });
+      const json = (await res.json()) as { message?: string };
+      setMessage(json.message ?? (res.ok ? "Refunded." : "Could not refund."));
+      if (res.ok) router.refresh();
+    } catch {
+      setMessage("Could not reach the server.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const inRefundWindow = row.refundUntil !== null && today <= row.refundUntil;
 
   return (
     <li className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
@@ -88,6 +108,11 @@ function Row({ row }: { row: TenantRow }) {
         {row.billed ? (
           <button type="button" disabled={saving} onClick={() => void save(true)} className="text-sm text-zinc-400 underline underline-offset-4">
             Take off billing
+          </button>
+        ) : null}
+        {row.refundUntil ? (
+          <button type="button" disabled={saving || !inRefundWindow} onClick={() => void refund()} className="text-sm text-amber-300 underline underline-offset-4 disabled:text-zinc-500 disabled:no-underline">
+            {inRefundWindow ? `Refund and end access (until ${row.refundUntil})` : `Money-back ended ${row.refundUntil}`}
           </button>
         ) : null}
         {message ? <p className="text-sm text-zinc-300">{message}</p> : null}

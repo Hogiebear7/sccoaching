@@ -4,11 +4,14 @@ import { findClasses, findGymById, findMembersInGym, findStaffUsers } from "@/li
 import { resolveBranding } from "@/lib/gym-branding";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { tenantAccess } from "@/lib/tenant-billing";
+import { BAND_RULE_TEXT, bandLabel, tenantPriceMap } from "@/lib/tenant-pricing";
+import { tenantSubscriptionConfigured } from "@/lib/tenant-subscription";
 import { BrandingForm } from "./BrandingForm";
+import { SubscriptionCard } from "./SubscriptionCard";
 
 // A tenant gym's setup page: the checklist for getting a new gym ready, and the form for its logo and accent colour. Each tick is worked out from the gym's real data, so it
 // cannot drift from what is actually set up. The S&C primary gym has no tenant record to set up and is shown a short note instead.
-export default async function StaffGymSetupPage() {
+export default async function StaffGymSetupPage({ searchParams }: { searchParams?: Promise<{ subscription?: string }> }) {
   const user = await requireStaffPage("gym.manageBranding");
   const gym = user.gymId ? findGymById(user.gymId) : undefined;
   if (!gym) {
@@ -34,9 +37,21 @@ export default async function StaffGymSetupPage() {
     { done: classCount > 0, title: "Create your first class", detail: "Staff area, Classes." },
     { done: staffCount > 1, title: "Invite your coaches", detail: "Staff area, Staff. Give each coach the role that fits what they should see." },
     { done: memberCount > 0, title: "Invite your first members", detail: "Staff area, Invites, or share your gym's invite link." },
-    { done: billing.state === "active" && Boolean(gym.platformBilling), title: "Platform subscription paid", detail: gym.platformBilling ? "Your S&C platform subscription is up to date." : "The platform team will set up your subscription and give you a payment link." },
+    { done: billing.state === "active" && Boolean(gym.platformBilling), title: "Platform subscription paid", detail: gym.platformBilling ? "Your S&C platform subscription is up to date." : "Subscribe below (or use the payment link the platform team sends you)." },
   ];
   const doneCount = steps.filter((s) => s.done).length;
+  const returned = (await searchParams)?.subscription;
+  const band = gym.platformBilling?.band;
+  const planNote = tenantPriceMap()
+    ? `${band ? `Your plan: ${bandLabel(band)}. You have ${memberCount} members now; the most this period is ${Math.max(gym.platformBilling?.memberHighWater?.peak ?? 0, memberCount)}. ` : "Your plan is set by your gym's size: up to 50 members, 51 to 100, 101 to 150, 151 to 300, 301 to 500, or more than 500. "}${BAND_RULE_TEXT} You are told by notification and email when you are close to the top of your plan and when you go over it.`
+    : null;
+  const statusLine = !gym.platformBilling
+    ? "You have not subscribed to the S&C platform yet."
+    : billing.state === "active"
+      ? `Your platform subscription is paid up to ${billing.paidThrough}.`
+      : billing.state === "grace"
+        ? `Your platform payment is overdue. Access pauses in ${billing.graceDaysLeft ?? "a few"} day${billing.graceDaysLeft === 1 ? "" : "s"} unless it is paid.`
+        : "Your platform subscription is overdue and access is paused.";
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -63,6 +78,17 @@ export default async function StaffGymSetupPage() {
           </li>
         ))}
       </ol>
+
+      <section aria-labelledby="subscription-heading" className="space-y-3">
+        <h2 id="subscription-heading" className="text-base font-semibold text-zinc-50">Platform subscription</h2>
+        <SubscriptionCard
+          enabled={tenantSubscriptionConfigured()}
+          hasCustomer={Boolean(gym.platformBilling?.stripeCustomerId ?? gym.pendingStripeCustomerId)}
+          statusLine={statusLine}
+          planNote={planNote}
+          justReturned={returned === "success" || returned === "cancelled" ? returned : null}
+        />
+      </section>
 
       <section aria-labelledby="branding-heading" className="space-y-3">
         <h2 id="branding-heading" className="text-base font-semibold text-zinc-50">Logo and accent colour</h2>

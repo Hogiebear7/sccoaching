@@ -5,6 +5,7 @@ import { newsletterNudgeJob } from "./newsletter-nudge";
 import { monthlyReportEmailJob } from "./monthly-report-email";
 import { managerReportEmailJob } from "./manager-report-email";
 import { cleanupPastWaitlistsJob } from "./cleanup-past-waitlists";
+import { tenantMemberHighWaterJob } from "./tenant-member-high-water";
 import { detectNoShowsJob } from "./detect-no-shows";
 import { dropLapsedManualMembershipsJob } from "./drop-lapsed-manual-memberships";
 import { expireStaleCheckoutsJob } from "./expire-stale-checkouts";
@@ -64,4 +65,5 @@ export const ALL_JOBS: JobDefinition[] = [
   purgeExpiredResetTokensJob,
   purgeOldRecoveryLogsJob,
   refreshBrandedFoodCacheJob,
+  tenantMemberHighWaterJob,
 ];

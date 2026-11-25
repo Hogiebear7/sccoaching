@@ -20,6 +20,12 @@ export interface GymPlatformBilling {
   payUrl?: string;
   /** The gym's customer id in S&C's own Stripe account. The platform-payment webhook finds the gym by this stored value, never by anything in the event. */
   stripeCustomerId?: string;
+  /** When the gym first paid (ISO timestamp). The 14-day money-back window runs from here. */
+  firstPaidAt?: string;
+  /** Size-based pricing (lib/tenant-pricing.ts): the price band the gym pays for now, the billing interval, and the highest member count seen since the last renewal. */
+  band?: "b50" | "b100" | "b150" | "b300" | "b500" | "b501";
+  interval?: "month" | "year";
+  memberHighWater?: { peak: number; since: string };
 }
 
 /** A tenant's own look. Both fields null = the S&C default (see lib/gym-branding.ts). */
@@ -68,6 +74,8 @@ export interface GymRecord {
   acceptingNewEnquiries?: boolean;
   /** Platform billing for this tenant. Set only by a platform operator; see lib/tenant-billing.ts. */
   platformBilling?: GymPlatformBilling;
+  /** A Stripe customer made when the gym started checkout but has not paid yet. A gym with only this is NOT billed (no paid-through date, so no free days): the first paid invoice turns it into platformBilling. */
+  pendingStripeCustomerId?: string;
   /** The gym's logo and accent colour. Absent = the S&C default. Set by the gym's own owner/admin only. */
   branding?: GymBranding;
   createdAt: string;

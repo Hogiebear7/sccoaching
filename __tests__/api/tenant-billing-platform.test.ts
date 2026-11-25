@@ -108,6 +108,23 @@ describe("S&C's own Stripe tells us a tenant has paid", () => {
     expect(asMember().ok).toBe(true);
   });
 
+  it("a gym that only started checkout (a pending customer) is not billed, and becomes billed on its first paid invoice", async () => {
+    vi.stubEnv("TENANT_LOCKOUT_ENABLED", "true");
+    const gym = fx.db.findGymById(GYM_B)!;
+    const { platformBilling: _gone, ...unbilled } = gym;
+    void _gone;
+    fx.db.saveGym({ ...unbilled, pendingStripeCustomerId: "cus_PENDING01" });
+    const { tenantAccess } = await import("@/lib/tenant-billing");
+    expect(tenantAccess(fx.db.findGymById(GYM_B), new Date()).state).toBe("active"); // unbilled: never locked, and it carries no paid-through date
+    expect(fx.db.findGymById(GYM_B)?.platformBilling).toBeUndefined();
+    expect((await webhook(invoice("p1", "cus_PENDING01", 30))).status).toBe(200);
+    const after = fx.db.findGymById(GYM_B)!;
+    expect(after.platformBilling?.paidThrough).toBe(day(30));
+    expect(after.platformBilling?.stripeCustomerId).toBe("cus_PENDING01");
+    expect(after.platformBilling?.firstPaidAt).toBeTruthy();
+    expect(after.pendingStripeCustomerId).toBeUndefined();
+  });
+
   it("applies each event once, never moves the date backwards, and ignores other events and unknown customers", async () => {
     await webhook(invoice("3", "cus_GYMB0001", 60));
     expect(fx.db.findGymById(GYM_B)?.platformBilling?.paidThrough).toBe(day(60));
@@ -140,7 +157,7 @@ describe("what the app is told, and what a locked gym is sent", () => {
     const staff = await callMe(fx.adminB.id);
     expect(staff).toMatchObject({ state: "grace", payUrl: "https://pay.example.test/b" });
     expect(staff.graceDaysLeft).toBeGreaterThan(0);
-    expect(await callMe(fx.memberB.id)).toMatchObject({ state: "grace", payUrl: null }); // members never get the gym's pay link
+    expect(await callMe(fx.memberB.id)).toMatchObject({ state: "active", payUrl: null }); // members are never warned during grace, and never get the gym's pay link
     fx.db.saveGym({ ...fx.db.findGymById(GYM_B)!, platformBilling: { paidThrough: day(-100), graceDays: 5, payUrl: "https://pay.example.test/b" } });
     expect(await callMe(fx.memberB.id)).toMatchObject({ state: "locked", payUrl: null });
     expect(await callMe(fx.adminA.id)).toMatchObject({ state: "active" }); // the primary gym
