@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
   if (!user || !profile) {
     return NextResponse.json({ success: false, message: "No profile found for this account." }, { status: 404 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

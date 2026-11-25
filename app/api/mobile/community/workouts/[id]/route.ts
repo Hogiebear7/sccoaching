@@ -16,6 +16,7 @@ import { sessionPbExerciseName } from "@/lib/community-highlight";
 import { canViewCommunitySession } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computePersonalBests } from "@/lib/workouts";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET /api/mobile/community/workouts/[id] — one feed item, same shape the
 // feed list returns. Backs the mobile deep-link target
@@ -33,6 +34,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
   const target = findWorkoutSessionById(id);

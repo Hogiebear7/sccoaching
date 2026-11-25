@@ -13,6 +13,7 @@ import { remainingSessions } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { recordStaffAction } from "@/lib/staff-actions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Deliberate cap — extra passes are goodwill/correction credits, not a way
 // to hand out a second allowance. Larger entitlements belong on the plan.
@@ -40,6 +41,9 @@ export async function POST(
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   if (!can(staffUser.role, "members.billing")) {
     return NextResponse.json(

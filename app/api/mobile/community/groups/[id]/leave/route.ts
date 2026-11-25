@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { requireGroupAccess } from "@/lib/community-groups";
 import { findGroupById, findGroupMembers, findUserById, removeGroupMember } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/groups/[id]/leave — leave a group I am in. The organiser can't leave (they close the group instead), so a group is never
 // left without someone responsible for it.
@@ -11,6 +12,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 

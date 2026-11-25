@@ -8,6 +8,7 @@ import { inviteEmail } from "@/lib/email-templates";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const INVITABLE_TIERS: Array<"app_subscription" | "membership"> = ["app_subscription", "membership"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +42,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Only staff can manage invites." }, { status: 403 });
   }
 
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
+
   const invites = findInvites().filter((invite) => sameGymAsStaff(staffUser, invite.invitedByStaffId));
 
   return NextResponse.json({ success: true, data: invites });
@@ -54,6 +58,9 @@ export async function POST(request: NextRequest) {
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "Only staff can manage invites." }, { status: 403 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

@@ -11,6 +11,7 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-response";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Same generous cap as label-scan — food photos need enough resolution to
 // actually identify ingredients, well past the 500,000-byte generic cover cap.
@@ -40,6 +41,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   // The More Tools section is hidden for the Free tier in the apps; this is the server-side half, so hiding it is not the only thing standing between a Free account and a
   // paid AI feature (the same pattern as programme generation and tracker import).

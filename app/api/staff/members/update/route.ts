@@ -19,6 +19,7 @@ import {
 import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS } from "@/lib/profile-options";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
 const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
@@ -41,6 +42,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   if (!can(staffUser.role, "members.edit")) {
     return NextResponse.json(

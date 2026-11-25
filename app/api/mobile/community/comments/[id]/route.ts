@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { deleteComment, findCommentById, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // DELETE /api/mobile/community/comments/[id] — author-only. No edit, no
 // staff override here (staff removal goes through the report/resolve flow
@@ -16,6 +17,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
   const comment = findCommentById(id);

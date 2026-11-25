@@ -22,6 +22,7 @@ import {
 } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_BODY_LENGTH = 500;
 const MAX_MENTIONS = 10;
@@ -35,6 +36,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
   const target = findWorkoutSessionById(id);

@@ -5,6 +5,7 @@ import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { buildStaffToday } from "@/lib/staff-today";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // The app's staff Today (admin revamp slice S4): this month's figures against last month, and the At-risk list (gym members with no class or
 // logged session in 14 days). The same numbers as the website's staff Overview (lib/staff-today.ts), for the staff member's own gym only.
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
   if (!staffUser || staffUser.archivedAt) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
   if (!can(staffUser.role, "operations.view")) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }

@@ -6,6 +6,7 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computeRollingTrainingLoad } from "@/lib/recovery";
 import { resolveTodayTier } from "@/lib/resolve-today-tier";
 import { classifyLoad, LOAD_BAND_LABEL } from "@/lib/workout-helper";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Today's Workout Helper session tier (full/standard/reduced) plus why —
 // the same decision the web dashboard's Workout Helper and the AI Coach's
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const recoveryLogs = findRecoveryLogsByUserId(user.id);
   const sessions = findWorkoutSessionsByUserId(user.id);

@@ -6,6 +6,7 @@ import type { NextRequest } from "next/server";
 import { createCommentReport, findCommentById, findUserById } from "@/lib/db";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_REASON_LENGTH = 300;
 
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
   const comment = findCommentById(id);

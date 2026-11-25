@@ -5,7 +5,7 @@ import { findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { memberSummaryFor } from "@/lib/member-summary-data";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
 // GET /api/staff/members/[userId]/summary — the full picture of a member from what they log: training, classes, check-ins (with any "injured or sick?" note),
 // nutrition and water, weight progress, and plain-English flags. Coach and above (members.view), the member's own gym only, and only for a member with a
@@ -13,7 +13,7 @@ import { authorizeStaffRequest } from "@/lib/staff-auth";
 // account all read as "not found".
 export async function GET(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
-  const auth = authorizeStaffRequest(request, "members.view", { allowAppToken: true });
+  const auth = resolveStaffTenantRequest(request, "members.view", { allowAppToken: true });
   if (!auth.ok) return auth.response;
 
   const member = findUserById(userId);

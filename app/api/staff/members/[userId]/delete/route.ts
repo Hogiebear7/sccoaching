@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import { appendIapEvent, deleteUserAndOwnedRecords, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { ACTIVE_SUBSCRIPTION_CODE, ACTIVE_SUBSCRIPTION_MESSAGE, MemberDeletionRefused } from "@/lib/member-deletion-guard";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 import { recordStaffAction } from "@/lib/staff-actions";
 
 // PERMANENT deletion of an archived member and all of their owned records.
@@ -18,7 +18,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const auth = authorizeStaffRequest(request, "members.hardDelete");
+  const auth = resolveStaffTenantRequest(request, "members.hardDelete");
   if (!auth.ok) return auth.response;
 
   const { userId } = await params;

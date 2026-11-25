@@ -10,6 +10,7 @@ import {
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Guarded delete: a category with packages can't be removed (would orphan
 // them) — staff hide it instead.
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest) {
   if (!user || !can(user.role, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Only staff can manage the catalog." }, { status: user ? 403 : 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

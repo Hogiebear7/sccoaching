@@ -14,6 +14,7 @@ import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import type { CalorieDistribution } from "@/lib/profile-schema";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 function positiveInt(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
@@ -29,6 +30,9 @@ export async function POST(request: NextRequest) {
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
   if (!can(staffUser.role, "nutrition.manage")) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }

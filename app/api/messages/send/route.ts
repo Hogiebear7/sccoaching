@@ -9,6 +9,7 @@ import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { sendPush } from "@/lib/push";
 import { isStaffRole } from "@/lib/permissions";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
@@ -28,6 +29,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(sender);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

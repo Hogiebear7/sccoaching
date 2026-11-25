@@ -5,6 +5,7 @@ import { findActiveOrPausedTrainingProgramByUserId, findUserById } from "@/lib/d
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { resolveTodayTier } from "@/lib/resolve-today-tier";
 import { applyTierModifier } from "@/lib/training-programs";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function GET(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   // Includes a paused programme too, so the mobile app can render a
   // resumable "Paused" card instead of the programme silently vanishing

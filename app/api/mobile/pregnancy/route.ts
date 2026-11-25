@@ -6,6 +6,7 @@ import { estimatePregnancy } from "@/lib/pregnancy";
 import { nutritionStageFor } from "@/lib/pregnancy-nutrition";
 import { trainingGuidanceFor } from "@/lib/pregnancy-training";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Read-only aggregation for the mobile Cycle Tracking screen's pregnancy
 // section — same eligibility gate as cycle tracking (cycleTrackingEligible,
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const profile = findProfileByUserId(user.id);
 

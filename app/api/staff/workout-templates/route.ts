@@ -14,6 +14,7 @@ import {
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { templateInStaffGym } from "@/lib/workout-template-scope";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_EXERCISES = 30;
 const MAX_NAME_LENGTH = 80;
@@ -60,6 +61,9 @@ export async function POST(request: NextRequest) {
   if (!staffUser || !can(staffUser.role, "classes.manage")) {
     return NextResponse.json({ success: false, message: "Only staff can manage workout templates." }, { status: 403 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

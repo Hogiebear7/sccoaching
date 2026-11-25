@@ -13,6 +13,7 @@ import {
 import { sameGym, sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Read-side counterpart to /api/staff/classes/[classId]/workout (POST,
 // already Bearer-compatible and reused as-is for saving). Mirrors the
@@ -30,6 +31,9 @@ export async function GET(
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
   if (!can(staffUser.role, "classes.manage")) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }

@@ -14,6 +14,7 @@ import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { freeHistoryStartDate, hasAccess } from "@/lib/member-access";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -53,6 +54,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

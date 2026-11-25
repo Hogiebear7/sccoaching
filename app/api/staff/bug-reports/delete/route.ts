@@ -4,10 +4,10 @@ import type { NextRequest } from "next/server";
 
 import { deleteBugReport, findBugReportById, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
-  const auth = authorizeStaffRequest(request, "bugReports.manage");
+  const auth = resolveStaffTenantRequest(request, "bugReports.manage");
   if (!auth.ok) return auth.response;
 
   let body: unknown;

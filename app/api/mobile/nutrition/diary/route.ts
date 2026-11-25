@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findFoodEntriesByUserId, findNutritionDayStatusesByUserId, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sumDailyTotals, sumExtraTotals } from "@/lib/nutrition-diary";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Returns every entry for the requested date plus the summed totals, so the
 // client doesn't need to re-derive the math from raw entries.
@@ -14,6 +15,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const date = request.nextUrl.searchParams.get("date");
   if (!date) {

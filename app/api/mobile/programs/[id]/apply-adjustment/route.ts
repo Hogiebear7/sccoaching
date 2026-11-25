@@ -13,6 +13,7 @@ import { mapExerciseRow } from "@/lib/exercise-library/mappers";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { applyExerciseRefresh, applyProgrammeAdjustment } from "@/lib/training-programs";
 import { trimSyncedProgrammeSessionsToWeeks } from "@/lib/programme-weekly-sync";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/programs/[id]/apply-adjustment
 // Body: { cycleIndex: number, kind?: "adjustment" | "refresh", decision: "accept" | "decline" }
@@ -27,6 +28,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
 

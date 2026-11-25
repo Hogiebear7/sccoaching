@@ -5,6 +5,7 @@ import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -17,6 +18,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const existingProfile = findProfileByUserId(user.id);
   if (!existingProfile) {

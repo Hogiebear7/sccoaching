@@ -7,6 +7,7 @@ import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { findBodyFatLogsByUserId, findBodyWeightLogsByUserId, findProfileByUserId, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { WeightPoint } from "@/lib/nutrition-target";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export interface GoalTimelineResponseData {
   goalWeightKg: number | null;
@@ -33,6 +34,9 @@ export async function GET(request: NextRequest) {
   if (!user || !profile) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const weightLogs = findBodyWeightLogsByUserId(user.id);
   const bodyFatLogs = findBodyFatLogsByUserId(user.id);

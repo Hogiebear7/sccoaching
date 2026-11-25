@@ -32,6 +32,7 @@ import { consumePurchasedPass, purchasedPassBalance } from "@/lib/payments";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

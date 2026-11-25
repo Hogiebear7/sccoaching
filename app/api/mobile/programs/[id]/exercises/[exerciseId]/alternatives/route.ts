@@ -9,6 +9,7 @@ import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { buildExerciseAlternativeCandidates } from "@/lib/training-programs";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/programs/[id]/exercises/[exerciseId]/alternatives
 // Body: { dayId: string, reason?: string }
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const { id, exerciseId } = await params;
 

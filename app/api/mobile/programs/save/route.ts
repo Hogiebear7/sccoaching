@@ -7,6 +7,7 @@ import { findUserById, saveTrainingProgram, type TrainingProgramRecord } from "@
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { archiveOtherActivePrograms, parseProgramDays, parseTestCheckpoints } from "@/lib/training-programs";
 import { requireFeature } from "@/lib/member-access-response";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 interface AiMetaInput {
   goal: string;
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const locked = requireFeature(user.id, "programmes");
   if (locked) return locked;

@@ -5,6 +5,7 @@ import { findInviteById, findUserById, revokeInvite } from "@/lib/db";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/staff/invites/[inviteId]/revoke — cancels a still-pending
 // invite. Redeemed/expired/already-revoked invites can't be revoked again.
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!staffUser || !can(staffUser.role, "members.billing")) {
     return NextResponse.json({ success: false, message: "Only staff can manage invites." }, { status: 403 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   const { inviteId } = await params;
   const invite = findInviteById(inviteId);

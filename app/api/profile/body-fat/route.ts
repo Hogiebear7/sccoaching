@@ -12,6 +12,7 @@ import {
 } from "@/lib/db";
 import { resolveCurrentBodyFatPct } from "@/lib/body-fat";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Mirrors app/api/profile/body-weight/route.ts exactly, with a 0-100 sanity
 // bound in place of body weight's "positive number" check since this is a
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

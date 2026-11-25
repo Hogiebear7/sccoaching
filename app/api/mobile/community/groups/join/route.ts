@@ -6,6 +6,7 @@ import { isBlockedEitherWay } from "@/lib/community-moderation";
 import { MAX_MEMBERS_PER_GROUP, addGroupMemberIfRoom, findGroupByInviteCode, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/groups/join — { code }
 // Groups are joined only with the invite code (or the link carrying it), never found by search. A wrong code, a closed group, a group in another gym,
@@ -15,6 +16,8 @@ export async function POST(request: NextRequest) {
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 

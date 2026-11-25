@@ -4,13 +4,13 @@ import type { NextRequest } from "next/server";
 import { findUserById, setUserHideMemberHealth } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { protectedOperatorTarget } from "@/lib/platform-operator-guard";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
 // Switch members' health details on or off for one staff account (the coach brief's health cards and a member page's pregnancy and cycle sections).
 // Only an admin_manager may call this, and only for a staff target in their own gym. Owner request 2026-11-16: any staff see them unless the overall
 // admin blocks it.
 export async function POST(request: NextRequest) {
-  const auth = authorizeStaffRequest(request, "staffUsers.manage");
+  const auth = resolveStaffTenantRequest(request, "staffUsers.manage");
   if (!auth.ok) return auth.response;
   const actor = auth.user;
 

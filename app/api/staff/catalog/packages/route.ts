@@ -24,6 +24,7 @@ import { staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can, isPlatformOperator } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const PACKAGE_TYPES: PackageType[] = ["membership", "pass", "top_up"];
 const ALLOWANCE_TYPES: SessionAllowanceType[] = ["unlimited", "fixed_count", "single_use"];
@@ -34,6 +35,9 @@ export async function POST(request: NextRequest) {
   if (!user || !can(user.role, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Only staff can manage the catalog." }, { status: user ? 403 : 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

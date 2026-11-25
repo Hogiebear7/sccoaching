@@ -5,6 +5,7 @@ import { findClassCategories, findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function GET(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
   if (!can(staffUser.role, "classes.manage")) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }

@@ -5,6 +5,7 @@ import { isLeaderboardAlias, isLeaderboardMode, LEADERBOARD_ALIASES, leaderboard
 import { isProfileVisibility, isWhoCanFollow, profileVisibilityOf, whoCanFollowOf } from "@/lib/community-profile";
 import { findCommunityPrivacyByUserId, findUserById, saveCommunityPrivacy } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET/POST /api/mobile/community/privacy
 // A missing record reads as visible/real-name (confirmed default with the
@@ -48,6 +49,9 @@ export async function POST(request: NextRequest) {
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

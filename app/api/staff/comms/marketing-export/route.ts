@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { listOptIns } from "@/lib/comms-optins";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
 // CSV of members who have opted in to news and offers (marketing), for importing into Resend's Audience before a newsletter. Only members of the acting
 // manager's own gym (listOptIns scopes with sameGym( on the viewer's gym); never anyone who hasn't opted in, has switched emails off, or whose address
@@ -10,7 +10,7 @@ import { authorizeStaffRequest } from "@/lib/staff-auth";
 const csv = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 export async function GET(request: NextRequest) {
-  const auth = authorizeStaffRequest(request, "staffUsers.manage");
+  const auth = resolveStaffTenantRequest(request, "staffUsers.manage");
   if (!auth.ok) return auth.response;
 
   // ?count=1: just the numbers, for the count on the Staff users page.

@@ -16,6 +16,7 @@ import {
 } from "@/lib/profile-schema";
 import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS, sanitizeCountry, sanitizeDietaryFields } from "@/lib/profile-options";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
 const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
@@ -38,6 +39,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const existingProfile = findProfileByUserId(user.id);
 

@@ -14,6 +14,7 @@ import {
   parqRequired,
   validateParqSubmission,
 } from "@/lib/parq";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET /api/parq: the form wording and whether THIS member needs to complete it now (a gym member with no current PAR-Q, and the gate switched on).
 // POST /api/parq: save a completed PAR-Q on the member's profile. Both are for the signed-in member only; staff never write a member's PAR-Q here.
@@ -26,6 +27,8 @@ function memberFromRequest(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const user = memberFromRequest(request);
   if (!user) return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
   const profile = findProfileByUserId(user.id);
   const current = parqIsCurrent(profile?.parq);
   // Only gym members are ever asked. App-only (free or App Subscription) accounts get needed: false.
@@ -48,6 +51,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = memberFromRequest(request);
   if (!user) return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
   const profile = findProfileByUserId(user.id);
   if (!profile) return NextResponse.json({ success: false, message: "No profile found for this account." }, { status: 404 });
 

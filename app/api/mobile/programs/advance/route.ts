@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findTrainingProgramById, findUserById, findWorkoutSessionsByUserId } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { advanceProgramDay } from "@/lib/training-programs";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Called once a member finishes logging the day their program currently
 // points at — moves currentDayIndex to the next day (wrapping to the start
@@ -15,6 +16,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

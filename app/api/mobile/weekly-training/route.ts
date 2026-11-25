@@ -14,6 +14,7 @@ import type {
 } from "@/lib/profile-schema";
 import { activeWeeklySessions, mondayOfWeek } from "@/lib/weekly-training";
 import { requireFeature } from "@/lib/member-access-response";
+import { requireTenantAccessForUserId } from "@/lib/tenant-request";
 
 const MAX_SESSIONS = 21; // generous headroom over 1/day — a day can have AM+PM entries
 const MAX_LABEL_LENGTH = 60;
@@ -125,6 +126,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
+  const tenantLock = requireTenantAccessForUserId(session.userId);
+  if (tenantLock) return tenantLock;
+
   const locked = requireFeature(session.userId, "weeklyPlanner");
   if (locked) return locked;
 
@@ -142,6 +146,9 @@ export async function POST(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccessForUserId(session.userId);
+  if (tenantLock) return tenantLock;
 
   const locked = requireFeature(session.userId, "weeklyPlanner");
   if (locked) return locked;

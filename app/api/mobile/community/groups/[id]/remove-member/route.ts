@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { requireGroupAccess } from "@/lib/community-groups";
 import { findGroupById, findGroupMembers, findUserById, removeGroupMember } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/groups/[id]/remove-member — { userId }  Organiser only. Removes someone from the group; they can rejoin only with the code.
 // A non-organiser gets the same "not found" as a missing group, so non-members learn nothing. Everything asynchronous (params, body) is read FIRST, so
@@ -20,6 +21,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 

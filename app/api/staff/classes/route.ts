@@ -20,6 +20,7 @@ import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isFutureDateTime } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Accepts a real number directly (the mobile app's class editor, a JSON
 // API client, sends durationMins/capacity as numbers — as it should) as
@@ -56,6 +57,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!can(user.role, "classes.manage")) {
     return NextResponse.json(

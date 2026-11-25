@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 import { createFoodModerationRequest, findUserById, type FoodModerationRequest } from "@/lib/db";
 import { isBarcodeShaped } from "@/lib/food-catalog";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // A member flags a barcode that came back not-found (or a search that
 // didn't turn up what they were looking for) — feeds the staff moderation
@@ -16,6 +17,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

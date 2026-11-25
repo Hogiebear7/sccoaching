@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findGroupVisibleToMember, requireGroupAccess } from "@/lib/community-groups";
 import { cancelChallenge, findChallengeById, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/groups/[id]/challenges/[challengeId]/cancel — organiser only. A canceled challenge stays visible as "canceled" and stops
 // counting toward the group's open-challenge limit. Anyone else gets the same "not found".
@@ -12,6 +13,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 

@@ -7,6 +7,7 @@ import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { getStaffMemberDetail, getStaffMemberWalledSummary } from "@/lib/staff-members-data";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function GET(
   request: NextRequest,
@@ -18,6 +19,9 @@ export async function GET(
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
   if (!can(staffUser.role, "members.view")) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }

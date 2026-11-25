@@ -6,6 +6,7 @@ import { MAX_GROUP_DESCRIPTION, MAX_GROUP_NAME, groupView, newInviteCode, requir
 import { hiddenFromViewer, violatesCommunityRules } from "@/lib/community-moderation";
 import { MAX_GROUPS_PER_ORGANISER, createGroupIfUnderLimit, findOpenGroupsForUser, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET  /api/mobile/community/groups — the groups I am in.
 // POST /api/mobile/community/groups — { name, description? } create one (I become its organiser). Up to MAX_GROUPS_PER_ORGANISER open groups each.
@@ -14,6 +15,8 @@ export async function GET(request: NextRequest) {
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const blocked = requireGroupAccess(me.id);
   if (blocked) return blocked;
 
@@ -31,6 +34,8 @@ export async function POST(request: NextRequest) {
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const blocked = requireGroupAccess(me.id);
   if (blocked) return blocked;
 

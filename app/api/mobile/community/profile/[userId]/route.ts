@@ -18,6 +18,7 @@ import { isGymMemberOrStaff } from "@/lib/community-profile-access";
 import { findCommunityPrivacyByUserId, findProfileByUserId, findUserById, findWorkoutSessionsByUserId, isCommunityEligible, isFollowing } from "@/lib/db";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET /api/mobile/community/profile/[userId] — the card behind a tapped name in Community.
 //
@@ -34,6 +35,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const { userId } = await params;
   const isSelf = userId === me.id;

@@ -27,6 +27,7 @@ import { sendPush } from "@/lib/push";
 import { sendEmail } from "@/lib/email";
 import { classCancelledEmail } from "@/lib/email-templates";
 import { removeSyncedWeeklyTrainingSession } from "@/lib/weekly-training-sync";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Deletes an upcoming class and unwinds every reservation against it.
 // Each booked member gets their pass back in whichever pool paid for it:
@@ -43,6 +44,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!can(user.role, "classes.manage")) {
     return NextResponse.json(

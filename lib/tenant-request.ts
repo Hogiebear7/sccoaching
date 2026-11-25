@@ -37,13 +37,34 @@ export function resolveTenantRequest(request: NextRequest, options: { unauthenti
 
 // Staff session that holds the capability. Delegates to authorizeStaffRequest so the 401 and
 // 403 bodies stay identical to every existing staff route.
-export function resolveStaffTenantRequest(request: NextRequest, capability: Capability, options: { allowWhenLocked?: boolean } = {}): TenantRequestResult {
-  const auth = authorizeStaffRequest(request, capability);
+export function resolveStaffTenantRequest(
+  request: NextRequest,
+  capability: Capability,
+  options: { allowWhenLocked?: boolean; allowAppToken?: boolean } = {}
+): TenantRequestResult {
+  const auth = authorizeStaffRequest(request, capability, { allowAppToken: options.allowAppToken });
   if (!auth.ok) return auth;
   const ctx = buildTenantContext(auth.user);
   const locked = lockoutResponse(ctx, { allowWhenLocked: options.allowWhenLocked });
   if (locked) return { ok: false, response: locked };
   return { ok: true, user: auth.user, ctx };
+}
+
+// For a route that has already authenticated its own user (the older routes read the session themselves): builds the verified tenant context from that account and
+// applies the tenant lockout. Returns the refusal to send back (a 423) or null to go ahead. Call it straight after the route's own sign-in and permission check:
+//
+//   const tenantLock = requireTenantAccess(user);
+//   if (tenantLock) return tenantLock;
+//
+// A no-op unless TENANT_LOCKOUT_ENABLED is on (lib/tenant-lockout.ts), and the primary gym and platform operators are never locked.
+export function requireTenantAccess(user: StoredUser, options: { allowWhenLocked?: boolean } = {}): NextResponse | null {
+  return lockoutResponse(buildTenantContext(user), options);
+}
+
+// The same, for a route that only has the signed-in user's id (it never loads the account itself).
+export function requireTenantAccessForUserId(userId: string, options: { allowWhenLocked?: boolean } = {}): NextResponse | null {
+  const user = findUserById(userId);
+  return user ? requireTenantAccess(user, options) : null;
 }
 
 // Loads a target account by a client-supplied id, but only if it is in the context's tenant.

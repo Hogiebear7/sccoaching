@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 import { deleteFoodIdentificationOverride, findUserById, saveFoodIdentificationOverride, type FoodIdentificationOverrideRecord } from "@/lib/db";
 import { normalizeTriggerLabel } from "@/lib/food-identification-override";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_NAME_LENGTH = 100;
 const MAX_SERVING_LENGTH = 100;
@@ -26,6 +27,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

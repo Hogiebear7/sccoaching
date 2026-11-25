@@ -6,6 +6,7 @@ import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Mirrors the web member-detail page's Messages panel: fetching a thread
 // marks the member's messages read as a side effect, exactly like opening
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
   if (!can(staffUser.role, "members.view")) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }

@@ -12,6 +12,7 @@ import {
   isFollowing,
 } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_RESULTS = 20;
 const MAX_SUGGESTIONS = 5;
@@ -31,6 +32,9 @@ export async function GET(request: NextRequest) {
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const url = new URL(request.url);
   const hidden = hiddenFromViewer(me.id);
