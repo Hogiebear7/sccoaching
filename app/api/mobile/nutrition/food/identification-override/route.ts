@@ -82,6 +82,9 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
+
   const id = request.nextUrl.searchParams.get("id");
   if (!id) {
     return NextResponse.json({ success: false, message: "id is required." }, { status: 400 });

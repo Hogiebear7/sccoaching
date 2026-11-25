@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
 
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
+
   let body: unknown;
   try {
     body = await request.json();

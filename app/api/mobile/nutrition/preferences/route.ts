@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
   const profile = findProfileByUserId(user.id);
   if (!profile) {
     return NextResponse.json({ success: false, message: "No profile found for this account." }, { status: 404 });

@@ -82,6 +82,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
+
   const { id } = await params;
   const target = findWorkoutSessionById(id);
   if (!target || !canViewCommunitySession(me, target)) {

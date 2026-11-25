@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { ProfileRecord } from "@/lib/profile-schema";
-import { requireTenantAccess } from "@/lib/tenant-request";
+import { requireTenantAccessForUserId } from "@/lib/tenant-request";
 
 // Backfills a minimal member ProfileRecord for a staff/coach account so they
 // can switch into the member app experience with a real (if mostly empty)
@@ -16,6 +16,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
+  const tenantLock = requireTenantAccessForUserId(session.userId);
+  if (tenantLock) return tenantLock;
+
   const existing = findProfileByUserId(session.userId);
   if (existing) {
     return NextResponse.json({ success: true, alreadyExisted: true });
@@ -25,9 +28,6 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
-
-  const tenantLock = requireTenantAccess(user);
-  if (tenantLock) return tenantLock;
 
   const now = new Date().toISOString();
   const profile: ProfileRecord = {

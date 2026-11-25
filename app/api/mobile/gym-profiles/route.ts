@@ -49,6 +49,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
 
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
+
   if (!hasAccess(resolveMemberAccessForUser(user.id), "gymProfiles")) {
     return NextResponse.json({ success: false, message: "Gym profiles need the App Subscription." }, { status: 403 });
   }
