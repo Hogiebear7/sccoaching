@@ -1195,6 +1195,8 @@ export interface MembershipPackageRecord {
   visible: boolean;
   sortOrder: number;
   stripeProductId: string | null;
+  /** A trial pass: a one-off pass a member can buy once, and only before any membership is paid for (lib/intro-pass.ts). Only meaningful for a Pass. */
+  introOnly?: boolean;
   /** Optional cover image — a small data URL or a built-in cover path — shown
       on the landing featured cards. Null/undefined → placeholder. */
   imageUrl?: string | null;

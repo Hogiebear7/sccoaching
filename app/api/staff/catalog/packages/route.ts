@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
     deliveryChannel,
     billingChannel,
     accessType,
+    introOnly,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof categoryId !== "string") {
@@ -202,6 +203,8 @@ export async function POST(request: NextRequest) {
     imageAlt: coverAlt.value === undefined ? existing?.imageAlt ?? null : coverAlt.value,
     deliveryChannel: requestedDeliveryChannel,
     billingChannel: (billingChannel as BillingChannel) ?? existing?.billingChannel ?? "stripe_web",
+    // A trial pass is only ever a Pass; anything else is never one. Left out of the request = keep what is saved.
+    introOnly: packageType === "pass" ? (typeof introOnly === "boolean" ? introOnly : existing?.introOnly ?? false) : false,
     accessType: (accessType as AccessType) ?? existing?.accessType ?? (packageType === "top_up" ? "add_on" : packageType === "pass" ? "pass" : "membership"),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
