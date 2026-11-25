@@ -1,50 +1,62 @@
-# Tenant lockout for an unpaid platform subscription (2026-11-24)
+# Tenant platform billing and lockout (complete, 2026-11-25)
 
-Status: built and tested, **switched off**. Nothing is locked unless `TENANT_LOCKOUT_ENABLED=true` is set on the server. Not deployed to any tenant.
+Status: **built end to end and tested; switched off.** Nothing is ever locked unless `TENANT_LOCKOUT_ENABLED=true` is set on the server. With the switch off every gym, including S&C, behaves exactly as before.
 
 ## What the owner decided (2026-11-18)
 
 - Tenants pay S&C for the platform, like a gym membership.
 - A missed payment gets a grace period, then the tenant is **locked out**.
 - **Nothing is deleted.** When they pay again, everything comes back at once.
-- S&C never holds or moves tenant money. This slice only records a date; it takes no payment.
+- S&C never holds or moves tenant money. Tenants pay S&C through a payment link S&C hosts; the gym's own members pay the gym through the gym's own providers.
 
 ## How it works
 
-- A gym record can carry `platformBilling: { paidThrough: "YYYY-MM-DD", graceDays? }`. `paidThrough` is the last paid day. No `platformBilling` means the gym is not billed and is **never** restricted (the primary gym, and any gym not yet on a plan).
-- The rule (`lib/tenant-billing.ts`, pure): active through `paidThrough`, then **grace** for `graceDays` (default 14, a gym can have its own, 0 to 60), then **locked**. The last day of grace still counts as grace.
-- The check (`lib/tenant-lockout.ts`) runs where a request becomes a verified tenant context (`lib/tenant-request.ts`: `resolveTenantRequest`, `resolveStaffTenantRequest`, `requireTenantAccess`). A locked tenant gets a `423` with `code: "tenant_locked"`:
-  - members: "This gym is temporarily unavailable. Nothing has been lost."
-  - the gym's staff: "Your gym's platform subscription is overdue, so access is paused. Nothing has been deleted: it all comes back once the payment is made."
-- The primary gym (`gymId` null) and platform operators are never locked, whatever the data says.
-- A route can pass `allowWhenLocked: true` so the locked gym's own **staff** (never members) still get through, for the page where they pay.
-- `POST /api/staff/gyms/[gymId]/billing` (platform operator only, same rule as the status route, and a gym cannot change its own billing) records `{ paidThrough, graceDays? }`, or `{ paidThrough: null }` to take a gym off billing. Paying again is just a later date, and access returns immediately.
+**The rule** (`lib/tenant-billing.ts`, pure). A gym can carry `platformBilling: { paidThrough, graceDays?, payUrl?, stripeCustomerId? }`.
+`paidThrough` is the last paid day. Active through it, then **grace** for `graceDays` (default 14, per-gym 0 to 60), then **locked**. The last grace day still counts as grace. No `platformBilling` = not billed = never restricted (the primary gym and any gym not yet on a plan). Platform operators are never locked.
 
-## Where it is enforced (updated 2026-11-25)
+**Everywhere the gym's people touch the server** (switch on):
 
-**Every signed-in route** except the ten below. That is 230 routes: the staff routes, the gym community routes, and all the member routes. It is checked right after the route's own sign-in (and permission) check, through `requireTenantAccess` / `requireTenantAccessForUserId` or the two resolvers in `lib/tenant-request.ts`, and for the gym community in `gymCommunityAccess` (`lib/community-gym.ts`).
+| Surface | What a locked gym gets |
+|---|---|
+| API, every signed-in route (230) | `423` with `code: "tenant_locked"`. Members: "This gym is temporarily unavailable. Nothing has been lost." Staff: "Your gym's platform subscription is overdue, so access is paused. Nothing has been deleted..." |
+| Website `/dashboard` and `/staff` | Redirect to `/gym-unavailable`, a plain page (staff also get a "Pay now" button to the gym's payment link) |
+| Mobile app | A full-screen "temporarily unavailable" screen (members), or "Access is paused" with a Pay now button (staff). "Check again" asks the server at once, so access returns the moment the gym has paid. Sign out always works |
+| Push notifications | Not sent to a locked gym's people (`lib/push.ts`) |
+| Email | Routine email is not sent to a locked gym's people (`lib/email.ts`); sign-in and account-security email (password reset, email change, password changed) still goes (`essential: true`) |
+| The scheduled jobs | They still run, but everything they send goes through the two chokepoints above, so a locked gym receives nothing (class reminders, reports, expiry notices, and so on) |
 
-`__tests__/api/tenant-lockout-routes.test.ts` proves it against the real handlers, not a list: for every enforced route, every exported handler (GET, POST, PUT, PATCH, DELETE) is called as an account of a locked gym and must answer 423; the same calls from the primary gym and from the gym once it has paid must never answer 423. The test caught seven handlers and one early return that the first pass had missed, all fixed. The manifest (`lockoutEnforced` / `lockoutExempt`) and the source cannot disagree, and the exempt list is pinned.
+**In grace** (before the lockout) the gym's staff see a banner: "Your gym's platform payment is overdue. Access pauses in N days unless it is paid", with a Pay link, on the website staff area and in the app's staff screens. Members never see it. The session check (`GET /api/mobile/auth/me`) reports `tenant: { state, graceEndsOn, graceDaysLeft, payUrl }` (payUrl only for the gym's staff).
 
-**Deliberately still reachable while a gym is locked** (each has a written reason in `lib/route-scope-manifest.ts`):
-`account/delete` (a member can always delete their own account), `mobile/auth/me` (the app needs it to learn the gym is locked, instead of signing the member out), `profile/ai-consent`, `profile/email-preferences`, `push/subscribe`, `mobile/push` (a member can always withdraw their own consent and switch notifications off), `mobile/equipment-catalog`, `mobile/gyms/geocode`, `mobile/gyms/nearby` (no gym data), and `mobile/gyms/my-gym/visibility` (a locked gym's staff may still change whether it is listed).
+**Routes deliberately still reachable while locked** (each has a written reason in `lib/route-scope-manifest.ts`): `account/delete` (a member can always delete their own account), `mobile/auth/me` (the app needs it to learn the state), `profile/ai-consent`, `profile/email-preferences`, `push/subscribe`, `mobile/push` (a member can always withdraw consent and switch notifications off), `mobile/equipment-catalog`, `mobile/gyms/geocode`, `mobile/gyms/nearby` (no gym data), `mobile/gyms/my-gym/visibility`.
 
-Public routes, webhooks, cron jobs, global shared data and platform-only routes are out of scope: they have no tenant session, or operate across tenants by design. The scheduled jobs (reminders, reports, emails) are platform-wide and are NOT paused for a locked gym yet.
+## How a tenant pays and is switched back on
 
-## Still to do before switching it on for a real tenant
+1. Operator opens **`/staff/tenants`** (platform operator only) and, for a gym, records `paidThrough`, optional grace days, the gym's **payment link** (https, S&C-hosted), and the gym's **Stripe customer id** (`cus_...` in S&C's own Stripe account). Same actions are available through `POST /api/staff/gyms/[gymId]/billing`; `GET /api/staff/gyms/billing` lists every gym and its state.
+2. The gym pays S&C through the link. S&C's Stripe sends `invoice.paid` to **`POST /api/webhooks/tenant-billing`** (its own signing secret `TENANT_BILLING_WEBHOOK_SECRET`; refuses everything without it). The gym is found by the customer id **stored on the gym**, never from anything in the event. The paid-through date moves to the end of the paid period, never backwards; each event is applied once; unknown events and customers are acknowledged and ignored. Access returns immediately.
+3. Or the operator just records a later date by hand.
 
-- **The apps.** The member and staff apps need a clear "this gym is temporarily unavailable" screen when the server answers 423 with `code: "tenant_locked"`, instead of a generic error. Until then a locked member sees an error on every screen. `mobile/auth/me` stays open so the app can detect the state at start-up (it does not report it yet; adding `tenantAccess` to its answer is the next small step).
-- **The jobs.** Stop sending reminders, class emails and reports to a locked gym's members.
-- **A grace-period banner** for the gym's staff ("access pauses in N days") and the payment itself (S&C's own Stripe and its webhook marking a tenant paid). Not built.
-- **The website** (`/staff`, `/dashboard` pages) uses server components, not these routes, so the web pages are not covered yet either; only the API behind them is.
+## Proof
 
-## Questions for the owner (none blocks the next slice)
+- `__tests__/api/tenant-lockout-routes.test.ts`: for every enforced route, **every** exported handler (GET, POST, PUT, PATCH, DELETE) is called as an account of a locked gym and must answer 423; the same calls from the primary gym and from the same gym once paid must never answer 423; the exempt list is pinned; the manifest flags cannot disagree with the source. It found eight real gaps the first pass missed, all fixed.
+- `__tests__/api/tenant-lockout.test.ts`, `__tests__/lib/tenant-billing.test.ts`: the rule, the switch, who is never locked, paying again restoring access.
+- `__tests__/api/tenant-billing-platform.test.ts`: the operator list and billing route (validation of the link and customer id), the Stripe webhook (no secret / wrong signature / tampered body refused, invoice moves the date and lifts the lockout, applied once, never backwards, unknown events and customers ignored, a gym cannot be named from inside the event), what the session check reports, and that a locked gym is sent no push or routine email while security email still goes.
+- App: `src/lib/__tests__/tenant-status.test.ts` (status parsing, a 423 locking the app, sign-out clearing it).
+- Full server suite 4,031 tests pass; app suite 589 pass.
 
-1. **Grace length.** Default is 14 days, settable per gym. Is 14 right?
-2. **Staff sign-in while locked.** Built so the gym's staff can reach the pay page only (`allowWhenLocked`). Confirm that is what you want, or whether staff should be fully blocked too.
-3. **Are members told, and by whom?** Today members see the plain message when they open the app. An email or notice from the gym owner is not built.
-4. **Members' own App Subscriptions** (paid to Apple or Google, not the gym) during a lockout: they currently follow the same gate. Should they keep working?
+## Switching it on (do this in order)
 
-## Switching it on later
+1. Take a datastore backup and merge #143, then #144 (this stack), then the app branch `feat/tenant-lockout-app`; deploy; confirm nothing changed (switch still off). `/staff/tenants` shows "Lockout is currently OFF".
+2. In S&C's Stripe: create the tenant subscription product and payment link; add a webhook endpoint `https://<site>/api/webhooks/tenant-billing` for `invoice.paid`; copy its signing secret into the host as `TENANT_BILLING_WEBHOOK_SECRET`.
+3. For each tenant gym: in `/staff/tenants` record its Stripe customer id, payment link and paid-through date.
+4. Rehearse on a test gym with a past date: set `TENANT_LOCKOUT_ENABLED=true`, check a member and a staff account see the unavailable screen (app and website), pay a test invoice (Stripe test mode), confirm access returns.
+5. Only then switch it on for real. Switching it off again restores everything at once; the lockout changes no data.
 
-Set `TENANT_LOCKOUT_ENABLED=true` on the server, with a backup first and the route conversions done. Switching it off again restores everything, since no data is changed by the lockout.
+## Decisions that are the owner's (defaults are in place, change by editing one value)
+
+1. **Grace length.** Default 14 days (`DEFAULT_TENANT_GRACE_DAYS`), settable per gym.
+2. **Staff sign-in while locked.** The gym's staff reach the unavailable page and the pay link only. Routes can opt in to more with `allowWhenLocked`.
+3. **Members' own App Subscriptions** (paid to Apple or Google, not the gym) follow the same gate during a lockout.
+
+## Scope note
+
+This covers the platform billing and lockout system. The other parts of the wider multi-tenant plan (per-tenant logo and colours, the tenant's own branded web member area, the sign-up and onboarding flow, and the tenant instruction manual) are separate features that are not part of it.
