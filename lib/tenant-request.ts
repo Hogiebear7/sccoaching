@@ -12,6 +12,7 @@ import { verifyRequestSession } from "./mobile-auth";
 import type { Capability } from "./permissions";
 import { authorizeStaffRequest } from "./staff-auth";
 import { buildTenantContext, inTenant, type TenantContext } from "./tenant-context";
+import { lockoutResponse } from "./tenant-lockout";
 
 export type TenantRequestResult =
   | { ok: true; user: StoredUser; ctx: TenantContext }
@@ -19,22 +20,30 @@ export type TenantRequestResult =
 
 // Member or staff session, web cookie or mobile Bearer. An archived or deleted account reads
 // exactly like no session (see verifyRequestSession), so the response never says which.
-export function resolveTenantRequest(request: NextRequest, options: { unauthenticatedMessage?: string } = {}): TenantRequestResult {
+// A locked tenant (platform subscription unpaid past its grace, and only when TENANT_LOCKOUT_ENABLED is on) is refused here with a 423. `allowWhenLocked` is for
+// the few routes that tenant's own staff still need, such as the page where they pay.
+export function resolveTenantRequest(request: NextRequest, options: { unauthenticatedMessage?: string; allowWhenLocked?: boolean } = {}): TenantRequestResult {
   const session = verifyRequestSession(request);
   const user = session ? findUserById(session.userId) : undefined;
   if (!user || user.archivedAt) {
     // A route may keep its own 401 wording so adopting the helper never changes what a client sees.
     return { ok: false, response: NextResponse.json({ success: false, message: options.unauthenticatedMessage ?? "You must be signed in." }, { status: 401 }) };
   }
-  return { ok: true, user, ctx: buildTenantContext(user) };
+  const ctx = buildTenantContext(user);
+  const locked = lockoutResponse(ctx, { allowWhenLocked: options.allowWhenLocked });
+  if (locked) return { ok: false, response: locked };
+  return { ok: true, user, ctx };
 }
 
 // Staff session that holds the capability. Delegates to authorizeStaffRequest so the 401 and
 // 403 bodies stay identical to every existing staff route.
-export function resolveStaffTenantRequest(request: NextRequest, capability: Capability): TenantRequestResult {
+export function resolveStaffTenantRequest(request: NextRequest, capability: Capability, options: { allowWhenLocked?: boolean } = {}): TenantRequestResult {
   const auth = authorizeStaffRequest(request, capability);
   if (!auth.ok) return auth;
-  return { ok: true, user: auth.user, ctx: buildTenantContext(auth.user) };
+  const ctx = buildTenantContext(auth.user);
+  const locked = lockoutResponse(ctx, { allowWhenLocked: options.allowWhenLocked });
+  if (locked) return { ok: false, response: locked };
+  return { ok: true, user: auth.user, ctx };
 }
 
 // Loads a target account by a client-supplied id, but only if it is in the context's tenant.
