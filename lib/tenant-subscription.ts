@@ -8,11 +8,12 @@
 // /api/webhooks/tenant-billing sending invoice.paid, whose signing secret is TENANT_BILLING_WEBHOOK_SECRET. Optional: TENANT_TRIAL_DAYS (a free trial before the first charge).
 import { getConfiguredAppUrl, getConfiguredStripeSecretKey } from "./app-config";
 import type { GymRecord } from "./gyms-schema";
+import { bandForCount, tenantPriceMap, type TenantBand, type TenantInterval } from "./tenant-pricing";
 
 const STRIPE_API_BASE = "https://api.stripe.com/v1";
 
 export function tenantSubscriptionConfigured(): boolean {
-  return Boolean(getConfiguredStripeSecretKey() && process.env.TENANT_PLATFORM_PRICE_ID?.trim());
+  return Boolean(getConfiguredStripeSecretKey() && (tenantPriceMap() || process.env.TENANT_PLATFORM_PRICE_ID?.trim()));
 }
 
 function trialDays(): number {
@@ -57,8 +58,15 @@ export async function createTenantCustomer(gym: Pick<GymRecord, "id" | "name">, 
   return typeof id === "string" && id.startsWith("cus_") ? { ok: true, customerId: id } : { ok: false, message: "The payment provider sent an unexpected reply." };
 }
 
-export async function createTenantCheckout(gym: Pick<GymRecord, "id">, customerId: string): Promise<Result<{ url: string }>> {
-  const price = process.env.TENANT_PLATFORM_PRICE_ID?.trim();
+/** The Stripe price for a size band and interval: from TENANT_PRICES when it is set, else the single TENANT_PLATFORM_PRICE_ID (one price for every gym). */
+export function priceIdFor(interval: TenantInterval, band: TenantBand): string | null {
+  const map = tenantPriceMap();
+  if (map) return map[interval][band];
+  return process.env.TENANT_PLATFORM_PRICE_ID?.trim() || null;
+}
+
+export async function createTenantCheckout(gym: Pick<GymRecord, "id">, customerId: string, interval: TenantInterval = "month", memberCount = 0): Promise<Result<{ url: string }>> {
+  const price = priceIdFor(interval, bandForCount(memberCount));
   if (!price) return { ok: false, message: "Payments are not set up yet." };
   const days = trialDays();
   const res = await stripePost("/checkout/sessions", {
@@ -68,6 +76,8 @@ export async function createTenantCheckout(gym: Pick<GymRecord, "id">, customerI
     "line_items[0][quantity]": "1",
     "metadata[gym_id]": gym.id,
     "subscription_data[metadata][gym_id]": gym.id,
+    "subscription_data[metadata][band]": bandForCount(memberCount),
+    "subscription_data[metadata][interval]": interval,
     ...(days ? { "subscription_data[trial_period_days]": String(days) } : {}),
     allow_promotion_codes: "true",
     success_url: `${baseUrl()}/staff/gym-setup?subscription=success`,
@@ -128,4 +138,28 @@ export async function refundAndCancel(customerId: string): Promise<Result<{ refu
     }
   }
   return { ok: true, refundedChargeId: charge.id };
+}
+
+// ---- Size-based pricing: keeping a gym on the right band ----------------------------------------------------------------------------------------------------------------
+/** Monthly or yearly, from the length of the period an invoice paid for. */
+export function intervalFromPeriod(startSec: number, endSec: number): TenantInterval {
+  return endSec - startSec > 60 * 86_400 ? "year" : "month";
+}
+
+/**
+ * After a renewal: if the band for the next period (the highest member count of the period just ended, see lib/tenant-pricing.ts) differs from the band the gym is on,
+ * move its subscription to that band's price from the next invoice, with no proration. Returns the band the gym now pays for. A failed Stripe call keeps the old band so
+ * the next renewal tries again.
+ */
+export async function moveSubscriptionToBand(customerId: string, interval: TenantInterval, currentBand: TenantBand | undefined, nextBand: TenantBand): Promise<TenantBand> {
+  if (currentBand === nextBand || !tenantPriceMap()) return currentBand ?? nextBand;
+  const price = priceIdFor(interval, nextBand);
+  if (!price) return currentBand ?? nextBand;
+  const subs = await stripeRequest("GET", `/subscriptions?customer=${encodeURIComponent(customerId)}&status=active&limit=1`);
+  if (!subs.ok) return currentBand ?? nextBand;
+  const sub = ((subs.data.data ?? []) as Array<{ id?: string; items?: { data?: Array<{ id?: string }> } }>)[0];
+  const itemId = sub?.items?.data?.[0]?.id;
+  if (!sub?.id || !itemId) return currentBand ?? nextBand;
+  const res = await stripePost(`/subscriptions/${encodeURIComponent(sub.id)}`, { "items[0][id]": itemId, "items[0][price]": price, proration_behavior: "none", "metadata[band]": nextBand }, `tenant-band:${sub.id}:${nextBand}:${new Date().toISOString().slice(0, 7)}`);
+  return res.ok ? nextBand : (currentBand ?? nextBand);
 }

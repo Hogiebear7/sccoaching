@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { getConfiguredTenantBillingWebhookSecret } from "@/lib/app-config";
-import { findGyms, hasPaymentEvent, recordPaymentEvent, saveGym } from "@/lib/db";
+import { findGymById, findGyms, findMembersInGym, hasPaymentEvent, recordPaymentEvent, saveGym } from "@/lib/db";
 import { verifyStripeSignatureWithSecret } from "@/lib/providers/stripe-webhook";
 import { isIsoDay } from "@/lib/tenant-billing";
+import { bandForCount, bandForNextPeriod, startNewPeriod, tenantPriceMap } from "@/lib/tenant-pricing";
+import { intervalFromPeriod, moveSubscriptionToBand } from "@/lib/tenant-subscription";
 
 // POST /api/webhooks/tenant-billing — S&C's OWN Stripe account telling us a tenant gym has paid S&C for the platform (not a member paying a gym: that is
 // /api/stripe/webhook). Tenants pay S&C like a gym membership; S&C never holds or moves a tenant's own money.
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest) {
   if (!customer) return ack("Ignored: no customer.", invoiceId);
 
   // The end of the period the invoice paid for: the latest period end across its lines.
-  const lines = ((object.lines as { data?: unknown } | undefined)?.data ?? []) as Array<{ period?: { end?: unknown } }>;
+  const lines = ((object.lines as { data?: unknown } | undefined)?.data ?? []) as Array<{ period?: { start?: unknown; end?: unknown } }>;
   const ends = lines.map((l) => l?.period?.end).filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0);
   if (ends.length === 0) return ack("Ignored: no paid period on the invoice.", invoiceId);
   const paidThrough = new Date(Math.max(...ends) * 1000).toISOString().slice(0, 10);
@@ -75,6 +77,23 @@ export async function POST(request: NextRequest) {
     saveGym({ ...rest, platformBilling: { paidThrough, stripeCustomerId: customer, firstPaidAt: now }, updatedAt: now });
   } else if (paidThrough > gym.platformBilling.paidThrough) {
     saveGym({ ...gym, platformBilling: { ...gym.platformBilling, paidThrough }, updatedAt: new Date().toISOString() });
+  }
+
+  // Size-based pricing (only when TENANT_PRICES is set): on the first payment the gym's band comes from its member count now; on a renewal the NEXT period's band comes from the
+  // highest member count of the period just ended, so removing members before the end of the month does not lower it (lib/tenant-pricing.ts).
+  if (tenantPriceMap()) {
+    const starts = lines.map((l) => l?.period?.start).filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0);
+    const interval = intervalFromPeriod(starts.length ? Math.min(...starts) : 0, Math.max(...ends));
+    const live = findMembersInGym(gym.id).length;
+    const before = findGymById(gym.id)?.platformBilling;
+    const first = !before?.band;
+    const nextBand = first ? bandForCount(live) : bandForNextPeriod(before?.memberHighWater, live);
+    const band = first ? nextBand : await moveSubscriptionToBand(customer, interval, before?.band, nextBand);
+    // The Stripe call above was awaited after the gym was read: apply the band to the gym as it is NOW.
+    const fresh = findGymById(gym.id);
+    if (fresh?.platformBilling) {
+      saveGym({ ...fresh, platformBilling: { ...fresh.platformBilling, band, interval, memberHighWater: startNewPeriod(live, new Date().toISOString().slice(0, 10)) }, updatedAt: new Date().toISOString() });
+    }
   }
   return ack("Gym marked paid.", invoiceId);
 }

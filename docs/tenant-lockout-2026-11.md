@@ -70,3 +70,12 @@ Set up once in Stripe: a Product with one recurring Price (its id in `TENANT_PLA
 Starting checkout gives a gym no free time (owner decision 2026-11-25). Its Stripe customer is kept as `pendingStripeCustomerId`; the gym only becomes billed (paid-through date, `firstPaidAt`) when its first invoice is paid. Gyms are approved by hand, so one that starts and walks away is never listed.
 
 **14-day money-back.** In `/staff/tenants` (platform operator only) a gym inside 14 days of its `firstPaidAt` has a "Refund and end access" button. It refunds the latest paid charge in Stripe, cancels the subscription, and sets paid-through to yesterday with no grace. After 14 days the button is disabled (an exception can still be refunded in Stripe by hand). The guarantee needs to be stated in the terms.
+
+## Size-based pricing (built 2026-11-25)
+
+Four bands by member count (members who are not archived): up to 50, 51 to 100, 101 to 149, 150 or more, billed monthly or yearly (`lib/tenant-pricing.ts`). Eight Stripe prices, one per band and interval, are set in `TENANT_PRICES` (JSON: `{"month":{"b50":"price_...","b100":"price_...","b149":"price_...","b150":"price_..."},"year":{same four}}`). A half-filled setting is ignored; without it the single `TENANT_PLATFORM_PRICE_ID` applies to every gym.
+
+- **First payment:** the band comes from the gym's member count at that moment, and the interval (monthly or yearly) from the length of the period the invoice paid for.
+- **No gaming the threshold:** the job `tenant-member-high-water` records each billed gym's member count daily and keeps the highest in the current period. At each renewal the NEXT period's band comes from that highest count, not from the count on renewal day, so removing members before month end and adding them back after payment does not lower the band. A new period then starts from the members the gym has at that moment. The band can come down only when a whole period stayed lower.
+- **Moving a band:** at renewal the subscription's price is switched to the new band's price with no proration, so it applies from the next invoice. A failed Stripe call keeps the old band and the next renewal tries again.
+- **Yearly gyms:** the band is set at each yearly renewal from the year's peak. Growth part-way through a yearly period is picked up at the next renewal, not mid-year.

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findGymById, saveGym } from "@/lib/db";
+import { findGymById, findMembersInGym, saveGym } from "@/lib/db";
 import { createTenantCheckout, createTenantCustomer, createTenantPortal, tenantSubscriptionConfigured } from "@/lib/tenant-subscription";
 import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
@@ -20,8 +20,11 @@ export async function POST(request: NextRequest) {
   if (!tenantSubscriptionConfigured()) return NextResponse.json({ success: false, message: "Online payment is not switched on yet. The platform team will send you a payment link." }, { status: 503 });
 
   let action: unknown;
+  let interval: unknown;
   try {
-    action = ((await request.json()) as { action?: unknown }).action;
+    const body = (await request.json()) as { action?: unknown; interval?: unknown };
+    action = body.action;
+    interval = body.interval;
   } catch {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
@@ -41,7 +44,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = action === "checkout" ? await createTenantCheckout(gym, customerId) : await createTenantPortal(customerId);
+  const chosen = interval === "year" ? "year" : "month";
+  const result = action === "checkout" ? await createTenantCheckout(gym, customerId, chosen, findMembersInGym(gym.id).length) : await createTenantPortal(customerId);
   if (!result.ok) return NextResponse.json({ success: false, message: result.message }, { status: 502 });
   return NextResponse.json({ success: true, data: { url: result.url } });
 }

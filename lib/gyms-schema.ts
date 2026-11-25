@@ -22,6 +22,10 @@ export interface GymPlatformBilling {
   stripeCustomerId?: string;
   /** When the gym first paid (ISO timestamp). The 14-day money-back window runs from here. */
   firstPaidAt?: string;
+  /** Size-based pricing (lib/tenant-pricing.ts): the price band the gym pays for now, the billing interval, and the highest member count seen since the last renewal. */
+  band?: "b50" | "b100" | "b149" | "b150";
+  interval?: "month" | "year";
+  memberHighWater?: { peak: number; since: string };
 }
 
 /** A tenant's own look. Both fields null = the S&C default (see lib/gym-branding.ts). */
