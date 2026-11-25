@@ -140,7 +140,7 @@ describe("what the app is told, and what a locked gym is sent", () => {
     const staff = await callMe(fx.adminB.id);
     expect(staff).toMatchObject({ state: "grace", payUrl: "https://pay.example.test/b" });
     expect(staff.graceDaysLeft).toBeGreaterThan(0);
-    expect(await callMe(fx.memberB.id)).toMatchObject({ state: "grace", payUrl: null }); // members never get the gym's pay link
+    expect(await callMe(fx.memberB.id)).toMatchObject({ state: "active", payUrl: null }); // members are never warned during grace, and never get the gym's pay link
     fx.db.saveGym({ ...fx.db.findGymById(GYM_B)!, platformBilling: { paidThrough: day(-100), graceDays: 5, payUrl: "https://pay.example.test/b" } });
     expect(await callMe(fx.memberB.id)).toMatchObject({ state: "locked", payUrl: null });
     expect(await callMe(fx.adminA.id)).toMatchObject({ state: "active" }); // the primary gym
