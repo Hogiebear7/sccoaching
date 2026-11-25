@@ -300,6 +300,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/gym/subscription", scope: "own-tenant", capabilities: ["gym.manageBranding"], evidence: ["gymId"], note: "A gym's own admin starts or manages its S&C platform subscription; the gym comes from the account, never the request. Nothing is marked paid here (the Stripe webhook does that).", runtimeTenantContext: true, lockoutExempt: "A locked gym's own admin must still be able to pay to unlock it." },
   { route: "staff/gyms/[gymId]/status", scope: "platform", capabilities: ["gyms.moderate"] },
   { route: "staff/gyms/[gymId]/billing", scope: "platform", capabilities: ["gyms.moderate"] },
+  { route: "staff/gyms/[gymId]/refund", scope: "platform", capabilities: ["gyms.moderate"], note: "The 14-day money-back: refunds a gym's latest charge in Stripe and ends its access. Platform operator only, never for their own gym." },
   { route: "staff/gyms/billing", scope: "platform", capabilities: ["gyms.moderate"] },
   { route: "staff/invites", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },
   { route: "staff/invites/[inviteId]/revoke", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },

@@ -60,14 +60,20 @@ export async function POST(request: NextRequest) {
   const paidThrough = new Date(Math.max(...ends) * 1000).toISOString().slice(0, 10);
   if (!isIsoDay(paidThrough)) return ack("Ignored: bad period.", invoiceId);
 
-  const gym = findGyms().find((g) => g.platformBilling?.stripeCustomerId === customer);
-  if (!gym || !gym.platformBilling) {
+  const gym = findGyms().find((g) => g.platformBilling?.stripeCustomerId === customer || g.pendingStripeCustomerId === customer);
+  if (!gym) {
     console.warn("[tenant billing webhook] invoice for a customer no gym carries");
     return ack("Ignored: no gym has this customer.", invoiceId);
   }
 
   // Never move the date backwards: an old invoice redelivered late must not shorten a gym that has since paid further ahead.
-  if (paidThrough > gym.platformBilling.paidThrough) {
+  if (!gym.platformBilling) {
+    // The gym's first payment: it becomes a billed gym only now, so starting checkout and walking away never gave it any free time.
+    const { pendingStripeCustomerId: _pending, ...rest } = gym;
+    void _pending;
+    const now = new Date().toISOString();
+    saveGym({ ...rest, platformBilling: { paidThrough, stripeCustomerId: customer, firstPaidAt: now }, updatedAt: now });
+  } else if (paidThrough > gym.platformBilling.paidThrough) {
     saveGym({ ...gym, platformBilling: { ...gym.platformBilling, paidThrough }, updatedAt: new Date().toISOString() });
   }
   return ack("Gym marked paid.", invoiceId);

@@ -2,6 +2,7 @@ import { findGyms } from "@/lib/db";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { tenantAccess } from "@/lib/tenant-billing";
 import { tenantLockoutEnabled } from "@/lib/tenant-lockout";
+import { refundableUntil } from "@/lib/tenant-subscription";
 import { TenantsTable, type TenantRow } from "./TenantsTable";
 
 // Tenant gyms and their platform subscription (docs/tenant-lockout-2026-11.md). Platform operator only (gyms.moderate). Shows where each gym stands and lets the
@@ -27,6 +28,7 @@ export default async function StaffTenantsPage() {
         payUrl: g.platformBilling?.payUrl ?? "",
         stripeCustomerId: g.platformBilling?.stripeCustomerId ?? "",
         billed: !!g.platformBilling,
+        refundUntil: refundableUntil(g.platformBilling?.firstPaidAt),
       };
     });
   return <TenantsTable rows={rows} lockoutEnabled={tenantLockoutEnabled()} />;

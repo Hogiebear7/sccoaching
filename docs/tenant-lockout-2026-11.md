@@ -67,4 +67,6 @@ A gym's admin pays S&C on the Gym setup page ("Subscribe", then "Pay or renew" a
 
 Set up once in Stripe: a Product with one recurring Price (its id in `TENANT_PLATFORM_PRICE_ID`), the Customer Portal switched on, a webhook endpoint for `/api/webhooks/tenant-billing` sending `invoice.paid` (signing secret in `TENANT_BILLING_WEBHOOK_SECRET`). Optional `TENANT_TRIAL_DAYS` (0 to 90, default none). Until the price id is set the page says online payment is not switched on and the manual route above still works.
 
-A gym with no billing record gets today as its paid-through date the first time it starts checkout, so one that starts and walks away is warned and then locked after the grace, not free for ever. Starting again never moves the date.
+Starting checkout gives a gym no free time (owner decision 2026-11-25). Its Stripe customer is kept as `pendingStripeCustomerId`; the gym only becomes billed (paid-through date, `firstPaidAt`) when its first invoice is paid. Gyms are approved by hand, so one that starts and walks away is never listed.
+
+**14-day money-back.** In `/staff/tenants` (platform operator only) a gym inside 14 days of its `firstPaidAt` has a "Refund and end access" button. It refunds the latest paid charge in Stripe, cancels the subscription, and sets paid-through to yesterday with no grace. After 14 days the button is disabled (an exception can still be refunded in Stripe by hand). The guarantee needs to be stated in the terms.

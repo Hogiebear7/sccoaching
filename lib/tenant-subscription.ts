@@ -84,3 +84,48 @@ export async function createTenantPortal(customerId: string): Promise<Result<{ u
   const url = res.data.url;
   return typeof url === "string" && url.startsWith("https://") ? { ok: true, url } : { ok: false, message: "The payment provider sent an unexpected reply." };
 }
+
+// ---- The 14-day money-back (owner decision 2026-11-25) -------------------------------------------------------------------------------------------------------------------
+// Only a platform operator can do this (app/api/staff/gyms/[gymId]/refund), only within REFUND_WINDOW_DAYS of the gym's first payment, and it refunds the latest paid
+// charge, cancels the subscription, and ends the gym's paid time so access stops. Nothing is deleted.
+export const REFUND_WINDOW_DAYS = 14;
+
+/** The last day (YYYY-MM-DD) a gym that first paid at `firstPaidAt` can still be refunded, or null when it has not paid. */
+export function refundableUntil(firstPaidAt: string | undefined): string | null {
+  if (!firstPaidAt) return null;
+  const t = new Date(firstPaidAt).getTime();
+  if (!Number.isFinite(t)) return null;
+  return new Date(t + REFUND_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+}
+
+async function stripeRequest(method: "GET" | "DELETE", path: string): Promise<Result<{ data: Record<string, unknown> }>> {
+  const key = getConfiguredStripeSecretKey();
+  if (!key) return { ok: false, message: "Payments are not set up yet." };
+  try {
+    const res = await fetch(`${STRIPE_API_BASE}${path}`, { method, headers: { Authorization: `Bearer ${key}` } });
+    if (!res.ok) return { ok: false, message: "The payment provider could not do that. Check Stripe." };
+    return { ok: true, data: (await res.json()) as Record<string, unknown> };
+  } catch {
+    return { ok: false, message: "Could not reach the payment provider." };
+  }
+}
+
+/** Refunds the customer's latest paid, not-yet-refunded charge in full and cancels their subscriptions. */
+export async function refundAndCancel(customerId: string): Promise<Result<{ refundedChargeId: string }>> {
+  const charges = await stripeRequest("GET", `/charges?customer=${encodeURIComponent(customerId)}&limit=10`);
+  if (!charges.ok) return charges;
+  const list = (charges.data.data ?? []) as Array<{ id?: string; paid?: boolean; refunded?: boolean; amount_refunded?: number }>;
+  const charge = list.find((c) => c.paid && !c.refunded && !c.amount_refunded && typeof c.id === "string");
+  if (!charge?.id) return { ok: false, message: "There is no paid charge left to refund for this gym." };
+
+  const refund = await stripePost("/refunds", { charge: charge.id }, `tenant-refund:${charge.id}`);
+  if (!refund.ok) return refund;
+
+  const subs = await stripeRequest("GET", `/subscriptions?customer=${encodeURIComponent(customerId)}&status=all&limit=10`);
+  if (subs.ok) {
+    for (const s of (subs.data.data ?? []) as Array<{ id?: string; status?: string }>) {
+      if (typeof s.id === "string" && s.status !== "canceled") await stripeRequest("DELETE", `/subscriptions/${encodeURIComponent(s.id)}`);
+    }
+  }
+  return { ok: true, refundedChargeId: charge.id };
+}

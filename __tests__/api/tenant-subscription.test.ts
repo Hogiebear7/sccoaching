@@ -1,6 +1,6 @@
 // A gym paying S&C for the platform. Stripe is replaced by a recorded fake fetch, so nothing real is called. What this proves: nothing happens unless payment is configured;
 // only the gym's own admin can start it and the gym comes from the account; the Stripe customer is created once and remembered; a never-billed gym gets today as its
-// paid-through date (so walking away from checkout does not stay free for ever) and starting again does not move it; checkout and portal return Stripe's page.
+// paid-through date at all until the first invoice is paid (so walking away from checkout gets no free time) and starting again does not move one; checkout and portal return Stripe's page.
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -57,9 +57,9 @@ describe("gym platform subscription", () => {
     const res = await post(fx.adminB.id, { action: "checkout" });
     expect(res.status).toBe(200);
     expect((await res.json()).data.url).toBe("https://checkout.stripe.com/c/pay/test");
-    const billing = fx.db.findGymById(GYM_B)?.platformBilling;
-    expect(billing?.stripeCustomerId).toBe("cus_test123");
-    expect(billing?.paidThrough).toBe(new Date().toISOString().slice(0, 10));
+    // No free time: the customer is only remembered as pending; the gym is not billed until its first invoice is paid.
+    expect(fx.db.findGymById(GYM_B)?.pendingStripeCustomerId).toBe("cus_test123");
+    expect(fx.db.findGymById(GYM_B)?.platformBilling).toBeUndefined();
     const checkout = calls.find((c) => c.url.endsWith("/checkout/sessions"))!;
     expect(checkout.body).toContain("customer=cus_test123");
     expect(checkout.body).toContain("price_platform");
@@ -74,6 +74,7 @@ describe("gym platform subscription", () => {
     await post(fx.adminB.id, { action: "checkout" });
     expect(fx.db.findGymById(GYM_B)?.platformBilling?.paidThrough).toBe("2099-01-01");
     expect(fx.db.findGymById(GYM_B)?.platformBilling?.stripeCustomerId).toBe("cus_test123");
+    expect(fx.db.findGymById(GYM_B)?.pendingStripeCustomerId).toBeUndefined();
   });
 
   it("opens the billing portal for the gym's customer", async () => {

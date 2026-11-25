@@ -29,6 +29,7 @@ const REVIEWED = {
   "app/api/staff/members/[userId]/archive/route.ts::POST": "PARSE-ONLY: the write is a targeted setUserArchived, not a stale record",
   "app/api/staff/classes/[classId]/workout/route.ts::POST": "PARSE-ONLY: writes are records built after the last await",
   "app/api/staff/gyms/[gymId]/status/route.ts::POST": "FIXED: the status is applied to the gym as it is after the body was parsed",
+  "app/api/staff/gyms/[gymId]/refund/route.ts::POST": "FIXED: the paid-through change is applied to the gym as it is after the Stripe calls finished",
   "app/api/staff/gyms/[gymId]/billing/route.ts::POST": "FIXED: the paid-through date is applied to the gym as it is after the body was parsed",
   "app/api/mobile/workout-review/[id]/route.ts::GET": "FIXED: only the review fields are set, on the session as it is after the AI call (updateWorkoutSession)",
   "app/api/mobile/programs/[id]/checkin/[cycle]/route.ts::GET": "FIXED: the new check-in is appended to the programme as it is after the AI call (updateTrainingProgram)",

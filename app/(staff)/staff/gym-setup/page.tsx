@@ -78,7 +78,7 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
         <h2 id="subscription-heading" className="text-base font-semibold text-zinc-50">Platform subscription</h2>
         <SubscriptionCard
           enabled={tenantSubscriptionConfigured()}
-          hasCustomer={Boolean(gym.platformBilling?.stripeCustomerId)}
+          hasCustomer={Boolean(gym.platformBilling?.stripeCustomerId ?? gym.pendingStripeCustomerId)}
           statusLine={statusLine}
           justReturned={returned === "success" || returned === "cancelled" ? returned : null}
         />
