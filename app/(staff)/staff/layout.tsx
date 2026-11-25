@@ -7,6 +7,7 @@ import { can, NAV_CAPABILITY, STAFF_ROLE_LABEL, type Capability, type StaffRole 
 import { verifySession } from "@/lib/session";
 import { StaffShell } from "@/components/staff/admin/StaffShell";
 import type { AdminIconName } from "@/components/staff/admin/icons";
+import { userInLockedGym } from "@/lib/tenant-lockout";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +88,8 @@ export default async function StaffLayout({ children }: { children: ReactNode })
   if (!user || user.archivedAt || !can(user.role, "staff.access")) {
     redirect("/dashboard");
   }
+  // A locked gym's staff see the unavailable page (with the way to pay) instead of the staff area.
+  if (userInLockedGym(user)) redirect("/gym-unavailable");
 
   const visibleNavSections = navSections
     .map((section) => ({

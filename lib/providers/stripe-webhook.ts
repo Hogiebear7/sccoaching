@@ -30,7 +30,11 @@ function parseSignatureHeader(header: string): { timestamp: number; signatures: 
 }
 
 export function verifyStripeSignature(rawBody: string, header: string | null): boolean {
-  const secret = getSigningSecret();
+  return verifyStripeSignatureWithSecret(getSigningSecret(), rawBody, header);
+}
+
+/** The same check against a given signing secret (the tenant platform-billing endpoint has its own). A missing secret or header never verifies. */
+export function verifyStripeSignatureWithSecret(secret: string | null | undefined, rawBody: string, header: string | null): boolean {
   if (!secret || !header) return false;
 
   const { timestamp, signatures } = parseSignatureHeader(header);

@@ -9,6 +9,8 @@ import { verifySession } from "@/lib/session";
 import { PushServiceWorkerRegister } from "@/components/PushServiceWorkerRegister";
 import { NavLink } from "./nav-link";
 import { BottomNavBar } from "./bottom-nav";
+import { userInLockedGym } from "@/lib/tenant-lockout";
+import { redirect } from "next/navigation";
 
 type DashboardLayoutProps = {
   children: ReactNode;
@@ -41,6 +43,7 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const userId = verifySession(cookieStore.get("session")?.value)?.userId ?? null;
   const user = userId ? findUserById(userId) : undefined;
+  if (userInLockedGym(user)) redirect("/gym-unavailable");
   const profile = user ? findProfileByUserId(user.id) : undefined;
   const unreadNotifications = user ? findUnreadNotificationCount(user.id) : 0;
 

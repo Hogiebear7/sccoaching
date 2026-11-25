@@ -94,3 +94,8 @@ export function getConfiguredContactNotifyEmail(): string | undefined {
 export function getConfiguredSupabaseServiceRoleKey(): string | undefined {
   return process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || loadAppConfig().supabaseServiceRoleKey;
 }
+
+/** The signing secret of S&C's own Stripe endpoint for tenant platform payments (separate from the member-payments endpoint above). */
+export function getConfiguredTenantBillingWebhookSecret(): string | undefined {
+  return process.env.TENANT_BILLING_WEBHOOK_SECRET?.trim() || undefined;
+}

@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
     // sendEmail never throws (falls back to a console log when no email
     // provider is configured, e.g. local development) — see lib/email.ts.
-    void sendEmail({ to: user.email, ...template });
+    void sendEmail({ to: user.email, ...template, essential: true });
   }
 
   return NextResponse.json({ success: true, message: GENERIC_MESSAGE }, { status: 200 });

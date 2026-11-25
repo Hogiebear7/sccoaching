@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { MOBILE_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
+import { tenantStatusFor } from "@/lib/tenant-lockout";
 
 // Called on app launch (and when it returns to the foreground) to validate a stored token and fetch the
 // current user — lets the mobile app tell a still-valid session from a
@@ -23,6 +24,8 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
     user: { id: user.id, email: user.email, role: user.role },
+    // Where the gym stands on its platform subscription, so the app can show a banner (grace) or the unavailable screen (locked). Always "active" while the lockout is off.
+    tenant: tenantStatusFor(user),
     token: signSession({ userId: user.id }, MOBILE_SESSION_LIFETIME_MS),
   });
 }

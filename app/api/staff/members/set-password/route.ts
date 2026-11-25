@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
   // Security notice to the address on the account. Best-effort: sendEmail never
   // throws and a missing inbox must not stop the admin helping the member.
   if (targetUser.email) {
-    void sendEmail({ to: targetUser.email, ...passwordChangedByStaffEmail() });
+    void sendEmail({ to: targetUser.email, ...passwordChangedByStaffEmail(), essential: true });
   }
 
   return NextResponse.json(
