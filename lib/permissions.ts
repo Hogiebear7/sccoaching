@@ -188,4 +188,5 @@ export const NAV_CAPABILITY: Record<string, Capability> = {
   "/staff/bug-reports": "bugReports.manage",
   "/staff/community-reports": "comments.moderate",
   "/staff/gym-community": "comments.moderate",
+  "/staff/tenants": "gyms.moderate",
 };

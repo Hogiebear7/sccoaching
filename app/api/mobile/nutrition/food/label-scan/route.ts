@@ -10,6 +10,7 @@ import { applyFoodIdentificationOverrides } from "@/lib/food-identification-over
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Food photos need more resolution than a small cover thumbnail for the
 // model to read a label or distinguish plate contents — same cap as
@@ -34,6 +35,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, configured: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!isAiConfigured()) {
     return NextResponse.json(

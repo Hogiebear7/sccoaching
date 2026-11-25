@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 import { findUserById, findWaterLogByUserIdAndDate, saveWaterLog } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { getResolvedNutritionTarget } from "@/lib/nutrition-target-data";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const date = request.nextUrl.searchParams.get("date")?.trim() || todayISO();
   const target = getResolvedNutritionTarget(user.id, date, todayISO());
@@ -47,6 +51,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

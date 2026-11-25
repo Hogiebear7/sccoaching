@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/unblock — { userId }
 // Removes a member from the caller's own block list. It does not restore any follow. Always a generic success, so it reveals nothing about anyone
@@ -11,6 +12,8 @@ export async function POST(request: NextRequest) {
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

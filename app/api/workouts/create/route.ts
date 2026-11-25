@@ -10,6 +10,7 @@ import {
 } from "@/lib/db";
 import { parseCardioFields, parseExerciseEntries } from "@/lib/workout-entries";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 function parseOptionalNonNegativeInt(
   value: unknown
@@ -56,6 +57,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

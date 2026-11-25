@@ -12,6 +12,7 @@ import {
 import { getFoodSubmissionEligibility } from "@/lib/food-submission";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // A photo can reasonably be a fuller-resolution shot than the tiny cover
 // images image-upload.ts's default cap targets — mirrors label-scan's cap.
@@ -29,6 +30,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

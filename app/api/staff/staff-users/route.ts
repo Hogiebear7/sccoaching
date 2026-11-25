@@ -12,7 +12,7 @@ import { sameGym } from "@/lib/gym-scope";
 import { protectedOperatorTarget } from "@/lib/platform-operator-guard";
 import { hashPassword } from "@/lib/password";
 import { ASSIGNABLE_STAFF_ROLES, type StaffRole } from "@/lib/permissions";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
 function isAssignableRole(value: unknown): value is StaffRole {
   return typeof value === "string" && (ASSIGNABLE_STAFF_ROLES as string[]).includes(value);
@@ -30,7 +30,7 @@ function activeManagersInGym(actor: { gymId?: string | null }): number {
 // gym: the target must be in the actor's gym, and a newly created account is
 // always placed in the actor's gym (gymId is never read from the request).
 export async function POST(request: NextRequest) {
-  const auth = authorizeStaffRequest(request, "staffUsers.manage");
+  const auth = resolveStaffTenantRequest(request, "staffUsers.manage");
   if (!auth.ok) return auth.response;
   const actor = auth.user;
 

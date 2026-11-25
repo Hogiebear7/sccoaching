@@ -6,6 +6,7 @@ import { sendEmail } from "@/lib/email";
 import { emailChangeVerificationEmail } from "@/lib/email-templates";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RATE_LIMIT = 3;
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const rate = checkRateLimit(`change-email:${user.id}`, RATE_LIMIT, RATE_WINDOW_MS);
   if (!rate.allowed) {
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
 
   // sendEmail never throws — falls back to a console log with no provider
   // configured (local dev). See lib/email.ts.
-  void sendEmail({ to: cleanEmail, ...template });
+  void sendEmail({ to: cleanEmail, ...template, essential: true });
 
   return NextResponse.json({
     success: true,

@@ -15,6 +15,7 @@ import { issueWaitlistOffer } from "@/lib/scheduling";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { removeSyncedWeeklyTrainingSession } from "@/lib/weekly-training-sync";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Staff-initiated removal from a booked class — distinct from a member's own
 // cancellation (app/api/bookings/cancel/route.ts). This is an administrative
@@ -38,6 +39,9 @@ export async function POST(request: NextRequest) {
       { status: 403 }
     );
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

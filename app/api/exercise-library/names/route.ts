@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Lightweight name+slug index for approved exercises — used to link "you're
 // logging Barbell Bench Press" to its library detail page (GIF, cues, etc.)
@@ -16,6 +17,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const client = getExerciseLibraryClient();
   const { data, error } = await client.from("exercises").select("name, slug").eq("approved", true).limit(5000);

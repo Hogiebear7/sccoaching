@@ -8,6 +8,7 @@ import { findTrainingProgramById, findUserById, findWorkoutSessionsByUserId, upd
 import { buildProgrammeCheckInData, formatProgrammeCheckInContext } from "@/lib/programme-checkin";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { isExerciseRefreshEligible } from "@/lib/training-programs";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET /api/mobile/programs/[id]/checkin/[cycle]
 // Same lazy-generate-and-cache shape as workout-review/[id] — the check-in
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const { id, cycle } = await params;
   const cycleIndex = Number(cycle);

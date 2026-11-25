@@ -6,6 +6,7 @@ import { findClassById, findUserById } from "@/lib/db";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // The coach finishes a class workout and sends the recap: a thank-you notification (and push) to everyone who was checked in, which opens their
 // copy of the workout. Safe to press twice: nobody is notified twice for the same class.
@@ -19,6 +20,9 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in to send a recap." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
   if (!can(user.role, "classes.manage")) {
     return NextResponse.json({ success: false, message: "Only staff can send a class recap." }, { status: 403 });
   }

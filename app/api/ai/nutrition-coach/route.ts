@@ -25,6 +25,7 @@ import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { EXERTION_LABEL, type Exertion } from "@/lib/nutrition";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Same spend/abuse guard shape as the general AI Coach, kept in its own key
 // namespace so the two features don't share a budget.
@@ -57,6 +58,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!isAiConfigured()) {
     return NextResponse.json(

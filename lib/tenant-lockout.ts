@@ -7,7 +7,7 @@
 // Routes not yet on the tenant context are not enforced yet; the list and the plan to convert them are in docs/tenant-lockout-2026-11.md.
 import { NextResponse } from "next/server";
 
-import { findGymById } from "./db";
+import { findGymById, type StoredUser } from "./db";
 import { tenantAccess, type TenantAccess } from "./tenant-billing";
 import type { TenantContext } from "./tenant-context";
 
@@ -42,4 +42,30 @@ export function lockoutResponse(ctx: TenantContext, options: { allowWhenLocked?:
     ? "Your gym's platform subscription is overdue, so access is paused. Nothing has been deleted: it all comes back once the payment is made."
     : "This gym is temporarily unavailable. Nothing has been lost.";
   return NextResponse.json({ success: false, code: TENANT_LOCKED_CODE, message }, { status: 423 });
+}
+
+/** True when this account belongs to a gym that is locked right now (and the lockout switch is on). The primary gym and platform operators never are. */
+export function userInLockedGym(user: Pick<StoredUser, "role" | "gymId"> | undefined | null, now: Date = new Date()): boolean {
+  if (!user || !tenantLockoutEnabled()) return false;
+  return accessForTenant({ gymId: user.gymId ?? null, isPlatformOperator: user.role === "platform_operator" }, now).state === "locked";
+}
+
+export interface TenantStatusForClient {
+  state: "active" | "grace" | "locked";
+  /** Last day before the lockout, while in grace. */
+  graceEndsOn: string | null;
+  graceDaysLeft: number | null;
+  /** The gym's payment link, only for that gym's own staff and only while it is in grace or locked. */
+  payUrl: string | null;
+}
+
+/** What the apps and pages show about the gym's platform subscription: always "active" while the lockout switch is off. */
+export function tenantStatusFor(user: Pick<StoredUser, "role" | "gymId">, now: Date = new Date()): TenantStatusForClient {
+  const none: TenantStatusForClient = { state: "active", graceEndsOn: null, graceDaysLeft: null, payUrl: null };
+  if (!tenantLockoutEnabled() || !user.gymId || user.role === "platform_operator") return none;
+  const gym = findGymById(user.gymId);
+  const access = tenantAccess(gym, now);
+  if (access.state === "active") return none;
+  const staff = user.role === "coach" || user.role === "admin" || user.role === "admin_manager";
+  return { state: access.state, graceEndsOn: access.graceEndsOn, graceDaysLeft: access.graceDaysLeft, payUrl: staff ? gym?.platformBilling?.payUrl ?? null : null };
 }

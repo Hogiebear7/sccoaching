@@ -12,6 +12,7 @@ import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { grantableGymPackages } from "@/lib/tier-grant";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const VALID_RANGES = new Set(AI_USAGE_RANGES.map((r) => r.value));
 
@@ -29,6 +30,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   if (!can(staffUser.role, "members.view")) {
     return NextResponse.json({ success: false, message: "You don't have access to member details." }, { status: 403 });

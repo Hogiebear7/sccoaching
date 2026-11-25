@@ -6,6 +6,7 @@ import { mapExerciseRow, mapMediaRow } from "@/lib/exercise-library/mappers";
 import { signMediaUrls } from "@/lib/exercise-library/media-urls";
 import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -14,6 +15,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const { slug } = await params;
   const client = getExerciseLibraryClient();

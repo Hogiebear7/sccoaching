@@ -37,6 +37,7 @@ import {
   resolveInitialProgrammeTargets,
   type ProgrammeRepScheme,
 } from "@/lib/training-programs";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Heavier cost than a photo scan (a full skeleton + per-day exercise
 // resolution), so a tighter budget than the other AI features' 15/10min.
@@ -166,6 +167,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, configured: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "workoutGenerate")) {
     return NextResponse.json(

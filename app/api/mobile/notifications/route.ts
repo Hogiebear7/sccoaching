@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findNotificationsByUserId, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function GET(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Unauthorised." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const notifications = findNotificationsByUserId(user.id);
 

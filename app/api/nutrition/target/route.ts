@@ -6,6 +6,7 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { Exertion } from "@/lib/nutrition";
 import { getResolvedNutritionTarget } from "@/lib/nutrition-target-data";
 import { requireFeature } from "@/lib/member-access-response";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const EXERTIONS: Exertion[] = ["low", "medium", "high", "match"];
 
@@ -20,6 +21,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const locked = requireFeature(user.id, "calorieTargets");
   if (locked) return locked;

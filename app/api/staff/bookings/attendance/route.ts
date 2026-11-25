@@ -5,6 +5,7 @@ import { findBookingById, findClassById, findUserById, updateBookingAttendance }
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   if (!can(staffUser.role, "classes.manage")) {
     return NextResponse.json(

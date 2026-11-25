@@ -34,6 +34,7 @@ import { sendPush } from "@/lib/push";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
 import { syncBookingToWeeklyTraining } from "@/lib/weekly-training-sync";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // MUST equal MAX_WAITLIST_SIZE in app/api/bookings/waitlist/join/route.ts (a test asserts they match).
 const MAX_WAITLIST_SIZE = 2;
@@ -52,6 +53,9 @@ export async function POST(request: NextRequest) {
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "You must be signed in to manage bookings." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   if (!can(staffUser.role, "classes.manage")) {
     return NextResponse.json({ success: false, message: "Only staff can book a member into a class." }, { status: 403 });

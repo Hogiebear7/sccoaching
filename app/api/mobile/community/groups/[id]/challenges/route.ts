@@ -8,6 +8,7 @@ import { violatesCommunityRules } from "@/lib/community-moderation";
 import { notifyGroupOfNewChallenge } from "@/lib/community-notify";
 import { createChallengeIfUnderLimit, findChallengesByScope, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET  /api/mobile/community/groups/[id]/challenges — the group's challenges (upcoming, active, ended, canceled), newest first. Members only.
 // POST /api/mobile/community/groups/[id]/challenges — { title, metric, custom?, startDate, endDate } the ORGANISER sets one. `metric` is a ready-made kind
@@ -20,6 +21,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 
@@ -42,6 +45,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 

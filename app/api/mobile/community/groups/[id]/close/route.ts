@@ -4,12 +4,15 @@ import type { NextRequest } from "next/server";
 import { requireGroupAccess } from "@/lib/community-groups";
 import { closeGroup, findGroupById, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/groups/[id]/close — organiser only. Closes the group: it disappears for every member and its invite code stops working.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 

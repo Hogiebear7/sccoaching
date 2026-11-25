@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { sameGymId } from "@/lib/community-gym";
 import { closeGroup, findGymCommentById, findGymReportById, removeGymComment, removeGymPost, resolveGymReport } from "@/lib/db";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
 // POST /api/staff/community/gym-reports/[id]/resolve — { action: "resolve" | "dismiss" } (capability comments.moderate). resolve removes the reported
 // post or comment (or closes the reported group) and closes the report; dismiss closes it with no action. A report from another gym, or one already closed,
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const auth = authorizeStaffRequest(request, "comments.moderate", { allowAppToken: true });
+  const auth = resolveStaffTenantRequest(request, "comments.moderate", { allowAppToken: true });
   if (!auth.ok) return auth.response;
 
   const action = (body as { action?: unknown } | null)?.action;

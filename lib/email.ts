@@ -3,7 +3,8 @@ import { Resend } from "resend";
 import { getConfiguredAppUrl, getConfiguredEmailFrom, getConfiguredResendApiKey } from "@/lib/app-config";
 import { randomUUID } from "crypto";
 
-import { hasEmailSend, isEmailSuppressed, recordEmailSend } from "@/lib/db";
+import { findUserByEmail, hasEmailSend, isEmailSuppressed, recordEmailSend } from "@/lib/db";
+import { userInLockedGym } from "@/lib/tenant-lockout";
 
 const apiKey = getConfiguredResendApiKey() || null;
 const fromAddress = getConfiguredEmailFrom() || "onboarding@resend.dev";
@@ -38,11 +39,19 @@ export interface EmailPayload {
   kind?: string;
   /** When set, the email goes once only: a second call with the same key is skipped (for example `welcome:<userId>`). */
   dedupeKey?: string;
+  /** Sign-in and account-security mail (a password reset, an email change) that must still reach a member or staff member of a locked gym. Everything else is held back. */
+  essential?: boolean;
 }
 
 // Sends a transactional email. Never throws — failures are logged and swallowed
 // so that email delivery can never break the calling flow.
 export async function sendEmail(payload: EmailPayload): Promise<void> {
+  // A gym locked for an unpaid platform subscription sends and receives no routine email; account-security mail still goes (lib/tenant-lockout.ts).
+  if (!payload.essential && userInLockedGym(findUserByEmail(payload.to))) {
+    console.log("[email] skipped, the recipient's gym is locked:", payload.subject, "->", payload.to);
+    return;
+  }
+
   if (!resend) {
     // Console fallback: same pattern as the forgot-password route.
     console.log(`[email] ${payload.subject} → ${payload.to}`);

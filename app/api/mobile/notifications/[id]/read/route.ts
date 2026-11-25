@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, markNotificationRead } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(
   request: NextRequest,
@@ -18,6 +19,9 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ success: false, message: "Unauthorised." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
   const marked = markNotificationRead(id, user.id);

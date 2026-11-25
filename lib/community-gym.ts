@@ -4,6 +4,7 @@ import { communityDisplayName } from "@/lib/community-display-name";
 import { ADULT_CONFIRMATION_REQUIRED_CODE } from "@/lib/community-groups";
 import { countGymComments, findCommunityPrivacyByUserId, findProfileByUserId, findUserById, type GymCommentRecord, type GymPostRecord, type StoredUser } from "@/lib/db";
 import { requireFeature } from "@/lib/member-access-response";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Shared pieces of the gym community routes (Community plan, 2026-11): one members-only space per gym for members holding a live gym Membership at that
 // gym, plus that gym's coaches and admins, who can post and set challenges. Every call re-checks the caller from the live account.
@@ -27,6 +28,8 @@ export function gymCommunityAccess(userId: string | null | undefined): GymAccess
   if (!user || user.archivedAt) {
     return { ok: false, response: NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 }) };
   }
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return { ok: false, response: tenantLock };
   if (isGymStaff(user)) return { ok: true, user, isStaff: true, gymId: user.gymId ?? null };
 
   const upgrade = requireFeature(user.id, "communityGym");

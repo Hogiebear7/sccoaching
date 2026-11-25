@@ -27,6 +27,7 @@ import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-respon
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Spend/abuse guard: 20 messages per 5 minutes per member.
 const CHAT_RATE_LIMIT = 20;
@@ -56,6 +57,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!isAiConfigured()) {
     return NextResponse.json(

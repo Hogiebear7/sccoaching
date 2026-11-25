@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   deletePushSubscriptionByEndpoint: vi.fn(),
   findExpoPushTokensByUserId: vi.fn(),
   findPushSubscriptionsByUserId: vi.fn(() => []),
+  findUserById: vi.fn(() => undefined),
 }));
 vi.mock("@/lib/db", () => h);
 vi.mock("./db", () => h);

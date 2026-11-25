@@ -5,6 +5,7 @@ import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_TIMING_MINS = 10080; // 7 days
 
@@ -25,6 +26,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const existingProfile = findProfileByUserId(user.id);
   if (!existingProfile) {

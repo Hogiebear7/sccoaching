@@ -5,6 +5,7 @@ import { deleteGymProfile, findUserById, getGymProfileById } from "@/lib/db";
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -13,6 +14,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "gymProfiles")) {
     return NextResponse.json({ success: false, message: "Gym profiles need the App Subscription." }, { status: 403 });

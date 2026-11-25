@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { normalizeDrinkSettings } from "@/lib/drink-settings";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Members sync their own Sports Performance Drink calculator settings here
 // (fire-and-forget from the Nutrition tab). Everything is normalized
@@ -27,6 +28,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const profile = findProfileByUserId(user.id);
 

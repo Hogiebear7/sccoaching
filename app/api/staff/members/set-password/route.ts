@@ -10,6 +10,7 @@ import { can } from "@/lib/permissions";
 import { hashPassword } from "@/lib/password";
 import { protectedOperatorTarget, targetOutranksActor } from "@/lib/platform-operator-guard";
 import { generateTempPassword } from "@/lib/temp-password";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Admin sets a temporary password for a MEMBER who can't use email, and is shown
 // it once to pass on. Same guards as reset-password (members.account = admin and
@@ -36,6 +37,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   if (!can(staffUser.role, "members.account")) {
     return NextResponse.json(
@@ -88,7 +92,7 @@ export async function POST(request: NextRequest) {
   // Security notice to the address on the account. Best-effort: sendEmail never
   // throws and a missing inbox must not stop the admin helping the member.
   if (targetUser.email) {
-    void sendEmail({ to: targetUser.email, ...passwordChangedByStaffEmail() });
+    void sendEmail({ to: targetUser.email, ...passwordChangedByStaffEmail(), essential: true });
   }
 
   return NextResponse.json(

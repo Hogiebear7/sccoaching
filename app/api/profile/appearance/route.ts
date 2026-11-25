@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { isPaletteId, isThemeId } from "@/lib/palettes";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // The client downsizes photos to a small square JPEG before upload, so this
 // cap (~330KB of base64 ≈ 240KB binary) is generous headroom, not a target.
@@ -26,6 +27,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const profile = findProfileByUserId(user.id);
 

@@ -27,6 +27,7 @@ import { hasAccess } from "@/lib/member-access";
 import { requireFeature } from "@/lib/member-access-response";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_ENTRIES = 100;
 
@@ -49,6 +50,9 @@ export async function GET(request: NextRequest) {
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const url = new URL(request.url);
   const metricParam = url.searchParams.get("metric");

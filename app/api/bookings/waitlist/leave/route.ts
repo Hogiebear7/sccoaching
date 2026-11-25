@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findUserById, findWaitlistEntryByClassAndUser, saveWaitlistEntry } from "@/lib/db";
 import { issueWaitlistOffer } from "@/lib/scheduling";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

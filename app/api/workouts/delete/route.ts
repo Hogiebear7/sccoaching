@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { deleteWorkoutSession, findUserById, findWorkoutSessionById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // A member can delete any of their own logged workout sessions — self-logged
 // or class-synced. There's no "coach hasn't gotten around to it yet" state a
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

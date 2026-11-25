@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findUserById, findWorkoutTemplateById, saveWorkoutTemplate, type WorkoutTemplateRecord } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { parsePrescribedExercises } from "@/lib/training-programs";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Also used to archive/restore a template — pass archived: true/false with
 // the unchanged name/exercises to flip archivedAt without touching content.
@@ -14,6 +15,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

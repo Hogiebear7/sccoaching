@@ -10,6 +10,7 @@ import {
 } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { CycleRegularity, CycleSettingsRecord } from "@/lib/profile-schema";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const VALID_REGULARITIES: CycleRegularity[] = ["Regular", "Irregular", "Unsure"];
 
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const profile = findProfileByUserId(user.id);
 

@@ -16,6 +16,10 @@ export interface GymPlatformBilling {
   paidThrough: string;
   /** Days of grace after paidThrough before the lockout. Absent = the platform default. */
   graceDays?: number;
+  /** Where the gym pays S&C (a payment link S&C hosts, https only). Shown to the gym's own staff while they are in grace or locked. */
+  payUrl?: string;
+  /** The gym's customer id in S&C's own Stripe account. The platform-payment webhook finds the gym by this stored value, never by anything in the event. */
+  stripeCustomerId?: string;
 }
 
 export interface GymRecord {

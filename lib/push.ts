@@ -5,7 +5,9 @@ import {
   deletePushSubscriptionByEndpoint,
   findExpoPushTokensByUserId,
   findPushSubscriptionsByUserId,
+  findUserById,
 } from "./db";
+import { userInLockedGym } from "./tenant-lockout";
 
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY?.trim() || null;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim() || null;
@@ -161,6 +163,12 @@ async function checkReceipts(accepted: Map<string, string>, attempt: number) {
 // block the calling flow. Expired web-push subscriptions (HTTP 410/404) are
 // deleted automatically.
 export async function sendPush(userId: string, payload: PushPayload): Promise<void> {
+  // Nothing is pushed to a gym that is locked for an unpaid platform subscription (lib/tenant-lockout.ts).
+  if (userInLockedGym(findUserById(userId))) {
+    console.log(`[push] skipped, the account's gym is locked: "${payload.title}" -> ${userId}`);
+    return;
+  }
+
   if (process.env.PUSH_ENABLED === "false") {
     console.log(`[push] disabled (PUSH_ENABLED=false): "${payload.title}" → ${userId}`);
     return;

@@ -5,6 +5,7 @@ import { findProfileByUserId, findUserById, removeFollowsBetween, saveProfile } 
 import { MAX_BLOCKED } from "@/lib/community-moderation";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/block — { userId }
 // Blocks a member in Community (see lib/community-moderation.ts): each of the two stops seeing the other's workouts, comments, likes and name, any
@@ -14,6 +15,8 @@ export async function POST(request: NextRequest) {
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

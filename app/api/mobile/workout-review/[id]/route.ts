@@ -11,6 +11,7 @@ import { generateWorkoutReview } from "@/lib/ai";
 import { hasAiConsent } from "@/lib/ai-consent";
 import { buildWorkoutReviewData } from "@/lib/workout-review";
 import { computeWorkoutScore, WORKOUT_SCORE_ENABLED } from "@/lib/workout-score";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Session review for one already-logged workout — deterministic comparison
 // stats (computed fresh every time, cheap) plus an AI narrative paragraph
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "workoutReview")) {
     return NextResponse.json({ success: false, message: "Workout review needs the App Subscription." }, { status: 403 });

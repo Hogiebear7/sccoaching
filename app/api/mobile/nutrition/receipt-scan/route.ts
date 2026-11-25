@@ -8,6 +8,7 @@ import { findUserById } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Same generous cap as meal-suggest/label-scan — receipt text needs enough
 // resolution to actually be legible.
@@ -40,6 +41,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!isAiConfigured()) {
     return NextResponse.json(

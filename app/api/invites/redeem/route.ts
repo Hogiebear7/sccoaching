@@ -5,6 +5,7 @@ import { findInviteByToken, findUserById } from "@/lib/db";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { redeemInviteForUser } from "@/lib/invites";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/invites/redeem — for a member who ALREADY has an account and is
 // signed in (web cookie or mobile Bearer token). A brand-new member instead
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {
