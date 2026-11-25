@@ -70,7 +70,9 @@ const navSections: StaffNavSection[] = [
   {
     title: "Admin",
     items: [
-      { label: "Staff",        href: "/staff/staff-users",           capability: NAV_CAPABILITY["/staff/staff-users"], icon: "staff", hint: "Staff accounts and roles" },
+      { label: "Gym setup",    href: "/staff/gym-setup",             capability: NAV_CAPABILITY["/staff/gym-setup"], icon: "catalog", hint: "Checklist, logo and colour" },
+      { label: "Gym guide",    href: "/staff/gym-guide",             capability: NAV_CAPABILITY["/staff/gym-guide"], icon: "reports", hint: "How to run your gym on the platform" },
+      { label: "Staff",        href: "/staff/staff-users",          capability: NAV_CAPABILITY["/staff/staff-users"], icon: "staff", hint: "Staff accounts and roles" },
       { label: "Food Reviews", href: "/staff/nutrition-submissions", capability: NAV_CAPABILITY["/staff/nutrition-submissions"], icon: "food", hint: "Foods members submitted" },
       { label: "Community reports", href: "/staff/community-reports", capability: NAV_CAPABILITY["/staff/community-reports"], icon: "flag", hint: "Reported comments and posts" },
       { label: "Gym community", href: "/staff/gym-community", capability: NAV_CAPABILITY["/staff/gym-community"], icon: "flag", hint: "Reports in your gym's community and groups" },

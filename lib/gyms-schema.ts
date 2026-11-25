@@ -22,6 +22,14 @@ export interface GymPlatformBilling {
   stripeCustomerId?: string;
 }
 
+/** A tenant's own look. Both fields null = the S&C default (see lib/gym-branding.ts). */
+export interface GymBranding {
+  /** One accent colour, #RRGGBB, already checked for contrast on the app's dark background. */
+  accentColor: string | null;
+  /** https link to a png, jpg, webp or svg. */
+  logoUrl: string | null;
+}
+
 export interface GymRecord {
   id: string;
   /** URL-safe, unique — e.g. "sc-performance-coaching". */
@@ -60,6 +68,8 @@ export interface GymRecord {
   acceptingNewEnquiries?: boolean;
   /** Platform billing for this tenant. Set only by a platform operator; see lib/tenant-billing.ts. */
   platformBilling?: GymPlatformBilling;
+  /** The gym's logo and accent colour. Absent = the S&C default. Set by the gym's own owner/admin only. */
+  branding?: GymBranding;
   createdAt: string;
   updatedAt: string;
 }

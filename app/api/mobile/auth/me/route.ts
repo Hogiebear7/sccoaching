@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById } from "@/lib/db";
+import { findGymById, findGymBySlug, findUserById } from "@/lib/db";
+import { resolveBranding } from "@/lib/gym-branding";
+import { PRIMARY_GYM_SLUG } from "@/lib/primary-gym";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { MOBILE_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 import { tenantStatusFor } from "@/lib/tenant-lockout";
@@ -26,6 +28,8 @@ export async function GET(request: NextRequest) {
     user: { id: user.id, email: user.email, role: user.role },
     // Where the gym stands on its platform subscription, so the app can show a banner (grace) or the unavailable screen (locked). Always "active" while the lockout is off.
     tenant: tenantStatusFor(user),
+    // The gym's name, logo and accent colour, so the app can wear the gym's own look. The S&C defaults when the gym has set nothing.
+    branding: resolveBranding(user.gymId ? findGymById(user.gymId) : findGymBySlug(PRIMARY_GYM_SLUG)),
     token: signSession({ userId: user.id }, MOBILE_SESSION_LIFETIME_MS),
   });
 }
