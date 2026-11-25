@@ -295,6 +295,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/exercises/import-starter", scope: "global-shared", capabilities: ["exercises.manage"], note: "Shared exercise catalogue." },
   { route: "staff/finance/ledger", scope: "platform", capabilities: ["finance.view"] },
   { route: "staff/finance/ledger/delete", scope: "platform", capabilities: ["finance.view"] },
+  { route: "gym-logo/[gymId]", scope: "public", note: "A gym's uploaded logo, shown to its members and on its sign-up page. Serves only a file that gym uploaded itself, with its image type taken from the file's own bytes." },
   { route: "staff/gym/branding", scope: "own-tenant", capabilities: ["gym.manageBranding"], evidence: ["gymId"], note: "Acts only on the acting staff member's own gym, resolved from their account; the primary gym's brand is fixed.", runtimeTenantContext: true, lockoutEnforced: true },
   { route: "staff/gyms/[gymId]/status", scope: "platform", capabilities: ["gyms.moderate"] },
   { route: "staff/gyms/[gymId]/billing", scope: "platform", capabilities: ["gyms.moderate"] },

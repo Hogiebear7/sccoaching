@@ -12,6 +12,7 @@ export function BrandingForm({ initialAccent, initialLogo, gymName }: { initialA
   const [logo, setLogo] = useState(initialLogo);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const validAccent = /^#[0-9a-fA-F]{6}$/.test(accent);
   const shown = validAccent ? accent.toUpperCase() : DEFAULT_ACCENT;
@@ -34,6 +35,40 @@ export function BrandingForm({ initialAccent, initialLogo, gymName }: { initialA
       setMessage("Could not reach the server.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function upload(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/staff/gym/branding", { method: "POST", body });
+      const json = (await res.json()) as { message?: string; data?: { branding?: { logoUrl?: string | null } } };
+      if (res.ok) setLogo(json.data?.branding?.logoUrl ?? "");
+      setMessage(res.ok ? "Logo uploaded. Members see it the next time they open the app or website." : json.message ?? "Could not upload.");
+      if (res.ok) router.refresh();
+    } catch {
+      setMessage("Could not reach the server.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removeLogo() {
+    setUploading(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/staff/gym/branding", { method: "DELETE" });
+      if (res.ok) setLogo("");
+      setMessage(res.ok ? "Logo removed." : "Could not remove the logo.");
+      if (res.ok) router.refresh();
+    } catch {
+      setMessage("Could not reach the server.");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -60,8 +95,24 @@ export function BrandingForm({ initialAccent, initialLogo, gymName }: { initialA
       </label>
       {tooDark ? <p role="alert" className="text-xs text-amber-300">Too dark to read on the app&apos;s dark background (contrast {ratio?.toFixed(1)}:1, needs {MIN_ACCENT_CONTRAST}:1). Pick a lighter shade.</p> : null}
 
+      <div className="block text-xs text-zinc-400">
+        Logo
+        <span className="mt-1 flex flex-wrap items-center gap-3">
+          <label className="inline-flex min-h-10 cursor-pointer items-center rounded-md border border-white/15 px-3 text-sm font-medium text-zinc-100 hover:bg-white/5">
+            {uploading ? "Working…" : logo ? "Replace logo" : "Upload logo"}
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={uploading} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+          {logo ? (
+            <button type="button" disabled={uploading} onClick={() => void removeLogo()} className="min-h-10 rounded-md px-3 text-sm text-zinc-300 underline underline-offset-4 disabled:opacity-50">
+              Remove logo
+            </button>
+          ) : null}
+          <span>PNG, JPG or WebP, under 1 MB. A square or wide logo on a transparent background works best.</span>
+        </span>
+      </div>
+
       <label className="block text-xs text-zinc-400">
-        Logo link (https, .png .jpg .webp or .svg)
+        Or use a link to a logo already online (https, .png .jpg .webp or .svg)
         <input
           type="url"
           value={logo}
