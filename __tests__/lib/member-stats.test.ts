@@ -58,6 +58,37 @@ describe("workoutVolumeKg", () => {
     expect(workoutVolumeKg(s)).toBe(630);
   });
 
+  it("counts a per-side set as the reps of both sides together, like the app does", () => {
+    const s = session({
+      exercises: [
+        {
+          exerciseId: null,
+          name: "Walking Lunge",
+          weight: null,
+          reps: null,
+          sets: 4,
+          setDetails: [
+            { weight: "12", reps: null, repsRight: 10, repsLeft: 10 },
+            { weight: "12", reps: null, repsRight: 10, repsLeft: 10 },
+            { weight: "12", reps: null, repsRight: 10, repsLeft: 10 },
+            { weight: "12", reps: null, repsRight: 10, repsLeft: 10 },
+          ],
+          notes: null,
+        },
+        { exerciseId: null, name: "Squat", weight: "60", reps: 5, sets: 2, notes: null },
+      ],
+    });
+    // 4 sets x 12 kg x (10 + 10) = 960, plus 60 x 5 x 2 = 600
+    expect(workoutVolumeKg(s)).toBe(1560);
+  });
+
+  it("a per-side set missing one side counts nothing rather than half", () => {
+    const s = session({
+      exercises: [{ exerciseId: null, name: "Single-arm press", weight: null, reps: null, sets: 1, setDetails: [{ weight: "20", reps: null, repsRight: 10, repsLeft: null }], notes: null }],
+    });
+    expect(workoutVolumeKg(s)).toBe(0);
+  });
+
   it("treats non-numeric / blank / null weight as 0", () => {
     const s = session({
       exercises: [

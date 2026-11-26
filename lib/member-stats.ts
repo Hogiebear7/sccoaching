@@ -43,6 +43,17 @@ function parseWeight(weight: string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * The reps done in one logged set. A per-side set (a single-arm press, a lunge) stores right and left reps instead of `reps`, so `reps` is null; the reps done
+ * are both sides together, which is how the app counts them (src/lib/workout-formatters.ts) and how challenges count them. Treating that null as 0 made every
+ * volume total on the server (leaderboards, challenges, the session review, profile stats) come out lower than the session the member saw in the app.
+ */
+export function setRepsDone(set: { reps?: number | null; repsRight?: number | null; repsLeft?: number | null }): number {
+  if (set.reps != null) return set.reps;
+  if (set.repsRight != null && set.repsLeft != null) return set.repsRight + set.repsLeft;
+  return 0;
+}
+
 // Total kg lifted in a single session: per exercise, per-set detail wins over
 // the shared weight/reps/sets summary.
 export function workoutVolumeKg(session: WorkoutSessionRecord): number {
@@ -50,7 +61,7 @@ export function workoutVolumeKg(session: WorkoutSessionRecord): number {
   for (const ex of session.exercises ?? []) {
     if (ex.setDetails && ex.setDetails.length > 0) {
       for (const set of ex.setDetails) {
-        total += parseWeight(set.weight) * (set.reps ?? 0);
+        total += parseWeight(set.weight) * setRepsDone(set);
       }
     } else {
       total += parseWeight(ex.weight) * (ex.reps ?? 0) * (ex.sets ?? 0);

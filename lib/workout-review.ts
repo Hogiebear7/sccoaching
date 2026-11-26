@@ -17,6 +17,7 @@ import { memberPhaseEstimate } from "./cycle-phase-data";
 import { estimatePregnancy, type PregnancyEstimate } from "./pregnancy";
 import { nutritionStageFor } from "./pregnancy-nutrition";
 import { exerciseFlagFor, type ExerciseFlag } from "./pregnancy-training";
+import { setRepsDone } from "./member-stats";
 import { sumDailyTotals } from "./nutrition-diary";
 import { getResolvedNutritionTarget } from "./nutrition-target-data";
 
@@ -30,7 +31,7 @@ function sessionVolume(session: WorkoutSessionRecord): number {
     if (ex.setDetails && ex.setDetails.length > 0) {
       for (const sd of ex.setDetails) {
         const w = sd.weight ? parseFloat(sd.weight) : NaN;
-        const r = sd.reps ?? NaN;
+        const r = sd.reps != null || (sd.repsRight != null && sd.repsLeft != null) ? setRepsDone(sd) : NaN;
         if (Number.isFinite(w) && Number.isFinite(r)) total += w * r;
       }
     } else {
