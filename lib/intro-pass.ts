@@ -24,6 +24,15 @@ export function hasBoughtIntroPass(userId: string): boolean {
   });
 }
 
+/**
+ * The trial pass usually sits in a category of its own ("3 class pass"). When the member can no longer buy it, hiding the package alone left that category on the
+ * screen as an empty card saying "Coming soon". This drops a category that only held a trial pass this member cannot buy, so nothing is shown at all. A category that
+ * never had a package (a deliberate "coming soon" teaser) and a category that still has something to buy are left exactly as they were.
+ */
+export function withoutCategoriesEmptiedByTrialRule<C extends { id: string }>(categories: C[], hiddenTrialCategoryIds: Set<string>, categoryIdsStillOffered: Set<string>): C[] {
+  return categories.filter((c) => !(hiddenTrialCategoryIds.has(c.id) && !categoryIdsStillOffered.has(c.id)));
+}
+
 /** Whether the trial pass may be shown to, and bought by, this member. */
 export function introPassAvailableTo(userId: string): boolean {
   return !hasEverHadMembership(userId) && !hasBoughtIntroPass(userId);

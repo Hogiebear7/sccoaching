@@ -11,7 +11,7 @@ import { isBillingProviderConfigured } from "@/lib/billing";
 import { sellableWhenOpenedFromApp } from "@/lib/catalog";
 import { isGlobalCatalogPackage, sameGym } from "@/lib/gym-scope";
 import { isPeriodLapsed } from "@/lib/membership-status";
-import { introPassAvailableTo, isIntroPackage } from "@/lib/intro-pass";
+import { introPassAvailableTo, isIntroPackage, withoutCategoriesEmptiedByTrialRule } from "@/lib/intro-pass";
 import { resolveSubscriptionEntitlement } from "@/lib/membership-entitlement";
 import { expiringPassSummary, purchasedPassBalance } from "@/lib/payments";
 import { classPassBalance } from "@/lib/scheduling-status";
@@ -77,12 +77,16 @@ export default async function DashboardMembershipPage({
   // gym's own plus those of the surviving (global) packages.
   const allCategories = findMembershipCategories();
   let introAvailable: boolean | undefined; // worked out only if the catalogue actually has a trial pass
+  const hiddenTrialCategoryIds = new Set<string>(); // categories that lost a trial pass this member cannot buy
   const packages = findMembershipPackages().filter((p) => {
     if (!p.visible) return false;
     // The trial pass is hidden once the member has bought it or has had a membership (lib/intro-pass.ts).
     if (isIntroPackage(p)) {
       introAvailable ??= introPassAvailableTo(user.id);
-      if (!introAvailable) return false;
+      if (!introAvailable) {
+        hiddenTrialCategoryIds.add(p.categoryId);
+        return false;
+      }
     }
     if (openedFromApp && !sellableWhenOpenedFromApp(p)) return false;
     if (isGlobalCatalogPackage(p)) return true;
@@ -95,7 +99,11 @@ export default async function DashboardMembershipPage({
     ...allCategories.filter((c) => sameGym(user, c)).map((c) => c.id),
     ...packages.map((p) => p.categoryId),
   ]);
-  const categories = allCategories.filter((c) => c.visible && visibleCategoryIds.has(c.id));
+  const categories = withoutCategoriesEmptiedByTrialRule(
+    allCategories.filter((c) => c.visible && visibleCategoryIds.has(c.id)),
+    hiddenTrialCategoryIds,
+    new Set(packages.map((p) => p.categoryId))
+  );
 
   return (
     <MembershipView
