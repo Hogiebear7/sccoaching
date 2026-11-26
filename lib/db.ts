@@ -13,6 +13,7 @@ import type {
   WeeklyTrainingScheduleRecord,
 } from "@/lib/profile-schema";
 import type { GymRecord } from "@/lib/gyms-schema";
+import type { MicroMap } from "@/lib/micronutrients";
 import { isStaffRole } from "@/lib/permissions";
 import { getConfiguredDataDir } from "@/lib/app-config";
 import { deletedOwnerId, MemberDeletionRefused } from "@/lib/member-deletion-guard";
@@ -547,6 +548,10 @@ export interface FoodEntryRecord {
   sugarG?: number;
   sodiumMg?: number;
   saturatedFatG?: number;
+  /** Vitamins, minerals and omega-3 for this entry (lib/micronutrients.ts). A key is present only when the food lists it; AI-estimated foods carry none. */
+  micros?: MicroMap;
+  /** Grams of water in this entry's food, where the food lists it (a "fluids from food" estimate). Absent = not known. */
+  waterG?: number;
 }
 
 // A member's own curated shortlist of regularly-eaten foods, organized by
@@ -571,6 +576,8 @@ export interface FoodFavoriteRecord {
   sugarG?: number;
   sodiumMg?: number;
   saturatedFatG?: number;
+  micros?: MicroMap;
+  waterG?: number;
   createdAt: string;
 }
 
@@ -604,6 +611,10 @@ export interface FoodNutrition100g {
   sugarG: number | null;
   sodiumMg: number | null;
   saturatedFatG: number | null;
+  /** Vitamins, minerals and omega-3 per 100 g, only the ones the source lists (lib/micronutrients.ts). Absent or missing key = not known, never zero. */
+  micros?: MicroMap;
+  /** Grams of water per 100 g where the source lists it. */
+  waterG?: number | null;
 }
 
 export interface FoodRecord {

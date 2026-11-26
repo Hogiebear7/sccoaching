@@ -1,5 +1,6 @@
 import type { FoodDomain, FoodEntryRecord, FoodNutrition100g, FoodRecord, FoodServing } from "./db";
 import type { OpenFoodFactsProduct } from "./open-food-facts-client";
+import { hasAnyMicros, parseMicros, parseWaterG, scaleMicros } from "./micronutrients";
 
 // ── Barcode validation ──────────────────────────────────────────────────
 // UPC-A(12) / EAN-8 / EAN-13 / GTIN-14 — all are digit strings with a
@@ -202,6 +203,9 @@ export function nutritionForGrams(n100: FoodNutrition100g, grams: number): FoodN
     sugarG: scaleOrNull(n100.sugarG, factor),
     sodiumMg: n100.sodiumMg === null ? null : Math.round(n100.sodiumMg * factor),
     saturatedFatG: scaleOrNull(n100.saturatedFatG, factor),
+    // Vitamins, minerals, omega-3 and water: only carried when the food lists any, so a food without them scales to exactly what it did before.
+    ...(hasAnyMicros(n100.micros) ? { micros: scaleMicros(n100.micros, factor) } : {}),
+    ...(typeof n100.waterG === "number" ? { waterG: Math.round(n100.waterG * factor * 10) / 10 } : {}),
   };
 }
 
@@ -269,6 +273,9 @@ export function applyCatalogMatches<T extends { name: string; servingDescription
       sugarG: nutrition.sugarG,
       sodiumMg: nutrition.sodiumMg,
       saturatedFatG: nutrition.saturatedFatG,
+      // Verified catalogue vitamins and minerals replace the AI's (it gives none): they come with the foods that list them, and only then.
+      ...(nutrition.micros ? { micros: nutrition.micros } : {}),
+      ...(typeof nutrition.waterG === "number" ? { waterG: nutrition.waterG } : {}),
       source: "label" as const,
     };
   });
@@ -428,6 +435,8 @@ export function parseCustomFoodInput(body: Record<string, unknown>): { ok: true;
         sugarG: nonNegativeNumber(n.sugarG),
         sodiumMg: nonNegativeNumber(n.sodiumMg),
         saturatedFatG: nonNegativeNumber(n.saturatedFatG),
+        ...(hasAnyMicros(parseMicros(n.micros)) ? { micros: parseMicros(n.micros) } : {}),
+        ...(parseWaterG(n.waterG, 100) !== null ? { waterG: parseWaterG(n.waterG, 100) } : {}),
       },
       servings: finalServings,
       defaultServing: finalServings[0],

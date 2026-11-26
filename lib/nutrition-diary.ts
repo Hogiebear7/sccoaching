@@ -1,4 +1,5 @@
 import type { FoodDomain, FoodEntryRecord, MealType } from "./db";
+import { hasAnyMicros, parseMicros, parseWaterG, sumMicros, type MicroMap, type MicroTotal } from "./micronutrients";
 
 const FOOD_DOMAINS: FoodDomain[] = ["custom", "common", "branded"];
 
@@ -24,6 +25,10 @@ export interface NutrientExtras {
   sugarG?: number;
   sodiumMg?: number;
   saturatedFatG?: number;
+  /** Vitamins, minerals and omega-3 the food lists (lib/micronutrients.ts); absent when none are known. */
+  micros?: MicroMap;
+  /** Grams of water in the logged amount, where known. */
+  waterG?: number;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -40,6 +45,10 @@ export function parseNutrientExtras(body: Record<string, unknown>): NutrientExtr
   if (sugar !== null) out.sugarG = sugar;
   if (sodium !== null) out.sodiumMg = sodium;
   if (satFat !== null) out.saturatedFatG = satFat;
+  const micros = parseMicros(body.micros);
+  if (hasAnyMicros(micros)) out.micros = micros;
+  const water = parseWaterG(body.waterG);
+  if (water !== null) out.waterG = water;
   return out;
 }
 
@@ -158,6 +167,11 @@ export function sumExtraTotals(entries: FoodEntryRecord[]): ExtraTotals {
   out.saturatedFatG = round1(out.saturatedFatG);
   out.sodiumMg = Math.round(out.sodiumMg);
   return out;
+}
+
+/** The day's vitamins, minerals and omega-3 from the entries that list them, with how many entries did (lib/micronutrients.ts: unknown is never zero). */
+export function sumMicroTotals(entries: readonly FoodEntryRecord[]): MicroTotal[] {
+  return sumMicros(entries);
 }
 
 // Most-recently-logged distinct foods (by name, case-insensitive) — the
