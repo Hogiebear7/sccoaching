@@ -17,6 +17,8 @@ export interface OpenFoodFactsNutriments {
   sugars_100g?: number;
   sodium_100g?: number;
   "saturated-fat_100g"?: number;
+  // Vitamins, minerals and omega-3, per 100 g in grams (read by microsFromOpenFoodFacts in lib/micronutrients.ts); only what a product lists is present.
+  [nutrient: `${string}_100g`]: number | undefined;
 }
 
 export interface OpenFoodFactsProduct {

@@ -1,6 +1,6 @@
 import type { FoodDomain, FoodEntryRecord, FoodNutrition100g, FoodRecord, FoodServing } from "./db";
 import type { OpenFoodFactsProduct } from "./open-food-facts-client";
-import { hasAnyMicros, parseMicros, parseWaterG, scaleMicros } from "./micronutrients";
+import { hasAnyMicros, microsFromOpenFoodFacts, parseMicros, parseWaterG, scaleMicros } from "./micronutrients";
 
 // ── Barcode validation ──────────────────────────────────────────────────
 // UPC-A(12) / EAN-8 / EAN-13 / GTIN-14 — all are digit strings with a
@@ -334,6 +334,7 @@ export function normalizeOffCountryTag(tag: string | null | undefined): string |
 
 export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsProduct, barcode: string, id: string, now: string): FoodRecord {
   const n = product.nutriments ?? {};
+  const micros = microsFromOpenFoodFacts(n as Record<string, unknown>);
   const servingGrams = parseServingGrams(product.serving_size);
   const hundredGramServing: FoodServing = { label: "100g", grams: 100 };
   const namedServing: FoodServing | null = servingGrams ? { label: product.serving_size!.trim(), grams: servingGrams } : null;
@@ -355,6 +356,8 @@ export function normalizeOpenFoodFactsProduct(product: OpenFoodFactsProduct, bar
       sugarG: n.sugars_100g ?? null,
       sodiumMg: n.sodium_100g !== undefined ? Math.round(n.sodium_100g * 1000) : null,
       saturatedFatG: n["saturated-fat_100g"] ?? null,
+      // Vitamins and minerals only where the product lists them (a product that lists none gets no key at all).
+      ...(hasAnyMicros(micros) ? { micros } : {}),
     },
     defaultServing: namedServing ?? hundredGramServing,
     servings,
