@@ -49,7 +49,7 @@ function CommitmentTag({ recurring, label }: { recurring: boolean; label: string
 // haven't uploaded one, matched on the category name.
 const CLASS_PHOTOS: { match: RegExp; src: string; alt: string }[] = [
   // The trial pass ("3 class pass"): the real training floor, so it is not the same picture as the semi-private card beside it.
-  { match: /^\s*3[- ]?class|trial/i, src: "/marketing/training-floor-2026-11.jpg", alt: "The S&C training floor" },
+  { match: /^\s*3[- ]?class|trial/i, src: "/marketing/trial-pass-racks-2026-11.jpg", alt: "Racks, dumbbells and kettlebells on the S&C training floor" },
   { match: /semi[- ]?private/i, src: "/marketing/semi-private-training.jpg", alt: "Semi-private training session" },
   { match: /parent|baby/i, src: "/marketing/parent-baby-class.jpg", alt: "Parent and baby class" },
   { match: /over\s*50/i, src: "/marketing/over-50s.jpg", alt: "Over 50s class" },
