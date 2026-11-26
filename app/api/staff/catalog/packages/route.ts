@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
   saveMembershipPackage(pkg);
 
   return NextResponse.json(
-    { success: true, message: existing ? "Package updated." : "Package created." },
+    { success: true, message: existing ? "Package updated." : "Package created.", data: { id: pkg.id } },
     { status: 200 }
   );
 }

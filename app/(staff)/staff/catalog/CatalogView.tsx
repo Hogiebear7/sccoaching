@@ -25,6 +25,7 @@ import type {
   MembershipPackageRecord,
 } from "@/lib/db";
 import { CoverImageField } from "@/components/ui/CoverImageField";
+import { QuickOfferForm } from "./QuickOfferForm";
 
 const input =
   "w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-teal-600/60 focus:ring-2 focus:ring-teal-600/15";
@@ -41,6 +42,17 @@ async function post(url: string, body: unknown): Promise<{ ok: boolean; message:
     return { ok: res.ok, message: data?.message ?? (res.ok ? "Saved." : "Something went wrong.") };
   } catch {
     return { ok: false, message: "Something went wrong. Please try again." };
+  }
+}
+
+/** Like post(), but also returns the id of what was created (the catalogue APIs send it back). */
+async function postForId(url: string, body: unknown): Promise<{ ok: boolean; message: string; id: string | null }> {
+  try {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => null);
+    return { ok: res.ok, message: data?.message ?? (res.ok ? "Saved." : "Something went wrong."), id: data?.data?.id ?? null };
+  } catch {
+    return { ok: false, message: "Something went wrong. Please try again.", id: null };
   }
 }
 
@@ -66,12 +78,23 @@ export function CatalogView({
     if (r.ok) router.refresh();
   }
 
+  // A copy of a package and its prices, hidden from members until it has been checked: the quickest way to make "a bit like that one".
+  async function duplicatePackage(pkg: MembershipPackageRecord, options: MembershipBillingOptionRecord[]) {
+    const created = await postForId("/api/staff/catalog/packages", { ...packagePayload(pkg, { name: `${pkg.name} (copy)`, visible: false }), id: undefined, introOnly: false, imageUrl: pkg.imageUrl ?? null, imageAlt: pkg.imageAlt ?? null });
+    if (!created.ok || !created.id) return { ok: false, message: created.message };
+    for (const opt of options) {
+      const r = await post("/api/staff/catalog/billing-options", { ...optionPayload(opt, { packageId: created.id }), id: undefined });
+      if (!r.ok) return { ok: false, message: `The copy was made but one price was not copied: ${r.message}` };
+    }
+    return { ok: true, message: `${pkg.name} copied. The copy is hidden until you show it.${pkg.introOnly ? " (A copy is never a trial pass until you tick that.)" : ""}` };
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-display mt-1 text-[28px] leading-tight">Membership catalog</h2>
+        <h2 className="text-display mt-1 text-[28px] leading-tight">Memberships &amp; pricing</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          This is what members see when they join. It has three levels:
+          Everything members can buy. To add something new, use <span className="font-medium text-foreground">Add an offer</span> below. To change what exists, find it in the list and press Edit. Underneath, it has three levels:
         </p>
         <ul className="mt-2 max-w-2xl space-y-1 text-sm text-muted-foreground">
           <li>
@@ -104,6 +127,8 @@ export function CatalogView({
           {banner.message}
         </p>
       ) : null}
+
+      <QuickOfferForm categories={categories} classCategories={classCategories} />
 
       {/* New category */}
       <CategoryForm onSave={(payload) => run(() => post("/api/staff/catalog/categories", payload))} />
@@ -186,6 +211,7 @@ export function CatalogView({
                               visible={pkg.visible}
                               onToggleVisible={() => run(() => post("/api/staff/catalog/packages", packagePayload(pkg, { visible: !pkg.visible })))}
                               onDelete={() => run(() => post("/api/staff/catalog/packages/delete", { id: pkg.id }))}
+                              onDuplicate={() => run(() => duplicatePackage(pkg, pkgOptions))}
                               editForm={<PackageForm categoryId={cat.id} pkg={pkg} classCategories={classCategories} onSave={(payload) => run(() => post("/api/staff/catalog/packages", { id: pkg.id, ...payload }))} />}
                             />
                           </div>
@@ -310,11 +336,14 @@ function RowActions({
   visible,
   onToggleVisible,
   onDelete,
+  onDuplicate,
   editForm,
 }: {
   visible: boolean;
   onToggleVisible: () => void;
   onDelete: () => void;
+  /** When given, the row gets a Duplicate button. */
+  onDuplicate?: () => void;
   editForm: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
@@ -328,6 +357,11 @@ function RowActions({
         <button type="button" onClick={onToggleVisible} className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-accent">
           {visible ? "Hide" : "Show"}
         </button>
+        {onDuplicate ? (
+          <button type="button" onClick={onDuplicate} className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-accent">
+            Duplicate
+          </button>
+        ) : null}
         {confirming ? (
           <>
             <button type="button" onClick={onDelete} className="rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/20">Confirm</button>
