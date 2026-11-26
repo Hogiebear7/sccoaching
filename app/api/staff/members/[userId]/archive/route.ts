@@ -6,6 +6,7 @@ import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { recordStaffAction } from "@/lib/staff-actions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Archive / restore a member account. Archiving blocks sign-in and hides the
 // account from the default staff list; every record (bookings, purchases,
@@ -24,6 +25,9 @@ export async function POST(
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   if (!can(staffUser.role, "members.account")) {
     return NextResponse.json(

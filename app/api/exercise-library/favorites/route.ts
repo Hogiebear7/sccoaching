@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 function requireUser(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const client = getExerciseLibraryClient();
   const { data, error } = await client.from("exercise_favorites").select("exercise_id").eq("user_id", user.id);
@@ -32,6 +36,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

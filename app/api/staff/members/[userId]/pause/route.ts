@@ -7,6 +7,7 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { pauseProviderSubscription, resumeProviderSubscription } from "@/lib/billing";
 import { recordStaffAction } from "@/lib/staff-actions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const DURATION_DAYS: Record<string, number> = {
   "2w": 14,
@@ -33,6 +34,9 @@ export async function POST(
       { status: 403 }
     );
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   const { userId } = await params;
   const member = findUserById(userId);

@@ -5,6 +5,7 @@ import { groupMemberView, groupView, requireGroupAccess } from "@/lib/community-
 import { hiddenFromViewer } from "@/lib/community-moderation";
 import { findGroupById, findGroupMembers, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET /api/mobile/community/groups/[id] — the group and its members. Only members of the group can see it; anyone else (or a closed or missing group)
 // gets the same "not found". Members who are blocked either way with the viewer are left out of the list.
@@ -12,6 +13,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 

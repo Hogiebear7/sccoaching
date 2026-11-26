@@ -6,6 +6,7 @@ import type { NextRequest } from "next/server";
 import { createCommentReport, findAllCommentReports, findUserById, findWorkoutSessionById } from "@/lib/db";
 import { canViewCommunitySession } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_REASON_LENGTH = 300;
 
@@ -17,6 +18,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
   const target = findWorkoutSessionById(id);

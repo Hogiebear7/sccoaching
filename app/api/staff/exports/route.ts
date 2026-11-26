@@ -13,6 +13,7 @@ import { toCsv, toXlsx } from "@/lib/exports-format";
 import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET /api/staff/exports?sheet=members|memberships|classes|bookings|app-access|master&format=csv|xlsx&range=30d|90d|12m|all
 // Spreadsheet downloads for the Reports & exports page (docs/admin-revamp-plan-2026-10.md, slice S1). Admin only (reports.view). Every sheet is
@@ -24,6 +25,9 @@ export async function GET(request: NextRequest) {
   if (!staffUser || staffUser.archivedAt) {
     return NextResponse.json({ success: false, message: "You must be signed in to export." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
   if (!can(staffUser.role, "reports.view")) {
     return NextResponse.json({ success: false, message: "Only admins can export reports." }, { status: 403 });
   }

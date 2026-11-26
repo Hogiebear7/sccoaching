@@ -11,14 +11,14 @@ import {
   saveWorkoutSession,
 } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
 // POST /api/staff/community/reports/[id]/resolve — { action: "resolve" | "dismiss" }
 // resolve = remove the reported comment and mark the report resolved;
 // dismiss = no action taken, just closes the report. Mirrors
 // app/api/staff/bug-reports/status/route.ts's shape exactly.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = authorizeStaffRequest(request, "comments.moderate");
+  const auth = resolveStaffTenantRequest(request, "comments.moderate");
   if (!auth.ok) return auth.response;
 
   const { id } = await params;

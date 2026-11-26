@@ -8,6 +8,7 @@ import { requireAiConsent } from "@/lib/ai-consent";
 import { findProfileByUserId, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_NAME_LENGTH = 100;
@@ -36,6 +37,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, configured: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!isAiConfigured()) {
     return NextResponse.json(

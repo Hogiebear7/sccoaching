@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findUserById, findWorkoutSessionById, updateWorkoutSession } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/workouts/[id]/visibility — { isPrivate: boolean }
 // A narrow, single-field toggle deliberately kept separate from
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
   const workout = findWorkoutSessionById(id);

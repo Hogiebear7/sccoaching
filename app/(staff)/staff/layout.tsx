@@ -7,6 +7,7 @@ import { can, NAV_CAPABILITY, STAFF_ROLE_LABEL, type Capability, type StaffRole 
 import { verifySession } from "@/lib/session";
 import { StaffShell } from "@/components/staff/admin/StaffShell";
 import type { AdminIconName } from "@/components/staff/admin/icons";
+import { tenantStatusFor, userInLockedGym } from "@/lib/tenant-lockout";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,9 @@ const navSections: StaffNavSection[] = [
   {
     title: "Admin",
     items: [
-      { label: "Staff",        href: "/staff/staff-users",           capability: NAV_CAPABILITY["/staff/staff-users"], icon: "staff", hint: "Staff accounts and roles" },
+      { label: "Gym setup",    href: "/staff/gym-setup",             capability: NAV_CAPABILITY["/staff/gym-setup"], icon: "catalog", hint: "Checklist, logo and colour" },
+      { label: "Gym guide",    href: "/staff/gym-guide",             capability: NAV_CAPABILITY["/staff/gym-guide"], icon: "reports", hint: "How to run your gym on the platform" },
+      { label: "Staff",        href: "/staff/staff-users",          capability: NAV_CAPABILITY["/staff/staff-users"], icon: "staff", hint: "Staff accounts and roles" },
       { label: "Food Reviews", href: "/staff/nutrition-submissions", capability: NAV_CAPABILITY["/staff/nutrition-submissions"], icon: "food", hint: "Foods members submitted" },
       { label: "Community reports", href: "/staff/community-reports", capability: NAV_CAPABILITY["/staff/community-reports"], icon: "flag", hint: "Reported comments and posts" },
       { label: "Gym community", href: "/staff/gym-community", capability: NAV_CAPABILITY["/staff/gym-community"], icon: "flag", hint: "Reports in your gym's community and groups" },
@@ -87,6 +90,10 @@ export default async function StaffLayout({ children }: { children: ReactNode })
   if (!user || user.archivedAt || !can(user.role, "staff.access")) {
     redirect("/dashboard");
   }
+  // A locked gym's staff see the unavailable page (with the way to pay) instead of the staff area.
+  if (userInLockedGym(user)) redirect("/gym-unavailable");
+
+  const tenant = tenantStatusFor(user);
 
   const visibleNavSections = navSections
     .map((section) => ({
@@ -110,6 +117,19 @@ export default async function StaffLayout({ children }: { children: ReactNode })
 
   return (
     <StaffShell sections={visibleNavSections} user={{ name, email: user.email, role, initials }}>
+      {tenant.state === "grace" ? (
+        <div role="alert" className="mx-auto mb-4 max-w-5xl rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          Your gym&apos;s platform payment is overdue. Access pauses {tenant.graceDaysLeft === null ? "soon" : tenant.graceDaysLeft <= 1 ? "tomorrow" : `in ${tenant.graceDaysLeft} days`} unless it is paid.
+          {tenant.payUrl ? (
+            <>
+              {" "}
+              <a href={tenant.payUrl} rel="noopener noreferrer" className="font-semibold underline underline-offset-4">
+                Pay now
+              </a>
+            </>
+          ) : null}
+        </div>
+      ) : null}
       {children}
     </StaffShell>
   );

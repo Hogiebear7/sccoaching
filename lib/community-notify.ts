@@ -5,13 +5,16 @@ import { isGymStaff } from "@/lib/community-gym";
 import {
   createNotification,
   findCommunityPrivacyByUserId,
+  findGroupMembers,
   findMembersInGym,
   findNotificationByDedupeKey,
   findProfileByUserId,
   findUserById,
+  type ChallengeRecord,
   type NotificationType,
   type StoredUser,
 } from "@/lib/db";
+import { challengeLabel } from "@/lib/challenges";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { sendPush } from "@/lib/push";
 
@@ -26,6 +29,11 @@ export interface CommunityNotice {
   linkHref: string;
   /** Stops the same notice reaching the same person twice. Omit for one-offs that are already unique (a comment id, say). */
   dedupeKey?: string;
+}
+
+/** Challenge notices (new, started, finished) are saved in the app but never pushed. */
+function isInAppOnly(type: NotificationType): boolean {
+  return type === "challenge_created" || type === "challenge_started" || type === "challenge_ended";
 }
 
 /** Sends one notice to one person. Returns false when it was skipped because they already had it. Never throws. */
@@ -43,7 +51,8 @@ export function notifyCommunityUser(userId: string, notice: CommunityNotice): bo
       dedupeKey: notice.dedupeKey ?? null,
       createdAt: new Date().toISOString(),
     });
-    if (findProfileByUserId(userId)?.pushNotificationsEnabled !== false) {
+    // Challenge notices (new, started, finished) stay in the app: no push to the lock screen.
+    if (!isInAppOnly(notice.type) && findProfileByUserId(userId)?.pushNotificationsEnabled !== false) {
       void sendPush(userId, { title: notice.title, body: notice.body, linkHref: notice.linkHref });
     }
     return true;
@@ -63,6 +72,77 @@ export function gymCommunityAudience(gymId: string | null, exceptUserId?: string
     .filter((u) => u.id !== exceptUserId && !hidden.has(u.id))
     .filter((u) => resolveMemberAccessForUser(u.id).gymMembership && !!findCommunityPrivacyByUserId(u.id)?.adultConfirmedAt)
     .map((u) => u.id);
+}
+
+/** The in-app route a challenge notice opens (the same one the start and finish notices use). */
+export function challengeLink(c: Pick<ChallengeRecord, "scopeType" | "scopeId" | "id">): string {
+  return c.scopeType === "group"
+    ? `/community/challenge?scope=group&groupId=${encodeURIComponent(c.scopeId)}&challengeId=${encodeURIComponent(c.id)}`
+    : `/community/challenge?scope=gym&challengeId=${encodeURIComponent(c.id)}`;
+}
+
+/** The people to tell about a new group challenge: the group's other members. The organiser, archived accounts and anyone blocked either way with the organiser are left out. */
+export function groupChallengeAudience(groupId: string, exceptUserId: string): string[] {
+  const hidden = hiddenFromViewer(exceptUserId);
+  return findGroupMembers(groupId)
+    .map((m) => m.userId)
+    .filter((id) => id !== exceptUserId && !hidden.has(id))
+    .filter((id) => {
+      const user = findUserById(id);
+      return !!user && !user.archivedAt;
+    });
+}
+
+/**
+ * The organiser setting a challenge tells the rest of the group straight away ("New challenge in <group>"), once each. It names the group, not the person, so it
+ * never reveals anyone who has chosen to appear under an alias. The existing start-day notice still goes out for a challenge that starts later.
+ */
+export function notifyGroupOfNewChallenge(challenge: ChallengeRecord, groupName: string, organiserId: string): number {
+  let sent = 0;
+  try {
+    for (const userId of groupChallengeAudience(challenge.scopeId, organiserId)) {
+      if (
+        notifyCommunityUser(userId, {
+          type: "challenge_created",
+          title: `New challenge in ${clip(groupName, 40)}`,
+          body: `${clip(challenge.title, 60)}: ${challengeLabel(challenge.metric, challenge.custom)}. ${challenge.startDate} to ${challenge.endDate}.`,
+          linkHref: challengeLink(challenge),
+          dedupeKey: `challenge-new:${challenge.id}`,
+        })
+      ) {
+        sent++;
+      }
+    }
+  } catch (err) {
+    console.error("[community-notify] could not notify a group of a new challenge", err);
+  }
+  return sent;
+}
+
+/**
+ * A coach or admin setting a gym challenge tells the whole gym straight away ("New gym challenge"), once each. A challenge set inside a custom group
+ * only tells that group (notifyGroupOfNewChallenge), never the gym. The staff member who set it, and anyone blocked either way with them, are left out.
+ */
+export function notifyGymOfNewChallenge(challenge: ChallengeRecord, gymId: string | null, staffId: string): number {
+  let sent = 0;
+  try {
+    for (const userId of gymCommunityAudience(gymId, staffId)) {
+      if (
+        notifyCommunityUser(userId, {
+          type: "challenge_created",
+          title: "New gym challenge",
+          body: `${clip(challenge.title, 60)}: ${challengeLabel(challenge.metric, challenge.custom)}. ${challenge.startDate} to ${challenge.endDate}.`,
+          linkHref: challengeLink(challenge),
+          dedupeKey: `challenge-new:${challenge.id}`,
+        })
+      ) {
+        sent++;
+      }
+    }
+  } catch (err) {
+    console.error("[community-notify] could not notify the gym of a new challenge", err);
+  }
+  return sent;
 }
 
 const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`);

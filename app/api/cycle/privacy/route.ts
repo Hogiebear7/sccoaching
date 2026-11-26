@@ -9,6 +9,7 @@ import {
 } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { CyclePrivacyPreferencesRecord } from "@/lib/profile-schema";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -17,6 +18,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const profile = findProfileByUserId(user.id);
 

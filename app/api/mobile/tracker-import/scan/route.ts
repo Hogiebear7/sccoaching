@@ -10,6 +10,7 @@ import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-respon
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Fitness-tracker screenshots vary widely (a full dashboard photo needs more
 // resolution than a food label) — same cap as the other AI photo features.
@@ -32,6 +33,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, configured: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "trackerImport")) {
     return NextResponse.json(

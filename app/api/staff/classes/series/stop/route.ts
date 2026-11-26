@@ -15,6 +15,7 @@ import { classStartMs } from "@/lib/class-time";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Stops a recurring series: nothing new is generated, and upcoming
 // occurrences nobody has booked are removed (their waitlists cleared).
@@ -31,6 +32,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!can(user.role, "classes.manage")) {
     return NextResponse.json(

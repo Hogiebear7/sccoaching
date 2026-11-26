@@ -8,6 +8,7 @@ import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { normalizeOpenFoodFactsProduct, rankByTextMatch, searchFoodCatalog } from "@/lib/food-catalog";
 import { searchOpenFoodFactsByName } from "@/lib/open-food-facts-client";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // A typed query with too few local matches falls through to a live Open
 // Food Facts name search — covers a real branded product ("Mars Bar") that
@@ -28,6 +29,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "foodSearch")) {
     return NextResponse.json({ success: false, message: "Food search needs the App Subscription." }, { status: 403 });

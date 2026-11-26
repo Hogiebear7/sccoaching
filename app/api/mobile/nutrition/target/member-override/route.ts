@@ -15,6 +15,7 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 import { validateMemberTargetOverride } from "@/lib/nutrition-target";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { requireFeature } from "@/lib/member-access-response";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // A member applying a target the AI Nutrition Coach proposed in chat (see
 // the "Apply this target" button in NutritionAiCoach.tsx / mobile's chat
@@ -36,6 +37,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const locked = requireFeature(user.id, "calorieTargets");
   if (locked) return locked;

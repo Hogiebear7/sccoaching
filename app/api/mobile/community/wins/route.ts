@@ -14,6 +14,7 @@ import { sameGymAsStaff } from "@/lib/gym-scope";
 import { hiddenFromViewer, isSessionOutOfCommunity } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { computePersonalBests } from "@/lib/workouts";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const DEFAULT_LIMIT = 20;
 const ALLOWED_LIMITS = [20, 50, 100];
@@ -43,6 +44,9 @@ export async function GET(request: NextRequest) {
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const params = new URL(request.url).searchParams;
   const requestedLimit = Number.parseInt(params.get("limit") ?? "", 10);

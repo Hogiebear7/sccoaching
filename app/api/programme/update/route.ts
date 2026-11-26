@@ -11,6 +11,7 @@ import {
   type ProgrammeStatus,
 } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const PROGRAMME_STATUSES: ProgrammeStatus[] = ["active", "paused", "completed"];
 
@@ -45,6 +46,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   // Programme is a coach-enabled feature — enforce at the data layer, not
   // just in navigation.

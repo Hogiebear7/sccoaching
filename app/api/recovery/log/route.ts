@@ -13,12 +13,13 @@ import {
   saveRecoveryLog,
   type RecoveryLogRecord,
 } from "@/lib/db";
-import { computeReadinessScore } from "@/lib/recovery";
+import { computeReadinessScore, isEditableCheckinDate } from "@/lib/recovery";
 import { MAX_HEALTH_NOTE, hasHealthNoteAccess } from "@/lib/health-note";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sameGym } from "@/lib/gym-scope";
 import { sendPush } from "@/lib/push";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 function parseRequiredRange(
   value: unknown,
@@ -80,6 +81,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
+
   let body: unknown;
 
   try {
@@ -107,6 +111,13 @@ export async function POST(request: NextRequest) {
   if (typeof date !== "string" || !date.trim()) {
     return NextResponse.json(
       { success: false, message: "Date is required." },
+      { status: 400 }
+    );
+  }
+
+  if (!isEditableCheckinDate(date.trim())) {
+    return NextResponse.json(
+      { success: false, message: "You can only log or change a check-in for today or yesterday." },
       { status: 400 }
     );
   }

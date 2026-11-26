@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findProfileByUserId, findUserById, saveProfile } from "@/lib/db";
 import { isMenopauseStage } from "@/lib/menopause";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Body: { menopauseSupportEnabled?, menopauseStage?, menopauseShareWithCoach? }.
 // Only the fields sent change. Choosing a stage switches support on;
@@ -15,6 +16,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const profile = findProfileByUserId(user.id);
 

@@ -6,6 +6,7 @@ import { findFoodByBarcode, findUserById, saveFood } from "@/lib/db";
 import { isBarcodeShaped, normalizeOpenFoodFactsProduct } from "@/lib/food-catalog";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { lookupOpenFoodFactsByBarcode } from "@/lib/open-food-facts-client";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET /api/mobile/nutrition/food/barcode?code=...
 //
@@ -24,6 +25,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const code = request.nextUrl.searchParams.get("code") ?? "";
   if (!isBarcodeShaped(code)) {

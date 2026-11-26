@@ -6,6 +6,7 @@ import type { NextRequest } from "next/server";
 import { createBugReport, findUserById, type BugReportRecord } from "@/lib/db";
 import { isValidImageDataUrl } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_DESCRIPTION_LENGTH = 2000;
 const MAX_SCREENSHOTS = 3;
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

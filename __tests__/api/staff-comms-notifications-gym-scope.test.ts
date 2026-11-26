@@ -41,7 +41,7 @@ vi.mock("@/lib/db", () => ({
   findMessageThreadSummaries: h.findMessageThreadSummaries,
 }));
 vi.mock("@/lib/push", () => ({ sendPush: h.sendPush }));
-vi.mock("@/lib/recovery", () => ({ computeReadinessScore: h.computeReadinessScore }));
+vi.mock("@/lib/recovery", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/recovery")>()), computeReadinessScore: h.computeReadinessScore }));
 
 type U = { id: string; email: string; role: string; gymId: string | null; archivedAt: string | null };
 const user = (id: string, role: string, gymId: string | null, archivedAt: string | null = null): U => ({
@@ -70,7 +70,7 @@ const post = (url: string, body: unknown, u?: U) =>
     body: JSON.stringify(body),
   });
 
-const LOW_LOG = { date: "2026-09-01", sleepHours: "2", sleepQuality: "1", soreness: "9", fatigue: "5" };
+const LOW_LOG = { date: new Date().toISOString().slice(0, 10), sleepHours: "2", sleepQuality: "1", soreness: "9", fatigue: "5" };
 
 beforeEach(() => {
   vi.clearAllMocks();

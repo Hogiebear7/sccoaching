@@ -24,6 +24,7 @@ import { staffAuthorizedForCatalogPackage } from "@/lib/gym-scope";
 import { resolveCoverAltInput, resolveCoverImageInput } from "@/lib/image-upload";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can, isPlatformOperator } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const PACKAGE_TYPES: PackageType[] = ["membership", "pass", "top_up"];
 const ALLOWANCE_TYPES: SessionAllowanceType[] = ["unlimited", "fixed_count", "single_use"];
@@ -34,6 +35,9 @@ export async function POST(request: NextRequest) {
   if (!user || !can(user.role, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Only staff can manage the catalog." }, { status: user ? 403 : 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {
@@ -60,6 +64,7 @@ export async function POST(request: NextRequest) {
     deliveryChannel,
     billingChannel,
     accessType,
+    introOnly,
   } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof categoryId !== "string") {
@@ -198,6 +203,8 @@ export async function POST(request: NextRequest) {
     imageAlt: coverAlt.value === undefined ? existing?.imageAlt ?? null : coverAlt.value,
     deliveryChannel: requestedDeliveryChannel,
     billingChannel: (billingChannel as BillingChannel) ?? existing?.billingChannel ?? "stripe_web",
+    // A trial pass is only ever a Pass; anything else is never one. Left out of the request = keep what is saved.
+    introOnly: packageType === "pass" ? (typeof introOnly === "boolean" ? introOnly : existing?.introOnly ?? false) : false,
     accessType: (accessType as AccessType) ?? existing?.accessType ?? (packageType === "top_up" ? "add_on" : packageType === "pass" ? "pass" : "membership"),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,

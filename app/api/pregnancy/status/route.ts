@@ -14,6 +14,7 @@ import { pregnancyStartISO } from "@/lib/pregnancy-nutrition";
 import { defaultPaceForGoal } from "@/lib/nutrition-target";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import type { PregnancyStatusRecord } from "@/lib/profile-schema";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -32,6 +33,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const profile = findProfileByUserId(user.id);
 

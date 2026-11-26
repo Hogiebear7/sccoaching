@@ -162,8 +162,8 @@ describe("the adoption document tells the truth too", () => {
     const listed = [...table.matchAll(/^\| `([^`]+)` \|/gm)].map((m) => m[1]).sort();
     const flagged = ROUTE_SCOPE_MANIFEST.filter((e) => e.runtimeTenantContext).map((e) => e.route).sort();
     expect(listed).toEqual(flagged);
-    expect(doc).toContain(`Twelve routes derive their tenant`);
-    expect(flagged).toHaveLength(12);
+    expect(doc).toContain(`Twenty-seven routes derive their tenant`);
+    expect(flagged).toHaveLength(27);
   });
 });
 
@@ -179,11 +179,26 @@ describe("the manifest tells the truth about which routes use the runtime contex
         "mobile/billing/catalog",
         "mobile/billing/google-play/purchase-context",
         "mobile/billing/google-play/verify",
+        "staff/gym/branding",
+        "staff/gym/subscription",
         "staff/members/[userId]/ai-pause",
         "staff/members/[userId]/star",
         "staff/members/[userId]/subscription",
         "staff/members/[userId]/tier",
         "staff/members/bulk-tier",
+        "staff/bug-reports/delete",
+        "staff/bug-reports/status",
+        "staff/community/gym-reports",
+        "staff/community/gym-reports/[id]/resolve",
+        "staff/community/reports/[id]/resolve",
+        "staff/members/[userId]/delete",
+        "staff/members/[userId]/summary",
+        "staff/members/[userId]/brief",
+        "staff/messages/unread-count",
+        "staff/staff-users",
+        "staff/staff-users/health-visibility",
+        "staff/comms/marketing-export",
+        "staff/staff-users/archive",
       ].sort()
     );
   });

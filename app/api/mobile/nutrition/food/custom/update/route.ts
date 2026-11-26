@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { findFoodByBarcode, findFoodById, findUserById, saveFood, type FoodRecord } from "@/lib/db";
 import { parseCustomFoodInput } from "@/lib/food-catalog";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Also used to archive/restore a custom food — pass archived: true/false
 // alongside the unchanged fields, same convention as workout templates.
@@ -14,6 +15,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

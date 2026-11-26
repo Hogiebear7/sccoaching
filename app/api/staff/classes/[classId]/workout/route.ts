@@ -18,6 +18,7 @@ import { sameGymAsStaff } from "@/lib/gym-scope";
 import { parseExerciseEntries, parseRunEntries } from "@/lib/workout-entries";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Staff record the workout for a class: a shared template (what the class
 // did) plus per-member performed results for CHECKED-IN members only —
@@ -38,6 +39,9 @@ export async function POST(
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!can(user.role, "classes.manage")) {
     return NextResponse.json(

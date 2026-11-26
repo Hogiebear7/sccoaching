@@ -8,6 +8,7 @@ import {
 } from "@/lib/db";
 import { parseExerciseEntries, parseRunEntries } from "@/lib/workout-entries";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Member correction for class-synced workouts: coaches often don't get
 // around to filling in weights/adjustments for everyone in a class, so
@@ -27,6 +28,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

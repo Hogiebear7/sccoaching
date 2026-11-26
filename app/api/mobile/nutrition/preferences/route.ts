@@ -5,6 +5,7 @@ import { findNutritionTargetByUserId, findProfileByUserId, findUserById, savePro
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { PACE_OPTIONS } from "@/lib/nutrition-target";
 import type { ActivityLevel, CalorieDistribution } from "@/lib/profile-schema";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const DISTRIBUTIONS: CalorieDistribution[] = ["even", "training"];
 const PACES: number[] = [0, ...PACE_OPTIONS.lose, ...PACE_OPTIONS.gain];
@@ -32,6 +33,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
   if (!findProfileByUserId(user.id)) {
     return NextResponse.json({ success: false, message: "No profile found for this account." }, { status: 404 });
   }
@@ -44,6 +48,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
   const profile = findProfileByUserId(user.id);
   if (!profile) {
     return NextResponse.json({ success: false, message: "No profile found for this account." }, { status: 404 });

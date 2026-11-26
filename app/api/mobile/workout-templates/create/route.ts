@@ -7,6 +7,7 @@ import { FREE_SAVED_WORKOUT_LIMIT } from "@/lib/member-access";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { parsePrescribedExercises } from "@/lib/training-programs";
 import { requireUnderFreeLimit } from "@/lib/member-access-response";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -15,6 +16,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const overLimit = requireUnderFreeLimit(user.id, "unlimitedSavedWorkouts", findWorkoutTemplatesByUserId(user.id).length, FREE_SAVED_WORKOUT_LIMIT, "saved workouts");
   if (overLimit) return overLimit;

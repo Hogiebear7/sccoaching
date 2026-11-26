@@ -6,6 +6,7 @@ import { MAX_GYM_REPORT_REASON } from "@/lib/community-gym";
 import { findGroupVisibleToMember, requireGroupAccess } from "@/lib/community-groups";
 import { createGymReport, findUserById, hasOpenGymReport } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/groups/[id]/report — { reason } up to 200 characters. A member of the group reports its name or description. The report goes to
 // the staff of the organiser's gym (the same queue as gym posts and comments, capability comments.moderate), where closing the group is the action.
@@ -23,6 +24,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 

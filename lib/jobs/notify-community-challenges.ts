@@ -1,5 +1,5 @@
 import { challengeLabel, daysBetween, todayIso } from "@/lib/challenges";
-import { gymCommunityAudience, notifyCommunityUser } from "@/lib/community-notify";
+import { challengeLink, gymCommunityAudience, notifyCommunityUser } from "@/lib/community-notify";
 import { findAllChallenges, findGroupById, findGroupMembers, findUserById, type ChallengeRecord } from "@/lib/db";
 import type { JobDefinition } from "./types";
 
@@ -25,10 +25,7 @@ function audienceFor(c: ChallengeRecord): string[] {
   return gymCommunityAudience(c.scopeId === "primary" ? null : c.scopeId);
 }
 
-const linkFor = (c: ChallengeRecord) =>
-  c.scopeType === "group"
-    ? `/community/challenge?scope=group&groupId=${encodeURIComponent(c.scopeId)}&challengeId=${encodeURIComponent(c.id)}`
-    : `/community/challenge?scope=gym&challengeId=${encodeURIComponent(c.id)}`;
+const linkFor = challengeLink;
 
 export const notifyCommunityChallengesJob: JobDefinition = {
   name: "notify-community-challenges",
@@ -42,7 +39,9 @@ export const notifyCommunityChallengesJob: JobDefinition = {
       if (c.canceledAt) continue;
       const sinceStart = daysBetween(c.startDate, today);
       const sinceEnd = daysBetween(c.endDate, today);
-      const announceStart = sinceStart >= 0 && sinceStart <= START_WINDOW_DAYS && sinceEnd <= 0;
+      // A challenge set on the day it starts has already told its group or gym ("New challenge ..."), so it is not announced a second time.
+      const toldAtCreation = c.createdAt.slice(0, 10) >= c.startDate;
+      const announceStart = sinceStart >= 0 && sinceStart <= START_WINDOW_DAYS && sinceEnd <= 0 && !toldAtCreation;
       const announceEnd = sinceEnd >= 1 && sinceEnd <= END_WINDOW_DAYS;
       if (!announceStart && !announceEnd) continue;
 

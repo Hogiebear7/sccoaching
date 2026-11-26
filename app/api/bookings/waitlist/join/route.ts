@@ -19,6 +19,7 @@ import { sameGymAsStaff } from "@/lib/gym-scope";
 import { hasActiveMembership, membershipIsRequired } from "@/lib/membership";
 import { isClassEligibleForPlan } from "@/lib/scheduling-status";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_WAITLIST_SIZE = 2;
 
@@ -40,6 +41,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

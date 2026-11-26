@@ -18,6 +18,7 @@ import {
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import type { LeaderboardMemberInput } from "@/lib/leaderboard";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET /api/mobile/community/groups/[id]/challenges/[challengeId] — the challenge and its standings. Members of the group only; anyone else, a challenge
 // from another group, or a closed group all give the same "not found". Ranked from each member's own logged workouts inside the challenge dates, with the
@@ -28,6 +29,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 

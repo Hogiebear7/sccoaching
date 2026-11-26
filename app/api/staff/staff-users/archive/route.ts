@@ -4,13 +4,13 @@ import type { NextRequest } from "next/server";
 import { findStaffUsers, findUserById, setUserArchived } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { protectedOperatorTarget } from "@/lib/platform-operator-guard";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
 // Archive (deactivate) or restore an elevated user. Only an admin_manager may
 // call this, and only for a target in their own gym. Archived accounts can't
 // sign in; nothing else is touched.
 export async function POST(request: NextRequest) {
-  const auth = authorizeStaffRequest(request, "staffUsers.manage");
+  const auth = resolveStaffTenantRequest(request, "staffUsers.manage");
   if (!auth.ok) return auth.response;
   const actor = auth.user;
 

@@ -18,6 +18,7 @@ import { resolveBookingsForUser } from "@/lib/bookings";
 import { resolveCurrentWeightKg } from "@/lib/body-weight";
 import { normalizeDrinkSettings } from "@/lib/drink-settings";
 import { buildCoachingContext } from "@/lib/ai-context";
+import { triageInjuryMessage } from "@/lib/injury-triage";
 import { createCoachChatStream, isAiConfigured } from "@/lib/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { AI_UNAVAILABLE_CODE, AI_UNAVAILABLE_MESSAGE, primeAiStream } from "@/lib/ai-stream";
@@ -26,6 +27,7 @@ import { aiAllowanceRefusal, aiFailureResponse } from "@/lib/ai-allowance-respon
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Spend/abuse guard: 20 messages per 5 minutes per member.
 const CHAT_RATE_LIMIT = 20;
@@ -56,6 +58,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
+
   if (!isAiConfigured()) {
     return NextResponse.json(
       { success: false, configured: false, message: "AI chat is not available right now." },
@@ -72,6 +77,40 @@ export async function POST(request: NextRequest) {
       { success: false, configured: true, message: "AI Coach chat needs the App Subscription." },
       { status: 403 }
     );
+  }
+
+  let body: unknown;
+
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { success: false, configured: true, message: "Invalid JSON body." },
+      { status: 400 }
+    );
+  }
+
+  const { content, drinkSettings } = (body ?? {}) as Record<string, unknown>;
+
+  if (typeof content !== "string" || !content.trim()) {
+    return NextResponse.json(
+      { success: false, configured: true, message: "Message content is required." },
+      { status: 400 }
+    );
+  }
+
+  // Injury red flags (lib/injury-triage.ts): a message describing something that can be serious gets a fixed, reviewed reply pointing to urgent care, with no
+  // call to the AI. This sits BEFORE the allowance and rate-limit checks on purpose: someone who has used up their AI allowance must still be told to get checked.
+  // The exchange is saved to their history like any other, so the next reply in the chat knows it happened.
+  const redFlag = triageInjuryMessage(content.trim().slice(0, 4000));
+  if (redFlag) {
+    const sentAt = new Date().toISOString();
+    createAiMessage({ id: randomUUID(), userId: user.id, role: "user", content: content.trim().slice(0, 4000), createdAt: sentAt });
+    createAiMessage({ id: randomUUID(), userId: user.id, role: "assistant", content: redFlag.reply, createdAt: new Date().toISOString() });
+    return new Response(redFlag.reply, {
+      status: 200,
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Accel-Buffering": "no" },
+    });
   }
 
   // A bounded AI allowance, checked before anything is sent to the provider (lib/ai-allowance.ts).
@@ -95,26 +134,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, configured: true, message: "No profile found for this account." },
       { status: 404 }
-    );
-  }
-
-  let body: unknown;
-
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { success: false, configured: true, message: "Invalid JSON body." },
-      { status: 400 }
-    );
-  }
-
-  const { content, drinkSettings } = (body ?? {}) as Record<string, unknown>;
-
-  if (typeof content !== "string" || !content.trim()) {
-    return NextResponse.json(
-      { success: false, configured: true, message: "Message content is required." },
-      { status: 400 }
     );
   }
 

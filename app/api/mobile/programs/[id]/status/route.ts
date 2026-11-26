@@ -5,6 +5,7 @@ import { findTrainingProgramById, findUserById, saveTrainingProgram, type Traini
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { archiveOtherActivePrograms, resolveProgramStatusTransition } from "@/lib/training-programs";
 import { removeSyncedProgrammeSessions } from "@/lib/programme-weekly-sync";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const STATUSES: TrainingProgramStatus[] = ["active", "paused", "archived"];
 
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
 

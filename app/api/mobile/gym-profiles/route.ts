@@ -6,6 +6,7 @@ import { findEquipmentBySlug, GYM_PROFILE_PRESETS } from "@/lib/equipment-catalo
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_NAME_LENGTH = 60;
 const MAX_EQUIPMENT_SLUGS = 200;
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "gymProfiles")) {
     return NextResponse.json({ success: false, message: "Gym profiles need the App Subscription." }, { status: 403 });
@@ -44,6 +48,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   if (!hasAccess(resolveMemberAccessForUser(user.id), "gymProfiles")) {
     return NextResponse.json({ success: false, message: "Gym profiles need the App Subscription." }, { status: 403 });

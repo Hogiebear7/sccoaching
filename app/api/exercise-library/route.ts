@@ -5,6 +5,7 @@ import { getExerciseLibraryClient } from "@/lib/exercise-library/admin-client";
 import { mapExerciseRow } from "@/lib/exercise-library/mappers";
 import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Member-facing library browse — approved exercises only, ever. Bearer/
 // cookie hybrid auth so this works from both web and mobile without change.
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "You must be signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();

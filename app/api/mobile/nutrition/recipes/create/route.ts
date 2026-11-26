@@ -6,6 +6,7 @@ import { findRecipesByUserId, findUserById, saveRecipe, type RecipeIngredientEnt
 import { FREE_SAVED_MEAL_LIMIT } from "@/lib/member-access";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { requireUnderFreeLimit } from "@/lib/member-access-response";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const MAX_INGREDIENTS = 60;
 
@@ -29,6 +30,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const overLimit = requireUnderFreeLimit(user.id, "unlimitedSavedMeals", findRecipesByUserId(user.id).length, FREE_SAVED_MEAL_LIMIT, "saved recipes");
   if (overLimit) return overLimit;

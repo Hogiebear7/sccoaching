@@ -1,6 +1,6 @@
 # Runtime tenant context: adoption status (2026-10-07)
 
-**Status:** partially adopted. **This is not a full migration.** Twelve routes derive their tenant through
+**Status:** partially adopted. **This is not a full migration.** Twenty-seven routes derive their tenant through
 `lib/tenant-request.ts` at runtime. The other 221 routes still rely on the existing `sameGym` family of checks, which are
 tested route by route but are not funnelled through one boundary.
 
@@ -23,7 +23,7 @@ route's one 404 never confirms that a guessed id exists elsewhere.
   while the routes are still protected by `sameGym`.
 - A platform operator gets no cross-gym reach through the helper. Platform-only actions stay exact-role capabilities.
 
-## Routes converted (10)
+## Routes converted (25)
 
 <!-- converted:start -->
 | Route | Scope | What the helper does there |
@@ -36,10 +36,25 @@ route's one 404 never confirms that a guessed id exists elsewhere.
 | `staff/members/[userId]/tier` | tenant-staff | session, then `loadTenantUser` for the target |
 | `staff/members/bulk-tier` | tenant-staff | session, then `loadTenantUser` for every target |
 | `staff/members/[userId]/subscription` | tenant-staff | session, then `loadTenantUser` for the target |
+| `staff/gym/branding` | own-tenant | session and capability; the gym is always the caller's own, never a client id (added 2026-11-25) |
+| `staff/gym/subscription` | own-tenant | session and capability; the gym is the caller's own; allowed while locked so a gym can pay to unlock (added 2026-11-25) |
 | `staff/members/[userId]/ai-pause` | tenant-staff | session, then `loadTenantUser` for the target (added 2026-10-27) |
 | `staff/members/[userId]/star` | tenant-staff | session, then `loadTenantUser` for the target (added 2026-10-29) |
 | `admin/membership/activate` | tenant-staff | session, then `loadTenantUser` for the target |
 | `membership/checkout` | self-tenant-checked | session, then `inTenant` for the catalogue ownership check |
+| `staff/bug-reports/delete` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/bug-reports/status` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/comms/marketing-export` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/community/gym-reports` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/community/gym-reports/[id]/resolve` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/community/reports/[id]/resolve` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/members/[userId]/brief` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/members/[userId]/delete` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/members/[userId]/summary` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/messages/unread-count` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/staff-users` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/staff-users/archive` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
+| `staff/staff-users/health-visibility` | tenant-staff | session and capability, then the tenant lockout (the existing `sameGym` target checks are unchanged) (added 2026-11-25) |
 <!-- converted:end -->
 
 `__tests__/api/runtime-tenant-context.test.ts` proves, with the real handlers and a real temporary datastore, that the helper is

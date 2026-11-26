@@ -5,6 +5,7 @@ import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { getStaffBusinessData } from "@/lib/staff-business-data";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function GET(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   const canViewFinance = can(staffUser.role, "finance.view");
   const canViewReports = can(staffUser.role, "reports.view");

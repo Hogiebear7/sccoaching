@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { createMobileHandoffToken, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Mints a short-lived (60s), single-use token the mobile app appends to a
 // web URL (see app/api/auth/web-handoff/route.ts, the GET route the phone's
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
   if (!user || user.archivedAt) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const rate = checkRateLimit(`web-handoff:${user.id}`, HANDOFF_RATE_LIMIT, HANDOFF_RATE_WINDOW_MS);
   if (!rate.allowed) {

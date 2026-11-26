@@ -16,6 +16,7 @@ import { communityDisplayName } from "@/lib/community-display-name";
 import { canViewCommunitySession } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/programs/../workouts/[id]/like — toggles the requester's
 // like on a workout session. Anyone can like a non-private session, not
@@ -30,6 +31,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   const { id } = await params;
   const target = findWorkoutSessionById(id);

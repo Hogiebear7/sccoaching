@@ -12,6 +12,7 @@ import {
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 function slugify(name: string): string {
   return name
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
       { status: 403 }
     );
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
 

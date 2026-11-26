@@ -20,6 +20,7 @@ import { sameGymAsStaff } from "@/lib/gym-scope";
 import { isBlockedEitherWay } from "@/lib/community-moderation";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/follow — { userId }
 // Open follow, no approval step (confirmed with the member) — anyone can
@@ -33,6 +34,9 @@ export async function POST(request: NextRequest) {
   if (!me) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

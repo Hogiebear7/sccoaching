@@ -5,8 +5,10 @@ import type { NextRequest } from "next/server";
 import { MAX_OPEN_CHALLENGES_PER_SCOPE, challengeView, parseChallengeInput, todayIso } from "@/lib/challenges";
 import { findGroupVisibleToMember, requireGroupAccess } from "@/lib/community-groups";
 import { violatesCommunityRules } from "@/lib/community-moderation";
+import { notifyGroupOfNewChallenge } from "@/lib/community-notify";
 import { createChallengeIfUnderLimit, findChallengesByScope, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // GET  /api/mobile/community/groups/[id]/challenges — the group's challenges (upcoming, active, ended, canceled), newest first. Members only.
 // POST /api/mobile/community/groups/[id]/challenges — { title, metric, custom?, startDate, endDate } the ORGANISER sets one. `metric` is a ready-made kind
@@ -19,6 +21,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 
@@ -41,6 +45,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
   const gate = requireGroupAccess(me.id);
   if (gate) return gate;
 
@@ -77,6 +83,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       { status: 409 }
     );
   }
+
+  // Tell the rest of the group (a notice never stops the challenge from being created).
+  notifyGroupOfNewChallenge(challenge, group.name, me.id);
 
   return NextResponse.json({ success: true, data: challengeView(challenge, today) }, { status: 201 });
 }

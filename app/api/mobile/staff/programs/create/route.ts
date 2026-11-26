@@ -8,6 +8,7 @@ import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { archiveOtherActivePrograms, parseProgramDays } from "@/lib/training-programs";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
@@ -16,6 +17,9 @@ export async function POST(request: NextRequest) {
   if (!staffUser) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(staffUser);
+  if (tenantLock) return tenantLock;
   if (!can(staffUser.role, "programs.manage")) {
     return NextResponse.json({ success: false, message: "Staff access required." }, { status: 403 });
   }

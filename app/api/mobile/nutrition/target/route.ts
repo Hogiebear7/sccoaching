@@ -5,6 +5,7 @@ import { findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { getResolvedNutritionTarget } from "@/lib/nutrition-target-data";
 import { requireFeature } from "@/lib/member-access-response";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const locked = requireFeature(user.id, "calorieTargets");
   if (locked) return locked;

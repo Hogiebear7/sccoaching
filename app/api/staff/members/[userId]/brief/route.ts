@@ -5,14 +5,14 @@ import { findUserById } from "@/lib/db";
 import { sameGym } from "@/lib/gym-scope";
 import { staffCanViewMemberData } from "@/lib/member-tier-wall";
 import { careCardsFor, classBriefFor } from "@/lib/member-summary-data";
-import { authorizeStaffRequest } from "@/lib/staff-auth";
+import { resolveStaffTenantRequest } from "@/lib/tenant-request";
 
 // GET /api/staff/members/[userId]/brief — the compact "state of the member" for a coach about to take a class: an overall state (good / take care /
 // caution), a few plain lines (training in the last few days and how hard, today's check-in, food and water, class attendance) and any "injured or
 // sick?" note. Same rules as the full summary: coach and above, own gym only, gym-Membership members only (others get { walled: true }).
 export async function GET(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
-  const auth = authorizeStaffRequest(request, "members.view", { allowAppToken: true });
+  const auth = resolveStaffTenantRequest(request, "members.view", { allowAppToken: true });
   if (!auth.ok) return auth.response;
 
   const member = findUserById(userId);

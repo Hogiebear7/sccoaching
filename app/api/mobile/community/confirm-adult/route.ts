@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findCommunityPrivacyByUserId, findUserById, saveCommunityPrivacy } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // POST /api/mobile/community/confirm-adult — { confirm: true }
 // The member's own confirmation that they are 18 or over, required before groups and the gym community (owner decision 2026-11-08). Stored on the
@@ -11,6 +12,8 @@ export async function POST(request: NextRequest) {
   const session = verifyRequestSession(request);
   const me = session ? findUserById(session.userId) : undefined;
   if (!me) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+  const tenantLock = requireTenantAccess(me);
+  if (tenantLock) return tenantLock;
 
   let body: unknown;
   try {

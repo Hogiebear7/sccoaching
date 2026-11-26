@@ -12,6 +12,7 @@ import { menopauseContentFor } from "@/lib/menopause";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { hasAccess } from "@/lib/member-access";
 import { resolveMemberAccessForUser } from "@/lib/membership-entitlement";
+import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Read-only aggregation for the mobile Cycle Tracking screen — composes the
 // same finders and the same estimatePhase() the web /dashboard/cycle page
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
   }
+
+  const tenantLock = requireTenantAccess(user);
+  if (tenantLock) return tenantLock;
 
   const profile = findProfileByUserId(user.id);
 
