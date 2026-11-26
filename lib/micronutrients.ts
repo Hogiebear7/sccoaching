@@ -150,6 +150,22 @@ export function sumMicros(entries: readonly { micros?: MicroMap | null }[]): Mic
   });
 }
 
+/** A total with its name, unit and group, plus the plain-words coverage and display strings: what the app needs to draw a nutrient tile without knowing the list itself. */
+export interface MicroTotalView extends MicroTotal {
+  label: string;
+  unit: MicroUnit;
+  group: MicroGroup;
+  coverage: string;
+  display: string;
+}
+
+export function microTotalViews(totals: readonly MicroTotal[]): MicroTotalView[] {
+  return totals.map((t) => {
+    const def = microDef(t.key);
+    return { ...t, label: def.label, unit: def.unit, group: def.group, coverage: coverageText(t), display: formatMicro(t) };
+  });
+}
+
 /** "8 of 11 foods list this" for the small coverage line under a nutrient. */
 export function coverageText(t: Pick<MicroTotal, "listedBy" | "entryCount">): string {
   if (t.entryCount === 0) return "No foods logged yet";

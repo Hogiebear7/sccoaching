@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 
 import { findFoodEntriesByUserId, findNutritionDayStatusesByUserId, findUserById } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import { sumDailyTotals, sumExtraTotals } from "@/lib/nutrition-diary";
+import { microTotalViews } from "@/lib/micronutrients";
+import { sumDailyTotals, sumExtraTotals, sumMicroTotals } from "@/lib/nutrition-diary";
 import { requireTenantAccess } from "@/lib/tenant-request";
 
 // Returns every entry for the requested date plus the summed totals, so the
@@ -28,5 +29,5 @@ export async function GET(request: NextRequest) {
   // The member's own complete/incomplete mark for this day, or null.
   const dayStatus = findNutritionDayStatusesByUserId(user.id).find((s) => s.date === date)?.status ?? null;
 
-  return NextResponse.json({ success: true, data: { entries, totals: sumDailyTotals(entries), extras: sumExtraTotals(entries), dayStatus } });
+  return NextResponse.json({ success: true, data: { entries, totals: sumDailyTotals(entries), extras: sumExtraTotals(entries), micros: microTotalViews(sumMicroTotals(entries)), dayStatus } });
 }
