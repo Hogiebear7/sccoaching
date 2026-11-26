@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { gymAiUsage } from "@/lib/ai-gym-cap";
 import { findClasses, findGymById, findMembersInGym, findStaffUsers } from "@/lib/db";
 import { resolveBranding } from "@/lib/gym-branding";
 import { requireStaffPage } from "@/lib/staff-auth";
@@ -28,6 +29,8 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
   const staffCount = findStaffUsers().filter((u) => u.gymId === gym.id && !u.archivedAt).length;
   const memberCount = findMembersInGym(gym.id).length;
   const billing = tenantAccess(gym, new Date());
+  const aiUsage = gymAiUsage(gym.id);
+  const aiPercent = aiUsage ? Math.min(100, Math.round(aiUsage.share * 100)) : null;
 
   const steps: { done: boolean; title: string; detail: string }[] = [
     { done: resolved.custom, title: "Add your logo and accent colour", detail: "Your members see these in the app and on the website. Until you set them, they see the S&C look." },
@@ -89,6 +92,19 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
           justReturned={returned === "success" || returned === "cancelled" ? returned : null}
         />
       </section>
+
+      {aiPercent !== null ? (
+        <section aria-labelledby="ai-heading" className="space-y-2">
+          <h2 id="ai-heading" className="text-base font-semibold text-zinc-50">AI allowance</h2>
+          <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-sm text-zinc-300">Your gym has used {aiPercent}% of its AI allowance for the last 30 days. Everyone in the gym, members and staff, shares it.</p>
+            <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={aiPercent} aria-label="AI allowance used" className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div className={`h-full rounded-full ${aiPercent >= 100 ? "bg-red-400" : aiPercent >= 80 ? "bg-amber-400" : "bg-emerald-400"}`} style={{ width: `${aiPercent}%` }} />
+            </div>
+            <p className="text-xs leading-relaxed text-zinc-400">If it runs out, AI features pause for your members until usage from earlier days drops out of the 30 days. Everything else keeps working. A bigger plan has a bigger allowance. You are told by notification and email when you reach 80% and when it runs out.</p>
+          </div>
+        </section>
+      ) : null}
 
       <section aria-labelledby="branding-heading" className="space-y-3">
         <h2 id="branding-heading" className="text-base font-semibold text-zinc-50">Logo and accent colour</h2>
