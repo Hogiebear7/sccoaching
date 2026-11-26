@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { isLeaderboardAlias, isLeaderboardMode, LEADERBOARD_ALIASES, leaderboardAliasOf, leaderboardModeOf } from "@/lib/community-alias";
+import { FEMALE_ALIAS_NAMES, isLeaderboardAlias, isLeaderboardMode, LEADERBOARD_ALIASES, MALE_ALIAS_NAMES, leaderboardAliasOf, leaderboardModeOf } from "@/lib/community-alias";
 import { isProfileVisibility, isWhoCanFollow, profileVisibilityOf, whoCanFollowOf } from "@/lib/community-profile";
 import { findCommunityPrivacyByUserId, findUserById, saveCommunityPrivacy } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
       leaderboardMode: leaderboardModeOf(prefs),
       leaderboardAlias: leaderboardAliasOf(prefs),
       leaderboardAliases: LEADERBOARD_ALIASES,
+      // The same names split for the picker's All / Male / Female filter: `general` names always show.
+      leaderboardAliasGroups: { general: LEADERBOARD_ALIASES.filter((a) => !MALE_ALIAS_NAMES.includes(a) && !FEMALE_ALIAS_NAMES.includes(a)), male: MALE_ALIAS_NAMES, female: FEMALE_ALIAS_NAMES },
     },
   });
 }
