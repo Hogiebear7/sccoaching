@@ -35,49 +35,58 @@ interface StaffNavSection {
 }
 
 const navSections: StaffNavSection[] = [
+  // Grouped by what an owner is doing: the day to day (top), the people and classes, money and what you sell, the numbers, then settings and things to review.
   {
-    title: "Operations",
+    title: "Today",
     items: [
       { label: "Overview",   href: "/staff/operations", capability: NAV_CAPABILITY["/staff/operations"], icon: "overview", hint: "Today's figures, to-dos, schedule and settings" },
-      { label: "Classes",    href: "/staff/classes",    capability: NAV_CAPABILITY["/staff/classes"], icon: "classes", hint: "Timetable, bookings and class workouts" },
-      { label: "Workouts",   href: "/staff/workouts",   capability: NAV_CAPABILITY["/staff/workouts"], icon: "workouts", hint: "Workout templates" },
-      { label: "Members",    href: "/staff/members",    capability: NAV_CAPABILITY["/staff/members"], icon: "members", hint: "Every member, plans and access" },
-      { label: "Attendance", href: "/staff/attendance", capability: NAV_CAPABILITY["/staff/attendance"], icon: "attendance", hint: "Who came, who has gone quiet" },
       { label: "Messages",   href: "/staff/messages",   capability: NAV_CAPABILITY["/staff/messages"], icon: "messages", hint: "Conversations with members" },
     ],
   },
   {
-    title: "Library",
+    title: "Gym",
     items: [
-      // The standalone "Exercises" destination (hand-curated section list)
-      // still exists at /staff/exercises for staff who already know it's
-      // there, but it's no longer a first-class nav item — Exercise Library
-      // is the one exercise-related destination the sidebar surfaces.
+      { label: "Classes",    href: "/staff/classes",    capability: NAV_CAPABILITY["/staff/classes"], icon: "classes", hint: "Timetable, bookings and class workouts" },
+      { label: "Members",    href: "/staff/members",    capability: NAV_CAPABILITY["/staff/members"], icon: "members", hint: "Every member, plans, access and invites" },
+      { label: "Attendance", href: "/staff/attendance", capability: NAV_CAPABILITY["/staff/attendance"], icon: "attendance", hint: "Who came, who has gone quiet" },
+      { label: "Workouts",   href: "/staff/workouts",   capability: NAV_CAPABILITY["/staff/workouts"], icon: "workouts", hint: "Workout templates" },
+      // The standalone "Exercises" destination (hand-curated section list) still exists at /staff/exercises for staff who already know it's there, but it's no longer a first-class
+      // nav item: Exercise Library is the one exercise-related destination the sidebar surfaces.
       { label: "Exercise Library", href: "/staff/exercise-library", capability: NAV_CAPABILITY["/staff/exercise-library"], icon: "library", hint: "Exercises, demos and cues" },
     ],
   },
   {
-    title: "Business",
+    title: "Money",
     items: [
-      { label: "Memberships & Pricing", href: "/staff/catalog",   capability: NAV_CAPABILITY["/staff/catalog"], icon: "catalog", hint: "Plans, packs and prices" },
+      { label: "Memberships & Pricing", href: "/staff/catalog",   capability: NAV_CAPABILITY["/staff/catalog"], icon: "catalog", hint: "What you sell: add an offer, plans, packs and prices" },
       { label: "Finances",              href: "/staff/finances",  capability: NAV_CAPABILITY["/staff/finances"], icon: "finances", hint: "Payments and the ledger" },
-      { label: "Briefings",             href: "/staff/briefings", capability: NAV_CAPABILITY["/staff/briefings"], icon: "reports", hint: "Weekly and monthly briefings" },
-      { label: "Reports",               href: "/staff/reports",   capability: NAV_CAPABILITY["/staff/reports"], icon: "reports", hint: "Trends over time" },
-      { label: "Exports",               href: "/staff/exports",   capability: NAV_CAPABILITY["/staff/exports"], icon: "exports", hint: "Spreadsheets and the master workbook" },
-      { label: "Staff changes",         href: "/staff/changes",   capability: NAV_CAPABILITY["/staff/changes"], icon: "changes", hint: "Every staff change to a member" },
     ],
   },
   {
-    title: "Admin",
+    title: "Reports",
     items: [
-      { label: "Gym setup",    href: "/staff/gym-setup",             capability: NAV_CAPABILITY["/staff/gym-setup"], icon: "catalog", hint: "Checklist, logo and colour" },
-      { label: "Gym guide",    href: "/staff/gym-guide",             capability: NAV_CAPABILITY["/staff/gym-guide"], icon: "reports", hint: "How to run your gym on the platform" },
-      { label: "Staff",        href: "/staff/staff-users",          capability: NAV_CAPABILITY["/staff/staff-users"], icon: "staff", hint: "Staff accounts and roles" },
+      { label: "Briefings",             href: "/staff/briefings", capability: NAV_CAPABILITY["/staff/briefings"], icon: "reports", hint: "Weekly and monthly briefings, and what to look at" },
+      { label: "Reports",               href: "/staff/reports",   capability: NAV_CAPABILITY["/staff/reports"], icon: "reports", hint: "Trends over time" },
+      { label: "Exports",               href: "/staff/exports",   capability: NAV_CAPABILITY["/staff/exports"], icon: "exports", hint: "Spreadsheets and the master workbook" },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      { label: "Gym setup",    href: "/staff/gym-setup",    capability: NAV_CAPABILITY["/staff/gym-setup"], icon: "catalog", hint: "Checklist, logo, colour, subscription and AI allowance" },
+      { label: "Staff",        href: "/staff/staff-users",  capability: NAV_CAPABILITY["/staff/staff-users"], icon: "staff", hint: "Staff accounts and roles" },
+      { label: "Staff changes", href: "/staff/changes",     capability: NAV_CAPABILITY["/staff/changes"], icon: "changes", hint: "Every staff change to a member" },
+      { label: "Gym guide",    href: "/staff/gym-guide",    capability: NAV_CAPABILITY["/staff/gym-guide"], icon: "reports", hint: "How to run your gym on the platform" },
+    ],
+  },
+  {
+    title: "To review",
+    items: [
       { label: "Food Reviews", href: "/staff/nutrition-submissions", capability: NAV_CAPABILITY["/staff/nutrition-submissions"], icon: "food", hint: "Foods members submitted" },
       { label: "Community reports", href: "/staff/community-reports", capability: NAV_CAPABILITY["/staff/community-reports"], icon: "flag", hint: "Reported comments and posts" },
       { label: "Gym community", href: "/staff/gym-community", capability: NAV_CAPABILITY["/staff/gym-community"], icon: "flag", hint: "Reports in your gym's community and groups" },
       // TRIAL-ONLY — see docs/bug-reports.md.
-      { label: "Bug reports",  href: "/staff/bug-reports",           capability: NAV_CAPABILITY["/staff/bug-reports"], icon: "bug", hint: "Problems members reported" },
+      { label: "Bug reports",  href: "/staff/bug-reports",  capability: NAV_CAPABILITY["/staff/bug-reports"], icon: "bug", hint: "Problems members reported" },
     ],
   },
 ];

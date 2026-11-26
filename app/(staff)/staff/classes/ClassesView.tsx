@@ -83,6 +83,12 @@ function emptyFormValues(defaultCategory = "general"): ClassFormValues {
   };
 }
 
+/** The same weekday one week on, as YYYY-MM-DD (used to pre-fill a duplicated class). */
+function plusSevenDays(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 7)).toISOString().slice(0, 10);
+}
+
 function toFormValues(classRecord: ClassRecord): ClassFormValues {
   return {
     title: classRecord.title,
@@ -364,6 +370,19 @@ export function ClassesView({
     setErrors({});
     setFormError(null);
     setSuccessMessage(null);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Pre-fills the create form with a copy of this class one week later (same name, type, time, length, capacity and picture). Nothing is saved until Create is pressed,
+  // so it is the quickest way to add "another one like this" and then change what differs.
+  function startDuplicate(classRecord: ClassRecord) {
+    setEditingId(null);
+    setValues({ ...toFormValues(classRecord), date: plusSevenDays(classRecord.date) });
+    setCoverSuggested(false);
+    setHintDismissed(false);
+    setErrors({});
+    setFormError(null);
+    setSuccessMessage(`A copy of ${classRecord.title} is filled in below, one week later. Change anything you like, then press Create.`);
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -1013,6 +1032,13 @@ export function ClassesView({
             className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
           >
             Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => startDuplicate(classRecord)}
+            className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
+          >
+            Duplicate
           </button>
           {canDelete && !isConfirmingDelete ? (
             <button
