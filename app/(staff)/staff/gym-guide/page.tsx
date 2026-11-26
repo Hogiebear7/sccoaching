@@ -18,8 +18,9 @@ const SECTIONS: { id: string; title: string; body: string[] }[] = [
     id: "branding",
     title: "Your logo and colour",
     body: [
-      "In Gym setup, add a link to your logo (https, a .png, .jpg, .webp or .svg image) and pick one accent colour. Your members see them in the app and on the member website the next time they open it.",
-      "The accent has to be readable on the app's dark background, so very dark colours are refused with a message. If you set nothing, members see the S&C look.",
+      "In Gym setup, upload your logo (a .png, .jpg or .webp picture up to 1 MB) or paste a link to one that is already online, and pick one accent colour. Your members see both on the member website and in the S&C app the next time they open it.",
+      "In the app, your colour replaces the S&C gold for your members: the tab bar, links, progress bars, badges and small highlights. On the app's light theme the colour is darkened a little if needed so it stays readable. The colour has to be readable on the dark background, so very dark colours are refused with a message. If you set nothing, members see the S&C look.",
+      "Replace or remove your logo any time from the same place. The preview shows how it will look before you save.",
     ],
   },
   {
@@ -38,7 +39,8 @@ const SECTIONS: { id: string; title: string; body: string[] }[] = [
   {
     id: "memberships",
     title: "Memberships and pricing",
-    body: ["Memberships & Pricing is where you set your plans, packs and prices. Members choose a plan in the app or on the website. The money for your memberships goes to you through your own payment provider; the platform never holds it."],
+    body: ["Memberships & Pricing is where you set your plans, packs and prices. Members choose a plan in the app or on the website. The money for your memberships goes to you through your own payment provider; the platform never holds it.",
+      "Trial pass: when you add or edit a package you can tick Trial pass, for a one-off \"try the gym\" offer such as 3 classes for a single payment. Each member can buy it once, and only before they have paid for a membership. Once they have a membership it is hidden from their account. Set it to a one-off payment, then make it visible.",],
   },
   {
     id: "community",
@@ -49,10 +51,28 @@ const SECTIONS: { id: string; title: string; body: string[] }[] = [
     id: "platform",
     title: "Your platform subscription",
     body: [
-      "Your gym pays S&C a subscription to use the platform. The platform team gives you a payment link; pay it before the date shown and nothing changes.",
-      "Your price depends on your gym's size: up to 50 members, 51 to 100, 101 to 150, 151 to 300, 301 to 500, or more than 500 (members who have not been archived), paid monthly or yearly. Your plan follows the most members you had at any point in your billing period, not the number on the day you pay, so removing members before the end of the period does not lower it. It only comes down when a whole period stayed lower. You are told by notification and email when you are close to the top of your plan and when you go over it.",
-      "If a payment is overdue you get a grace period first. During grace, your admins see a banner with a Pay link for the first half, and your coaches see it too in the second half. Members notice nothing. If it is still unpaid after the grace period, access is paused: members see that the gym is temporarily unavailable and staff see a Pay now button.",
+      "Your gym pays S&C a subscription to use the platform. In Gym setup, open Your subscription, choose Monthly or Yearly and press Subscribe. You pay on a secure payment page; your card details never touch the platform. After that, Pay or renew starts a renewal, and Manage card, invoices or cancel opens a page where you can update your card, download invoices and cancel. A yearly plan costs eleven months of the monthly price, so you get about one month free.",
+      "Your price depends on your gym's size: up to 50 members, 51 to 100, 101 to 150, 151 to 300, 301 to 500, or more than 500 (members who have not been archived). Your plan follows the most members you had at any point in your billing period, not the number on the day you pay, so removing members before the end of the period does not lower it. It only comes down when a whole period stayed lower. You are told by notification and email when you reach about 90% of the top of your plan and when you go over it, so a change is never a surprise.",
+      "Money-back guarantee: if the platform is not right for you, ask the platform team within 14 days of your first payment and your latest payment is refunded and your subscription ended. After 14 days you can still cancel at any time and keep access to the end of the period you paid for.",
+      "If a payment is overdue you get a grace period of 14 days first. During grace, your admins see a banner with a Pay link for the whole period, and your coaches see it too in the second half. Members notice nothing. If it is still unpaid after the grace period, access is paused: members see that the gym is temporarily unavailable and staff see a Pay now button.",
       "Nothing is ever deleted. The moment the payment is made, everything comes back exactly as it was.",
+    ],
+  },
+  {
+    id: "ai",
+    title: "AI features and fair use",
+    body: [
+      "Your members can use the app's AI features, such as the AI coach, food photo and description logging, meal ideas, programme generation and workout reviews. Each member has a fair-use allowance, and your gym has its own monthly allowance that depends on your plan size and covers everyone in the gym together.",
+      "If your gym uses up its allowance, AI features pause for your members until it frees up. Everything else in the app keeps working, and other gyms are not affected. If this happens often, a bigger plan gives you a bigger allowance.",
+    ],
+  },
+  {
+    id: "app",
+    title: "What your members get in the app",
+    body: [
+      "Members download the free S&C app and sign up to your gym using your invite link. Once their account is in your gym, whenever they open the app they see your gym's logo and colour, your class timetable and booking, your gym community and private groups, and messaging with your coaches.",
+      "Training and wellbeing tools in the app include workouts and programmes, food and water logging, and a daily recovery check-in. Members can add today's check-in and edit yesterday's, but not older ones. On the community leaderboard members appear under an alias they choose instead of their name, and can filter the alias choices by male or female names.",
+      "An account belongs to one gym at a time. A member who wants to join a different gym needs to use a different account for now.",
     ],
   },
   {
