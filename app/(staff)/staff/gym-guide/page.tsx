@@ -33,7 +33,7 @@ const SECTIONS: { id: string; title: string; body: string[] }[] = [
     title: "Coaches and members",
     body: [
       "Staff, in the Admin menu, is where you add coaches and choose each one's role. A coach sees the members they coach; an admin sees more. Give people the lowest role that lets them do their job.",
-      "Invite members from Invites. They get a link, create their account and land in your gym. Your members can never see another gym's members, classes or messages, and other gyms can never see yours.",
+      "Invite members from the Members page, under Invite by email. Choose Many people to paste a list of emails or upload a file (a spreadsheet saved as CSV works), up to 100 at a time: you see what will happen to each address before anything is sent. They get a link, create their account and land in your gym. Your members can never see another gym's members, classes or messages, and other gyms can never see yours.",
     ],
   },
   {

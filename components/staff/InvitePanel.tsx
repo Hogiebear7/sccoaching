@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 
+import { BulkInviteForm } from "@/components/staff/BulkInviteForm";
+
 type InvitableTier = "app_subscription" | "membership";
 
 const TIER_LABEL: Record<InvitableTier, string> = {
@@ -21,6 +23,7 @@ export function InvitePanel() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mode, setMode] = useState<"one" | "many">("one");
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,12 +57,27 @@ export function InvitePanel() {
 
   return (
     <div className="panel p-4">
-      <p className="text-sm font-medium">Invite by email</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium">Invite by email</p>
+        <span role="group" aria-label="How many people" className="inline-flex overflow-hidden rounded-md border border-white/15 text-xs">
+          {(["one", "many"] as const).map((m) => (
+            <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)} className={`min-h-9 px-3 ${mode === m ? "bg-white/15 font-semibold" : "text-muted-foreground"}`}>
+              {m === "one" ? "One person" : "Many people"}
+            </button>
+          ))}
+        </span>
+      </div>
       <p className="mt-1 text-xs text-muted-foreground">
         Sends a one-time link that grants the chosen tier as soon as the recipient signs in (or
         signs up) with that email.
       </p>
 
+      {mode === "many" ? (
+        <div className="mt-3">
+          <BulkInviteForm />
+        </div>
+      ) : (
+      <>
       <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row">
         {error ? (
           <p className="w-full rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive sm:hidden">
@@ -112,6 +130,8 @@ export function InvitePanel() {
           {successMessage}
         </p>
       ) : null}
+      </>
+      )}
     </div>
   );
 }
