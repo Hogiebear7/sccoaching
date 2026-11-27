@@ -71,6 +71,42 @@ export function parseWaterG(raw: unknown, max = 100000): number | null {
   return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= max ? Math.round(raw * 10) / 10 : null;
 }
 
+// Open Food Facts gives every nutrient per 100 g IN GRAMS (iron_100g: 0.0021 is 2.1 mg). Only the nutrients a product actually lists are read; each is converted to the unit this app
+// stores and passed through parseMicros, so a typing error in the source (a value far beyond what 100 g could hold) is dropped rather than shown.
+const OFF_SOURCES: { key: MicroKey; offKeys: string[]; perGram: number }[] = [
+  { key: "ironMg", offKeys: ["iron_100g"], perGram: 1000 },
+  { key: "calciumMg", offKeys: ["calcium_100g"], perGram: 1000 },
+  { key: "magnesiumMg", offKeys: ["magnesium_100g"], perGram: 1000 },
+  { key: "potassiumMg", offKeys: ["potassium_100g"], perGram: 1000 },
+  { key: "zincMg", offKeys: ["zinc_100g"], perGram: 1000 },
+  { key: "iodineUg", offKeys: ["iodine_100g"], perGram: 1_000_000 },
+  { key: "seleniumUg", offKeys: ["selenium_100g"], perGram: 1_000_000 },
+  { key: "vitaminAUg", offKeys: ["vitamin-a_100g"], perGram: 1_000_000 },
+  { key: "vitaminCMg", offKeys: ["vitamin-c_100g"], perGram: 1000 },
+  { key: "vitaminDUg", offKeys: ["vitamin-d_100g"], perGram: 1_000_000 },
+  { key: "vitaminEMg", offKeys: ["vitamin-e_100g"], perGram: 1000 },
+  { key: "vitaminKUg", offKeys: ["vitamin-k_100g"], perGram: 1_000_000 },
+  { key: "vitaminB12Ug", offKeys: ["vitamin-b12_100g"], perGram: 1_000_000 },
+  { key: "folateUg", offKeys: ["folates_100g", "vitamin-b9_100g"], perGram: 1_000_000 },
+  { key: "omega3G", offKeys: ["omega-3-fat_100g"], perGram: 1 },
+];
+
+/** The vitamins, minerals and omega-3 an Open Food Facts product lists per 100 g, in this app's units. A nutrient the product does not list is left out (never zero). */
+export function microsFromOpenFoodFacts(nutriments: Record<string, unknown> | null | undefined): MicroMap {
+  const raw: Record<string, number> = {};
+  if (!nutriments) return {};
+  for (const src of OFF_SOURCES) {
+    for (const offKey of src.offKeys) {
+      const v = nutriments[offKey];
+      if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+        raw[src.key] = v * src.perGram;
+        break;
+      }
+    }
+  }
+  return parseMicros(raw);
+}
+
 /** A food's per-100 g micronutrients scaled to an amount (factor = grams / 100). Unknown stays unknown. */
 export function scaleMicros(per100: MicroMap | null | undefined, factor: number): MicroMap {
   const out: MicroMap = {};
