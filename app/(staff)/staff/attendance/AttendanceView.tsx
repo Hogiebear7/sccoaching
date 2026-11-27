@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { DataTable, type DataTableColumn } from "@/components/staff/DataTable";
+import { QUIET_STAGES, isQuietAtLeast } from "@/lib/quiet-stages";
 
 type LeaderboardRow = {
   userId: string;
@@ -44,6 +45,7 @@ const CHIPS = [
   { key: "all", label: "Everyone", match: () => true },
   { key: "quiet", label: "No class in 14 days", match: (r: LeaderboardRow) => (daysSince(r.lastAttended) ?? Infinity) > 14 },
   { key: "never", label: "Never attended", match: (r: LeaderboardRow) => r.classesAttended === 0 },
+  ...QUIET_STAGES.map((stage) => ({ key: stage.key, label: stage.label, match: (r: LeaderboardRow) => isQuietAtLeast(r.lastAttended, stage.minDays) })),
 ];
 
 type WatchlistRow = {
