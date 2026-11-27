@@ -6,6 +6,9 @@ import { resolveBranding } from "@/lib/gym-branding";
 import { domainStateText, gymMayUseCustomEmailDomain } from "@/lib/gym-email-domain";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { tenantAccess } from "@/lib/tenant-billing";
+import { canExtendDraft, draftCountdownText, draftExpiresAt, draftIdleHoursFromEnv } from "@/lib/gym-draft-expiry";
+import { gymNotLive, REFUND_WINDOWS_TEXT } from "@/lib/tenant-live";
+import { SaveSetupCard } from "./SaveSetupCard";
 import { BAND_RULE_TEXT, bandLabel, tenantPriceMap } from "@/lib/tenant-pricing";
 import { tenantSubscriptionConfigured } from "@/lib/tenant-subscription";
 import { BrandingForm } from "./BrandingForm";
@@ -66,6 +69,20 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
           {doneCount} of {steps.length} done. New here? Read the <Link href="/staff/gym-guide" className="underline underline-offset-2 hover:text-zinc-100">gym guide</Link>.
         </p>
       </header>
+
+      {gymNotLive(gym) ? (
+        <section aria-labelledby="golive-heading" className="space-y-2 rounded-xl border border-sky-400/30 bg-sky-400/10 p-4">
+          <h2 id="golive-heading" className="text-base font-semibold text-sky-50">Go live when you are ready</h2>
+          <p className="text-sm text-sky-100">
+            Set up everything first: your logo, classes, prices and coaches. Nothing reaches your members until you go live, and there is no charge before that. When you subscribe below, your gym goes live
+            straight away: it is listed in the directory and you can invite your members. {REFUND_WINDOWS_TEXT}
+          </p>
+          <SaveSetupCard
+            expiresText={draftCountdownText(draftExpiresAt(gym, draftIdleHoursFromEnv()), new Date())}
+            canExtend={canExtendDraft(gym)}
+          />
+        </section>
+      ) : null}
 
       <ol className="space-y-2" aria-label="Setup checklist">
         {steps.map((s) => (

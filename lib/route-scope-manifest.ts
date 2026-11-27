@@ -301,6 +301,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/finance/ledger/delete", scope: "platform", capabilities: ["finance.view"] },
   { route: "gym-logo/[gymId]", scope: "public", note: "A gym's uploaded logo, shown to its members and on its sign-up page. Serves only a file that gym uploaded itself, with its image type taken from the file's own bytes." },
   { route: "staff/gym/branding", scope: "own-tenant", capabilities: ["gym.manageBranding"], evidence: ["gymId"], note: "Acts only on the acting staff member's own gym, resolved from their account; the primary gym's brand is fixed.", runtimeTenantContext: true, lockoutEnforced: true },
+  { route: "staff/gym/draft/extend", scope: "own-tenant", capabilities: ["gym.manageBranding"], evidence: ["gymId"], note: "The owner of a new, unpaid gym keeps its saved setup 3 more days, once. The gym comes from the account, never the request.", lockoutEnforced: true },
   { route: "staff/gym/subscription", scope: "own-tenant", capabilities: ["gym.manageBranding"], evidence: ["gymId"], note: "A gym's own admin starts or manages its S&C platform subscription; the gym comes from the account, never the request. Nothing is marked paid here (the Stripe webhook does that).", runtimeTenantContext: true, lockoutExempt: "A locked gym's own admin must still be able to pay to unlock it." },
   { route: "staff/gyms/[gymId]/status", scope: "platform", capabilities: ["gyms.moderate"] },
   { route: "staff/gyms/[gymId]/billing", scope: "platform", capabilities: ["gyms.moderate"] },

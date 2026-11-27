@@ -8,6 +8,7 @@
 //   AI_TENANT_GYM_CAPS_EUR = {"b50":20,"b100":40,"b150":60,"b300":120,"b500":200,"b501":300}
 // Unset (or not all six bands given as plain numbers): no per-gym cap, exactly as before. S&C's own gym (gymId null) is never capped by this. A tenant gym that has no band
 // yet (not billed, or size-based pricing not switched on) is held to the SMALLEST band's cap, so an unpaid gym can never be the expensive one.
+import { gymNotLive, paymentGateEnabled } from "@/lib/tenant-live";
 import { AI_ALLOWANCE_WINDOW_MS, aiUsdPerEur } from "./ai-allowance";
 import { findAllAiUsageLogs, findGymById, findUserById, findUsersInGym } from "./db";
 import type { GymRecord } from "./gyms-schema";
@@ -60,6 +61,9 @@ export function tenantGymAiCap(userId: string | null | undefined): { gymId: stri
   if (!caps) return null;
   const user = findUserById(userId);
   if (!user?.gymId) return null; // S&C's own gym, and platform accounts, are not capped here
-  const band = findGymById(user.gymId)?.platformBilling?.band ?? TENANT_BANDS[0].key;
+  const gym = findGymById(user.gymId);
+  // A gym that has not gone live (paid) yet has no AI at all (lib/tenant-live.ts, off by default).
+  if (paymentGateEnabled() && gymNotLive(gym)) return { gymId: user.gymId, usd: 0 };
+  const band = gym?.platformBilling?.band ?? TENANT_BANDS[0].key;
   return { gymId: user.gymId, usd: caps[band] * aiUsdPerEur() };
 }

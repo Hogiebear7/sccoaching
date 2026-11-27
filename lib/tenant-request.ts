@@ -57,7 +57,7 @@ export function resolveStaffTenantRequest(
 //   if (tenantLock) return tenantLock;
 //
 // A no-op unless TENANT_LOCKOUT_ENABLED is on (lib/tenant-lockout.ts), and the primary gym and platform operators are never locked.
-export function requireTenantAccess(user: StoredUser, options: { allowWhenLocked?: boolean } = {}): NextResponse | null {
+export function requireTenantAccess(user: StoredUser, options: { allowWhenLocked?: boolean; requiresLive?: boolean } = {}): NextResponse | null {
   return lockoutResponse(buildTenantContext(user), options);
 }
 
