@@ -78,6 +78,10 @@ export interface GymRecord {
   pendingStripeCustomerId?: string;
   /** The gym's logo and accent colour. Absent = the S&C default. Set by the gym's own owner/admin only. */
   branding?: GymBranding;
+  /** Whether members check themselves in to classes by scanning a code at the gym: "off" (the default when absent), "poster" (one printed code) or "live" (a screen whose code changes every minute). See lib/class-checkin.ts. */
+  selfCheckin?: "off" | "poster" | "live";
+  /** How often the live check-in code changes: "minute", "day" or "week" (the default when absent). */
+  selfCheckinPeriod?: "minute" | "day" | "week";
   createdAt: string;
   updatedAt: string;
 }
