@@ -119,7 +119,7 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
 
       <section aria-labelledby="branding-heading" className="space-y-3">
         <h2 id="branding-heading" className="text-base font-semibold text-zinc-50">Logo and accent colour</h2>
-        <BrandingForm initialAccent={gym.branding?.accentColor ?? ""} initialLogo={gym.branding?.logoUrl ?? ""} initialBackground={gym.branding?.logoBackground === "light" ? "light" : "dark"} gymName={gym.name} />
+        <BrandingForm initialAccent={gym.branding?.accentColor ?? ""} initialLogo={gym.branding?.logoUrl ?? ""} initialBackground={gym.branding?.logoBackground ?? "dark"} gymName={gym.name} />
       </section>
     </div>
   );

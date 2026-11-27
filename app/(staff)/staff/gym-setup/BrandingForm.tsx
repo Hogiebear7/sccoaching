@@ -3,14 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { contrastRatio, DEFAULT_ACCENT, MIN_ACCENT_CONTRAST, readableOn } from "@/lib/gym-branding";
+import { contrastRatio, DEFAULT_ACCENT, logoBackgroundColour, MIN_ACCENT_CONTRAST, readableOn } from "@/lib/gym-branding";
 
 // Logo link and accent colour, with a live preview and the same contrast check the server enforces (the server is the authority; this only saves a round trip).
-export function BrandingForm({ initialAccent, initialLogo, initialBackground, gymName }: { initialAccent: string; initialLogo: string; initialBackground: "light" | "dark"; gymName: string }) {
+export function BrandingForm({ initialAccent, initialLogo, initialBackground, gymName }: { initialAccent: string; initialLogo: string; initialBackground: string; gymName: string }) {
   const router = useRouter();
   const [accent, setAccent] = useState(initialAccent);
   const [logo, setLogo] = useState(initialLogo);
-  const [background, setBackground] = useState<"light" | "dark">(initialBackground);
+  const [background, setBackground] = useState<string>(initialBackground);
+  const isCustom = /^#[0-9a-fA-F]{6}$/.test(background) && background.toUpperCase() !== "#000000";
+  const [customColour, setCustomColour] = useState<string>(/^#[0-9a-fA-F]{6}$/.test(initialBackground) ? initialBackground.toUpperCase() : "#1E3A5F");
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -113,29 +115,39 @@ export function BrandingForm({ initialAccent, initialLogo, initialBackground, gy
       </div>
 
       <fieldset className="block text-xs text-zinc-400">
-        <legend>Logo background: pick the one your logo looks best on</legend>
-        <p className="mt-1">Members see your logo on this colour when the app opens and at the top of the app. Dark logos need Light; white logos need Dark.</p>
-        <div className="mt-2 grid grid-cols-2 gap-3" role="radiogroup" aria-label="Logo background">
-          {(["dark", "light"] as const).map((b) => (
-            <button
-              key={b}
-              type="button"
-              role="radio"
-              aria-checked={background === b}
-              onClick={() => setBackground(b)}
-              className={`rounded-xl border-2 p-3 text-center transition ${background === b ? "border-white" : "border-white/10 hover:border-white/30"}`}
-            >
-              <span className="flex h-20 items-center justify-center rounded-lg" style={{ backgroundColor: b === "light" ? "#FFFFFF" : "#0A1526" }}>
+        <legend>Logo background: pick the colour your logo looks best on</legend>
+        <p className="mt-1">Members see your logo on this colour when the app opens and at the top of the app. Use White for a dark logo, Dark for a white logo, or pick the exact colour if your logo file has its own background.</p>
+        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4" role="radiogroup" aria-label="Logo background">
+          {([
+            { value: "dark", label: "Dark (app navy)" },
+            { value: "light", label: "White" },
+            { value: "#000000", label: "Black" },
+          ] as const).map((o) => (
+            <Tile key={o.value} colour={logoBackgroundColour(o.value)} label={o.label} selected={background === o.value} logo={logo} gymName={gymName} onPick={() => setBackground(o.value)} />
+          ))}
+          <div className={`rounded-xl border-2 p-3 text-center ${isCustom ? "border-white" : "border-white/10"}`}>
+            <button type="button" role="radio" aria-checked={isCustom} onClick={() => setBackground(isCustom ? background : customColour)} className="block w-full">
+              <span className="flex h-20 items-center justify-center rounded-lg" style={{ backgroundColor: logoBackgroundColour(isCustom ? background : customColour) }}>
                 {logo ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={logo} alt="" className="max-h-14 w-auto max-w-[85%] object-contain" />
                 ) : (
-                  <span className="text-sm font-semibold" style={{ color: b === "light" ? "#0A1526" : "#FFFFFF" }}>{gymName}</span>
+                  <span className="text-sm font-semibold text-white">{gymName}</span>
                 )}
               </span>
-              <span className="mt-2 block text-sm font-medium text-zinc-100">{b === "light" ? "Light background" : "Dark background"}</span>
+              <span className="mt-2 block text-sm font-medium text-zinc-100">Your own colour</span>
             </button>
-          ))}
+            <input
+              type="color"
+              aria-label="Pick your own logo background colour"
+              value={logoBackgroundColour(isCustom ? background : customColour)}
+              onChange={(e) => {
+                setCustomColour(e.target.value.toUpperCase());
+                setBackground(e.target.value.toUpperCase());
+              }}
+              className="mt-2 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent"
+            />
+          </div>
         </div>
       </fieldset>
 
@@ -171,5 +183,22 @@ export function BrandingForm({ initialAccent, initialLogo, initialBackground, gy
         {message ? <p role="status" className="text-xs text-zinc-300">{message}</p> : null}
       </div>
     </div>
+  );
+}
+
+function Tile({ colour, label, selected, logo, gymName, onPick }: { colour: string; label: string; selected: boolean; logo: string; gymName: string; onPick: () => void }) {
+  const lightTile = parseInt(colour.slice(1), 16) > 0x808080;
+  return (
+    <button type="button" role="radio" aria-checked={selected} onClick={onPick} className={`rounded-xl border-2 p-3 text-center transition ${selected ? "border-white" : "border-white/10 hover:border-white/30"}`}>
+      <span className="flex h-20 items-center justify-center rounded-lg" style={{ backgroundColor: colour }}>
+        {logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logo} alt="" className="max-h-14 w-auto max-w-[85%] object-contain" />
+        ) : (
+          <span className="text-sm font-semibold" style={{ color: lightTile ? "#0A1526" : "#FFFFFF" }}>{gymName}</span>
+        )}
+      </span>
+      <span className="mt-2 block text-sm font-medium text-zinc-100">{label}</span>
+    </button>
   );
 }
