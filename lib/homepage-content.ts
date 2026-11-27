@@ -31,7 +31,7 @@ export const HOME_APPROACH = {
   title: "This is a coaching floor, not a workout class.",
   bio: {
     label: "Your coach",
-    text: "15 years in the gym, fitness and health industry across commercial, private and corporate settings, working with athletes, Oscar-winning actors and everyday people. Trained in sports science and kinesiology, with a master's in performance nutrition, and a PhD in the plans for the coming years.",
+    text: "15 years in the gym, fitness and health industry across commercial, private and corporate settings, working with Oscar-winning actors, Olympic athletes, and everyday people. Trained in sports science and kinesiology, with a master's in performance nutrition, and a PhD in the plans for the coming years.",
   },
   pillars: [
     {

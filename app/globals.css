@@ -619,6 +619,25 @@ html {
   }
 }
 
+/* The public enquiry form: its fields are lighter than the card around them, with a clearer edge, so they read as things to fill in rather than blending into the page. */
+[data-contact] input:not([type="checkbox"]),
+[data-contact] select,
+[data-contact] textarea {
+  background-color: oklch(0.31 0.035 258);
+  border-color: oklch(1 0 0 / 0.32);
+  color: oklch(0.98 0.004 255);
+}
+[data-contact] input::placeholder,
+[data-contact] textarea::placeholder {
+  color: oklch(0.8 0.01 255);
+}
+[data-contact] input:not([type="checkbox"]):focus,
+[data-contact] select:focus,
+[data-contact] textarea:focus {
+  border-color: oklch(0.78 0.11 85 / 0.85);
+  box-shadow: 0 0 0 3px oklch(0.78 0.11 85 / 0.2);
+}
+
 /* ─── Motion ────────────────────────────────────────────────────────── */
 
 @keyframes rise {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CookieSettingsLink } from "@/components/analytics/SiteAnalytics";
+import { appStoreListingUrl, playStoreListingUrl } from "@/lib/app-links";
 import { AUTH_ROUTES, BRAND_NAME, CONTACT_INFO } from "@/lib/content";
 import { SITE_NAV } from "@/lib/site-content";
 
@@ -37,6 +38,18 @@ export function SiteFooter() {
                 Facebook<span className="sr-only"> (opens in a new tab)</span>
               </a>
             ) : null}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3" aria-label="Get the app">
+            <a href={appStoreListingUrl()} target="_blank" rel="noopener noreferrer" className="inline-block transition-opacity duration-150 hover:opacity-85">
+              {/* eslint-disable-next-line @next/next/no-img-element -- the store's own badge artwork */}
+              <img src="/marketing/badges/app-store-badge.svg" alt="Download on the App Store" height={40} className="block h-10 w-auto" />
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+            <a href={playStoreListingUrl()} target="_blank" rel="noopener noreferrer" className="inline-block transition-opacity duration-150 hover:opacity-85">
+              {/* eslint-disable-next-line @next/next/no-img-element -- the store's own badge artwork */}
+              <img src="/marketing/badges/google-play-badge.png" alt="Get it on Google Play" height={40} className="block h-10 w-auto" />
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
           </div>
         </div>
 
