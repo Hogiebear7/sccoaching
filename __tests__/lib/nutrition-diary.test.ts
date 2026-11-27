@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFoodEntryInput, parseNutrientExtras, recentDistinctFoods, sumDailyTotals, sumExtraTotals } from "@/lib/nutrition-diary";
-import type { FoodEntryRecord } from "@/lib/db";
+import { catalogNutrientsForEntry, parseFoodEntryInput, parseNutrientExtras, recentDistinctFoods, sumDailyTotals, sumExtraTotals } from "@/lib/nutrition-diary";
+import type { FoodEntryRecord, FoodRecord } from "@/lib/db";
 
 describe("parseFoodEntryInput", () => {
   it("parses a valid entry, defaulting omitted macros and catalog fields", () => {
@@ -157,5 +157,28 @@ describe("sumExtraTotals", () => {
 
   it("is all zeros with nothing missing for an empty day", () => {
     expect(sumExtraTotals([])).toEqual({ fiberG: 0, sugarG: 0, sodiumMg: 0, saturatedFatG: 0, missing: { fiberG: 0, sugarG: 0, sodiumMg: 0, saturatedFatG: 0 }, totalEntries: 0 });
+  });
+});
+
+describe("catalogNutrientsForEntry", () => {
+  const banana = { nutrition100g: { micros: { potassiumMg: 360, vitaminCMg: 11 }, waterG: 75 } } as unknown as FoodRecord;
+  const lookup = (domain: string, id: string) => (domain === "common" && id === "banana" ? banana : undefined);
+  const base = { foodId: "banana", foodDomain: "common" as const, servingGrams: 120, quantity: 2 };
+
+  it("scales the food's vitamins and water to the amount eaten (serving x quantity)", () => {
+    const r = catalogNutrientsForEntry(base, lookup);
+    expect(r.micros).toEqual({ potassiumMg: 864, vitaminCMg: 26.4 });
+    expect(r.waterG).toBe(180);
+  });
+  it("keeps what the app sent, and adds nothing for a hand-typed or custom food", () => {
+    expect(catalogNutrientsForEntry({ ...base, micros: { ironMg: 1 } }, lookup).micros).toBeUndefined();
+    expect(catalogNutrientsForEntry({ ...base, foodId: null }, lookup)).toEqual({});
+    expect(catalogNutrientsForEntry({ ...base, foodDomain: "custom" }, lookup)).toEqual({});
+  });
+  it("adds nothing for an unknown food, a food without vitamins, or an unknown amount", () => {
+    expect(catalogNutrientsForEntry({ ...base, foodId: "nope" }, lookup)).toEqual({});
+    const plain = { nutrition100g: { micros: undefined } } as unknown as FoodRecord;
+    expect(catalogNutrientsForEntry(base, () => plain)).toEqual({});
+    expect(catalogNutrientsForEntry({ ...base, servingGrams: null }, lookup)).toEqual({});
   });
 });
