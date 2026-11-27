@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { findGymById, findGymBySlug, findUserById } from "@/lib/db";
 import { resolveBranding } from "@/lib/gym-branding";
+import { selfCheckinModeForUser } from "@/lib/gym-checkin-setting";
 import { PRIMARY_GYM_SLUG } from "@/lib/primary-gym";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { MOBILE_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
@@ -30,6 +31,8 @@ export async function GET(request: NextRequest) {
     tenant: tenantStatusFor(user),
     // The gym's name, logo and accent colour, so the app can wear the gym's own look. The S&C defaults when the gym has set nothing.
     branding: resolveBranding(user.gymId ? findGymById(user.gymId) : findGymBySlug(PRIMARY_GYM_SLUG)),
+    // How members check in to classes at this gym ("off", "poster" or "live"), so the app only offers a scan button where the gym uses it.
+    selfCheckin: selfCheckinModeForUser(user),
     token: signSession({ userId: user.id }, MOBILE_SESSION_LIFETIME_MS),
   });
 }

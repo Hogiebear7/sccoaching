@@ -1,4 +1,5 @@
 import { getConfiguredAppUrl } from "@/lib/app-config";
+import { appStoreListingUrl, playStoreListingUrl } from "@/lib/app-links";
 
 // APP_URL is used to build action links in emails. Must be set in production.
 // Falls back to localhost for development.
@@ -21,7 +22,7 @@ function emailWrapper(title: string, body: string): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${title}</title>
+  <title>${escapeHtml(title)}</title>
 </head>
 <body style="margin:0;padding:0;background:#09090b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -697,6 +698,8 @@ const INVITE_TIER_LABEL: Record<"app_subscription" | "membership", string> = {
 export interface InviteEmailOpts {
   tier: "app_subscription" | "membership";
   inviteToken: string;
+  /** The gym doing the inviting. Defaults to S&C Performance Coaching. */
+  gymName?: string;
 }
 
 export function inviteEmail(opts: InviteEmailOpts): {
@@ -705,29 +708,44 @@ export function inviteEmail(opts: InviteEmailOpts): {
   text: string;
 } {
   const { tier, inviteToken } = opts;
+  const gymName = (opts.gymName ?? "").trim() || "S&C Performance Coaching";
+  const gym = escapeHtml(gymName);
   const tierLabel = INVITE_TIER_LABEL[tier];
   const actionUrl = `${APP_URL}/invite?token=${inviteToken}`;
-  const subject = `You've been invited to ${tierLabel} access`;
+  const appStoreUrl = appStoreListingUrl();
+  const playStoreUrl = playStoreListingUrl();
+  const subject = `${gymName} has invited you`;
 
   const html = emailWrapper(subject, `
     <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#e4c55a;">Invite</p>
-    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">You&#39;re invited — ${tierLabel}</h1>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#fafafa;">You&#39;re invited to join ${gym}</h1>
     <p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">
-      S&amp;C Performance Coaching has granted you ${tierLabel} access. Open the link below to sign in (or create an
-      account, if you're new) and your access will be applied automatically. This link expires in 7 days and can only
-      be used once.
+      ${gym} has invited you to join on the S&amp;C app, with ${tierLabel} access.
     </p>
+    <ol style="margin:0 0 16px;padding-left:20px;font-size:14px;color:#a1a1aa;line-height:1.7;">
+      <li>Get the app (links below).</li>
+      <li>Open it and create your account with <strong>this email address</strong>, or sign in if you already have one.</li>
+      <li>Tap the button below to apply your access. This link expires in 7 days and can only be used once.</li>
+    </ol>
     ${ctaButton("Accept invite →", actionUrl)}
+    <p style="margin:24px 0 8px;font-size:12px;color:#71717a;">Get the app:</p>
+    <p style="margin:0;">
+      <a href="${appStoreUrl}" style="display:inline-block;margin:0 8px 8px 0;padding:9px 16px;background:#27272a;color:#fafafa;font-size:13px;font-weight:600;border-radius:10px;text-decoration:none;">Download on the App Store</a>
+      <a href="${playStoreUrl}" style="display:inline-block;margin:0 8px 8px 0;padding:9px 16px;background:#27272a;color:#fafafa;font-size:13px;font-weight:600;border-radius:10px;text-decoration:none;">Get it on Google Play</a>
+    </p>
   `);
 
   const text = [
-    `S&C Performance Coaching has granted you ${tierLabel} access.`,
+    `${gymName} has invited you to join on the S&C app, with ${tierLabel} access.`,
     ``,
-    `Open this link to sign in (or create an account, if you're new) and your access will be applied automatically.`,
-    `This link expires in 7 days and can only be used once:`,
-    actionUrl,
+    `1. Get the app:`,
+    `   App Store: ${appStoreUrl}`,
+    `   Google Play: ${playStoreUrl}`,
+    `2. Open it and create your account with this email address, or sign in if you already have one.`,
+    `3. Open this link to apply your access. It expires in 7 days and can only be used once:`,
+    `   ${actionUrl}`,
     ``,
-    `— S&C Performance Coaching`,
+    `— ${gymName}`,
   ].join("\n");
 
   return { subject, html, text };
