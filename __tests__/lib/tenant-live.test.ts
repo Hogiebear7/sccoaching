@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ gyms: new Map<string, unknown>() }));
 vi.mock("@/lib/db", () => ({ findGymById: (id: string) => h.gyms.get(id) }));
 
-import { dueGoLiveReminder, gymIsLive, gymNotLive, GO_LIVE_REMINDER_DAYS, paymentGateEnabled } from "@/lib/tenant-live";
+import { dueGoLiveReminder, gymIsLive, gymNotLive, GO_LIVE_REMINDER_DAYS, paymentGateEnabled, refundWindowDays } from "@/lib/tenant-live";
 import { lockoutResponse } from "@/lib/tenant-lockout";
 import type { TenantContext } from "@/lib/tenant-context";
 
@@ -59,6 +59,14 @@ describe("what a not-live gym's people can do", () => {
     expect(lockoutResponse(ctx({ gymId: "paid", role: "member" }))).toBeNull();
     expect(lockoutResponse(ctx({ gymId: null, role: "member" }))).toBeNull();
     expect(lockoutResponse(ctx({ isPlatformOperator: true, role: "platform_operator" }), { requiresLive: true })).toBeNull();
+  });
+});
+
+describe("money-back window by gym size", () => {
+  it("14 days to 150 members, 7 to 300, 3 above", () => {
+    expect([0, 50, 150].map(refundWindowDays)).toEqual([14, 14, 14]);
+    expect([151, 300].map(refundWindowDays)).toEqual([7, 7]);
+    expect([301, 501, 5000].map(refundWindowDays)).toEqual([3, 3, 3]);
   });
 });
 

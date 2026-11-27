@@ -6,7 +6,7 @@ import { resolveBranding } from "@/lib/gym-branding";
 import { domainStateText, gymMayUseCustomEmailDomain } from "@/lib/gym-email-domain";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { tenantAccess } from "@/lib/tenant-billing";
-import { gymNotLive } from "@/lib/tenant-live";
+import { gymNotLive, REFUND_WINDOWS_TEXT } from "@/lib/tenant-live";
 import { BAND_RULE_TEXT, bandLabel, tenantPriceMap } from "@/lib/tenant-pricing";
 import { tenantSubscriptionConfigured } from "@/lib/tenant-subscription";
 import { BrandingForm } from "./BrandingForm";
@@ -73,7 +73,7 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
           <h2 id="golive-heading" className="text-base font-semibold text-sky-50">Go live when you are ready</h2>
           <p className="text-sm text-sky-100">
             Set up everything first: your logo, classes, prices and coaches. Nothing reaches your members until you go live, and there is no charge before that. When you subscribe below, your gym goes live
-            straight away: it is listed in the directory and you can invite your members. If it is not right for you, you can ask for your money back within 14 days.
+            straight away: it is listed in the directory and you can invite your members. {REFUND_WINDOWS_TEXT}
           </p>
         </section>
       ) : null}

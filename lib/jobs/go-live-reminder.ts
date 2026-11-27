@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 
 import { createNotification, findGyms, findNotificationByDedupeKey, findUserById } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
-import { dueGoLiveReminder, gymNotLive } from "@/lib/tenant-live";
+import { dueGoLiveReminder, gymNotLive, REFUND_WINDOWS_TEXT } from "@/lib/tenant-live";
 import type { JobDefinition } from "./types";
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -27,7 +27,7 @@ export const goLiveReminderJob: JobDefinition = {
       if (findNotificationByDedupeKey(owner.id, key)) continue;
 
       const title = `${gym.name} is set up but not live yet`;
-      const body = `Your gym is saved and ready. When you go live (Gym setup, then subscribe), it is listed in the directory and you can invite your members. If it is not right for you, you can ask for your money back within 14 days.`;
+      const body = `Your gym is saved and ready. When you go live (Gym setup, then subscribe), it is listed in the directory and you can invite your members. ${REFUND_WINDOWS_TEXT}`;
       createNotification({ id: randomUUID(), userId: owner.id, type: "tenant_go_live", title, body, readAt: null, linkHref: "/staff/gym-setup", dedupeKey: key, createdAt: now.toISOString() });
       await sendEmail({ to: owner.email, subject: title, text: body, html: `<p>${escape(body)}</p>`, kind: "go-live-reminder", gymId: gym.id });
       reminded += 1;

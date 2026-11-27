@@ -20,6 +20,22 @@ export function gymNotLive(gym: Pick<GymRecord, "platformBilling"> | null | unde
   return paymentGateEnabled() && !!gym && !gymIsLive(gym);
 }
 
+// The money-back window depends on the gym's size, because a big gym can use a lot of AI and email in a fortnight: 14 days up to 150 members, 7 days for 151 to 300, 3 days above 300
+// (owner decision 2026-11-27). The numbers live here so the go-live page, the reminders and the terms all read the same ones.
+export const REFUND_WINDOWS: readonly { upTo: number | null; days: number; label: string }[] = [
+  { upTo: 150, days: 14, label: "up to 150 members" },
+  { upTo: 300, days: 7, label: "151 to 300 members" },
+  { upTo: null, days: 3, label: "more than 300 members" },
+];
+
+/** The money-back days for a gym with this many members (the size band decides it, so the same count always gives the same answer). */
+export function refundWindowDays(members: number): number {
+  for (const w of REFUND_WINDOWS) if (w.upTo === null || members <= w.upTo) return w.days;
+  return 3;
+}
+
+export const REFUND_WINDOWS_TEXT = "You can ask for your money back within 14 days (up to 150 members), 7 days (151 to 300) or 3 days (more than 300).";
+
 export const TENANT_NOT_LIVE_CODE = "tenant_not_live";
 
 export const NOT_LIVE_MEMBER_MESSAGE = "This gym is not open yet.";
