@@ -88,9 +88,9 @@ const BY_USER_ID = [
   "attendanceWatchlist", "subscriptions", "recoveryLogs", "waterLogs", "waitlistEntries",
   "cycleSettings", "cyclePrivacyPreferences", "pregnancyStatus", "pushSubscriptions", "expoPushTokens", "notifications",
   "purchases", "passLedger", "pendingCancellationCredits", "coachNotes", "staffMemberStars", "weeklyTrainingSchedules",
-  "nutritionTargets", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
-  "recipes", "shoppingListItems",
-  "digitalEntitlements",
+  "nutritionTargets", "nutritionDayStatuses", "foodEntries", "foodIdentificationOverrides", "foodSubmissions",
+  "recipes", "shoppingListItems", "foodFavorites", "bugReports",
+  "digitalEntitlements", "aiReservations", "aiTrialSlots",
 ];
 
 const report = {};
