@@ -306,6 +306,8 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/invites/bulk", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff", "sameGym("], note: "Invite up to 100 people at once from a pasted list or file; preview first, send second. Per-gym and per-staff limits.", lockoutEnforced: true },
   { route: "staff/invites/[inviteId]/revoke", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },
   { route: "staff/members/[userId]/ai-pause", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGym("], runtimeTenantContext: true, lockoutEnforced: true },
+  { route: "staff/email-domain", scope: "own-tenant", capabilities: ["gym.manageBranding"], evidence: ["gymId"], note: "A gym admin registers, checks and removes the gym's own email sending domain; the gym comes from the account, never the request.", lockoutEnforced: true },
+  { route: "staff/email-domain/verify", scope: "own-tenant", capabilities: ["gym.manageBranding"], evidence: ["gymId"], note: "Asks the mail provider to re-check the acting admin's own gym domain.", lockoutEnforced: true },
   { route: "staff/exports", scope: "tenant-staff", capabilities: ["reports.view"], evidence: ["gymId: staffUser.gymId"], lockoutEnforced: true },
   { route: "staff/members/[userId]/star", scope: "tenant-staff", capabilities: ["members.view"], evidence: ["sameGym("], runtimeTenantContext: true, lockoutEnforced: true },
   { route: "staff/members/[userId]/ai-usage", scope: "tenant-staff", capabilities: ["members.view"], evidence: ["sameGym("], lockoutEnforced: true },

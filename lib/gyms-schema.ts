@@ -36,6 +36,22 @@ export interface GymBranding {
   logoUrl: string | null;
 }
 
+/** A gym's own email sending domain, registered with the mail provider. See lib/gym-email-domain.ts. */
+export interface GymEmailDomain {
+  /** The bare domain, for example "theirgym.ie". */
+  name: string;
+  /** The mail provider's id for the domain. */
+  resendId: string;
+  /** The provider's status: pending, verified, failed, not_started, partially_verified, partially_failed. Mail only goes from the domain when "verified". */
+  status: string;
+  /** The part before the @ in the gym's sending address. */
+  fromLocal: string;
+  /** The DNS records the gym adds where it bought the domain. */
+  records: { record: string; name: string; type: string; value: string; ttl?: string; priority?: number; status?: string }[];
+  createdAt: string;
+  verifiedAt: string | null;
+}
+
 export interface GymRecord {
   id: string;
   /** URL-safe, unique — e.g. "sc-performance-coaching". */
@@ -78,6 +94,8 @@ export interface GymRecord {
   pendingStripeCustomerId?: string;
   /** The gym's logo and accent colour. Absent = the S&C default. Set by the gym's own owner/admin only. */
   branding?: GymBranding;
+  /** The gym's own email sending domain (larger price bands). Absent = emails are sent in the gym's name from the platform address. */
+  emailDomain?: GymEmailDomain;
   createdAt: string;
   updatedAt: string;
 }

@@ -3,11 +3,13 @@ import Link from "next/link";
 import { gymAiUsage } from "@/lib/ai-gym-cap";
 import { findClasses, findGymById, findMembersInGym, findStaffUsers } from "@/lib/db";
 import { resolveBranding } from "@/lib/gym-branding";
+import { domainStateText, gymMayUseCustomEmailDomain } from "@/lib/gym-email-domain";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { tenantAccess } from "@/lib/tenant-billing";
 import { BAND_RULE_TEXT, bandLabel, tenantPriceMap } from "@/lib/tenant-pricing";
 import { tenantSubscriptionConfigured } from "@/lib/tenant-subscription";
 import { BrandingForm } from "./BrandingForm";
+import { EmailDomainCard } from "./EmailDomainCard";
 import { SubscriptionCard } from "./SubscriptionCard";
 
 // A tenant gym's setup page: the checklist for getting a new gym ready, and the form for its logo and accent colour. Each tick is worked out from the gym's real data, so it
@@ -105,6 +107,15 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
           </div>
         </section>
       ) : null}
+
+      <section aria-labelledby="email-heading" className="space-y-2">
+        <h2 id="email-heading" className="text-base font-semibold text-zinc-50">Where your emails come from</h2>
+        <EmailDomainCard
+          gymName={gym.name}
+          contactEmail={gym.contactEmail}
+          initial={{ allowed: gymMayUseCustomEmailDomain(gym), domain: gym.emailDomain ?? null, ...domainStateText(gym.emailDomain) }}
+        />
+      </section>
 
       <section aria-labelledby="branding-heading" className="space-y-3">
         <h2 id="branding-heading" className="text-base font-semibold text-zinc-50">Logo and accent colour</h2>
