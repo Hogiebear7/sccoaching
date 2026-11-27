@@ -72,6 +72,19 @@ export interface GymWebhook {
   consecutiveFailures?: number;
 }
 
+/** An API key a gym made so another tool (Zapier, Make, n8n ...) can ask this platform to do things for the gym. Only a hash is stored; the key itself is shown once. See lib/gym-api-keys.ts. */
+export interface GymApiKey {
+  id: string;
+  name: string;
+  /** SHA-256 of the key, as hex. */
+  hash: string;
+  /** The first characters of the key, so a person can tell keys apart ("scp_1a2b3c4d"). */
+  prefix: string;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  revokedAt?: string | null;
+}
+
 export interface GymRecord {
   id: string;
   /** URL-safe, unique — e.g. "sc-performance-coaching". */
@@ -118,6 +131,8 @@ export interface GymRecord {
   emailDomain?: GymEmailDomain;
   /** Outgoing webhooks (at most 5). See lib/gym-webhooks.ts. */
   webhooks?: GymWebhook[];
+  /** API keys for other tools (at most 5). See lib/gym-api-keys.ts. */
+  apiKeys?: GymApiKey[];
   /** Whether members check themselves in to classes by scanning a code at the gym: "off" (the default when absent), "poster" (one printed code) or "live" (a screen whose code changes every minute). See lib/class-checkin.ts. */
   selfCheckin?: "off" | "poster" | "live";
   /** How often the live check-in code changes: "minute", "day" or "week" (the default when absent). */
