@@ -216,7 +216,7 @@ export function StaffShell({ sections, user, children }: { sections: StaffShellS
   return (
     <div className="min-h-screen bg-[#f4f6fa]">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] flex-col bg-[#0a1526] lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] flex-col bg-[#0a1526] lg:flex print:hidden">
         <Brand />
         <SidebarNav sections={sections} pathname={pathname} />
         <UserCard user={user} />
@@ -244,8 +244,8 @@ export function StaffShell({ sections, user, children }: { sections: StaffShellS
         </div>
       ) : null}
 
-      <div className="lg:pl-[264px]" data-staff-app="">
-        <header className="sticky top-0 z-20 border-b border-[#e6eaf1] bg-[#ffffff]">
+      <div className="lg:pl-[264px] print:pl-0" data-staff-app="">
+        <header className="sticky top-0 z-20 border-b border-[#e6eaf1] bg-[#ffffff] print:hidden">
           <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
             <button
               type="button"
