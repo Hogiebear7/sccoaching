@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
   client: null as unknown,
 }));
 vi.mock("@/lib/db", () => ({ saveGym: h.saveGym }));
-vi.mock("@/lib/email", () => ({ getResendClient: () => h.client }));
+vi.mock("@/lib/email", () => ({ getResendDomainsClient: () => h.client }));
 
 import { refreshGymEmailDomain, registerGymEmailDomain, removeGymEmailDomain } from "@/lib/gym-email-domain-sync";
 import type { GymRecord } from "@/lib/gyms-schema";

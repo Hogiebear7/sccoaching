@@ -83,6 +83,11 @@ export function getConfiguredResendApiKey(): string | undefined {
   return process.env.RESEND_API_KEY?.trim() || loadAppConfig().resendApiKey;
 }
 
+/** A separate Resend key with full access, used ONLY to register and check gyms' own sending domains. The key used for sending stays sending-only (least privilege). Set as its own variable on the host. */
+export function getConfiguredResendDomainsApiKey(): string | undefined {
+  return process.env.RESEND_DOMAINS_API_KEY?.trim() || undefined;
+}
+
 export function getConfiguredEmailFrom(): string | undefined {
   return process.env.EMAIL_FROM?.trim() || loadAppConfig().emailFrom;
 }

@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-import { getConfiguredAppUrl, getConfiguredEmailFrom, getConfiguredResendApiKey } from "@/lib/app-config";
+import { getConfiguredAppUrl, getConfiguredEmailFrom, getConfiguredResendApiKey, getConfiguredResendDomainsApiKey } from "@/lib/app-config";
 import { randomUUID } from "crypto";
 
 import { findGymById, findUserByEmail, hasEmailSend, isEmailSuppressed, recordEmailSend } from "@/lib/db";
@@ -14,9 +14,14 @@ const fromAddress = getConfiguredEmailFrom() || "onboarding@resend.dev";
 // is safe to import in any context without side effects when email is unconfigured.
 const resend = apiKey ? new Resend(apiKey) : null;
 
-/** The mail provider client, or null when email is not configured. Used to register a gym's own sending domain. */
-export function getResendClient(): Resend | null {
-  return resend;
+/** A mail provider client for managing gyms' sending domains, or null when RESEND_DOMAINS_API_KEY is not set. Separate from the sending client above, which only needs to send. */
+let domainsClient: Resend | null | undefined;
+export function getResendDomainsClient(): Resend | null {
+  if (domainsClient === undefined) {
+    const key = getConfiguredResendDomainsApiKey();
+    domainsClient = key ? new Resend(key) : null;
+  }
+  return domainsClient;
 }
 
 if (process.env.NODE_ENV === "production" && !getConfiguredAppUrl()) {
