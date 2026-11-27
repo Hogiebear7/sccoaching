@@ -628,6 +628,8 @@ export interface FoodRecord {
       keyword-matched icon on the client instead. */
   imageUrl: string | null;
   nutrition100g: FoodNutrition100g;
+  /** Where this food's vitamin and mineral values came from when they were imported from a published table (for example "CoFID 2021, food 18-325"). Absent for Open Food Facts and hand-entered foods. */
+  microsSource?: string | null;
   defaultServing: FoodServing;
   servings: FoodServing[];
   provenance: FoodProvenance;
