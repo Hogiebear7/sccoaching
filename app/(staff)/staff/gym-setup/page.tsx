@@ -6,7 +6,9 @@ import { resolveBranding } from "@/lib/gym-branding";
 import { domainStateText, gymMayUseCustomEmailDomain } from "@/lib/gym-email-domain";
 import { requireStaffPage } from "@/lib/staff-auth";
 import { tenantAccess } from "@/lib/tenant-billing";
+import { canExtendDraft, draftCountdownText, draftExpiresAt, draftIdleHoursFromEnv } from "@/lib/gym-draft-expiry";
 import { gymNotLive, REFUND_WINDOWS_TEXT } from "@/lib/tenant-live";
+import { SaveSetupCard } from "./SaveSetupCard";
 import { BAND_RULE_TEXT, bandLabel, tenantPriceMap } from "@/lib/tenant-pricing";
 import { tenantSubscriptionConfigured } from "@/lib/tenant-subscription";
 import { BrandingForm } from "./BrandingForm";
@@ -75,6 +77,10 @@ export default async function StaffGymSetupPage({ searchParams }: { searchParams
             Set up everything first: your logo, classes, prices and coaches. Nothing reaches your members until you go live, and there is no charge before that. When you subscribe below, your gym goes live
             straight away: it is listed in the directory and you can invite your members. {REFUND_WINDOWS_TEXT}
           </p>
+          <SaveSetupCard
+            expiresText={draftCountdownText(draftExpiresAt(gym, draftIdleHoursFromEnv()), new Date())}
+            canExtend={canExtendDraft(gym)}
+          />
         </section>
       ) : null}
 

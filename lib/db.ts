@@ -628,6 +628,8 @@ export interface FoodRecord {
       keyword-matched icon on the client instead. */
   imageUrl: string | null;
   nutrition100g: FoodNutrition100g;
+  /** Where this food's vitamin and mineral values came from when they were imported from a published table (for example "CoFID 2021, food 18-325"). Absent for Open Food Facts and hand-entered foods. */
+  microsSource?: string | null;
   defaultServing: FoodServing;
   servings: FoodServing[];
   provenance: FoodProvenance;
@@ -6277,6 +6279,44 @@ export function saveMembershipBillingOption(option: MembershipBillingOptionRecor
   if (i === -1) db.membershipBillingOptions.push(option);
   else db.membershipBillingOptions[i] = option;
   writeDb(db);
+}
+
+// Deletes an unpaid new gym's saved setup in one write: its classes (with their workouts), repeating classes, class types, membership categories (with their packages and billing options),
+// invites its staff sent, and the gym record itself. NOT the accounts: the caller deletes those with deleteUserAndOwnedRecords afterwards. Refuses (changes nothing) when the gym has paid or
+// been put on billing, or still has a member, so it can only ever remove a gym nobody has used. Returns what was removed.
+/** Every account id of one gym, archived ones included (the unpaid-gym cleanup removes them all). */
+export function findAllUserIdsOfGym(gymId: string): string[] {
+  return readDbShared().users.filter((u) => u.gymId === gymId).map((u) => u.id);
+}
+
+export function deleteUnpaidGymSetup(gymId: string): Record<string, number> | null {
+  const db = readDb();
+  const gym = db.gyms.find((g) => g.id === gymId);
+  if (!gym) return null;
+  if (gym.platformBilling) return null;
+  const staffIds = db.users.filter((u) => u.gymId === gymId).map((u) => u.id);
+  if (db.users.some((u) => u.gymId === gymId && u.role === "member")) return null;
+
+  const summary: Record<string, number> = {};
+  const count = <T>(before: T[], after: T[], key: string) => {
+    if (before.length !== after.length) summary[key] = before.length - after.length;
+    return after;
+  };
+  const classIds = new Set(db.classes.filter((c) => c.gymId === gymId).map((c) => c.id));
+  db.classes = count(db.classes, db.classes.filter((c) => c.gymId !== gymId), "classes");
+  db.classWorkouts = count(db.classWorkouts, db.classWorkouts.filter((w) => !classIds.has(w.classId)), "classWorkouts");
+  db.classSeries = count(db.classSeries, db.classSeries.filter((s) => s.gymId !== gymId), "classSeries");
+  db.classCategories = count(db.classCategories, db.classCategories.filter((c) => c.gymId !== gymId), "classCategories");
+  const catIds = new Set(db.membershipCategories.filter((c) => c.gymId === gymId).map((c) => c.id));
+  const pkgIds = new Set(db.membershipPackages.filter((p) => catIds.has(p.categoryId)).map((p) => p.id));
+  db.membershipBillingOptions = count(db.membershipBillingOptions, db.membershipBillingOptions.filter((o) => !pkgIds.has(o.packageId)), "billingOptions");
+  db.membershipPackages = count(db.membershipPackages, db.membershipPackages.filter((p) => !catIds.has(p.categoryId)), "packages");
+  db.membershipCategories = count(db.membershipCategories, db.membershipCategories.filter((c) => c.gymId !== gymId), "membershipCategories");
+  db.invites = count(db.invites, db.invites.filter((i) => !staffIds.includes(i.invitedByStaffId)), "invites");
+  db.gyms = count(db.gyms, db.gyms.filter((g) => g.id !== gymId), "gyms");
+  summary.staffAccounts = staffIds.length;
+  writeDb(db);
+  return summary;
 }
 
 export function deleteMembershipBillingOption(id: string) {
