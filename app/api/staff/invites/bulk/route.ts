@@ -5,6 +5,7 @@ import { BULK_INVITE_MAX, parseInviteList, type BulkInviteStatus, type ParsedInv
 import { createInvite, findInvites, findUserByEmail, findUserById } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { inviteEmail } from "@/lib/email-templates";
+import { inviteSenderFor } from "@/lib/invite-sender";
 import { sameGym, sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -116,6 +117,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Too many bulk invites sent. Try again later." }, { status: 429, headers: { "Retry-After": String(staffRate.retryAfterSecs) } });
   }
 
+  const sender = inviteSenderFor(staffUser);
   const results = new Map<string, ResultRow>(classified.map((r) => [r.email, r]));
   for (let i = 0; i < ready.length; i += PARALLEL_SENDS) {
     const chunk = ready.slice(i, i + PARALLEL_SENDS);
@@ -123,8 +125,8 @@ export async function POST(request: NextRequest) {
       chunk.map(async (row) => {
         try {
           const { invite, token } = createInvite({ email: row.email, tier: tier as Tier, invitedByStaffId: staffUser.id });
-          const { subject, html, text: plain } = inviteEmail({ tier: invite.tier, inviteToken: token });
-          await sendEmail({ to: invite.email, subject, html, text: plain, dedupeKey: `bulk-invite:${invite.id}` });
+          const { subject, html, text: plain } = inviteEmail({ tier: invite.tier, inviteToken: token, gymName: sender.gymName });
+          await sendEmail({ to: invite.email, subject, html, text: plain, replyTo: sender.replyTo, dedupeKey: `bulk-invite:${invite.id}` });
           results.set(row.email, { ...row, status: "sent", message: "Invite sent." });
         } catch {
           results.set(row.email, { ...row, status: "failed", message: "Could not send this one. Try it again on its own." });

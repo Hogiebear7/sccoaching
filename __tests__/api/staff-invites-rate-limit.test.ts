@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetRateLimits } from "@/lib/rate-limit";
 import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
-const h = vi.hoisted(() => ({ findUserById: vi.fn(), createInvite: vi.fn(), findInvites: vi.fn() }));
+const h = vi.hoisted(() => ({ findUserById: vi.fn(), createInvite: vi.fn(), findInvites: vi.fn(), findGymById: vi.fn() }));
 vi.mock("@/lib/db", () => h);
 
 const mail = vi.hoisted(() => ({ sendEmail: vi.fn() }));
