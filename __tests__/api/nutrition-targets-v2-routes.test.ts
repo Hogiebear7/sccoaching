@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   saveNutritionTarget: vi.fn(),
   setNutritionDayStatus: vi.fn(),
   findNutritionDayStatusesByUserId: vi.fn(),
+  findPregnancyStatusByUserId: vi.fn(),
   findFoodEntriesByUserId: vi.fn(),
   findBodyWeightLogsByUserId: vi.fn(),
 }));
