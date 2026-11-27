@@ -1,4 +1,5 @@
 import { findGyms } from "@/lib/db";
+import { alertOwnersIfDomainsNearLimit } from "@/lib/gym-email-domain-alert";
 import { refreshGymEmailDomain } from "@/lib/gym-email-domain-sync";
 import type { JobDefinition } from "./types";
 
@@ -15,6 +16,7 @@ export const gymEmailDomainCheckJob: JobDefinition = {
       if (!result.ok) failed += 1;
       else if (result.gym.emailDomain?.status === "verified") verified += 1;
     }
-    return `Checked ${waiting.length} waiting domain${waiting.length === 1 ? "" : "s"}: ${verified} now verified, ${failed} could not be checked.`;
+    const limitNote = await alertOwnersIfDomainsNearLimit().catch(() => "limit check failed");
+    return `Checked ${waiting.length} waiting domain${waiting.length === 1 ? "" : "s"}: ${verified} now verified, ${failed} could not be checked. ${limitNote}`;
   },
 };

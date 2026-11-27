@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { findGymById, findUserById } from "@/lib/db";
-import { domainStateText, gymMayUseCustomEmailDomain, readDomainInput, readSenderName } from "@/lib/gym-email-domain";
+import { domainLimitState, domainStateText, emailDomainLimitFromEnv, gymMayUseCustomEmailDomain, readDomainInput, readSenderName } from "@/lib/gym-email-domain";
+import { alertOwnersIfDomainsNearLimit, countGymEmailDomains } from "@/lib/gym-email-domain-alert";
 import { refreshGymEmailDomain, registerGymEmailDomain, removeGymEmailDomain } from "@/lib/gym-email-domain-sync";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
@@ -46,7 +47,12 @@ export async function POST(request: NextRequest) {
   if (!found.gym) return found.error;
   const gym = found.gym;
   if (!gymMayUseCustomEmailDomain(gym)) {
-    return NextResponse.json({ success: false, message: "Your own email domain is included in the larger plans. Your emails are still sent in your gym's name, and replies come to your contact email." }, { status: 403 });
+    return NextResponse.json({ success: false, message: "Your own email domain is not available for this gym." }, { status: 403 });
+  }
+  // The email provider's plan allows a fixed number of domains. When it is full, say so plainly (the owner has already been told and upgrades the plan).
+  if (domainLimitState(countGymEmailDomains(), emailDomainLimitFromEnv()) === "full") {
+    await alertOwnersIfDomainsNearLimit().catch(() => undefined);
+    return NextResponse.json({ success: false, message: "Own email domains are temporarily full. Your emails keep going out in your gym's name, and we have been told, so please try again in a day or two." }, { status: 503 });
   }
 
   let body: unknown;
@@ -63,6 +69,7 @@ export async function POST(request: NextRequest) {
 
   const result = await registerGymEmailDomain(gym, d.domain, local.local);
   if (!result.ok) return NextResponse.json({ success: false, message: result.message }, { status: result.status });
+  await alertOwnersIfDomainsNearLimit().catch(() => undefined);
   return NextResponse.json({ success: true, message: "Domain added. Now add the records below where you bought your domain.", data: view(result.gym) }, { status: 201 });
 }
 

@@ -54,11 +54,6 @@ export function EmailDomainCard({ initial, gymName, contactEmail }: { initial: D
         Your emails (bookings, reminders, invites) are sent in your gym&apos;s name, <strong>{gymName}</strong>. When a member replies, it goes to <strong>{contactEmail || "your contact email"}</strong>.
       </p>
 
-      {!view.allowed && !view.domain ? (
-        <p className="text-xs leading-relaxed text-zinc-400">
-          Sending from your own domain (like hello@yourgym.ie) is included in the larger plans. A free address such as Gmail cannot be used as the sender, because email providers would likely mark the emails as spam.
-        </p>
-      ) : null}
 
       {view.allowed || view.domain ? (
         <>

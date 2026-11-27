@@ -3,12 +3,20 @@
 // Until then, and for gyms that do not use this, mail goes from the platform's one sending address with the gym's NAME as the sender name and the gym's contact email as the reply address.
 import type { GymEmailDomain } from "@/lib/gyms-schema";
 
-/** Price bands that include a custom email domain. One list, easy to change. */
-export const CUSTOM_EMAIL_DOMAIN_BANDS: readonly string[] = ["b150", "b300", "b500", "b501"];
-
+/** Every gym on the platform can use its own email domain, whatever its size band. (If that ever changes to certain plans only, it is decided here.) */
 export function gymMayUseCustomEmailDomain(gym: { platformBilling?: { band?: string } } | null | undefined): boolean {
-  const band = gym?.platformBilling?.band;
-  return !!band && CUSTOM_EMAIL_DOMAIN_BANDS.includes(band);
+  return !!gym;
+}
+
+// The mail provider's plan allows a fixed number of sending domains in total (Resend: 10 on Pro). The owner is told at 80% so the plan can be upgraded in time.
+export const DEFAULT_EMAIL_DOMAIN_LIMIT = 10;
+export function emailDomainLimitFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const n = Number(env.EMAIL_DOMAIN_LIMIT);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_EMAIL_DOMAIN_LIMIT;
+}
+export function domainLimitState(count: number, limit: number): "ok" | "near" | "full" {
+  if (count >= limit) return "full";
+  return count >= Math.ceil(limit * 0.8) ? "near" : "ok";
 }
 
 // Free mailbox providers cannot be used: we cannot add DNS records to someone else's domain, and mail "from" them would be rejected or sent to spam.

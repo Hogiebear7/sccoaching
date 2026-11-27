@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   bareAddress,
+  domainLimitState,
   domainStateText,
+  emailDomainLimitFromEnv,
   fromLineFor,
   gymMayUseCustomEmailDomain,
   readDomainInput,
@@ -13,13 +15,27 @@ import type { GymEmailDomain } from "@/lib/gyms-schema";
 
 const own = (over: Partial<GymEmailDomain> = {}): GymEmailDomain => ({ name: "ironworks.ie", resendId: "r1", status: "verified", fromLocal: "hello", records: [], createdAt: "", verifiedAt: null, ...over });
 
-describe("which plans include an own email domain", () => {
-  it("is the larger bands only", () => {
-    expect(gymMayUseCustomEmailDomain({ platformBilling: { band: "b150" } })).toBe(true);
+describe("who can use an own email domain", () => {
+  it("is every gym, whatever its size band", () => {
+    expect(gymMayUseCustomEmailDomain({ platformBilling: { band: "b50" } })).toBe(true);
     expect(gymMayUseCustomEmailDomain({ platformBilling: { band: "b501" } })).toBe(true);
-    expect(gymMayUseCustomEmailDomain({ platformBilling: { band: "b100" } })).toBe(false);
-    expect(gymMayUseCustomEmailDomain({ platformBilling: {} })).toBe(false);
+    expect(gymMayUseCustomEmailDomain({ platformBilling: {} })).toBe(true);
     expect(gymMayUseCustomEmailDomain(undefined)).toBe(false);
+  });
+});
+
+describe("the provider's domain limit", () => {
+  it("warns at 80% (8 of 10) and when full", () => {
+    expect(domainLimitState(7, 10)).toBe("ok");
+    expect(domainLimitState(8, 10)).toBe("near");
+    expect(domainLimitState(9, 10)).toBe("near");
+    expect(domainLimitState(10, 10)).toBe("full");
+    expect(domainLimitState(12, 10)).toBe("full");
+  });
+  it("reads the limit from EMAIL_DOMAIN_LIMIT, defaulting to 10", () => {
+    expect(emailDomainLimitFromEnv({} as NodeJS.ProcessEnv)).toBe(10);
+    expect(emailDomainLimitFromEnv({ EMAIL_DOMAIN_LIMIT: "100" } as unknown as NodeJS.ProcessEnv)).toBe(100);
+    expect(emailDomainLimitFromEnv({ EMAIL_DOMAIN_LIMIT: "abc" } as unknown as NodeJS.ProcessEnv)).toBe(10);
   });
 });
 
