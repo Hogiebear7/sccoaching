@@ -72,6 +72,19 @@ export interface GymWebhook {
   consecutiveFailures?: number;
 }
 
+/** An API key a gym made so another tool (Zapier, Make, n8n ...) can ask this platform to do things for the gym. Only a hash is stored; the key itself is shown once. See lib/gym-api-keys.ts. */
+export interface GymApiKey {
+  id: string;
+  name: string;
+  /** SHA-256 of the key, as hex. */
+  hash: string;
+  /** The first characters of the key, so a person can tell keys apart ("scp_1a2b3c4d"). */
+  prefix: string;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  revokedAt?: string | null;
+}
+
 export interface GymRecord {
   id: string;
   /** URL-safe, unique — e.g. "sc-performance-coaching". */
@@ -118,6 +131,8 @@ export interface GymRecord {
   emailDomain?: GymEmailDomain;
   /** Outgoing webhooks (at most 5). See lib/gym-webhooks.ts. */
   webhooks?: GymWebhook[];
+  /** API keys for other tools (at most 5). See lib/gym-api-keys.ts. */
+  apiKeys?: GymApiKey[];
   /** The last time anyone from a gym that has not gone live used the setup pages (written at most every 10 minutes). Only kept while the gym is not live. See lib/gym-draft-expiry.ts. */
   draftLastActivityAt?: string;
   /** Set once, when the owner chose to keep an unpaid gym's saved setup for 3 more days. */
