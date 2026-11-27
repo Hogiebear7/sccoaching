@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
         try {
           const { invite, token } = createInvite({ email: row.email, tier: tier as Tier, invitedByStaffId: staffUser.id });
           const { subject, html, text: plain } = inviteEmail({ tier: invite.tier, inviteToken: token, gymName: sender.gymName });
-          await sendEmail({ to: invite.email, subject, html, text: plain, replyTo: sender.replyTo, dedupeKey: `bulk-invite:${invite.id}` });
+          await sendEmail({ to: invite.email, subject, html, text: plain, replyTo: sender.replyTo, gymId: staffUser.gymId ?? null, dedupeKey: `bulk-invite:${invite.id}` });
           results.set(row.email, { ...row, status: "sent", message: "Invite sent." });
         } catch {
           results.set(row.email, { ...row, status: "failed", message: "Could not send this one. Try it again on its own." });
