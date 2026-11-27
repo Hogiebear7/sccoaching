@@ -172,6 +172,8 @@ export const MODULE_CACHE_SCOPE: readonly ModuleCacheScope[] = [
 // resource-scope.test.ts ignores exactly these.
 export const STATIC_LOOKUP_CONSTANTS: readonly { file: string; symbol: string }[] = [
   { file: "lib/account-deletion.ts", symbol: "LIVE_PAID_STATUSES" },
+  { file: "lib/gym-email-domain.ts", symbol: "FREE_MAIL_DOMAINS" },
+  { file: "lib/micronutrients.ts", symbol: "DEF_BY_KEY" },
   { file: "lib/ai-context.ts", symbol: "DIETARY_LABEL" },
   { file: "lib/ai-metering.ts", symbol: "MEMBER_FEATURES" },
   { file: "lib/class-covers.ts", symbol: "BUILTIN_COVER_SRCS" },

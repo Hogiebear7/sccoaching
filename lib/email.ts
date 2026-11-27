@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 
 import { findGymById, findUserByEmail, hasEmailSend, isEmailSuppressed, recordEmailSend } from "@/lib/db";
 import { fromLineFor } from "@/lib/gym-email-domain";
+import { gymNotLive, paymentGateEnabled } from "@/lib/tenant-live";
 import { userInLockedGym } from "@/lib/tenant-lockout";
 
 const apiKey = getConfiguredResendApiKey() || null;
@@ -63,6 +64,12 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
   const recipient = findUserByEmail(payload.to);
   if (!payload.essential && userInLockedGym(recipient)) {
     console.log("[email] skipped, the recipient's gym is locked:", payload.subject, "->", payload.to);
+    return;
+  }
+
+  // A gym that has not gone live (paid) yet sends nothing to its members (lib/tenant-live.ts, off by default). Its own staff still get account and billing mail.
+  if (!payload.essential && paymentGateEnabled() && recipient?.role === "member" && recipient.gymId && gymNotLive(findGymById(recipient.gymId))) {
+    console.log("[email] skipped, the recipient's gym is not live yet:", payload.subject, "->", payload.to);
     return;
   }
 
