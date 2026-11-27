@@ -99,7 +99,7 @@ export const metadata: Metadata = {
     locale: "en_IE",
     title: "S&C Performance Coaching",
     description: SITE_DESCRIPTION,
-    images: [{ url: "/marketing/training-floor-2026-11.jpg", width: 2000, height: 1500, alt: "The S&C training floor in Navan" }],
+    images: [{ url: "/marketing/training-floor-hero-2026-11.jpg", width: 2000, height: 1060, alt: "The S&C training floor in Navan" }],
   },
   twitter: { card: "summary_large_image" },
   // Search Console HTML-tag verification; omitted unless the token is set.

@@ -18,7 +18,7 @@ export function healthClubJsonLd() {
     name: "S&C Performance Coaching",
     url,
     logo: `${url}/brand/website-logo-v2.png`,
-    image: `${url}/marketing/training-floor-2026-11.jpg`,
+    image: `${url}/marketing/training-floor-hero-2026-11.jpg`,
     description:
       "Small-group strength and conditioning in Navan, Co. Meath: Semi-Private Personal Training, Parent & Baby Classes and Over 50s, coached on the floor and tracked in our app.",
     email: CONTACT_INFO.email,

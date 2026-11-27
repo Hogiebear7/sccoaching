@@ -59,7 +59,7 @@ export default async function Root() {
           src={HOME_HERO.image.src}
           alt={HOME_HERO.image.alt}
           width={2000}
-          height={1500}
+          height={1060}
           fetchPriority="high"
           className="anim-fade absolute inset-0 -z-20 h-full w-full object-cover object-[65%_55%]"
         />
