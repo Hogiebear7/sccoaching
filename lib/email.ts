@@ -3,7 +3,8 @@ import { Resend } from "resend";
 import { getConfiguredAppUrl, getConfiguredEmailFrom, getConfiguredResendApiKey } from "@/lib/app-config";
 import { randomUUID } from "crypto";
 
-import { findUserByEmail, hasEmailSend, isEmailSuppressed, recordEmailSend } from "@/lib/db";
+import { findGymById, findUserByEmail, hasEmailSend, isEmailSuppressed, recordEmailSend } from "@/lib/db";
+import { fromLineFor } from "@/lib/gym-email-domain";
 import { userInLockedGym } from "@/lib/tenant-lockout";
 
 const apiKey = getConfiguredResendApiKey() || null;
@@ -12,6 +13,11 @@ const fromAddress = getConfiguredEmailFrom() || "onboarding@resend.dev";
 // Lazily initialised — only when an API key is present. This means the module
 // is safe to import in any context without side effects when email is unconfigured.
 const resend = apiKey ? new Resend(apiKey) : null;
+
+/** The mail provider client, or null when email is not configured. Used to register a gym's own sending domain. */
+export function getResendClient(): Resend | null {
+  return resend;
+}
 
 if (process.env.NODE_ENV === "production" && !getConfiguredAppUrl()) {
   console.warn(
@@ -39,6 +45,8 @@ export interface EmailPayload {
   kind?: string;
   /** When set, the email goes once only: a second call with the same key is skipped (for example `welcome:<userId>`). */
   dedupeKey?: string;
+  /** The gym this email is on behalf of (null = the original S&C gym). When not given, the recipient's own gym is used. Decides the sender name and, for a gym with a verified own domain, the sending address. */
+  gymId?: string | null;
   /** Sign-in and account-security mail (a password reset, an email change) that must still reach a member or staff member of a locked gym. Everything else is held back. */
   essential?: boolean;
 }
@@ -47,7 +55,8 @@ export interface EmailPayload {
 // so that email delivery can never break the calling flow.
 export async function sendEmail(payload: EmailPayload): Promise<void> {
   // A gym locked for an unpaid platform subscription sends and receives no routine email; account-security mail still goes (lib/tenant-lockout.ts).
-  if (!payload.essential && userInLockedGym(findUserByEmail(payload.to))) {
+  const recipient = findUserByEmail(payload.to);
+  if (!payload.essential && userInLockedGym(recipient)) {
     console.log("[email] skipped, the recipient's gym is locked:", payload.subject, "->", payload.to);
     return;
   }
@@ -70,14 +79,21 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     return;
   }
 
+  // A tenant gym's mail is sent in the gym's name (and from its own verified domain when it has one), and replies go to the gym. The original S&C gym is unchanged.
+  const gymId = payload.gymId !== undefined ? payload.gymId : recipient?.gymId ?? null;
+  const gym = gymId ? findGymById(gymId) : undefined;
+  const from = gym ? fromLineFor(gym, fromAddress) : fromAddress;
+  const contact = gym?.contactEmail?.trim();
+  const replyTo = payload.replyTo ?? (contact && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact) ? contact : undefined);
+
   const { data, error } = await resend.emails.send({
-    from: fromAddress,
+    from,
     to: payload.to,
     subject: payload.subject,
     html: payload.html,
     text: payload.text,
     attachments: payload.attachments,
-    ...(payload.replyTo ? { replyTo: payload.replyTo } : {}),
+    ...(replyTo ? { replyTo } : {}),
     ...(payload.headers ? { headers: payload.headers } : {}),
   }).catch((err: unknown) => ({ data: null, error: err }));
 

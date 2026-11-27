@@ -6,6 +6,7 @@ import { monthlyReportEmailJob } from "./monthly-report-email";
 import { managerReportEmailJob } from "./manager-report-email";
 import { cleanupPastWaitlistsJob } from "./cleanup-past-waitlists";
 import { tenantMemberHighWaterJob } from "./tenant-member-high-water";
+import { gymEmailDomainCheckJob } from "./gym-email-domain-check";
 import { tenantAiCapNoticeJob } from "./tenant-ai-cap-notice";
 import { detectNoShowsJob } from "./detect-no-shows";
 import { dropLapsedManualMembershipsJob } from "./drop-lapsed-manual-memberships";
@@ -68,4 +69,5 @@ export const ALL_JOBS: JobDefinition[] = [
   refreshBrandedFoodCacheJob,
   tenantMemberHighWaterJob,
   tenantAiCapNoticeJob,
+  gymEmailDomainCheckJob,
 ];
