@@ -4,7 +4,7 @@
 // Data: UK Health Security Agency / Public Health England, Open Government Licence v3.0 (credit in scripts/lib/cofid.mjs).
 import { COFID_COLUMNS, parseCofidValue } from "./cofid.mjs";
 
-const INFANT = /\b(infant|baby|babies|follow-on|follow on|formula|weaning|toddler)\b/i;
+const INFANT = /\b(infant|follow-on|follow on|formula|weaning|toddler)\b/i;
 const INFANT_GROUPS = /^(BF|AK)/;
 
 /** Which sheet column (by its short code in the second header row) each extra figure comes from. */
