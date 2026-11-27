@@ -5,6 +5,7 @@ import { createInvite, findInvites, findUserById } from "@/lib/db";
 import { sameGymAsStaff } from "@/lib/gym-scope";
 import { sendEmail } from "@/lib/email";
 import { inviteEmail } from "@/lib/email-templates";
+import { inviteSenderFor } from "@/lib/invite-sender";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -109,8 +110,9 @@ export async function POST(request: NextRequest) {
     invitedByStaffId: staffUser.id,
   });
 
-  const { subject, html, text } = inviteEmail({ tier: invite.tier, inviteToken: token });
-  await sendEmail({ to: invite.email, subject, html, text });
+  const sender = inviteSenderFor(staffUser);
+  const { subject, html, text } = inviteEmail({ tier: invite.tier, inviteToken: token, gymName: sender.gymName });
+  await sendEmail({ to: invite.email, subject, html, text, replyTo: sender.replyTo });
 
   return NextResponse.json({ success: true, message: "Invite sent.", data: invite }, { status: 201 });
 }

@@ -174,6 +174,7 @@ export function can(role: UserRole | string | null | undefined, capability: Capa
 export const NAV_CAPABILITY: Record<string, Capability> = {
   "/staff/operations": "operations.view",
   "/staff/classes": "classes.manage",
+  "/staff/checkin-poster": "classes.manage",
   "/staff/workouts": "classes.manage",
   "/staff/members": "members.view",
   "/staff/attendance": "members.view",
