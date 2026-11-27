@@ -101,7 +101,7 @@ export default async function DashboardLayout({
         <aside className="hidden border-r border-white/[0.06] bg-[var(--sidebar)] lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
           <div className="px-6 pb-6 pt-7">
             <Link href="/dashboard" aria-label={`${gym?.name ?? "S&C Performance Coaching"}, home`} className="inline-block">
-              <BrandMark gymName={gym?.name ?? null} logoUrl={brand?.logoUrl ?? null} light={brand?.logoBackground === "light"} className="h-11" />
+              <BrandMark gymName={gym?.name ?? null} logoUrl={brand?.logoUrl ?? null} plate={brand && brand.logoBackground !== "#0A1526" ? brand.logoBackground : null} className="h-11" />
             </Link>
           </div>
 
@@ -155,7 +155,7 @@ export default async function DashboardLayout({
             <div className="flex h-14 items-center justify-between gap-3 lg:h-16">
               <div className="min-w-0">
                 <Link href="/dashboard" aria-label={`${gym?.name ?? "S&C Performance Coaching"}, home`} className="flex h-11 items-center lg:hidden">
-                  <BrandMark gymName={gym?.name ?? null} logoUrl={brand?.logoUrl ?? null} light={brand?.logoBackground === "light"} className="h-8" />
+                  <BrandMark gymName={gym?.name ?? null} logoUrl={brand?.logoUrl ?? null} plate={brand && brand.logoBackground !== "#0A1526" ? brand.logoBackground : null} className="h-8" />
                 </Link>
                 <p className="hidden text-sm text-zinc-400 lg:block">
                   Welcome back{firstName ? `, ${firstName}` : ""}.
@@ -210,12 +210,12 @@ export default async function DashboardLayout({
 }
 
 // The S&C logo for the S&C gym (and any gym that has set no branding); a tenant gym with its own logo shows that, and one with only a name shows the name.
-function BrandMark({ gymName, logoUrl, light, className }: { gymName: string | null; logoUrl: string | null; light?: boolean; className: string }) {
+function BrandMark({ gymName, logoUrl, plate, className }: { gymName: string | null; logoUrl: string | null; plate?: string | null; className: string }) {
   if (gymName && logoUrl) {
-    // The gym chose a light background for its logo (a dark logo): it sits on a white plate so it shows on the dark site.
+    // The gym chose a background for its logo other than the site's navy (white for a dark logo, or its own colour): the logo sits on a plate of that colour.
     // eslint-disable-next-line @next/next/no-img-element
     const img = <img src={logoUrl} alt={gymName} className={`${className} w-auto max-w-[160px] object-contain`} />;
-    return light ? <span className="inline-flex rounded-lg bg-white px-2 py-1">{img}</span> : img;
+    return plate ? <span className="inline-flex rounded-lg px-2 py-1" style={{ backgroundColor: plate }}>{img}</span> : img;
   }
   if (gymName) {
     return <span className="block max-w-[160px] truncate text-base font-semibold text-zinc-100">{gymName}</span>;
