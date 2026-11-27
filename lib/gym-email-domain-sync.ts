@@ -1,7 +1,7 @@
 // Talks to the mail provider (Resend) to register, check and remove a gym's own sending domain, and keeps the gym record in step. Server-only.
 // Everything a person has to do is add the DNS records the provider gives back; there is nothing for the platform owner to do by hand.
 import { saveGym } from "@/lib/db";
-import { getResendClient } from "@/lib/email";
+import { getResendDomainsClient } from "@/lib/email";
 import type { GymEmailDomain, GymRecord } from "@/lib/gyms-schema";
 
 export type DomainResult = { ok: true; gym: GymRecord } | { ok: false; status: number; message: string };
@@ -19,7 +19,7 @@ const unavailable: DomainResult = { ok: false, status: 503, message: "Custom ema
 const providerFailed = (what: string): DomainResult => ({ ok: false, status: 502, message: `We could not ${what} with our email provider. Please try again in a few minutes.` });
 
 export async function registerGymEmailDomain(gym: GymRecord, domain: string, fromLocal: string): Promise<DomainResult> {
-  const resend = getResendClient();
+  const resend = getResendDomainsClient();
   if (!resend) return unavailable;
   if (gym.emailDomain) return { ok: false, status: 409, message: "Your gym already has a domain. Remove it first to use a different one." };
 
@@ -44,7 +44,7 @@ export async function registerGymEmailDomain(gym: GymRecord, domain: string, fro
 
 /** Asks the provider to re-check the records, then stores the answer. Cheap to call; the staff page and an hourly job both use it. */
 export async function refreshGymEmailDomain(gym: GymRecord, askToVerify: boolean): Promise<DomainResult> {
-  const resend = getResendClient();
+  const resend = getResendDomainsClient();
   const own = gym.emailDomain;
   if (!resend) return unavailable;
   if (!own) return { ok: false, status: 404, message: "Your gym has no domain set up." };
@@ -72,7 +72,7 @@ export async function refreshGymEmailDomain(gym: GymRecord, askToVerify: boolean
 export async function removeGymEmailDomain(gym: GymRecord): Promise<DomainResult> {
   const own = gym.emailDomain;
   if (!own) return { ok: true, gym };
-  const resend = getResendClient();
+  const resend = getResendDomainsClient();
   if (resend) await resend.domains.remove(own.resendId).catch(() => null);
   const { emailDomain: _removed, ...rest } = gym;
   const next: GymRecord = { ...rest, updatedAt: new Date().toISOString() };
