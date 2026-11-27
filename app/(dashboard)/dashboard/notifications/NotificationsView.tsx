@@ -37,6 +37,7 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   monthly_report: "Monthly report",
   tenant_plan_notice: "Your plan",
   tenant_ai_cap_notice: "AI allowance",
+  tenant_go_live: "Go live",
   class_recap: "Class workout",
 };
 
@@ -85,6 +86,7 @@ const TYPE_ICON: Record<NotificationType, string> = {
   monthly_report: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
   tenant_plan_notice: "M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
   tenant_ai_cap_notice: "M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
+  tenant_go_live: "M5 13l4 4L19 7",
   class_recap: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
 };
 
@@ -124,6 +126,7 @@ const TYPE_IS_URGENT: Record<NotificationType, boolean> = {
   monthly_report: false,
   tenant_plan_notice: true,
   tenant_ai_cap_notice: true,
+  tenant_go_live: true,
   class_recap: false,
 };
 

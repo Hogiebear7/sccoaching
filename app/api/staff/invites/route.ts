@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Only staff can manage invites." }, { status: 403 });
   }
 
-  const tenantLock = requireTenantAccess(staffUser);
+  const tenantLock = requireTenantAccess(staffUser, { requiresLive: true });
   if (tenantLock) return tenantLock;
 
   let body: unknown;

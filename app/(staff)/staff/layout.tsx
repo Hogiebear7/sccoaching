@@ -2,12 +2,14 @@ import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { findProfileByUserId, findUserById } from "@/lib/db";
+import Link from "next/link";
+import { findGymById, findProfileByUserId, findUserById } from "@/lib/db";
 import { can, NAV_CAPABILITY, STAFF_ROLE_LABEL, type Capability, type StaffRole } from "@/lib/permissions";
 import { verifySession } from "@/lib/session";
 import { StaffShell } from "@/components/staff/admin/StaffShell";
 import type { AdminIconName } from "@/components/staff/admin/icons";
 import { tenantStatusFor, userInLockedGym } from "@/lib/tenant-lockout";
+import { gymNotLive } from "@/lib/tenant-live";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +107,8 @@ export default async function StaffLayout({ children }: { children: ReactNode })
   if (userInLockedGym(user)) redirect("/gym-unavailable");
 
   const tenant = tenantStatusFor(user);
+  // A new gym that has not paid yet can set everything up; this tells its staff what is left (lib/tenant-live.ts, off by default).
+  const notLive = !!user.gymId && gymNotLive(findGymById(user.gymId));
 
   const visibleNavSections = navSections
     .map((section) => ({
@@ -128,6 +132,14 @@ export default async function StaffLayout({ children }: { children: ReactNode })
 
   return (
     <StaffShell sections={visibleNavSections} user={{ name, email: user.email, role, initials }}>
+      {notLive ? (
+        <div role="status" className="mx-auto mb-4 max-w-5xl rounded-lg border border-sky-400/30 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">
+          Your gym is not live yet. You can set everything up now. Your members can sign in, and you can invite them, once you go live.{" "}
+          <Link href="/staff/gym-setup" className="font-semibold underline underline-offset-4">
+            Go live
+          </Link>
+        </div>
+      ) : null}
       {tenant.state === "grace" ? (
         <div role="alert" className="mx-auto mb-4 max-w-5xl rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
           Your gym&apos;s platform payment is overdue. Access pauses {tenant.graceDaysLeft === null ? "soon" : tenant.graceDaysLeft <= 1 ? "tomorrow" : `in ${tenant.graceDaysLeft} days`} unless it is paid.
