@@ -6,6 +6,8 @@ import { sameGymAsStaff } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { requireTenantAccess } from "@/lib/tenant-request";
+import { classData, memberData } from "@/lib/gym-webhook-data";
+import { emitUserEvent } from "@/lib/gym-webhooks";
 
 export async function POST(request: NextRequest) {
   const sessionUserId = verifyRequestSession(request)?.userId ?? null;
@@ -77,6 +79,7 @@ export async function POST(request: NextRequest) {
   }
 
   updateBookingAttendance(bookingId, attended);
+  if (attended) emitUserEvent(staffUser, "class.checked_in", () => ({ bookingId, member: memberData(booking.userId), class: classData(booking.classId) }));
 
   return NextResponse.json(
     { success: true, message: attended ? "Marked attended." : "Marked not attended." },

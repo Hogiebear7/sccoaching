@@ -54,6 +54,24 @@ export interface GymEmailDomain {
   verifiedAt: string | null;
 }
 
+/** One outgoing webhook a gym set up (lib/gym-webhooks.ts). */
+export interface GymWebhook {
+  id: string;
+  /** The https address that is called. */
+  url: string;
+  /** Which events it wants (member.joined, booking.created, booking.cancelled, class.checked_in). */
+  events: string[];
+  /** Signs every message so the receiver can check it came from the platform. Shown to the gym once, when the webhook is created. */
+  secret: string;
+  enabled: boolean;
+  createdAt: string;
+  lastDeliveryAt?: string | null;
+  lastStatus?: "ok" | "failed" | null;
+  lastError?: string | null;
+  /** Failures in a row since the last success; a webhook is switched off after 10. */
+  consecutiveFailures?: number;
+}
+
 export interface GymRecord {
   id: string;
   /** URL-safe, unique — e.g. "sc-performance-coaching". */
@@ -98,6 +116,8 @@ export interface GymRecord {
   branding?: GymBranding;
   /** The gym's own email sending domain (every gym). Absent = emails are sent in the gym's name from the platform address. */
   emailDomain?: GymEmailDomain;
+  /** Outgoing webhooks (at most 5). See lib/gym-webhooks.ts. */
+  webhooks?: GymWebhook[];
   /** Whether members check themselves in to classes by scanning a code at the gym: "off" (the default when absent), "poster" (one printed code) or "live" (a screen whose code changes every minute). See lib/class-checkin.ts. */
   selfCheckin?: "off" | "poster" | "live";
   /** How often the live check-in code changes: "minute", "day" or "week" (the default when absent). */

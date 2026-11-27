@@ -35,6 +35,8 @@ import { issueWaitlistOffer } from "@/lib/scheduling";
 import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-status";
 import { syncBookingToWeeklyTraining } from "@/lib/weekly-training-sync";
 import { requireTenantAccess } from "@/lib/tenant-request";
+import { classData, memberData } from "@/lib/gym-webhook-data";
+import { emitUserEvent } from "@/lib/gym-webhooks";
 
 // MUST equal MAX_WAITLIST_SIZE in app/api/bookings/waitlist/join/route.ts (a test asserts they match).
 const MAX_WAITLIST_SIZE = 2;
@@ -200,6 +202,7 @@ export async function POST(request: NextRequest) {
     createdAt: new Date().toISOString(),
   };
   createBooking(booking);
+  emitUserEvent(member, "booking.created", () => ({ bookingId: booking.id, member: memberData(member.id), class: classData(classId) }));
 
   try {
     resolvePendingCancellationCreditsForClass(classId);
