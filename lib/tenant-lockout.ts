@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { findGymById, type StoredUser } from "./db";
 import { DEFAULT_TENANT_GRACE_DAYS, MAX_TENANT_GRACE_DAYS, tenantAccess, type TenantAccess } from "./tenant-billing";
 import type { TenantContext } from "./tenant-context";
+import { gymNotLive, paymentGateEnabled, NOT_LIVE_MEMBER_MESSAGE, NOT_LIVE_STAFF_MESSAGE, TENANT_NOT_LIVE_CODE } from "./tenant-live";
 
 export function tenantLockoutEnabled(): boolean {
   return process.env.TENANT_LOCKOUT_ENABLED === "true";
@@ -32,7 +33,17 @@ function isGymStaffRole(role: string): boolean {
  * The refusal for a locked tenant, or null when the request may go ahead (lockout off, tenant active or in grace). `allowWhenLocked` is for the few routes a
  * locked gym's own staff still need, such as the page where they pay: staff of that gym pass, members never do.
  */
-export function lockoutResponse(ctx: TenantContext, options: { allowWhenLocked?: boolean } = {}, now: Date = new Date()): NextResponse | null {
+export function lockoutResponse(ctx: TenantContext, options: { allowWhenLocked?: boolean; requiresLive?: boolean } = {}, now: Date = new Date()): NextResponse | null {
+  // The go-live gate (lib/tenant-live.ts, off by default): a gym that has not paid yet can be set up by its own staff, but its members cannot use it, and the staff cannot use the
+  // parts that reach members (invites, messages) until it goes live.
+  if (paymentGateEnabled() && ctx.gymId && !ctx.isPlatformOperator && gymNotLive(findGymById(ctx.gymId))) {
+    if (!isGymStaffRole(ctx.role)) {
+      return NextResponse.json({ success: false, code: TENANT_NOT_LIVE_CODE, message: NOT_LIVE_MEMBER_MESSAGE }, { status: 423 });
+    }
+    if (options.requiresLive) {
+      return NextResponse.json({ success: false, code: TENANT_NOT_LIVE_CODE, message: NOT_LIVE_STAFF_MESSAGE }, { status: 423 });
+    }
+  }
   if (!tenantLockoutEnabled()) return null;
   const access = accessForTenant(ctx, now);
   if (access.state !== "locked") return null;

@@ -1905,6 +1905,8 @@ export type NotificationType =
   | "tenant_plan_notice"
   // To a gym's admins: the gym has used most of, or all of, its monthly AI allowance (lib/jobs/tenant-ai-cap-notice.ts).
   | "tenant_ai_cap_notice"
+  // To a new gym's owner: the gym is set up but not live (paid) yet (lib/jobs/go-live-reminder.ts).
+  | "tenant_go_live"
   // To a member who came to a class: the coach has finished the class workout, have a look and add how it felt.
   | "class_recap";
 

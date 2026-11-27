@@ -74,7 +74,8 @@ export async function POST(request: NextRequest) {
     const { pendingStripeCustomerId: _pending, ...rest } = gym;
     void _pending;
     const now = new Date().toISOString();
-    saveGym({ ...rest, platformBilling: { paidThrough, stripeCustomerId: customer, firstPaidAt: now }, updatedAt: now });
+    // Paying is what takes a new gym live: a gym still waiting for listing approval is listed now, with no manual step (owner decision 2026-11-27). A suspended gym stays suspended.
+    saveGym({ ...rest, status: rest.status === "pending" ? "active" : rest.status, platformBilling: { paidThrough, stripeCustomerId: customer, firstPaidAt: now }, updatedAt: now });
   } else if (paidThrough > gym.platformBilling.paidThrough) {
     saveGym({ ...gym, platformBilling: { ...gym.platformBilling, paidThrough }, updatedAt: new Date().toISOString() });
   }
