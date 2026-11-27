@@ -7,6 +7,7 @@ import { managerReportEmailJob } from "./manager-report-email";
 import { cleanupPastWaitlistsJob } from "./cleanup-past-waitlists";
 import { tenantMemberHighWaterJob } from "./tenant-member-high-water";
 import { goLiveReminderJob } from "./go-live-reminder";
+import { unpaidGymCleanupJob } from "./unpaid-gym-cleanup";
 import { gymEmailDomainCheckJob } from "./gym-email-domain-check";
 import { tenantAiCapNoticeJob } from "./tenant-ai-cap-notice";
 import { detectNoShowsJob } from "./detect-no-shows";
@@ -72,4 +73,5 @@ export const ALL_JOBS: JobDefinition[] = [
   tenantAiCapNoticeJob,
   gymEmailDomainCheckJob,
   goLiveReminderJob,
+  unpaidGymCleanupJob,
 ];

@@ -10,6 +10,7 @@ import { StaffShell } from "@/components/staff/admin/StaffShell";
 import type { AdminIconName } from "@/components/staff/admin/icons";
 import { tenantStatusFor, userInLockedGym } from "@/lib/tenant-lockout";
 import { gymNotLive } from "@/lib/tenant-live";
+import { touchDraftActivity } from "@/lib/gym-draft-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +109,8 @@ export default async function StaffLayout({ children }: { children: ReactNode })
   const tenant = tenantStatusFor(user);
   // A new gym that has not paid yet can set everything up; this tells its staff what is left (lib/tenant-live.ts, off by default).
   const notLive = !!user.gymId && gymNotLive(findGymById(user.gymId));
+  // Someone from this unpaid gym is using the setup pages: keep its saved setup from the last use (lib/gym-draft-expiry.ts).
+  if (notLive && user.gymId) touchDraftActivity(user.gymId);
 
   const visibleNavSections = navSections
     .map((section) => ({
