@@ -45,7 +45,13 @@ export type BrandingResult = { ok: true; branding: GymBranding } | { ok: false; 
  */
 export function validateBranding(input: unknown, current: GymBranding | undefined): BrandingResult {
   const body = (input ?? {}) as Record<string, unknown>;
-  const next: GymBranding = { accentColor: current?.accentColor ?? null, logoUrl: current?.logoUrl ?? null };
+  const next: GymBranding = { accentColor: current?.accentColor ?? null, logoUrl: current?.logoUrl ?? null, logoBackground: current?.logoBackground ?? null };
+
+  if ("logoBackground" in body) {
+    const v = body.logoBackground;
+    if (v === null || v === "light" || v === "dark") next.logoBackground = v;
+    else return { ok: false, message: "Logo background must be light or dark." };
+  }
 
   if ("accentColor" in body) {
     const v = body.accentColor;
@@ -85,8 +91,8 @@ export function validateBranding(input: unknown, current: GymBranding | undefine
     }
   }
 
-  if (!("accentColor" in body) && !("logoUrl" in body)) {
-    return { ok: false, message: "Send accentColor and/or logoUrl." };
+  if (!("accentColor" in body) && !("logoUrl" in body) && !("logoBackground" in body)) {
+    return { ok: false, message: "Send accentColor, logoUrl and/or logoBackground." };
   }
   return { ok: true, branding: next };
 }
@@ -98,6 +104,8 @@ export interface ResolvedBranding {
   /** Text colour that reads on top of the accent. */
   onAccent: string;
   logoUrl: string | null;
+  /** The background the logo is shown on: "dark" unless the gym chose "light". */
+  logoBackground: "light" | "dark";
   /** True when this is the gym's own branding rather than the S&C default. */
   custom: boolean;
 }
@@ -111,6 +119,7 @@ export function resolveBranding(gym: Pick<GymRecord, "name" | "branding"> | unde
     accentColor: accent,
     onAccent: readableOn(accent),
     logoUrl,
+    logoBackground: gym?.branding?.logoBackground === "light" ? "light" : "dark",
     custom: Boolean(gym?.branding?.accentColor || gym?.branding?.logoUrl),
   };
 }

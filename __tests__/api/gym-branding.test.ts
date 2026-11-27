@@ -56,7 +56,7 @@ describe("the route", () => {
   it("a gym's admin sets its own branding, and it is stored on that gym only", async () => {
     const res = await call("PUT", fx.adminB.id, { accentColor: "#4da3ff", logoUrl: "https://cdn.example.test/b.png" });
     expect(res.status).toBe(200);
-    expect(fx.db.findGymById(GYM_B)?.branding).toEqual({ accentColor: "#4DA3FF", logoUrl: "https://cdn.example.test/b.png" });
+    expect(fx.db.findGymById(GYM_B)?.branding).toEqual({ accentColor: "#4DA3FF", logoUrl: "https://cdn.example.test/b.png", logoBackground: null });
     expect((await (await call("GET", fx.adminB.id)).json()).data.resolved).toMatchObject({ accentColor: "#4DA3FF", custom: true });
   });
 
