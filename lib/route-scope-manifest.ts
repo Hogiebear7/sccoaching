@@ -303,6 +303,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/gyms/[gymId]/refund", scope: "platform", capabilities: ["gyms.moderate"], note: "The 14-day money-back: refunds a gym's latest charge in Stripe and ends its access. Platform operator only, never for their own gym." },
   { route: "staff/gyms/billing", scope: "platform", capabilities: ["gyms.moderate"] },
   { route: "staff/invites", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },
+  { route: "staff/invites/bulk", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff", "sameGym("], note: "Invite up to 100 people at once from a pasted list or file; preview first, send second. Per-gym and per-staff limits.", lockoutEnforced: true },
   { route: "staff/invites/[inviteId]/revoke", scope: "tenant-staff", capabilities: ["members.billing"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },
   { route: "staff/members/[userId]/ai-pause", scope: "tenant-staff", capabilities: ["members.grantTier"], evidence: ["sameGym("], runtimeTenantContext: true, lockoutEnforced: true },
   { route: "staff/exports", scope: "tenant-staff", capabilities: ["reports.view"], evidence: ["gymId: staffUser.gymId"], lockoutEnforced: true },
