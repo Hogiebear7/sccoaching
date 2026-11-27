@@ -98,6 +98,10 @@ export interface GymRecord {
   branding?: GymBranding;
   /** The gym's own email sending domain (every gym). Absent = emails are sent in the gym's name from the platform address. */
   emailDomain?: GymEmailDomain;
+  /** The last time anyone from a gym that has not gone live used the setup pages (written at most every 10 minutes). Only kept while the gym is not live. See lib/gym-draft-expiry.ts. */
+  draftLastActivityAt?: string;
+  /** Set once, when the owner chose to keep an unpaid gym's saved setup for 3 more days. */
+  draftExtendedUntil?: string | null;
   /** Whether members check themselves in to classes by scanning a code at the gym: "off" (the default when absent), "poster" (one printed code) or "live" (a screen whose code changes every minute). See lib/class-checkin.ts. */
   selfCheckin?: "off" | "poster" | "live";
   /** How often the live check-in code changes: "minute", "day" or "week" (the default when absent). */
