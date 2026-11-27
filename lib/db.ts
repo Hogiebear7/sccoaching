@@ -1892,6 +1892,8 @@ export type NotificationType =
   | "monthly_report"
   // To a gym's admins: the gym is close to the top of its size band, or has gone over it (lib/jobs/tenant-member-high-water.ts).
   | "tenant_plan_notice"
+  // To a gym's admins: the gym has used most of, or all of, its monthly AI allowance (lib/jobs/tenant-ai-cap-notice.ts).
+  | "tenant_ai_cap_notice"
   // To a member who came to a class: the coach has finished the class workout, have a look and add how it felt.
   | "class_recap";
 
@@ -4814,6 +4816,11 @@ export function findChallengesByScope(scopeType: ChallengeRecord["scopeType"], s
 /** Every challenge, newest start first (for the job that announces challenges starting and ending). */
 export function findAllChallenges(): ChallengeRecord[] {
   return [...readDbShared().challenges].sort((a, b) => b.startDate.localeCompare(a.startDate));
+}
+
+/** Every live account in one gym, members and staff (null = the primary gym). */
+export function findUsersInGym(gymId: string | null): StoredUser[] {
+  return readDbShared().users.filter((u) => !u.archivedAt && sameGymId(u.gymId, gymId));
 }
 
 /** The live accounts of members in one gym (null = the primary gym). */
