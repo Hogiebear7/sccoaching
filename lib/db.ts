@@ -595,7 +595,7 @@ export type FoodDomain = "custom" | "common" | "branded";
 // Where a record's data actually came from — distinct from `domain` (which
 // UI group it renders in). A branded record can be admin-curated OR sourced
 // from Open Food Facts; a custom food is always user-authored.
-export type FoodProvenance = "user" | "open_food_facts" | "admin" | "usda_seed";
+export type FoodProvenance = "user" | "open_food_facts" | "admin" | "usda_seed" | "cofid";
 
 export interface FoodServing {
   label: string;
