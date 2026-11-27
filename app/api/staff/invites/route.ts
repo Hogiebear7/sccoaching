@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
 
   const sender = inviteSenderFor(staffUser);
   const { subject, html, text } = inviteEmail({ tier: invite.tier, inviteToken: token, gymName: sender.gymName });
-  await sendEmail({ to: invite.email, subject, html, text, replyTo: sender.replyTo });
+  await sendEmail({ to: invite.email, subject, html, text, replyTo: sender.replyTo, gymId: staffUser.gymId ?? null });
 
   return NextResponse.json({ success: true, message: "Invite sent.", data: invite }, { status: 201 });
 }
