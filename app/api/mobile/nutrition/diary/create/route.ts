@@ -2,9 +2,9 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { findUserById, saveFoodEntry, type FoodEntryRecord } from "@/lib/db";
+import { findFoodById, findUserById, saveFoodEntry, type FoodEntryRecord } from "@/lib/db";
 import { verifyRequestSession } from "@/lib/mobile-auth";
-import { parseFoodEntryInput } from "@/lib/nutrition-diary";
+import { catalogNutrientsForEntry, parseFoodEntryInput } from "@/lib/nutrition-diary";
 import { requireTenantAccess } from "@/lib/tenant-request";
 
 export async function POST(request: NextRequest) {
@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
     id: randomUUID(),
     userId: user.id,
     ...parsed.value,
+    // Vitamins, minerals and water from the library food the member picked, when the app did not send them.
+    ...catalogNutrientsForEntry(parsed.value, findFoodById),
     createdAt: new Date().toISOString(),
   };
 

@@ -1,5 +1,5 @@
-import type { FoodDomain, FoodEntryRecord, MealType } from "./db";
-import { hasAnyMicros, parseMicros, parseWaterG, sumMicros, type MicroMap, type MicroTotal } from "./micronutrients";
+import type { FoodDomain, FoodEntryRecord, FoodRecord, MealType } from "./db";
+import { hasAnyMicros, parseMicros, parseWaterG, scaleMicros, sumMicros, type MicroMap, type MicroTotal } from "./micronutrients";
 
 const FOOD_DOMAINS: FoodDomain[] = ["custom", "common", "branded"];
 
@@ -114,6 +114,27 @@ export function parseFoodEntryInput(body: Record<string, unknown>): { ok: true; 
       ...parseNutrientExtras(body),
     },
   };
+}
+
+/**
+ * Vitamins, minerals and water for an entry logged from the shared food library (common or branded foods) when the app did not send them: scaled from the food's own per-100 g values
+ * to the amount eaten (serving grams x quantity). The app sends only fibre, sugar, sodium and saturated fat, so without this a logged banana would carry no vitamins. A value the app DID
+ * send always wins, a food that lists no vitamins adds nothing (unknown is never zero), and a member's own custom foods are not looked up here.
+ */
+export function catalogNutrientsForEntry(
+  input: Pick<ParsedFoodEntryInput, "foodId" | "foodDomain" | "servingGrams" | "quantity" | "micros" | "waterG">,
+  lookup: (domain: FoodDomain, id: string) => FoodRecord | undefined,
+): { micros?: MicroMap; waterG?: number } {
+  if (!input.foodId || (input.foodDomain !== "common" && input.foodDomain !== "branded")) return {};
+  const grams = (input.servingGrams ?? 0) * (input.quantity ?? 1);
+  if (!Number.isFinite(grams) || grams <= 0) return {};
+  const food = lookup(input.foodDomain, input.foodId);
+  if (!food) return {};
+  const out: { micros?: MicroMap; waterG?: number } = {};
+  if (!hasAnyMicros(input.micros) && hasAnyMicros(food.nutrition100g.micros)) out.micros = scaleMicros(food.nutrition100g.micros, grams / 100);
+  const water = food.nutrition100g.waterG;
+  if (input.waterG === undefined && typeof water === "number" && Number.isFinite(water)) out.waterG = Math.round(water * (grams / 100) * 10) / 10;
+  return out;
 }
 
 export interface DailyTotals {
