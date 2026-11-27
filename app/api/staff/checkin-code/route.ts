@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { getConfiguredSessionSecret } from "@/lib/app-config";
-import { gymCheckinCode, LIVE_CODE_SECONDS, liveCheckinCode } from "@/lib/class-checkin";
+import { checkinPeriodOf, gymCheckinCode, liveCheckinCode, secondsUntilChange } from "@/lib/class-checkin";
 import { findUserById } from "@/lib/db";
-import { selfCheckinModeForUser } from "@/lib/gym-checkin-setting";
+import { gymRecordForUser, selfCheckinModeForUser } from "@/lib/gym-checkin-setting";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { requireTenantAccess } from "@/lib/tenant-request";
@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
 
   const now = Date.now();
   if (mode === "live") {
-    const secondsLeft = LIVE_CODE_SECONDS - (Math.floor(now / 1000) % LIVE_CODE_SECONDS);
-    return NextResponse.json({ success: true, data: { mode, code: liveCheckinCode(secret, user.gymId ?? null, now), secondsLeft } });
+    const period = checkinPeriodOf(gymRecordForUser(user));
+    return NextResponse.json({ success: true, data: { mode, period, code: liveCheckinCode(secret, user.gymId ?? null, now, period), secondsLeft: secondsUntilChange(now, period) } });
   }
   return NextResponse.json({ success: true, data: { mode, code: gymCheckinCode(secret, user.gymId ?? null) } });
 }

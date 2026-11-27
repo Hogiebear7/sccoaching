@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { getConfiguredSessionSecret } from "@/lib/app-config";
-import { chooseCheckin, readAnyCheckinCode, type CheckinCandidate } from "@/lib/class-checkin";
+import { checkinPeriodOf, chooseCheckin, readAnyCheckinCode, type CheckinCandidate } from "@/lib/class-checkin";
 import { findBookingsByUserId, findClassById, findUserById, updateBookingAttendance } from "@/lib/db";
-import { selfCheckinModeForUser } from "@/lib/gym-checkin-setting";
+import { gymRecordForUser, selfCheckinModeForUser } from "@/lib/gym-checkin-setting";
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { requireTenantAccess } from "@/lib/tenant-request";
@@ -42,6 +42,10 @@ export async function POST(request: NextRequest) {
   }
   if (read.kind === "expired") {
     return NextResponse.json({ success: false, message: "That code has run out. Scan the code on the screen again.", data: { state: "expired" } }, { status: 409 });
+  }
+  // A live code must be the kind the gym uses now: an old code from a different schedule (say a weekly one after the gym went to every minute) is not accepted.
+  if (read.kind === "live" && read.period !== checkinPeriodOf(gymRecordForUser(user))) {
+    return NextResponse.json({ success: false, message: "Scan the code on the screen at your gym.", data: { state: "wrong_code" } }, { status: 409 });
   }
   if (read.kind !== mode) {
     return NextResponse.json({ success: false, message: mode === "live" ? "Scan the live code on the screen at your gym." : "Scan the poster at your gym.", data: { state: "wrong_code" } }, { status: 409 });

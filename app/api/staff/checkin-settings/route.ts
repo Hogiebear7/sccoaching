@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { isSelfCheckinMode } from "@/lib/class-checkin";
+import { checkinPeriodOf, isCheckinPeriod, isSelfCheckinMode } from "@/lib/class-checkin";
 import { findUserById, saveGym } from "@/lib/db";
 import { gymRecordForUser, selfCheckinModeForUser } from "@/lib/gym-checkin-setting";
 import { verifyRequestSession } from "@/lib/mobile-auth";
@@ -22,7 +22,7 @@ async function staffFor(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const { user, error } = await staffFor(request);
   if (!user) return error;
-  return NextResponse.json({ success: true, data: { mode: selfCheckinModeForUser(user) } });
+  return NextResponse.json({ success: true, data: { mode: selfCheckinModeForUser(user), period: checkinPeriodOf(gymRecordForUser(user)) } });
 }
 
 export async function POST(request: NextRequest) {
@@ -35,12 +35,13 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ success: false, message: "Invalid JSON body." }, { status: 400 });
   }
-  const mode = (body as Record<string, unknown> | null)?.mode;
+  const { mode, period } = ((body ?? {}) as Record<string, unknown>);
   if (!isSelfCheckinMode(mode)) return NextResponse.json({ success: false, message: "Choose off, poster or live." }, { status: 400 });
+  if (period !== undefined && !isCheckinPeriod(period)) return NextResponse.json({ success: false, message: "Choose minute, day or week." }, { status: 400 });
 
   const gym = gymRecordForUser(user);
   if (!gym) return NextResponse.json({ success: false, message: "Your gym could not be found." }, { status: 404 });
-  saveGym({ ...gym, selfCheckin: mode, updatedAt: new Date().toISOString() });
+  saveGym({ ...gym, selfCheckin: mode, ...(period !== undefined ? { selfCheckinPeriod: period } : {}), updatedAt: new Date().toISOString() });
 
-  return NextResponse.json({ success: true, message: mode === "off" ? "Check-in by scanning is off." : "Saved.", data: { mode } });
+  return NextResponse.json({ success: true, message: mode === "off" ? "Check-in by scanning is off." : "Saved.", data: { mode, period: period ?? checkinPeriodOf(gym) } });
 }

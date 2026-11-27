@@ -4,16 +4,24 @@ import QRCode from "qrcode";
 import { useCallback, useEffect, useState } from "react";
 
 type Mode = "off" | "poster" | "live";
+type Period = "minute" | "day" | "week";
+
+const PERIODS: { period: Period; title: string; body: string }[] = [
+  { period: "week", title: "Every week", body: "Easiest to run. If the screen is ever offline for a few days, members still have a working code. A shared photo works for up to a week." },
+  { period: "day", title: "Every day", body: "A shared photo only works that day." },
+  { period: "minute", title: "Every minute", body: "Strongest. The screen must stay open and online." },
+];
 
 const OPTIONS: { mode: Mode; title: string; body: string }[] = [
   { mode: "off", title: "Off", body: "Members cannot check themselves in. Staff mark who came, as now." },
   { mode: "poster", title: "Poster on the wall", body: "Print one code and put it near the door. Simple. A photo of the poster would work from anywhere, so a member could check in without being there." },
-  { mode: "live", title: "Live code on a screen", body: "Show a code on a tablet, TV or phone at the gym. It changes every minute, so a photo is useless a moment later. Best if you want check-ins to be real." },
+  { mode: "live", title: "Live code on a screen", body: "Show a code on a tablet, TV or phone at the gym. It changes on a schedule you choose, so an old photo stops working. Best if you want check-ins to be real." },
 ];
 
 // The gym's check-in choice and the code to show. The code is drawn here in the browser; in live mode it is fetched again every few seconds.
-export function CheckinPanel({ initialMode }: { initialMode: Mode }) {
+export function CheckinPanel({ initialMode, initialPeriod }: { initialMode: Mode; initialPeriod: Period }) {
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [period, setPeriod] = useState<Period>(initialPeriod);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +52,31 @@ export function CheckinPanel({ initialMode }: { initialMode: Mode }) {
     }
     void loadCode();
     if (mode !== "live") return undefined;
-    const timer = setInterval(() => void loadCode(), 15_000);
+    // A minute code is fetched often; a daily or weekly one just needs to follow the change at midnight / Monday.
+    const timer = setInterval(() => void loadCode(), period === "minute" ? 15_000 : 5 * 60_000);
     return () => clearInterval(timer);
-  }, [mode, loadCode]);
+  }, [mode, period, loadCode]);
+
+  async function choosePeriod(next: Period) {
+    if (next === period || saving) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/staff/checkin-settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode, period: next }) });
+      const json = (await res.json().catch(() => null)) as { message?: string } | null;
+      if (!res.ok) {
+        setError(json?.message ?? "Could not save. Please try again.");
+        return;
+      }
+      setPeriod(next);
+      setMessage(json?.message ?? "Saved.");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function choose(next: Mode) {
     if (next === mode || saving) return;
@@ -96,6 +126,28 @@ export function CheckinPanel({ initialMode }: { initialMode: Mode }) {
         ))}
       </div>
 
+      {mode === "live" ? (
+        <div className="print:hidden">
+          <p className="mb-2 text-sm font-semibold">How often should the code change?</p>
+          <div className="grid gap-2" role="radiogroup" aria-label="How often the code changes">
+            {PERIODS.map((o) => (
+              <button
+                key={o.period}
+                type="button"
+                role="radio"
+                aria-checked={period === o.period}
+                disabled={saving}
+                onClick={() => void choosePeriod(o.period)}
+                className={`rounded-xl border p-3 text-left transition ${period === o.period ? "border-primary bg-primary/10" : "border-border hover:bg-accent"}`}
+              >
+                <span className="block text-sm font-medium">{o.title}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{o.body}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {error ? <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive print:hidden">{error}</p> : null}
       {message ? <p className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary print:hidden">{message}</p> : null}
 
@@ -108,7 +160,7 @@ export function CheckinPanel({ initialMode }: { initialMode: Mode }) {
               </button>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground print:hidden">Keep this page open on a screen at your gym. The code refreshes by itself{secondsLeft ? ` (next change in under ${secondsLeft + 15} seconds)` : ""}.</p>
+            <p className="text-sm text-muted-foreground print:hidden">Keep this page open on a screen at your gym. The code changes by itself{period === "minute" && secondsLeft ? ` (next change in under ${secondsLeft + 15} seconds)` : ""}.</p>
           )}
 
           <div className="rounded-2xl bg-white p-8 text-center text-black">
@@ -120,7 +172,7 @@ export function CheckinPanel({ initialMode }: { initialMode: Mode }) {
               <li>Tap Scan to check in</li>
               <li>Point your phone at this code</li>
             </ol>
-            <p className="mt-6 text-xs text-neutral-600">You need to have booked the class first.{mode === "live" ? " This code changes every minute." : ""}</p>
+            <p className="mt-6 text-xs text-neutral-600">You need to have booked the class first.{mode === "live" ? " This code changes regularly." : ""}</p>
           </div>
         </>
       ) : null}

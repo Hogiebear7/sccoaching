@@ -66,7 +66,7 @@ describe("POST /api/mobile/checkin", () => {
   });
 
   it("live mode takes the live code, not the poster; an old live code is refused", async () => {
-    h.findGymBySlug.mockReturnValue({ id: "primary-record", selfCheckin: "live" });
+    h.findGymBySlug.mockReturnValue({ id: "primary-record", selfCheckin: "live", selfCheckinPeriod: "minute" });
     const now = Date.now();
     expect((await scan(liveCheckinCode(SECRET, null, now))).status).toBe(200);
     expect(h.updateBookingAttendance).toHaveBeenCalledTimes(1);
@@ -79,6 +79,15 @@ describe("POST /api/mobile/checkin", () => {
     expect(old.status).toBe(409);
     expect((await old.json()).data.state).toBe("expired");
     expect(h.updateBookingAttendance).not.toHaveBeenCalled();
+  });
+
+  it("a live code from a different schedule than the gym now uses is refused", async () => {
+    h.findGymBySlug.mockReturnValue({ id: "primary-record", selfCheckin: "live", selfCheckinPeriod: "minute" });
+    const weekly = await scan(liveCheckinCode(SECRET, null, Date.now(), "week"));
+    expect(weekly.status).toBe(409);
+    expect((await weekly.json()).data.state).toBe("wrong_code");
+    h.findGymBySlug.mockReturnValue({ id: "primary-record", selfCheckin: "live" }); // default is weekly
+    expect((await scan(liveCheckinCode(SECRET, null, Date.now(), "week"))).status).toBe(200);
   });
 
   it("poster mode refuses a live code", async () => {

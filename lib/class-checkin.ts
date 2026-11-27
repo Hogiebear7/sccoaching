@@ -4,7 +4,7 @@
 // A gym chooses one of three modes (GymRecord.selfCheckin):
 //   off     members cannot check themselves in (staff mark attendance by hand). The default.
 //   poster  one printed code on the wall. Simple, but a photo of it works anywhere.
-//   live    a code on a screen at the gym that changes every minute, so a photo is useless a couple of minutes later.
+//   live    a code on a screen at the gym that changes on a schedule the gym picks: every minute, every day or every week.
 //
 // In both modes a scan only ever checks a member in to a class they have ALREADY booked, inside the check-in window.
 import { createHmac, timingSafeEqual } from "crypto";
@@ -27,11 +27,28 @@ export function selfCheckinModeOf(gym: { selfCheckin?: unknown } | null | undefi
   return isSelfCheckinMode(value) ? value : "off";
 }
 
+export type CheckinPeriod = "minute" | "day" | "week";
+export const CHECKIN_PERIODS: readonly CheckinPeriod[] = ["minute", "day", "week"];
+/** How long one code lasts, in seconds. */
+export const PERIOD_SECONDS: Record<CheckinPeriod, number> = { minute: 60, day: 86_400, week: 604_800 };
+/** A scan taken just before a change is still accepted for this long after it, so a code on a screen that was a little slow to refresh still works. */
+/** Weeks start on Monday 00:00 UTC (1 Jan 1970 was a Thursday, so the count is shifted by four days); days start at 00:00 UTC. */
+const PERIOD_OFFSET_SECONDS: Record<CheckinPeriod, number> = { minute: 0, day: 0, week: 345_600 };
+const PERIOD_GRACE_SECONDS: Record<CheckinPeriod, number> = { minute: 120, day: 3_600, week: 3_600 };
+const PERIOD_LETTER: Record<CheckinPeriod, string> = { minute: "m", day: "d", week: "w" };
+const LETTER_PERIOD: Record<string, CheckinPeriod> = { m: "minute", d: "day", w: "week" };
+/** What a gym gets when it turns on the live code and has not chosen: weekly, so a screen that is a bit behind or offline for a few days still shows a working code. */
+export const DEFAULT_CHECKIN_PERIOD: CheckinPeriod = "week";
+
+export function isCheckinPeriod(value: unknown): value is CheckinPeriod {
+  return value === "minute" || value === "day" || value === "week";
+}
+export function checkinPeriodOf(gym: { selfCheckinPeriod?: unknown } | null | undefined): CheckinPeriod {
+  return isCheckinPeriod(gym?.selfCheckinPeriod) ? gym.selfCheckinPeriod : DEFAULT_CHECKIN_PERIOD;
+}
+
 const POSTER_PREFIX = "sc-checkin";
 const LIVE_PREFIX = "sc-live";
-/** How long one live code lasts, and how many earlier ones are still accepted (a scan taken just before the change). */
-export const LIVE_CODE_SECONDS = 60;
-export const LIVE_CODE_GRACE_PERIODS = 1;
 
 function mac(secret: string, text: string): string {
   return createHmac("sha256", secret).update(text).digest("hex").slice(0, 24);
@@ -52,18 +69,26 @@ export function gymCheckinCode(secret: string, gymId: string | null | undefined)
   return `${POSTER_PREFIX}:${gymKey}:${mac(secret, `checkin:${gymKey}`)}`;
 }
 
-export function livePeriod(nowMs: number): number {
-  return Math.floor(nowMs / (LIVE_CODE_SECONDS * 1000));
+export function livePeriod(nowMs: number, period: CheckinPeriod = "minute"): number {
+  return Math.floor((nowMs / 1000 - PERIOD_OFFSET_SECONDS[period]) / PERIOD_SECONDS[period]);
 }
 
-/** The code the gym's screen shows right now. Changes every LIVE_CODE_SECONDS. */
-export function liveCheckinCode(secret: string, gymId: string | null | undefined, nowMs: number): string {
+/** Seconds until the code shown now is replaced by a new one. */
+export function secondsUntilChange(nowMs: number, period: CheckinPeriod): number {
+  const len = PERIOD_SECONDS[period];
+  const into = (Math.floor(nowMs / 1000) - PERIOD_OFFSET_SECONDS[period]) % len;
+  return len - ((into + len) % len);
+}
+
+/** The code the gym's screen shows right now. It changes at the end of each period. */
+export function liveCheckinCode(secret: string, gymId: string | null | undefined, nowMs: number, period: CheckinPeriod = "minute"): string {
   const gymKey = keyOf(gymId);
-  const period = livePeriod(nowMs);
-  return `${LIVE_PREFIX}:${gymKey}:${period}:${mac(secret, `live:${gymKey}:${period}`)}`;
+  const n = livePeriod(nowMs, period);
+  const letter = PERIOD_LETTER[period];
+  return `${LIVE_PREFIX}:${gymKey}:${letter}${n}:${mac(secret, `live:${gymKey}:${letter}${n}`)}`;
 }
 
-export type ReadCode = { kind: "poster" | "live" | "expired"; gymId: string | null };
+export type ReadCode = { kind: "poster" | "live" | "expired"; gymId: string | null; /** For a live code: how often it changes. */ period?: CheckinPeriod };
 
 /** Reads a scanned code. Returns undefined when it is not one of ours (or has been tampered with). A live code that has run out comes back as "expired". */
 export function readAnyCheckinCode(secret: string, code: unknown, nowMs: number): ReadCode | undefined {
@@ -75,13 +100,16 @@ export function readAnyCheckinCode(secret: string, code: unknown, nowMs: number)
     return { kind: "poster", gymId: gymIdOf(gymKey) };
   }
   if (parts[0] === LIVE_PREFIX && parts.length === 4) {
-    const [, gymKey, periodText, given] = parts;
-    const period = Number(periodText);
-    if (!gymKey || !given || !Number.isInteger(period)) return undefined;
-    if (!same(given, mac(secret, `live:${gymKey}:${period}`))) return undefined;
-    const age = livePeriod(nowMs) - period;
-    if (age < 0 || age > LIVE_CODE_GRACE_PERIODS) return { kind: "expired", gymId: gymIdOf(gymKey) };
-    return { kind: "live", gymId: gymIdOf(gymKey) };
+    const [, gymKey, stamp, given] = parts;
+    const unit = LETTER_PERIOD[stamp?.[0] ?? ""];
+    const n = Number(stamp?.slice(1));
+    if (!gymKey || !given || !unit || !Number.isInteger(n)) return undefined;
+    if (!same(given, mac(secret, `live:${gymKey}:${stamp}`))) return undefined;
+    // Valid from the start of its period until the end of it plus a short grace.
+    const startMs = (n * PERIOD_SECONDS[unit] + PERIOD_OFFSET_SECONDS[unit]) * 1000;
+    const endMs = startMs + (PERIOD_SECONDS[unit] + PERIOD_GRACE_SECONDS[unit]) * 1000;
+    if (nowMs < startMs || nowMs >= endMs) return { kind: "expired", gymId: gymIdOf(gymKey), period: unit };
+    return { kind: "live", gymId: gymIdOf(gymKey), period: unit };
   }
   return undefined;
 }
