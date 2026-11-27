@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import { BULK_INVITE_MAX, BULK_INVITE_STATUS_LABEL, parseInviteList, type BulkInviteStatus } from "@/lib/bulk-invite-parse";
+import { isOldExcelFileName, isXlsxFileName, spreadsheetRowsToText } from "@/lib/spreadsheet-to-text";
 
 type Tier = "app_subscription" | "membership";
 const TIER_LABEL: Record<Tier, string> = { app_subscription: "App Subscription", membership: "Membership" };
@@ -76,7 +77,25 @@ export function BulkInviteForm() {
       return;
     }
     setError(null);
-    setText(await file.text());
+    if (isOldExcelFileName(file.name)) {
+      setError("That is an older Excel file (.xls). In Excel choose Save As, then Excel Workbook (.xlsx), and choose that file instead.");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    if (isXlsxFileName(file.name)) {
+      try {
+        // Loaded only when someone picks an Excel file, so the page stays light for everyone else.
+        const { readSheet } = await import("read-excel-file/browser");
+        const rows = await readSheet(file);
+        setText(spreadsheetRowsToText(rows));
+      } catch {
+        setError("We could not read that Excel file. Open it in Excel, choose Save As, then CSV, and choose that file instead.");
+        if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
+    } else {
+      setText(await file.text());
+    }
     setPreview(null);
     setSent(null);
     if (fileRef.current) fileRef.current.value = "";
@@ -113,8 +132,8 @@ export function BulkInviteForm() {
 
       <div className="flex flex-wrap items-center gap-2">
         <label className="btn-secondary cursor-pointer px-3 py-2 text-sm">
-          Choose a file
-          <input ref={fileRef} type="file" accept=".csv,.txt,text/csv,text/plain" className="sr-only" onChange={(e) => void onFile(e.target.files?.[0])} />
+          Choose an Excel or CSV file
+          <input ref={fileRef} type="file" accept=".xlsx,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => void onFile(e.target.files?.[0])} />
         </label>
         <select value={tier} onChange={(e) => setTier(e.target.value as Tier)} aria-label="Invite tier" className="input-field px-3 py-2 text-sm sm:w-44">
           {(Object.keys(TIER_LABEL) as Tier[]).map((t) => (

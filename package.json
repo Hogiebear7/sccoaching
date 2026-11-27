@@ -34,6 +34,7 @@
     "next": "16.4.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "read-excel-file": "^9.3.20",
     "resend": "^6.16.0",
     "shaders": "4.0.5",
     "web-push": "^3.6.7"
