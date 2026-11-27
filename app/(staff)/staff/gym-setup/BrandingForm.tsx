@@ -6,10 +6,11 @@ import { useState } from "react";
 import { contrastRatio, DEFAULT_ACCENT, MIN_ACCENT_CONTRAST, readableOn } from "@/lib/gym-branding";
 
 // Logo link and accent colour, with a live preview and the same contrast check the server enforces (the server is the authority; this only saves a round trip).
-export function BrandingForm({ initialAccent, initialLogo, gymName }: { initialAccent: string; initialLogo: string; gymName: string }) {
+export function BrandingForm({ initialAccent, initialLogo, initialBackground, gymName }: { initialAccent: string; initialLogo: string; initialBackground: "light" | "dark"; gymName: string }) {
   const router = useRouter();
   const [accent, setAccent] = useState(initialAccent);
   const [logo, setLogo] = useState(initialLogo);
+  const [background, setBackground] = useState<"light" | "dark">(initialBackground);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -26,7 +27,7 @@ export function BrandingForm({ initialAccent, initialLogo, gymName }: { initialA
       const res = await fetch("/api/staff/gym/branding", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accentColor: accent.trim() === "" ? null : accent.trim(), logoUrl: logo.trim() === "" ? null : logo.trim() }),
+        body: JSON.stringify({ accentColor: accent.trim() === "" ? null : accent.trim(), logoUrl: logo.trim() === "" ? null : logo.trim(), logoBackground: background }),
       });
       const json = (await res.json()) as { message?: string };
       setMessage(res.ok ? "Saved. Members see the change the next time they open the app or website." : json.message ?? "Could not save.");
@@ -110,6 +111,33 @@ export function BrandingForm({ initialAccent, initialLogo, gymName }: { initialA
           <span>PNG, JPG or WebP, under 1 MB. A square or wide logo on a transparent background works best.</span>
         </span>
       </div>
+
+      <fieldset className="block text-xs text-zinc-400">
+        <legend>Logo background: pick the one your logo looks best on</legend>
+        <p className="mt-1">Members see your logo on this colour when the app opens and at the top of the app. Dark logos need Light; white logos need Dark.</p>
+        <div className="mt-2 grid grid-cols-2 gap-3" role="radiogroup" aria-label="Logo background">
+          {(["dark", "light"] as const).map((b) => (
+            <button
+              key={b}
+              type="button"
+              role="radio"
+              aria-checked={background === b}
+              onClick={() => setBackground(b)}
+              className={`rounded-xl border-2 p-3 text-center transition ${background === b ? "border-white" : "border-white/10 hover:border-white/30"}`}
+            >
+              <span className="flex h-20 items-center justify-center rounded-lg" style={{ backgroundColor: b === "light" ? "#FFFFFF" : "#0A1526" }}>
+                {logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logo} alt="" className="max-h-14 w-auto max-w-[85%] object-contain" />
+                ) : (
+                  <span className="text-sm font-semibold" style={{ color: b === "light" ? "#0A1526" : "#FFFFFF" }}>{gymName}</span>
+                )}
+              </span>
+              <span className="mt-2 block text-sm font-medium text-zinc-100">{b === "light" ? "Light background" : "Dark background"}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
 
       <label className="block text-xs text-zinc-400">
         Or use a link to a logo already online (https, .png .jpg .webp or .svg)

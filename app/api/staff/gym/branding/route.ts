@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
   saveGymLogo(found.gym.id, bytes, type);
   const logoUrl = `${getSiteUrl()}/api/gym-logo/${found.gym.id}?v=${Date.now()}`;
-  const saved = { ...found.gym, branding: { accentColor: found.gym.branding?.accentColor ?? null, logoUrl }, updatedAt: new Date().toISOString() };
+  const saved = { ...found.gym, branding: { ...found.gym.branding, accentColor: found.gym.branding?.accentColor ?? null, logoUrl }, updatedAt: new Date().toISOString() };
   saveGym(saved);
   return NextResponse.json({ success: true, message: "Logo uploaded.", data: { branding: saved.branding, resolved: resolveBranding(saved) } });
 }
@@ -81,7 +81,7 @@ export async function DELETE(request: NextRequest) {
   const found = ownGym(auth.user.gymId);
   if (!found.gym) return found.error;
   removeGymLogo(found.gym.id);
-  const saved = { ...found.gym, branding: { accentColor: found.gym.branding?.accentColor ?? null, logoUrl: null }, updatedAt: new Date().toISOString() };
+  const saved = { ...found.gym, branding: { ...found.gym.branding, accentColor: found.gym.branding?.accentColor ?? null, logoUrl: null }, updatedAt: new Date().toISOString() };
   saveGym(saved);
   return NextResponse.json({ success: true, message: "Logo removed.", data: { branding: saved.branding, resolved: resolveBranding(saved) } });
 }
