@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   // The email provider's plan allows a fixed number of domains. When it is full, say so plainly (the owner has already been told and upgrades the plan).
   if (domainLimitState(countGymEmailDomains(), emailDomainLimitFromEnv()) === "full") {
     await alertOwnersIfDomainsNearLimit().catch(() => undefined);
-    return NextResponse.json({ success: false, message: "Own email domains are temporarily full. Your emails keep going out in your gym's name, and we have been told, so please try again in a day or two." }, { status: 503 });
+    return NextResponse.json({ success: false, message: "Own email domains are temporarily unavailable. Your emails keep going out in your gym's name, and we have been told, so please try again in a day or two." }, { status: 503 });
   }
 
   let body: unknown;
