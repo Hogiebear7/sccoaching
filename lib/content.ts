@@ -19,6 +19,6 @@ export const CONTACT_INFO = {
   // The public profile address only, without any share-tracking parameters.
   instagramUrl: "https://www.instagram.com/sandccoaching",
   instagramHandle: "@sandccoaching",
-  // Facebook page address. Leave empty until it is confirmed: the footer button only shows when this is set.
-  facebookUrl: "" as string,
+  // Facebook page address (the owner's share link). The footer button only shows when this is set.
+  facebookUrl: "https://www.facebook.com/share/1ESFZwKHgY/" as string,
 } as const;

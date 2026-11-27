@@ -50,7 +50,8 @@ export function validateBranding(input: unknown, current: GymBranding | undefine
   if ("logoBackground" in body) {
     const v = body.logoBackground;
     if (v === null || v === "light" || v === "dark") next.logoBackground = v;
-    else return { ok: false, message: "Logo background must be light or dark." };
+    else if (typeof v === "string" && HEX.test(v.trim())) next.logoBackground = v.trim().toUpperCase();
+    else return { ok: false, message: "Logo background must be light, dark, or a colour like #000000." };
   }
 
   if ("accentColor" in body) {
@@ -97,6 +98,16 @@ export function validateBranding(input: unknown, current: GymBranding | undefine
   return { ok: true, branding: next };
 }
 
+export const LOGO_BACKGROUND_DARK = "#0A1526";
+export const LOGO_BACKGROUND_LIGHT = "#FFFFFF";
+
+/** The colour a stored choice means: "light" is white, a #RRGGBB is itself, anything else (including nothing) is the app's navy. */
+export function logoBackgroundColour(value: string | null | undefined): string {
+  if (value === "light") return LOGO_BACKGROUND_LIGHT;
+  if (typeof value === "string" && HEX.test(value)) return value.toUpperCase();
+  return LOGO_BACKGROUND_DARK;
+}
+
 export interface ResolvedBranding {
   name: string;
   /** Always a valid hex, the S&C gold when the gym has not set one. */
@@ -104,8 +115,8 @@ export interface ResolvedBranding {
   /** Text colour that reads on top of the accent. */
   onAccent: string;
   logoUrl: string | null;
-  /** The background the logo is shown on: "dark" unless the gym chose "light". */
-  logoBackground: "light" | "dark";
+  /** The colour the logo is shown on: the app's navy unless the gym chose white or a colour of its own. Always a #RRGGBB. */
+  logoBackground: string;
   /** True when this is the gym's own branding rather than the S&C default. */
   custom: boolean;
 }
@@ -119,7 +130,7 @@ export function resolveBranding(gym: Pick<GymRecord, "name" | "branding"> | unde
     accentColor: accent,
     onAccent: readableOn(accent),
     logoUrl,
-    logoBackground: gym?.branding?.logoBackground === "light" ? "light" : "dark",
+    logoBackground: logoBackgroundColour(gym?.branding?.logoBackground),
     custom: Boolean(gym?.branding?.accentColor || gym?.branding?.logoUrl),
   };
 }

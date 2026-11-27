@@ -34,8 +34,8 @@ export interface GymBranding {
   accentColor: string | null;
   /** https link to a png, jpg, webp or svg. */
   logoUrl: string | null;
-  /** The background the logo sits on at launch and in the app header: "dark" (the app's navy, the default) or "light" (white). Chosen by the gym so a dark logo or a white logo always shows. */
-  logoBackground?: "light" | "dark" | null;
+  /** The background the logo sits on at launch and in the app header: "dark" (the app's navy, the default), "light" (white) or any #RRGGBB the gym picks (for a logo file with its own solid background). */
+  logoBackground?: string | null;
 }
 
 /** A gym's own email sending domain, registered with the mail provider. See lib/gym-email-domain.ts. */
