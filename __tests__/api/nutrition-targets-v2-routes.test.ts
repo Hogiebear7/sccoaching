@@ -103,6 +103,29 @@ describe("GET /api/mobile/nutrition/diary returns the day's mark", () => {
   });
 });
 
+describe("GET /api/mobile/nutrition/diary returns the day's vitamins and minerals", () => {
+  it("adds only the entries that list a nutrient, says how many did, and never turns unknown into zero", async () => {
+    const entry = (id: string, micros?: Record<string, number>) => ({ id, userId: A_MEMBER.id, date: "2026-10-20", mealType: "lunch", name: id, calories: 100, proteinG: 1, carbsG: 1, fatG: 1, createdAt: "t", ...(micros ? { micros } : {}) });
+    h.findFoodEntriesByUserId.mockReturnValue([entry("a", { ironMg: 2, vitaminCMg: 30 }), entry("b", { ironMg: 1.5 }), entry("c")]);
+    h.findNutritionDayStatusesByUserId.mockReturnValue([]);
+    const { GET } = await import("@/app/api/mobile/nutrition/diary/route");
+    const { data } = await (await GET(get("/api/mobile/nutrition/diary?date=2026-10-20", A_MEMBER.id))).json();
+    const by = Object.fromEntries(data.micros.map((m: { key: string }) => [m.key, m]));
+    expect(data.micros).toHaveLength(15);
+    expect(by.ironMg).toMatchObject({ label: "Iron", unit: "mg", group: "mineral", total: 3.5, listedBy: 2, entryCount: 3, atLeast: true, coverage: "2 of 3 foods list this", display: "at least 3.5 mg" });
+    expect(by.vitaminCMg).toMatchObject({ total: 30, listedBy: 1, display: "at least 30 mg" });
+    expect(by.zincMg).toMatchObject({ listedBy: 0, display: "No data" });
+  });
+
+  it("is a list of fifteen 'No data' tiles for an empty day", async () => {
+    h.findFoodEntriesByUserId.mockReturnValue([]);
+    h.findNutritionDayStatusesByUserId.mockReturnValue([]);
+    const { GET } = await import("@/app/api/mobile/nutrition/diary/route");
+    const { data } = await (await GET(get("/api/mobile/nutrition/diary?date=2026-10-21", A_MEMBER.id))).json();
+    expect(data.micros.every((m: { coverage: string }) => m.coverage === "No foods logged yet")).toBe(true);
+  });
+});
+
 describe("/api/mobile/nutrition/preferences", () => {
   const save = async (body: unknown, as?: string) => {
     const { POST } = await import("@/app/api/mobile/nutrition/preferences/route");
