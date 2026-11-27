@@ -3,7 +3,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { gymCheckinCode } from "@/lib/class-checkin";
+import { gymCheckinCode, liveCheckinCode } from "@/lib/class-checkin";
 import { MEMBER_SESSION_LIFETIME_MS, signSession } from "@/lib/session";
 
 const h = vi.hoisted(() => ({
@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
   findBookingsByUserId: vi.fn(),
   findClassById: vi.fn(),
   updateBookingAttendance: vi.fn(),
+  findGymById: vi.fn(),
+  findGymBySlug: vi.fn(),
 }));
 vi.mock("@/lib/db", () => h);
 
@@ -38,6 +40,9 @@ beforeEach(() => {
   h.findUserById.mockImplementation((id: string) => [MEMBER_A, MEMBER_B].find((u) => u.id === id));
   h.findClassById.mockImplementation((id: string) => (id === CLASS.id ? CLASS : undefined));
   h.findBookingsByUserId.mockReturnValue([{ id: "bk1", classId: "c1", userId: "member-a", attendedAt: null }]);
+  // The primary gym (member A) uses the poster; gym B has not turned check-in on.
+  h.findGymBySlug.mockReturnValue({ id: "primary-record", selfCheckin: "poster" });
+  h.findGymById.mockReturnValue({ id: "gym-b" });
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -50,6 +55,36 @@ describe("POST /api/mobile/checkin", () => {
     expect(res.status).toBe(200);
     expect((await res.json()).message).toMatch(/checked in to Boxing/);
     expect(h.updateBookingAttendance).toHaveBeenCalledWith("bk1", true);
+  });
+
+  it("does nothing for a gym that has not turned check-in on", async () => {
+    h.findGymBySlug.mockReturnValue({ id: "primary-record" });
+    const res = await scan(gymCheckinCode(SECRET, null));
+    expect(res.status).toBe(403);
+    expect((await res.json()).data.state).toBe("off");
+    expect(h.updateBookingAttendance).not.toHaveBeenCalled();
+  });
+
+  it("live mode takes the live code, not the poster; an old live code is refused", async () => {
+    h.findGymBySlug.mockReturnValue({ id: "primary-record", selfCheckin: "live" });
+    const now = Date.now();
+    expect((await scan(liveCheckinCode(SECRET, null, now))).status).toBe(200);
+    expect(h.updateBookingAttendance).toHaveBeenCalledTimes(1);
+
+    h.updateBookingAttendance.mockClear();
+    const poster = await scan(gymCheckinCode(SECRET, null));
+    expect((await poster.json()).data.state).toBe("wrong_code");
+
+    const old = await scan(liveCheckinCode(SECRET, null, now - 5 * 60_000));
+    expect(old.status).toBe(409);
+    expect((await old.json()).data.state).toBe("expired");
+    expect(h.updateBookingAttendance).not.toHaveBeenCalled();
+  });
+
+  it("poster mode refuses a live code", async () => {
+    const res = await scan(liveCheckinCode(SECRET, null, Date.now()));
+    expect(res.status).toBe(409);
+    expect(h.updateBookingAttendance).not.toHaveBeenCalled();
   });
 
   it("needs a signed-in member", async () => {

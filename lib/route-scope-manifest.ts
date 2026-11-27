@@ -275,6 +275,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/catalog/packages/delete", scope: "tenant-staff", capabilities: ["catalog.manage"], evidence: ["staffAuthorizedForCatalogPackage"], lockoutEnforced: true },
   { route: "staff/categories", scope: "tenant-staff", capabilities: ["operations.view"], evidence: ["sameGym("], lockoutEnforced: true },
   { route: "staff/categories/delete", scope: "tenant-staff", capabilities: ["operations.view"], evidence: ["sameGym("], lockoutEnforced: true },
+  { route: "staff/checkin-settings", scope: "own-tenant", capabilities: ["classes.manage"], evidence: ["gymRecordForUser"], note: "Reads and sets the check-in mode of the acting staff member's own gym, resolved from their account.", lockoutEnforced: true },
   { route: "staff/checkin-code", scope: "own-tenant", capabilities: ["classes.manage"], evidence: ["gymId"], note: "Returns the signed check-in code for the acting staff member's own gym, resolved from their account.", lockoutEnforced: true },
   { route: "staff/classes", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff", "sameGym("], lockoutEnforced: true },
   { route: "staff/classes/[classId]/workout", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },

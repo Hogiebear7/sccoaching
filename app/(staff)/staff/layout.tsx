@@ -47,7 +47,7 @@ const navSections: StaffNavSection[] = [
     title: "Gym",
     items: [
       { label: "Classes",    href: "/staff/classes",    capability: NAV_CAPABILITY["/staff/classes"], icon: "classes", hint: "Timetable, bookings and class workouts" },
-      { label: "Check-in poster", href: "/staff/checkin-poster", capability: NAV_CAPABILITY["/staff/checkin-poster"], icon: "attendance", hint: "Print the code members scan to check in" },
+      { label: "Check-in", href: "/staff/checkin-poster", capability: NAV_CAPABILITY["/staff/checkin-poster"], icon: "attendance", hint: "Let members check in by scanning a code" },
       { label: "Members",    href: "/staff/members",    capability: NAV_CAPABILITY["/staff/members"], icon: "members", hint: "Every member, plans, access and invites" },
       { label: "Attendance", href: "/staff/attendance", capability: NAV_CAPABILITY["/staff/attendance"], icon: "attendance", hint: "Who came, who has gone quiet" },
       { label: "Workouts",   href: "/staff/workouts",   capability: NAV_CAPABILITY["/staff/workouts"], icon: "workouts", hint: "Workout templates" },

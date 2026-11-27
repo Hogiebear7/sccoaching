@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { getConfiguredSessionSecret } from "@/lib/app-config";
-import { chooseCheckin, readCheckinCode, type CheckinCandidate } from "@/lib/class-checkin";
+import { chooseCheckin, readAnyCheckinCode, type CheckinCandidate } from "@/lib/class-checkin";
 import { findBookingsByUserId, findClassById, findUserById, updateBookingAttendance } from "@/lib/db";
+import { selfCheckinModeForUser } from "@/lib/gym-checkin-setting";
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { requireTenantAccess } from "@/lib/tenant-request";
@@ -28,10 +29,22 @@ export async function POST(request: NextRequest) {
   const secret = getConfiguredSessionSecret();
   if (!secret) return NextResponse.json({ success: false, message: "Check-in is not available right now." }, { status: 503 });
 
-  const read = readCheckinCode(secret, (body as Record<string, unknown> | null)?.code);
-  if (!read) return NextResponse.json({ success: false, message: "That is not a check-in code for a gym. Scan the poster at your gym." }, { status: 400 });
+  // The member's own gym decides whether and how check-in works.
+  const mode = selfCheckinModeForUser(user);
+  if (mode === "off") {
+    return NextResponse.json({ success: false, message: "Your gym has not turned on check-in by scanning. Ask a coach to mark you in.", data: { state: "off" } }, { status: 403 });
+  }
+
+  const read = readAnyCheckinCode(secret, (body as Record<string, unknown> | null)?.code, Date.now());
+  if (!read) return NextResponse.json({ success: false, message: "That is not a check-in code for a gym. Scan the code at your gym." }, { status: 400 });
   if (!sameGym(user, { gymId: read.gymId })) {
     return NextResponse.json({ success: false, message: "That code belongs to a different gym." }, { status: 403 });
+  }
+  if (read.kind === "expired") {
+    return NextResponse.json({ success: false, message: "That code has run out. Scan the code on the screen again.", data: { state: "expired" } }, { status: 409 });
+  }
+  if (read.kind !== mode) {
+    return NextResponse.json({ success: false, message: mode === "live" ? "Scan the live code on the screen at your gym." : "Scan the poster at your gym.", data: { state: "wrong_code" } }, { status: 409 });
   }
 
   const candidates: CheckinCandidate[] = [];

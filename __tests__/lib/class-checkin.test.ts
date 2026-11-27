@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkinState, chooseCheckin, gymCheckinCode, readCheckinCode, type CheckinCandidate } from "@/lib/class-checkin";
+import { checkinState, chooseCheckin, gymCheckinCode, liveCheckinCode, readAnyCheckinCode, readCheckinCode, selfCheckinModeOf, type CheckinCandidate } from "@/lib/class-checkin";
 
 const secret = "test-secret";
 
@@ -16,6 +16,37 @@ describe("check-in code", () => {
     expect(readCheckinCode(secret, "hello")).toBeUndefined();
     expect(readCheckinCode(secret, 42)).toBeUndefined();
     expect(readCheckinCode(secret, "sc-checkin:gym-7:")).toBeUndefined();
+  });
+});
+
+describe("live code", () => {
+  const t = Date.parse("2026-12-01T18:00:30Z");
+  it("is accepted now and one minute later, then runs out", () => {
+    const code = liveCheckinCode(secret, "gym-7", t);
+    expect(readAnyCheckinCode(secret, code, t)).toEqual({ kind: "live", gymId: "gym-7" });
+    expect(readAnyCheckinCode(secret, code, t + 60_000)).toEqual({ kind: "live", gymId: "gym-7" });
+    expect(readAnyCheckinCode(secret, code, t + 3 * 60_000)).toEqual({ kind: "expired", gymId: "gym-7" });
+  });
+  it("changes every minute and cannot be forged or moved to another period or gym", () => {
+    const a = liveCheckinCode(secret, null, t);
+    expect(liveCheckinCode(secret, null, t + 60_000)).not.toBe(a);
+    expect(readAnyCheckinCode(secret, a.replace(":primary:", ":gym-9:"), t)).toBeUndefined();
+    const parts = a.split(":");
+    parts[2] = String(Number(parts[2]) + 1);
+    expect(readAnyCheckinCode(secret, parts.join(":"), t + 60_000)).toBeUndefined();
+    expect(readAnyCheckinCode("other", a, t)).toBeUndefined();
+  });
+  it("is not valid as a poster code", () => {
+    expect(readCheckinCode(secret, liveCheckinCode(secret, null, Date.now()))).toBeUndefined();
+  });
+});
+
+describe("selfCheckinModeOf", () => {
+  it("defaults to off", () => {
+    expect(selfCheckinModeOf(undefined)).toBe("off");
+    expect(selfCheckinModeOf({})).toBe("off");
+    expect(selfCheckinModeOf({ selfCheckin: "nonsense" })).toBe("off");
+    expect(selfCheckinModeOf({ selfCheckin: "live" })).toBe("live");
   });
 });
 
