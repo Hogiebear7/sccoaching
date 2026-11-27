@@ -194,5 +194,6 @@ export const NAV_CAPABILITY: Record<string, Capability> = {
   "/staff/gym-community": "comments.moderate",
   "/staff/tenants": "gyms.moderate",
   "/staff/gym-setup": "gym.manageBranding",
+  "/staff/integrations": "gym.manageBranding",
   "/staff/gym-guide": "staff.access",
 };

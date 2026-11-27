@@ -78,6 +78,7 @@ const navSections: StaffNavSection[] = [
     title: "Settings",
     items: [
       { label: "Gym setup",    href: "/staff/gym-setup",    capability: NAV_CAPABILITY["/staff/gym-setup"], icon: "catalog", hint: "Checklist, logo, colour, subscription and AI allowance" },
+      { label: "Integrations", href: "/staff/integrations", capability: NAV_CAPABILITY["/staff/integrations"], icon: "exports", hint: "Connect Zapier and other tools" },
       { label: "Staff",        href: "/staff/staff-users",  capability: NAV_CAPABILITY["/staff/staff-users"], icon: "staff", hint: "Staff accounts and roles" },
       { label: "Staff changes", href: "/staff/changes",     capability: NAV_CAPABILITY["/staff/changes"], icon: "changes", hint: "Every staff change to a member" },
       { label: "Gym guide",    href: "/staff/gym-guide",    capability: NAV_CAPABILITY["/staff/gym-guide"], icon: "reports", hint: "How to run your gym on the platform" },

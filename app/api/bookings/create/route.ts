@@ -33,6 +33,8 @@ import { isClassEligibleForPlan, remainingSessions } from "@/lib/scheduling-stat
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
 import { requireTenantAccess } from "@/lib/tenant-request";
+import { classData, memberData } from "@/lib/gym-webhook-data";
+import { emitUserEvent } from "@/lib/gym-webhooks";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -217,6 +219,7 @@ export async function POST(request: NextRequest) {
   };
 
   createBooking(booking);
+  emitUserEvent(user, "booking.created", () => ({ bookingId: booking.id, member: memberData(user.id), class: classData(classId) }));
 
   // This booking may be filling a spot vacated by someone else's late
   // cancellation — if so, restore their credit now that it's genuinely

@@ -22,6 +22,8 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 import { sendPush } from "@/lib/push";
 import { removeSyncedWeeklyTrainingSession } from "@/lib/weekly-training-sync";
 import { requireTenantAccess } from "@/lib/tenant-request";
+import { classData, memberData } from "@/lib/gym-webhook-data";
+import { emitUserEvent } from "@/lib/gym-webhooks";
 
 export async function POST(request: NextRequest) {
   const userId = verifyRequestSession(request)?.userId ?? null;
@@ -147,6 +149,7 @@ export async function POST(request: NextRequest) {
   }
 
   deleteBooking(bookingId);
+  emitUserEvent(user, "booking.cancelled", () => ({ bookingId, member: memberData(user.id), class: classData(booking.classId) }));
 
   try {
     removeSyncedWeeklyTrainingSession(user.id, bookingId);

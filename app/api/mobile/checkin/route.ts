@@ -8,6 +8,8 @@ import { gymRecordForUser, selfCheckinModeForUser } from "@/lib/gym-checkin-sett
 import { sameGym } from "@/lib/gym-scope";
 import { verifyRequestSession } from "@/lib/mobile-auth";
 import { requireTenantAccess } from "@/lib/tenant-request";
+import { classData, memberData } from "@/lib/gym-webhook-data";
+import { emitUserEvent } from "@/lib/gym-webhooks";
 
 // A member scans their gym's poster code and is checked in to the class they have booked. See lib/class-checkin.ts for the rules.
 // The member comes from the session; the code only proves the poster belongs to the member's own gym.
@@ -70,6 +72,10 @@ export async function POST(request: NextRequest) {
   switch (outcome.kind) {
     case "checked_in":
       updateBookingAttendance(outcome.bookingId, true);
+      emitUserEvent(user, "class.checked_in", () => {
+        const booking = findBookingsByUserId(user.id).find((b) => b.id === outcome.bookingId);
+        return { bookingId: outcome.bookingId, member: memberData(user.id), class: booking ? classData(booking.classId) : { title: outcome.title } };
+      });
       return NextResponse.json({ success: true, message: `You are checked in to ${outcome.title}. Enjoy the session.`, data: { state: "checked_in", title: outcome.title } });
     case "already":
       return NextResponse.json({ success: true, message: `You are already checked in to ${outcome.title}.`, data: { state: "already", title: outcome.title } });

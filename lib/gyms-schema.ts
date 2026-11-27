@@ -54,6 +54,24 @@ export interface GymEmailDomain {
   verifiedAt: string | null;
 }
 
+/** One outgoing webhook a gym set up (lib/gym-webhooks.ts). */
+export interface GymWebhook {
+  id: string;
+  /** The https address that is called. */
+  url: string;
+  /** Which events it wants (member.joined, booking.created, booking.cancelled, class.checked_in). */
+  events: string[];
+  /** Signs every message so the receiver can check it came from the platform. Shown to the gym once, when the webhook is created. */
+  secret: string;
+  enabled: boolean;
+  createdAt: string;
+  lastDeliveryAt?: string | null;
+  lastStatus?: "ok" | "failed" | null;
+  lastError?: string | null;
+  /** Failures in a row since the last success; a webhook is switched off after 10. */
+  consecutiveFailures?: number;
+}
+
 export interface GymRecord {
   id: string;
   /** URL-safe, unique — e.g. "sc-performance-coaching". */
@@ -98,6 +116,8 @@ export interface GymRecord {
   branding?: GymBranding;
   /** The gym's own email sending domain (every gym). Absent = emails are sent in the gym's name from the platform address. */
   emailDomain?: GymEmailDomain;
+  /** Outgoing webhooks (at most 5). See lib/gym-webhooks.ts. */
+  webhooks?: GymWebhook[];
   /** The last time anyone from a gym that has not gone live used the setup pages (written at most every 10 minutes). Only kept while the gym is not live. See lib/gym-draft-expiry.ts. */
   draftLastActivityAt?: string;
   /** Set once, when the owner chose to keep an unpaid gym's saved setup for 3 more days. */

@@ -18,6 +18,8 @@ import {
 } from "@/lib/profile-schema";
 import { GENDER_OPTIONS, PRIMARY_GOAL_OPTIONS, sanitizeDietaryFields } from "@/lib/profile-options";
 import { DEFAULT_PALETTE, DEFAULT_THEME, isPaletteId, isThemeId } from "@/lib/palettes";
+import { classData, memberData } from "@/lib/gym-webhook-data";
+import { emitUserEvent } from "@/lib/gym-webhooks";
 
 const GENDER_VALUES = GENDER_OPTIONS.map((option) => option.value);
 const PRIMARY_GOAL_VALUES = PRIMARY_GOAL_OPTIONS.map((option) => option.value);
@@ -283,6 +285,7 @@ export async function POST(request: Request) {
   };
 
   saveProfile(profile);
+  emitUserEvent(user, "member.joined", () => memberData(user.id));
 
   if (cycleEligible && Boolean(cycleTrackingEnabled)) {
     const VALID_REGULARITIES = ["Regular", "Irregular", "Unsure"];

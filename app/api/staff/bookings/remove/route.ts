@@ -16,6 +16,8 @@ import { verifyRequestSession } from "@/lib/mobile-auth";
 import { can } from "@/lib/permissions";
 import { removeSyncedWeeklyTrainingSession } from "@/lib/weekly-training-sync";
 import { requireTenantAccess } from "@/lib/tenant-request";
+import { classData, memberData } from "@/lib/gym-webhook-data";
+import { emitUserEvent } from "@/lib/gym-webhooks";
 
 // Staff-initiated removal from a booked class — distinct from a member's own
 // cancellation (app/api/bookings/cancel/route.ts). This is an administrative
@@ -85,6 +87,7 @@ export async function POST(request: NextRequest) {
   }
 
   deleteBooking(bookingId);
+  emitUserEvent(staffUser, "booking.cancelled", () => ({ bookingId, member: memberData(booking.userId), class: classData(booking.classId) }));
 
   try {
     removeSyncedWeeklyTrainingSession(booking.userId, bookingId);

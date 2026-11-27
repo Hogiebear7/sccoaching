@@ -173,6 +173,7 @@ export const MODULE_CACHE_SCOPE: readonly ModuleCacheScope[] = [
 export const STATIC_LOOKUP_CONSTANTS: readonly { file: string; symbol: string }[] = [
   { file: "lib/account-deletion.ts", symbol: "LIVE_PAID_STATUSES" },
   { file: "lib/gym-email-domain.ts", symbol: "FREE_MAIL_DOMAINS" },
+  { file: "lib/gym-webhooks.ts", symbol: "EVENT_TYPES" },
   { file: "lib/micronutrients.ts", symbol: "DEF_BY_KEY" },
   { file: "lib/ai-context.ts", symbol: "DIETARY_LABEL" },
   { file: "lib/ai-metering.ts", symbol: "MEMBER_FEATURES" },
