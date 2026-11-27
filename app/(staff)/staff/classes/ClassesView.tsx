@@ -9,6 +9,7 @@ import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { ClassCategory, ClassCategoryRecord, ClassRecord, ClassSeriesRecord } from "@/lib/db";
 import { WEEKDAY_LABELS, describeSeriesDays } from "@/lib/class-series-shared";
+import { SeriesEditPanel } from "./SeriesEditPanel";
 import { classCategoryLabel, isFutureDateTime } from "@/lib/scheduling-status";
 import { CoverImageField } from "@/components/ui/CoverImageField";
 import { ClassImageSlot } from "@/components/ui/ClassImageSlot";
@@ -158,6 +159,7 @@ export function ClassesView({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
   const [stoppingSeriesId, setStoppingSeriesId] = useState<string | null>(null);
+  const [editSeriesId, setEditSeriesId] = useState<string | null>(null);
   const [confirmStopId, setConfirmStopId] = useState<string | null>(null);
   const [seriesMessage, setSeriesMessage] = useState<string | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
@@ -890,18 +892,28 @@ export function ClassesView({
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmStopId(sr.id);
-                      setSeriesError(null);
-                      setSeriesMessage(null);
-                    }}
-                    className="rounded-xl border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60"
-                  >
-                    Stop repeating
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditSeriesId(editSeriesId === sr.id ? null : sr.id)}
+                      className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-foreground transition hover:bg-accent"
+                    >
+                      Change all upcoming
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmStopId(sr.id);
+                        setSeriesError(null);
+                        setSeriesMessage(null);
+                      }}
+                      className="rounded-xl border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive transition hover:border-destructive/60"
+                    >
+                      Stop repeating
+                    </button>
+                  </div>
                 )}
+                {editSeriesId === sr.id ? <SeriesEditPanel series={sr} onClose={() => setEditSeriesId(null)} /> : null}
               </div>
             ))}
           </div>

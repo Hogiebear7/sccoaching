@@ -279,6 +279,7 @@ export const ROUTE_SCOPE_MANIFEST: readonly RouteScopeEntry[] = [
   { route: "staff/classes/[classId]/workout/recap", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },
   { route: "staff/classes/delete", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },
   { route: "staff/classes/series/stop", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },
+  { route: "staff/classes/series/update", scope: "tenant-staff", capabilities: ["classes.manage"], evidence: ["sameGymAsStaff"], lockoutEnforced: true },
   { route: "staff/community/gym-reports", scope: "tenant-staff", capabilities: ["comments.moderate"], evidence: ["auth.user.gymId"], lockoutEnforced: true, runtimeTenantContext: true },
   { route: "staff/community/gym-reports/[id]/resolve", scope: "tenant-staff", capabilities: ["comments.moderate"], evidence: ["sameGymId("], lockoutEnforced: true, runtimeTenantContext: true },
   { route: "staff/community/reports/[id]/resolve", scope: "tenant-staff", capabilities: ["comments.moderate"], evidence: ["sameGym("], lockoutEnforced: true, runtimeTenantContext: true },
