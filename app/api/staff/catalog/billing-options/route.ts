@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
   saveMembershipBillingOption(option);
 
   return NextResponse.json(
-    { success: true, message: existing ? "Billing option updated." : "Billing option created." },
+    { success: true, message: existing ? "Billing option updated." : "Billing option created.", data: { id: option.id } },
     { status: 200 }
   );
 }

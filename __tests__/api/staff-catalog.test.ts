@@ -104,6 +104,8 @@ describe("staff catalog CRUD", () => {
     const ok = await call("packages", { categoryId: "c1", name: "P", packageType: "membership", sessionAllowanceType: "fixed_count", sessionAllowanceCount: 12, eligibleClassTypes: ["semi_private_pt", "bogus"] }, staff());
     expect(ok.status).toBe(200);
     const saved = h.saveMembershipPackage.mock.calls[0][0];
+    // The new package's id is sent back (the "Add an offer" form and Duplicate need it to attach prices).
+    expect((await ok.json()).data).toEqual({ id: saved.id });
     expect(saved.sessionAllowanceCount).toBe(12);
     // Unknown class slugs are dropped.
     expect(saved.eligibleClassTypes).toEqual(["semi_private_pt"]);

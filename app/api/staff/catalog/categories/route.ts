@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
   saveMembershipCategory(category);
 
   return NextResponse.json(
-    { success: true, message: existing ? "Category updated." : "Category created." },
+    { success: true, message: existing ? "Category updated." : "Category created.", data: { id: category.id } },
     { status: 200 }
   );
 }
